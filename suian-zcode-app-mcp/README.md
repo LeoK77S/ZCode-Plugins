@@ -8,7 +8,7 @@
 
 通过根目录的[插件市场](../marketplace.json)按需安装本插件，common 会作为依赖自动安装。再让 Agent 使用[setup](./skills/setup/SKILL.md)完成依赖、公共包链接与外置配置。原生 .mcp.json 自动注册服务，不再另加全局 MCP。
 
-技能分别负责[configuration](./skills/configuration/SKILL.md)配置路径和客户端，[sessions](./skills/sessions/SKILL.md)操作会话，[glm](./skills/glm/SKILL.md)查询额度与许可后重置，[debug](./skills/debug/SKILL.md)排查服务。原生服务带插件命名空间，按客户端实际清单定位。旧源码接入仍可使用，迁移时先转存自定义路径再清理自有注册。
+技能分别负责[configuration](./skills/configuration/SKILL.md)配置路径和客户端，[sessions](./skills/sessions/SKILL.md)操作会话，[glm](./skills/glm/SKILL.md)查询额度与许可后重置，[debug](./skills/debug/SKILL.md)排查服务。原生服务带插件命名空间，按客户端实际清单定位。旧源码接入仍可使用，迁移时先转存自定义路径再清理自有注册；可复制根 README 的[迁移提示词](../README.md#旧源码安装迁移)或[原生升级提示词](../README.md#原生插件升级)。
 
 ## 日常可以怎么用
 
@@ -51,7 +51,7 @@
 - 有任务还在运行的会话，归档前需要你明确同意。归档只是从列表中收起会话，不会停止后台工作；之后可以恢复。
 - 额度查询不会使用重置卡。每次重置都需要你明确许可，并在客户端的确认界面中同意；不支持确认界面的客户端无法执行。一次使用一张对应卡片，不能挑选具体哪张。
 
-## 让 Agent 安装或升级
+## 源码安装或升级
 
 直接把下面这段粘给 ZCode，**无需先手动克隆**。同一提示词支持首次安装和升级，由 Agent 先询问操作、检查已有安装，再获取代码。
 
