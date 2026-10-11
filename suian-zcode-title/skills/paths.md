@@ -11,4 +11,8 @@
 
 公共根从已安装 common 的 rootPath 或源码公共目录确定；原生缓存里不存在可依赖的同级 common。公共安装入口为 {{common_root}}/skills/setup/SKILL.md，配置与排障在该根的对应技能。
 
-迁移前保留旧 config.local.json 的模型选择、暂停状态与自定义路径。旧 dataDir 位于源码或版本缓存内时，将状态和授权复制到外置数据目录，默认使用 dataPath/state，并改 config.dataDir 指向新目录；已有有效外部自定义目录沿用。复核后保留旧文件供回退，不输出密文或凭据。公共标题策略与网关数据原位置不变，运行数据不放进版本缓存。
+迁移前保留旧 config.local.json 的模型选择、原启用或暂停状态与自定义路径。
+
+按 setup 临时暂停并等待旧 worker 收尾后，旧 dataDir 位于源码或版本缓存内时，将状态和授权复制到外置数据目录，默认使用 dataPath/state，并改 config.dataDir 指向新目录；不复制 worker.lock。已有有效外部自定义目录沿用。
+
+复核后保留旧文件供回退，不输出密文或凭据。公共标题策略与网关数据原位置不变，运行数据不放进版本缓存。

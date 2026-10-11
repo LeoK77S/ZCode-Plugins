@@ -46,7 +46,7 @@
 
 通过根目录的[插件市场](../marketplace.json)安装本插件，公共依赖会自动安装。再让 Agent 按[setup](./skills/setup/SKILL.md)初始化；原生 Stop Hook 与技能由宿主加载，配置和状态保存在插件数据目录，安装器不重复写全局 Hook。
 
-日常操作分别使用[configuration](./skills/configuration/SKILL.md)配置模型，[control](./skills/control/SKILL.md)暂停或固定标题，[debug](./skills/debug/SKILL.md)排查命名和通知。旧源码安装可迁移，setup 保留既有选择和状态，只移除指定旧根的注册。
+日常操作分别使用[configuration](./skills/configuration/SKILL.md)配置模型，[control](./skills/control/SKILL.md)暂停或固定标题，[debug](./skills/debug/SKILL.md)排查命名和通知。旧源码安装可迁移，setup 保留既有选择和状态，只移除指定旧根的注册；可复制根 README 的[迁移提示词](../README.md#旧源码安装迁移)或[原生升级提示词](../README.md#原生插件升级)。
 
 ## 源码安装或升级
 
