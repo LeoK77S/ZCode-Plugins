@@ -1,9 +1,11 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import {mkdtempSync,rmSync} from "node:fs";
+import {mkdtempSync,rmSync,writeFileSync,readFileSync,existsSync} from "node:fs";
 import {join} from "node:path";
 import {tmpdir} from "node:os";
 import {dispatchStopEvent} from "../hook.mjs";
+import {spawnSync} from "node:child_process";
+import {fileURLToPath,pathToFileURL} from "node:url";
 
 const pluginRoot="D:\\plugin";
 test("stop_hook_active 或无效负载直接跳过，不启动任何进程",async()=>{
@@ -69,4 +71,34 @@ test("worker 派发默认延迟 8 秒等宿主收尾，可注入归零",async()=
     startDelayMs:30
   });
   assert.ok(spawnedAt-t0>=25,"派发必须发生在延迟之后");
+});
+
+test('原生 Hook 在配置缺失或尚未启用时直接跳过，不启动命名 worker',()=>{
+  const root=mkdtempSync(join(tmpdir(),'z-title-native-hook-'));
+  try {
+    const preload=join(root,'deny-worker.mjs'),config=join(root,'config.json'),dataDir=join(root,'state');
+    writeFileSync(preload,"import cp from 'node:child_process';import {syncBuiltinESMExports} from 'node:module';cp.spawn=()=>{throw new Error('UNEXPECTED_WORKER');};syncBuiltinESMExports();global.setTimeout=()=>{throw new Error('UNEXPECTED_DELAY');};");
+    for(const expected of ['not_configured','disabled']) {
+      if(expected==='disabled')writeFileSync(config,'{"enabled":false}');
+      const result=spawnSync(process.execPath,['--import',pathToFileURL(preload).href,fileURLToPath(new URL('../hook.mjs',import.meta.url)),'--config',config],{encoding:'utf8',windowsHide:true,input:JSON.stringify({session_id:'sess_native_setup_fixture',cwd:'D:\\fixture'}),env:{...process.env,OIL_ZCODE_TITLE_DATA:undefined,ZCODE_PLUGIN_DATA:root}});
+      assert.equal(result.status,0,result.stderr);
+      const lines=readFileSync(join(dataDir,'hook.log.jsonl'),'utf8').trim().split('\n');
+      assert.equal(JSON.parse(lines.at(-1)).action,expected);
+    }
+  } finally {rmSync(root,{recursive:true});}
+});
+
+test('原生 Stop 命令沿用外置配置的自定义状态目录',()=>{
+  const root=mkdtempSync(join(tmpdir(),'z-title-native-custom-'));
+  try {
+    const titleRoot=fileURLToPath(new URL('../',import.meta.url));
+    const spec=JSON.parse(readFileSync(new URL('../hooks/hooks.json',import.meta.url),'utf8')).hooks.Stop[0].hooks[0];
+    writeFileSync(join(root,'config.json'),JSON.stringify({registration:'native',enabled:false,dataDir:'自定义 状态'}));
+    const command=spec.command.replaceAll('${ZCODE_PLUGIN_ROOT}',titleRoot).replaceAll('${ZCODE_PLUGIN_DATA}',root);
+    const result=spawnSync(command,{shell:true,encoding:'utf8',windowsHide:true,input:JSON.stringify({session_id:'sess_native_custom_fixture',cwd:root}),env:{...process.env,OIL_ZCODE_TITLE_DATA:undefined,ZCODE_PLUGIN_DATA:root}});
+    assert.equal(result.status,0,result.stderr);
+    assert.match(result.stdout,/disabled/);
+    assert.equal(JSON.parse(readFileSync(join(root,'自定义 状态','hook.log.jsonl'),'utf8').trim()).action,'disabled');
+    assert.equal(existsSync(join(root,'state')),false);
+  } finally {rmSync(root,{recursive:true});}
 });

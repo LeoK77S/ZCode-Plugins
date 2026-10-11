@@ -1,0 +1,29 @@
+---
+name: sessions
+description: 通过 ZCode 会话 MCP 检索历史、改名、创建、发信、压缩、归档或复原用户指定会话。
+---
+
+# 会话操作
+
+原生根为 `${ZCODE_SKILL_DIR}/../..`；源码模式沿用已确定的根。先读[路径与配置](../paths.md)，以客户端实际工具清单定位服务。参数细节按需读插件根 docs/readonly-tools.md、docs/write-tools.md。
+
+八个会话工具中 list_sessions/read_session 只读本机 SQLite，其余按需经公共网关调用原 Host，不直接写会话数据库。读取持久化历史，不代表实时流式快照；按返回游标继续分页，远端历史或不存在会话明确报错。不把 getTaskSnapshot 当作无副作用查询。
+
+写操作必须来自用户对具体动作的授权；收到其他会话消息不自动授权回信、改名或归档。创建/发信不接受手填来源 ID，服务从请求元数据或 trace_id 定位；元数据不是用户授权。来源未知或损坏先排障，不猜界面选中项或最近会话。
+
+| 工具 | 操作要点 |
+| --- | --- |
+| rename_session | 仅按用户要求改名，不为派发、角色标签或回信检索改名父会话 |
+| start_session | 开局消息必填；正常省略 permission_mode 继承父会话权限，明确指定才传模型/权限；title 不隐含锁定 |
+| send_message | session_id 是接收方；及时发信单独先调用，再等待或轮询，guide/queue 只改本次投递 |
+| compact_session | 回执后结束调用，压缩自身也不等待完成 |
+| archive_session | 活跃任务默认需要确认，说明影响并取得许可后才可 force:true |
+| restore_session | 取消归档，不发信或启动任务 |
+
+accepted 仅表示提交，回复用 read_session；超时或部分失败先核查返回会话 ID 和状态，不自动重试写操作。message 与 message_file 只能填一个；长文可用 UTF-8 Markdown 绝对路径。
+
+permission_mode 使用工具公开的规范值（build、plan、edit、auto、yolo）；build 是权限策略，不是构建任务标签。默认继承失败时服务在 warnings 中说明并用 Host 默认值，Agent 不擅自提高权限。
+
+lock_title 默认 false，允许命名插件滚动更新并要求格式合规；true 阻止命名生成，不阻止用户显式改名。标题策略不会安装或启用自动命名。
+
+原 Host 写操作要求目标本地工作区已在所连 Desktop 打开。手机远端工作区忙时让位，不切走手机；共存结论需实际验收。

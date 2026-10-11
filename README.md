@@ -1,6 +1,31 @@
 给 ZCode 做的插件与公共工具集合。ZCode 是智谱推出的 Agentic Coding 工具（桌面端 + CLI），这个仓库放会话自动命名插件、会话 MCP，以及两者共用的基础能力。
 
-## 让 Agent 帮你安装或升级
+## 原生插件安装
+
+仓库的 [marketplace.json](./marketplace.json) 提供三个原生插件。公共插件是两个业务插件的依赖，自动命名与会话 MCP 可分别选择。
+
+| 插件 | 独立技能 |
+| --- | --- |
+| suian-zcode-common | setup、configuration、debug |
+| suian-zcode-title | setup、configuration、control、debug |
+| suian-zcode-app-mcp | setup、configuration、sessions、glm、debug |
+
+可以通过 ZCode 原生插件管理器添加本仓库市场；本地验收时使用已有源码目录：
+
+```powershell
+zcode plugins marketplace add "{{repo_dir}}"
+zcode plugins install suian-zcode-title@suian-zcode-plugins
+# 需要会话 MCP 时再安装
+zcode plugins install suian-zcode-app-mcp@suian-zcode-plugins
+```
+
+安装任一业务插件会自动安装 common；已有显式停用状态仍会保留。安装只获取代码，随后让 Agent 使用所选插件的 setup 技能完成初始化。Node 依赖、公共网关和模型选择不会由市场安装自动执行。
+
+公共代码经一个稳定目录入口共享；业务插件不复制实现。个人配置与状态留在版本缓存外。原生 Hook/MCP 由宿主加载，迁移旧源码安装时只清理对应的旧全局注册，保留其他配置。具体步骤见各插件的 skills/setup/SKILL.md。
+
+三插件封装、宿主隔离安装与技能发现的验证结果见[脱敏验证记录](./suian-zcode-app-mcp/docs/native-plugin-evidence.json)。该记录区分本轮已执行的检查与尚未执行的真实 Stop、网关及用户安装迁移。
+
+## 源码安装或升级
 
 直接把下面这段粘给 ZCode，**无需先手动克隆仓库**。Agent 会先询问操作和插件选择，再负责获取代码与配置。
 
@@ -70,7 +95,7 @@ git -C "{{repo_dir}}" sparse-checkout set suian-zcode-title suian-zcode-common
 
 ## suian-zcode-common — 公共基础能力
 
-统一维护网关、远控协议与探活、DPAPI 授权存取、Toast 通知和消息投影。公共层包含可导入的模块，只有网关是常驻后台进程；命名规则和 MCP 工具契约留在各插件。网关的 Windows 启动、环境变量与恢复也只维护一份。两个插件的初始化 skill 都调用 [公共网关 skill](./suian-zcode-common/SKILL.md)。
+统一维护网关、远控协议与探活、DPAPI 授权存取、Toast 通知和消息投影。公共层包含可导入的模块，只有网关是常驻后台进程；命名规则和 MCP 工具契约留在各插件。网关的 Windows 启动、环境变量与恢复只维护一份。操作拆成[安装升级](./suian-zcode-common/skills/setup/SKILL.md)、[连接配置](./suian-zcode-common/skills/configuration/SKILL.md)与[排障](./suian-zcode-common/skills/debug/SKILL.md)，原 SKILL.md 保留为源码兼容路由。
 
 **可以在 ZCode 当前会话里完成安装或升级**。重载网关时，只需暂时关闭 ZCode 内的移动端远控，让 Agent 继续配置。首次接入或修改启动地址时，Agent 也会先完成配置和本机检查，最后再提示你择时重启生效；已经连接正确网关且地址未变时，重新开启远控即可。
 

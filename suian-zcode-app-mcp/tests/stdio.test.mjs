@@ -7,7 +7,21 @@ import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { execFile } from 'node:child_process';
+import { writeFile } from 'node:fs/promises';
 import { fixture } from './fixtures.mjs';
+
+test('外置配置提供数据库路径，显式 CLI 参数仍优先，不写原生插件缓存',async t=>{
+  const f=fixture(t),configFile=join(dirname(f.indexDbPath),'native-config.json');
+  f.task({id:'sess_native_config',updated:1});
+  await writeFile(configFile,JSON.stringify({indexDbPath:f.indexDbPath,sessionDbPath:'missing-supplied-db',gatewayConfigPath:join(dirname(f.indexDbPath),'missing-gateway.json')}));
+  const transport=new StdioClientTransport({command:process.execPath,args:[fileURLToPath(new URL('../cli.mjs',import.meta.url)),'--config',configFile,'--session-db',f.sessionDbPath],stderr:'pipe'});
+  const client=new Client({name:'native-config-contract',version:'1.0.0'});
+  t.after(()=>client.close());
+  await client.connect(transport);
+  const listed=await client.callTool({name:'list_sessions',arguments:{}});
+  assert.equal(listed.structuredContent.sessions[0].session_id,'sess_native_config');
+  await client.close();
+});
 
 test('独立 stdio 进程完成握手、分页、消息读取与错误反馈，双库字节不变', async t => {
   const f = fixture(t);

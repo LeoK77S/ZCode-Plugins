@@ -15,7 +15,7 @@
 - 网关健康和任务状态分别检查；任务 Ready 不代表网关停止。重载/移除检查实际连接，等待监听与启动器都退出后再修改配置。
 - Windows 网关配置只管理当前用户任务和 `ZCODE_WEB_REMOTE_CONTROL_RELAY_WS_URL`。不退出或重启 Desktop；Restart/Remove 在 Desktop 已断开时才允许网关自行退出。
 - 写入或恢复用户环境后广播 WM_SETTINGCHANGE / Environment；Status 与保留外部环境值不广播。使用 Unicode SendMessageTimeoutW，等待有超时，失败明确报出，不把已运行进程视为已更新。自动测试替换原生广播边界，不通知真实桌面。
-- 为兼容既有安装，网关数据仍在 `~/.zcode/tools/suian-zcode-gateway`，任务名和健康接口 service 仍为网关身份。公共 skill 部署到 `~/.zcode/skills/suian-zcode-common`；迁移不另建任务或丢失原环境备份。
+- 为兼容既有安装，网关数据仍在 `~/.zcode/tools/suian-zcode-gateway`，任务名和健康接口 service 仍为网关身份。源码兼容路由 skill 部署到 `~/.zcode/skills/suian-zcode-common`，原生拆分技能由宿主加载；迁移不另建任务或丢失原环境备份。
 - 新行为先写契约测试。Windows 设置测试使用隔离文件与模拟系统命令，不修改真实用户环境、计划任务或正在运行的 ZCode。
 - `vendor/` 固定第三方来源并保留许可；不修改 `../sources/`。验证日志落忽略的 `.scratch/`，入库只保留脱敏汇总。
 
@@ -24,6 +24,8 @@
 | 路径 | 职责 |
 | --- | --- |
 | gateway.mjs | 唯一 relay 网关、同进程 bootstrap 分流及健康状态 |
+| .zcode-plugin/plugin.json / link.mjs | 原生公共插件元信息、稳定公共入口和业务端 Node 包链接 |
+| skills/ | setup / configuration / debug，paths.md 统一位置与数据归属 |
 | rpc-broker.mjs | 单一 Host 桥、RPC 编号与 v4 握手身份映射、手机虚拟桥与本地客户端分流 |
 | gateway-client.mjs | 插件默认 connectHost/probeHost，本地配置与鉴权、RPC 附着和明确失败 |
 | setup.ps1 / run.ps1 / run.vbs | 用户任务、变量、公共 skill；无窗口监督启动、安全重载与恢复 |
@@ -36,7 +38,7 @@
 | windows.mjs | 公共 PowerShell 执行与安装用文件/系统边界 |
 | prerequisites.mjs | 两插件共用的安装检查：Node 版本、公共依赖；仅命名调用方要求 sqlite3 CLI 只读 JSON 能力 |
 | vendor/ | 固定消息投影和远控协议库，见 NOTICE.md |
-| SKILL.md / README.md | Agent 公共配置流程与模块接口、运行边界 |
+| SKILL.md / README.md | 源码兼容路由与公共模块接口，完整操作流程在对应 skills/ 技能 |
 | tests/ | 回环网关、隔离 Windows 配置、远控、DPAPI 与通知契约 |
 | experiments/ | 仅发合成 auth_init 的研究探针，不自动执行 |
 | package.json / package-lock.json | 固定 Node/ws 版本与测试入口 |

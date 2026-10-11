@@ -4,6 +4,12 @@
 
 安装到 ZCode 或其他支持 MCP 的客户端后，直接告诉 Agent 想完成什么，它会调用相应工具。
 
+## 原生插件与技能
+
+通过根目录的[插件市场](../marketplace.json)按需安装本插件，common 会作为依赖自动安装。再让 Agent 使用[setup](./skills/setup/SKILL.md)完成依赖、公共包链接与外置配置。原生 .mcp.json 自动注册服务，不再另加全局 MCP。
+
+技能分别负责[configuration](./skills/configuration/SKILL.md)配置路径和客户端，[sessions](./skills/sessions/SKILL.md)操作会话，[glm](./skills/glm/SKILL.md)查询额度与许可后重置，[debug](./skills/debug/SKILL.md)排查服务。原生服务带插件命名空间，按客户端实际清单定位。旧源码接入仍可使用，迁移时先转存自定义路径再清理自有注册。
+
 ## 日常可以怎么用
 
 - 「列出这个项目最近十个会话，找一下讨论网关的那段聊天。」
@@ -100,7 +106,7 @@ https://github.com/ONEGAYI/ZCode-Plugins.git
 npm ci --ignore-scripts --no-fund --no-audit
 ```
 
-同级公共层也需按公共 skill 安装依赖。注册服务前运行 `node install.mjs --check-only`，确认 Node 与 npm 依赖可用；检查失败时先补齐再继续。正常安装入口也会执行这些检查。
+公共层也需按公共 setup 安装依赖。npm ci 后由公共 link.mjs 建立本插件的 Node 包链接，例如 `node ../suian-zcode-common/link.mjs --plugin-root .`（从源码 MCP 目录执行）。再运行 `node install.mjs --check-only`，确认依赖可用；失败先补齐，不继续注册。
 
 在 MCP 客户端添加下面的 stdio 服务。将 `{{plugin_root}}` 替换为本插件目录的绝对路径，建议使用 `/` 分隔符；服务入口必须是 `cli.mjs`。配置示例见 [mcp.config.example.json](./mcp.config.example.json)。
 
@@ -120,7 +126,7 @@ npm ci --ignore-scripts --no-fund --no-audit
 
 公共网关的环境变量必须配置在 Desktop 启动环境中，不能只放在 MCP 服务的 `env`。手动配置流程也以 [公共网关 skill](../suian-zcode-common/SKILL.md) 为准；当前两个 SQLite 工具可独立运行，无需远控授权链接。
 
-默认读取当前系统用户的 `~/.zcode/v2/tasks-index.sqlite` 和 `~/.zcode/cli/db/db.sqlite`。自定义数据路径可在 args 后追加 `--index-db {{index_db_path}} --session-db {{session_db_path}}`，或设置环境变量 `ZCODE_APP_MCP_INDEX_DB`、`ZCODE_APP_MCP_SESSION_DB`。优先级是命令参数 > 环境变量 > 默认路径。
+默认读取当前系统用户的 `~/.zcode/v2/tasks-index.sqlite` 和 `~/.zcode/cli/db/db.sqlite`。自定义路径可在 args 追加 `--index-db {{index_db_path}} --session-db {{session_db_path}}`，或设置对应环境变量。也可用 `--config {{config_file}}` 读取外置 JSON 的 indexDbPath、sessionDbPath、gatewayConfigPath、authDataDir。优先级为命令参数 > 对应环境变量 > 外置配置 > 默认路径。
 
 ### 调用示例
 

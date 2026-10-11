@@ -4,7 +4,7 @@ import {dirname,join} from "node:path";
 import {homedir} from "node:os";
 import {fileURLToPath,pathToFileURL} from "node:url";
 import {buildFixPrompt} from "./toast.mjs";
-import {copyPromptAndOpenWorkspace} from "../suian-zcode-common/notification-action.mjs";
+import {copyPromptAndOpenWorkspace} from "suian-zcode-common/notification-action.mjs";
 
 export function parseActionUri(uri) {
   const match=/^suian-zcode-title:\/\/([a-z]+)$/i.exec(String(uri??""));

@@ -1,0 +1,13 @@
+{
+  "mcpServers": {
+    "suian-zcode-app": {
+      "type": "stdio",
+      "command": "node",
+      "args": [
+        "${ZCODE_PLUGIN_ROOT}/cli.mjs",
+        "--config",
+        "${ZCODE_PLUGIN_DATA}/config.json"
+      ]
+    }
+  }
+}

@@ -31,6 +31,12 @@ flowchart LR
 
 本机 3.14.4 的协议已核实，3.14.0 内网机器仍待实际安装验收。验证范围见 [本地模式记录](./docs/local-only-evidence.json)。
 
+## 原生公共插件
+
+本目录是两个业务插件的必需安装依赖，公共实现只保留一份。原生模式提供[setup](./skills/setup/SKILL.md)、[configuration](./skills/configuration/SKILL.md)和[debug](./skills/debug/SKILL.md)；根 SKILL.md 继续供源码兼容入口路由。
+
+npm ci 后运行 link.mjs，将稳定运行入口链接到本公共根，再把已选业务插件的 node_modules/suian-zcode-common 链接到该入口。Windows 使用无需提权的 junction，升级时刷新链接，新进程加载新版本。原生 Install/Restart 加 -NativePlugin，不再复制全局技能；网关、任务和数据仍沿用原身份与目录。
+
 ## 模块与数据归属
 
 | 模块 | 公共接口与调用方 |
@@ -44,6 +50,7 @@ flowchart LR
 | notification-action.mjs | `copyPromptAndOpenWorkspace({prompt,dataDir})`：复制调用方提示词后打开用户默认工作区；仅用户点击后执行 |
 | notification-install.mjs | `installToastAssets()` / `removeToastAssets()`：接收调用方的 protocol、appId、shortcutName、description、pluginRoot、dataDir |
 | prerequisites.mjs | `checkRuntime()`：两插件的 Node / 公共依赖检查；传入 sqliteBin 时额外检查 sqlite3 CLI，只读查询内存库 |
+| link.mjs | `linkCommon()`：建立稳定公共入口和业务端 Node 包链接，不复制代码或覆盖普通目录 |
 | vendor/projection.js | `getConversationMessageProjectionPolicy()`：两个插件引用同一固定产物 |
 
 调用方继续指定自己的数据目录和通知身份。既有授权密文保留，但插件的默认调用不再读取它；Toast 冷却、`suian-zcode-title://` 协议和 AUMID 不迁移。MCP 两个读取工具共享投影库，其余原 Host 调用与命名 worker 共享网关 RPC。会话命名策略保存在公共目录，通知状态仍归调用方。
