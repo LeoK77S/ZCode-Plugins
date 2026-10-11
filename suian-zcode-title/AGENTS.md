@@ -1,6 +1,6 @@
 # suian-zcode-title — ZCode 会话自动命名插件
 
-- 本插件依赖同级 `suian-zcode-common`；命名规则保留在本目录，协议、DPAPI 与通知实现不复制。结论沉淀在 `docs/`（脱敏证据）；公共第三方库来源与许可见 `../suian-zcode-common/vendor/NOTICE.md`。
+- 本插件依赖公共插件 `suian-zcode-common`；源码目录仍同级，原生运行通过 Node 包链接加载。命名规则留在本目录，协议、DPAPI 与通知实现不复制。原生配置留在 dataPath，状态使用缓存外的 dataDir，默认 dataPath/state，不随缓存版本变化；结论沉淀在 docs/（脱敏证据）。
 - 用户已授权自动命名的搭建、验证与 Stop Hook 自动配置；真实改名操作限定明确指定的测试会话或用户会话的自动触发。
 - 不修改 ZCode 官方源码，不直接写 ZCode 会话数据库；改名仅走官方远控 RPC。
 - 旧远控授权链接仅以当前用户 DPAPI 密文（`.local/remote.blob`）保存；默认网关调用不读取它。配置、日志、Toast、提示词均不携带链接明文、sid/hash/mid 片段或网关 control_token。
@@ -77,9 +77,11 @@ node .\cli.mjs policy --config .\config.local.json      # 只读查询目标会�
 | ../suian-zcode-common/auth-store.mjs | 公共 DPAPI 存取；仍使用本插件 `.local/remote.blob` |
 | toast.mjs / toast-action.mjs | 命名失败文案、排障提示词与自有协议动作；系统通知、冷却和剪贴板交给公共层 |
 | install.mjs | 自有通知身份、Stop Hook 配置与技能副本；协议桥及 AUMID 系统安装调用公共层 |
+| .zcode-plugin/plugin.json / hooks/hooks.json | 原生元信息与异步 Stop；native 初始化不重复全局注册 |
+| skills/ | setup / configuration / control / debug，paths.md 统一路径与数据说明 |
 | doctor.mjs | 只读双库/模型与实际用户级 Stop Hook 配置检查；明确区分配置就绪和执行待验证 |
 | prompt.md | 命名规则（沿用自 oil-codex-title 的 prompts/naming.md，只调整编辑器名称） |
-| SKILL.md | 自然语言操作入口、插件根定位与 Hook；公共网关配置委托同级 `suian-zcode-common` skill |
+| SKILL.md | 源码兼容路由，按请求读取拆分技能；公共配置委托 common 技能 |
 | ../suian-zcode-common/vendor/ | 两个插件共用的固定投影库与远控协议库，见公共 NOTICE.md |
 | tests/ | 命名、Hook、授权与通知契约及 CLI 集成测试（`node --test tests/*.test.mjs`） |
 

@@ -6,7 +6,8 @@ param(
     [ValidateRange(1, 30)][int]$HealthTimeoutSec = 5,
     [string]$UpstreamUrl = 'wss://zcode.z.ai/ws',
     [string]$DataDir = (Join-Path $env:USERPROFILE '.zcode\tools\suian-zcode-gateway'),
-    [string]$SkillsDir = (Join-Path $env:USERPROFILE '.zcode\skills')
+    [string]$SkillsDir = (Join-Path $env:USERPROFILE '.zcode\skills'),
+    [switch]$NativePlugin
 )
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
@@ -211,8 +212,16 @@ if ($null -eq $health) {
     $taskRunning = $true
 }
 $skillDir = Join-Path $SkillsDir 'suian-zcode-common'
-[IO.Directory]::CreateDirectory($skillDir) | Out-Null
-[IO.File]::WriteAllText((Join-Path $skillDir 'SKILL.md'), $skill, (New-Object Text.UTF8Encoding($false)))
+if ($NativePlugin) {
+    $installedSkill = Join-Path $skillDir 'SKILL.md'
+    if (Test-Path -LiteralPath $installedSkill) {
+        $installed = Get-Content -LiteralPath $installedSkill -Raw -Encoding UTF8
+        if ($installed.Contains(('**本机公共根**：`' + $PSScriptRoot + '`')) -or ($null -ne $config -and $installed.Contains(('**本机公共根**：`' + $config.gateway_root + '`')))) { Remove-Item -LiteralPath $installedSkill }
+    }
+} else {
+    [IO.Directory]::CreateDirectory($skillDir) | Out-Null
+    [IO.File]::WriteAllText((Join-Path $skillDir 'SKILL.md'), $skill, (New-Object Text.UTF8Encoding($false)))
+}
 $legacySkillFile = Join-Path $SkillsDir 'suian-zcode-gateway\SKILL.md'
 if ($null -ne $config -and (Test-Path -LiteralPath $legacySkillFile)) {
     $legacySkill = Get-Content -LiteralPath $legacySkillFile -Raw -Encoding UTF8

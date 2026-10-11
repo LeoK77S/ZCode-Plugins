@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtemp, writeFile, readFile, rm } from 'node:fs/promises';
+import { mkdtemp, mkdir, writeFile, readFile, rm, stat } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -14,7 +14,7 @@ const nativeExec = promisify(execFile);
 
 // 只替换 Windows 系统边界，真实执行 setup.ps1 与临时目录内的文件读写。
 const systemFixture = String.raw`
-param([string]$Script, [string]$Action, [string]$DataDir, [string]$SkillsDir, [string]$StateFile, [int]$HealthTimeoutSec, [int]$Port, [string]$Mode)
+param([string]$Script, [string]$Action, [string]$DataDir, [string]$SkillsDir, [string]$StateFile, [int]$HealthTimeoutSec, [int]$Port, [string]$Mode, [switch]$NativePlugin)
 $ErrorActionPreference = 'Stop'
 [Console]::OutputEncoding = New-Object System.Text.UTF8Encoding($false)
 $global:fixture = Get-Content -LiteralPath $StateFile -Raw | ConvertFrom-Json
@@ -92,6 +92,7 @@ $params = @{ Action=$Action; DataDir=$DataDir; SkillsDir=$SkillsDir }
 if ($PSBoundParameters.ContainsKey('HealthTimeoutSec')) { $params.HealthTimeoutSec=$HealthTimeoutSec }
 if ($PSBoundParameters.ContainsKey('Port')) { $params.Port=$Port }
 if ($PSBoundParameters.ContainsKey('Mode')) { $params.Mode=$Mode }
+if ($NativePlugin) { $params.NativePlugin=$true }
 & $Script @params
 `;
 
@@ -105,13 +106,26 @@ async function fixture(t, overrides = {}) {
   const initial = { relay: 'wss://previous.example/ws', task: null, registrations: 0, starts: 0, shutdowns: 0, health: 'ready', desktop: false, legacy_health: false, health_min_timeout: 0, timeouts_left: 0, health_requests: 0, http_attempts: 0, health_available: false, draining: false, shutdown_health_reads: 0, broadcasts: [], broadcast_fail: false, broadcast_declaration: null, unregister_fail: false, ...overrides };
   await writeFile(stateFile, JSON.stringify(initial));
   await writeFile(script, '\uFEFF' + systemFixture);
-  const run = async (action, { healthTimeoutSec, port, mode } = {}) => {
-    const { stdout } = await nativeExec('powershell.exe', ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File', script, '-Script', setup, '-Action', action, '-DataDir', dataDir, '-SkillsDir', skillsDir, '-StateFile', stateFile, ...(healthTimeoutSec === undefined ? [] : ['-HealthTimeoutSec', String(healthTimeoutSec)]), ...(port === undefined ? [] : ['-Port', String(port)]), ...(mode === undefined ? [] : ['-Mode', mode])], { windowsHide: true });
+  const run = async (action, { healthTimeoutSec, port, mode, nativePlugin } = {}) => {
+    const { stdout } = await nativeExec('powershell.exe', ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File', script, '-Script', setup, '-Action', action, '-DataDir', dataDir, '-SkillsDir', skillsDir, '-StateFile', stateFile, ...(healthTimeoutSec === undefined ? [] : ['-HealthTimeoutSec', String(healthTimeoutSec)]), ...(port === undefined ? [] : ['-Port', String(port)]), ...(mode === undefined ? [] : ['-Mode', mode]), ...(nativePlugin ? ['-NativePlugin'] : [])], { windowsHide: true });
     return JSON.parse(stdout.trim());
   };
   const state = async () => JSON.parse(await readFile(stateFile, 'utf8'));
   return { root, stateFile, dataDir, skillsDir, run, state };
 }
+
+test('原生公共初始化不复制全局技能，只清理归属匹配的旧技能', { skip: process.platform !== 'win32' }, async t => {
+  const f=await fixture(t),skillFile=join(f.skillsDir,'suian-zcode-common','SKILL.md');
+  await f.run('Install',{nativePlugin:true});
+  await assert.rejects(stat(skillFile),{code:'ENOENT'});
+  await mkdir(dirname(skillFile),{recursive:true});
+  await writeFile(skillFile,'其他技能');
+  await f.run('Install',{nativePlugin:true});
+  assert.equal(await readFile(skillFile,'utf8'),'其他技能');
+  await writeFile(skillFile,`**本机公共根**：\`${gatewayRoot}\``);
+  await f.run('Install',{nativePlugin:true});
+  await assert.rejects(stat(skillFile),{code:'ENOENT'});
+});
 
 test('公共安装部署唯一用户启动任务和 skill，网关就绪后才设置 Desktop 用户环境', { skip: process.platform !== 'win32' }, async (t) => {
   const f = await fixture(t);

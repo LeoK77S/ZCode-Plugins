@@ -7,13 +7,13 @@ import {resolve,dirname,join} from "node:path";
 import {randomUUID} from "node:crypto";
 import {createBackend} from "./backend.mjs";
 import {runNaming} from "./naming.mjs";
-import {probeHost} from "../suian-zcode-common/remote.mjs";
+import {probeHost} from "suian-zcode-common/remote.mjs";
 import {toastBodyFor} from "./toast.mjs";
-import {notifyOnce} from "../suian-zcode-common/notifications.mjs";
+import {notifyOnce} from "suian-zcode-common/notifications.mjs";
 import {ensureToastAppId,PROTOCOL} from "./install.mjs";
-import {shouldNotify} from "../suian-zcode-common/cooldown.mjs";
-import {saveAuthorization as storeAuthorization,clearAuthorization} from "../suian-zcode-common/auth-store.mjs";
-import {readTitlePolicy,writeTitlePolicy} from "../suian-zcode-common/title-policy.mjs";
+import {shouldNotify} from "suian-zcode-common/cooldown.mjs";
+import {saveAuthorization as storeAuthorization,clearAuthorization} from "suian-zcode-common/auth-store.mjs";
+import {readTitlePolicy,writeTitlePolicy} from "suian-zcode-common/title-policy.mjs";
 import {runDoctor} from "./doctor.mjs";
 
 const args=process.argv.slice(2);

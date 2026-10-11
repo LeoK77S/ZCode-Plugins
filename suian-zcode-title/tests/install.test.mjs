@@ -1,11 +1,11 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import {installToastAssets,removeToastAssets,ensureToastAppId,installStopHook,removeStopHook,buildHookCommand,installSkill,removeSkill,AUMID,PROTOCOL} from "../install.mjs";
+import {installToastAssets,removeToastAssets,ensureToastAppId,installStopHook,removeStopHook,buildHookCommand,installSkill,removeSkill,installPlugin,AUMID,PROTOCOL} from "../install.mjs";
 
 import {buildVbsContent,buildProtocolCommand} from "../../suian-zcode-common/notification-install.mjs";
 import {mkdtemp,writeFile,stat,rm} from "node:fs/promises";
-import {tmpdir} from "node:os";
-import {join} from "node:path";
+import {tmpdir,homedir} from "node:os";
+import {join,resolve} from "node:path";
 import {fileURLToPath,pathToFileURL} from "node:url";
 import {execFile} from "node:child_process";
 import {promisify} from "node:util";
@@ -104,6 +104,48 @@ test("技能副本由安装器部署：注入本机插件根，幂等，卸载�
   assert.equal(second.action,"unchanged","内容一致不得重写");
   await removeSkill({skillFile,shell});
   assert.ok(shell.state.removed.includes(skillFile));
+});
+
+test('原生初始化只安装通知资产和外置配置，不重复写全局 Hook 或技能', async () => {
+  const shell=makeShell(), pluginRoot='D:\\native\\title', dataDir='D:\\native-data\\state', configPath='D:\\native-data\\config.json';
+  shell.run=async command=>command==='sqlite3'?'[{"ready":1}]':'';
+  const configFile=join(homedir(),'.zcode','cli','config.json');
+  shell.state.files.set(configFile,'{"hooks":{"events":{"Stop":[]}},"keep":1}');
+  const before=shell.state.files.get(configFile);
+  const result=await installPlugin({pluginRoot,dataDir,configPath,nativePlugin:true,shell});
+  assert.equal(result.actions.hook,'plugin_managed');
+  assert.equal(result.actions.skill,'plugin_managed');
+  assert.equal(shell.state.files.get(configFile),before);
+  const config=JSON.parse(shell.state.files.get(configPath));
+  assert.equal(config.enabled,false,'首次初始化必须等待用户选择模型');
+  assert.equal(config.registration,'native');
+  assert.equal(config.dataDir,dataDir);
+});
+
+test('原生迁移只删除指定旧根的 Hook 与技能，同一匹配项内的他人 Hook 保留', async () => {
+  const shell=makeShell(), legacyRoot='D:\\legacy\\title', pluginRoot='D:\\native\\title';
+  shell.run=async command=>command==='sqlite3'?'[{"ready":1}]':'';
+  const configFile=join(homedir(),'.zcode','cli','config.json'), configPath='D:\\native-data\\config.json';
+  shell.state.files.set(configPath,'{"enabled":false}');
+  shell.state.files.set(configFile,JSON.stringify({mcp:{servers:{other:{command:'keep'}}},hooks:{events:{Stop:[{matcher:'all',hooks:[{type:'command',command:buildHookCommand({pluginRoot:legacyRoot})},{type:'command',command:'node other.mjs'}]}]}}}));
+  const skillFile=join(homedir(),'.zcode','skills',PROTOCOL,'SKILL.md');
+  shell.state.files.set(skillFile,`**本机插件根**：\`${legacyRoot}\``);
+  await installPlugin({pluginRoot,dataDir:'D:\\native-data\\state',configPath,nativePlugin:true,legacyRoot,shell});
+  const user=JSON.parse(shell.state.files.get(configFile));
+  assert.equal(user.hooks.events.Stop[0].hooks.length,1);
+  assert.equal(user.hooks.events.Stop[0].hooks[0].command,'node other.mjs');
+  assert.equal(user.mcp.servers.other.command,'keep');
+  assert.equal(shell.state.files.has(skillFile),false);
+});
+
+test('原生通知安装沿用外置配置的自定义状态目录', async () => {
+  const shell=makeShell(),pluginRoot='D:\\native\\title',configPath='D:\\native-data\\config.json';
+  shell.run=async command=>command==='sqlite3'?'[{"ready":1}]':'';
+  shell.state.files.set(configPath,JSON.stringify({enabled:false,dataDir:'custom-state'}));
+  await installPlugin({pluginRoot,dataDir:'D:\\native-data\\state',configPath,nativePlugin:true,shell});
+  assert.equal(JSON.parse(shell.state.files.get(configPath)).dataDir,'custom-state');
+  assert.ok(shell.state.files.has(join(resolve('D:\\native-data','custom-state'),'toast-launch.vbs')));
+  assert.equal(shell.state.files.has('D:\\native-data\\state\\toast-launch.vbs'),false);
 });
 
 test("CLI 缺少 sqlite3 时先报依赖错误，不安装通知资产或 Hook",async t=>{

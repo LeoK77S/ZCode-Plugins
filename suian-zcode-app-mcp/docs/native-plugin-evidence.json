@@ -1,0 +1,157 @@
+{
+  "scope": "ZCode 原生三插件封装与独立技能",
+  "verifiedAt": "2026-10-11T03:35:36.659Z",
+  "baseCommit": "7b22b6e8dab42b722629f00332dfc163a491ab19",
+  "nodeVersion": "24.15.0",
+  "host": {
+    "desktopVersion": "3.15.1.8093",
+    "bundledCliVersion": "0.16.9",
+    "environment": "实际 Desktop 随包 CLI；临时用户目录；未启动用户 Desktop 或网关",
+    "marketplace": "suian-zcode-plugins",
+    "nativePluginValidation": {
+      "count": 3,
+      "passed": 3,
+      "diagnostics": []
+    },
+    "installTitleDependencyOrder": [
+      "suian-zcode-common",
+      "suian-zcode-title"
+    ],
+    "plugins": [
+      {
+        "id": "suian-zcode-common@suian-zcode-plugins",
+        "version": "0.1.0",
+        "enabled": true,
+        "skillCount": 3,
+        "mcpServerNames": [],
+        "diagnostics": []
+      },
+      {
+        "id": "suian-zcode-title@suian-zcode-plugins",
+        "version": "0.1.0",
+        "enabled": true,
+        "skillCount": 4,
+        "mcpServerNames": [],
+        "diagnostics": []
+      },
+      {
+        "id": "suian-zcode-app-mcp@suian-zcode-plugins",
+        "version": "0.1.0",
+        "enabled": true,
+        "skillCount": 5,
+        "mcpServerNames": [
+          "plugin:suian-zcode-app-mcp:suian-zcode-app"
+        ],
+        "diagnostics": []
+      }
+    ],
+    "stopHook": {
+      "event": "Stop",
+      "type": "command",
+      "async": true,
+      "timeoutMs": 30000,
+      "runnable": true,
+      "command": "node \"${ZCODE_PLUGIN_ROOT}/hook.mjs\" --config \"${ZCODE_PLUGIN_DATA}/config.json\"",
+      "interpretation": "宿主允许执行该定义；真实用户会话 Stop 命名未在本轮执行"
+    },
+    "skillQualifiedNames": [
+      "suian-zcode-app-mcp:configuration",
+      "suian-zcode-app-mcp:debug",
+      "suian-zcode-app-mcp:glm",
+      "suian-zcode-app-mcp:sessions",
+      "suian-zcode-app-mcp:setup",
+      "suian-zcode-common:configuration",
+      "suian-zcode-common:debug",
+      "suian-zcode-common:setup",
+      "suian-zcode-title:configuration",
+      "suian-zcode-title:control",
+      "suian-zcode-title:debug",
+      "suian-zcode-title:setup"
+    ],
+    "skillDiagnostics": []
+  },
+  "regression": {
+    "command": "node --test suian-zcode-common/tests/*.test.mjs suian-zcode-title/tests/*.test.mjs suian-zcode-app-mcp/tests/*.test.mjs",
+    "baseline": {
+      "tests": 229,
+      "passed": 229,
+      "failed": 0,
+      "exitCode": 0
+    },
+    "final": {
+      "tests": 243,
+      "passed": 243,
+      "failed": 0,
+      "exitCode": 0
+    },
+    "reviewFixRed": {
+      "tests": 29,
+      "passed": 26,
+      "failed": 3,
+      "exitCode": 1
+    },
+    "reviewFixGreen": {
+      "tests": 30,
+      "passed": 30,
+      "failed": 0,
+      "exitCode": 0
+    },
+    "coverage": [
+      "独立版本缓存与中文空格路径启动",
+      "公共包稳定入口切换；新进程加载升级版本；不覆盖普通目录",
+      "原生初始化不新增全局 Hook/MCP/技能",
+      "只移除指定旧根注册，保留其他 Hook 与 MCP",
+      "自定义状态目录在 Stop Hook、CLI 与通知资产间一致",
+      "迁移 MCP 参数的分隔式、等号形式与重复参数优先级",
+      "外置配置与显式 CLI 参数优先级",
+      "MCP 十工具握手及真实临时 SQLite 双库读取",
+      "Windows 系统操作边界模拟，不修改用户任务或环境"
+    ]
+  },
+  "skills": {
+    "frontmatterValidation": {
+      "count": 12,
+      "passed": 12,
+      "exitCode": 0
+    },
+    "relativeMarkdownLinksChecked": 21,
+    "debugSnippet": {
+      "toolCount": 10,
+      "toolNames": [
+        "list_sessions",
+        "read_session",
+        "rename_session",
+        "start_session",
+        "send_message",
+        "compact_session",
+        "archive_session",
+        "restore_session",
+        "get_glm_balance",
+        "reset_glm_quota"
+      ],
+      "exitCode": 0
+    },
+    "independentForwardTest": {
+      "method": "独立代理仅阅读技能推演迁移步骤",
+      "status": "入口与状态目录缺口已修正，复核无遗留项"
+    }
+  },
+  "independentCodeReview": {
+    "axes": [
+      "仓库规范",
+      "用户需求"
+    ],
+    "fixedFindings": [
+      "Stop 覆盖自定义 dataDir，通知安装目录不一致",
+      "旧 MCP 等号形式参数迁移遗漏"
+    ],
+    "finalFindings": 0
+  },
+  "notPerformed": [
+    "迁移用户当前正在使用的安装与设置",
+    "启动或重载真实网关、退出或重启用户 Desktop",
+    "真实用户会话完整 Stop 自动命名",
+    "真实会话写工具、模型生成与手机共存验收",
+    "推送、发布或合并"
+  ]
+}

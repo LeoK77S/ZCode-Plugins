@@ -1,9 +1,9 @@
 import {execFile} from "node:child_process";
 import {promisify} from "node:util";
 import {win32} from "node:path";
-import {connectHost} from "../suian-zcode-common/remote.mjs";
+import {connectHost} from "suian-zcode-common/remote.mjs";
 import {readHistory,recentSnapshot} from "./history.mjs";
-import {readTitlePolicy as loadTitlePolicy} from "../suian-zcode-common/title-policy.mjs";
+import {readTitlePolicy as loadTitlePolicy} from "suian-zcode-common/title-policy.mjs";
 
 const SESSION_ID_RE=/^sess_[A-Za-z0-9_-]+$/;
 

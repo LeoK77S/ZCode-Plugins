@@ -1,0 +1,6 @@
+{
+  "name": "suian-zcode-common",
+  "version": "0.1.0",
+  "description": "公共网关、远控协议、授权、通知与消息投影；供业务插件共享",
+  "license": "MIT"
+}

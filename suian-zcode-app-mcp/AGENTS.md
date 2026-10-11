@@ -36,6 +36,8 @@
 | 路径 | 职责 |
 | --- | --- |
 | cli.mjs | stdio 入口、数据库/公共网关配置路径；旧 stdin DPAPI 保存入口兼容 |
+| .zcode-plugin/plugin.json / .mcp.json | 原生元信息与 stdio 注册；参数 --config 指向外置配置 |
+| skills/ | setup / configuration / sessions / glm / debug，paths.md 统一路径与配置说明 |
 | server.mjs | MCP 工具注册、参数校验与结构化响应 |
 | caller.mjs | 每次请求的发起会话定位：MCP 元数据优先，trace_id 与工具名只读匹配本地调用记录 |
 | control.mjs | 原 Host 改名读回、指定模型与权限模式创建、消息包装、v4 可选投递策略与提交回执、compact 维护命令与受理回执、归档保护与复原；改名/创建后双库标题复核，分叉时回执 warnings；按调用释放连接 |
@@ -43,7 +45,7 @@
 | sessions.mjs | 只读索引查询、会话定位、历史投影与分页；sessionTitle 轻量双库标题读取供复核，sessionMode 读取 CLI 会话库权限供继承与首发后确认（不用索引或创建响应的 mode） |
 | package.json / package-lock.json | 固定依赖版本与测试入口 |
 | mcp.config.example.json | MCP 客户端连接示例 |
-| install.mjs / SKILL.md | skill 幂等部署与 Agent 初始化、原生 MCP 配置合并；公共网关流程委托同级子项目 |
+| install.mjs / SKILL.md | 源码路由技能部署、原生外置配置初始化与指定旧根迁移；公共网关委托 common |
 | vendor/NOTICE.md | 公共消息投影库的来源与许可指针 |
 | tests/ | 真实 SQLite fixture 与 MCP/stdio 契约测试 |
 | docs/ | 研究、工具规格、ADR、开票草稿与脱敏验收证据；agents/ 保存开票和领域文档入口 |

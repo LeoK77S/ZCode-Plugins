@@ -13,8 +13,8 @@ const pluginRoot=dirname(fileURLToPath(import.meta.url));
 async function resolveDataDir(configPath) {
   let supplied={};
   try {supplied=JSON.parse(await readFile(configPath,"utf8"));}
-  catch {}
-  return resolve(dirname(configPath),process.env.OIL_ZCODE_TITLE_DATA??supplied.dataDir??join(homedir(),".zcode","suian-zcode-title"));
+  catch(error) {if(error.code!=="ENOENT")throw error;}
+  return resolve(dirname(configPath),process.env.OIL_ZCODE_TITLE_DATA??supplied.dataDir??(process.env.ZCODE_PLUGIN_DATA?join(process.env.ZCODE_PLUGIN_DATA,"state"):join(homedir(),".zcode","suian-zcode-title")));
 }
 
 export const WORKER_START_DELAY_MS=8000;
@@ -67,7 +67,14 @@ if(isMain) {
     }catch{}
   };
   try {
-    const result=await dispatchStopEvent({payload,dataDir,pluginRoot,configPath});
+    let result;
+    if(configPath&&payload?.stop_hook_active!==true) {
+      let config;
+      try {config=JSON.parse(await readFile(configPath,"utf8"));}
+      catch(error){if(error.code!=="ENOENT")throw error;result={action:"not_configured"};}
+      if(config?.enabled===false)result={action:"disabled"};
+    }
+    result??=await dispatchStopEvent({payload,dataDir,pluginRoot,configPath});
     console.log("suian-zcode-title:",JSON.stringify(result));
     await logHook({event:payload?.hook_event_name??"Stop",action:result.action,sessionId:payload?.session_id??null,cwd:payload?.cwd??payload?.workspace_path??null,stopHookActive:payload?.stop_hook_active===true,error:null});
   } catch(error) {

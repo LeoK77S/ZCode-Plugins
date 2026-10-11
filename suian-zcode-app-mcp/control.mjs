@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
-import { connectHost } from '../suian-zcode-common/remote.mjs';
-import { writeTitlePolicy } from '../suian-zcode-common/title-policy.mjs';
+import { connectHost } from 'suian-zcode-common/remote.mjs';
+import { writeTitlePolicy } from 'suian-zcode-common/title-policy.mjs';
 import { getGlmBalance, resetGlmQuota } from './glm.mjs';
 
 const xmlAttribute = value => value.replaceAll('&', '&amp;').replaceAll('"', '&quot;').replaceAll("'", '&apos;').replaceAll('<', '&lt;').replaceAll('>', '&gt;');

@@ -1,0 +1,6 @@
+{
+  "name": "suian-zcode-app-mcp",
+  "version": "0.1.0",
+  "description": "ZCode 会话与 GLM 额度 MCP，含原生接入、配置与排障技能",
+  "license": "MIT"
+}
