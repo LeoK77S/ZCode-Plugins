@@ -4,7 +4,7 @@ import { realpath, stat, readFile } from 'node:fs/promises';
 import { isAbsolute } from 'node:path';
 import { createHash } from 'node:crypto';
 import { MCP_APP_MIME_TYPE, supportsZcodeMcpApps } from 'suian-zcode-common/ui-capabilities.mjs';
-import { readTextFile } from './text-files.mjs';
+import { readTextFile, listDirectory, saveTextFile } from './text-files.mjs';
 
 export const EDITOR_URI = 'ui://suian-side-editor/editor.html';
 const failure = (code, message) => Object.assign(new Error(message), { code });
@@ -28,7 +28,7 @@ async function boundContext(workspaceRoot, meta) {
   }
   const identityPath = process.platform === 'win32' ? workspacePath.toLowerCase() : workspacePath;
   return { sessionId: ids[0], workspacePath, workspaceIdentity: `sha256:${createHash('sha256').update(identityPath).digest('hex')}`,
-    capabilities: { readText: true, saveText: false } };
+    capabilities: { readText: true, saveText: true } };
 }
 
 export function createMcpServer({ workspaceRoot = process.env.SUIAN_SIDE_EDITOR_WORKSPACE, zcodeAppVersion = process.env.ZCODE_APP_VERSION } = {}) {
@@ -42,11 +42,11 @@ export function createMcpServer({ workspaceRoot = process.env.SUIAN_SIDE_EDITOR_
         ENOENT: ['file_not_found', '文件不存在或已删除'],
         ENOTDIR: ['file_not_found', '路径中的目录不存在'],
         EISDIR: ['not_text_file', '目标是目录，不是文本文件'],
-        EACCES: ['permission_denied', '没有读取该文件的权限'],
-        EPERM: ['permission_denied', '系统拒绝读取该文件'],
+        EACCES: ['permission_denied', '没有访问该文件的权限'],
+        EPERM: ['permission_denied', '系统拒绝访问该文件'],
         ERR_ENCODING_INVALID_ENCODED_DATA: ['invalid_utf8', '文件不是有效 UTF-8，未使用替换字符解码']
       };
-      const [code, message] = causes[error.code] ?? [error.code ?? 'read_error', error.message];
+      const [code, message] = causes[error.code] ?? [error.code ?? 'file_error', error.message];
       const data = { code, error: message };
       return { isError: true, structuredContent: data, content: [{ type: 'text', text: JSON.stringify(data) }] };
     }
@@ -63,9 +63,25 @@ export function createMcpServer({ workspaceRoot = process.env.SUIAN_SIDE_EDITOR_
     annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
     _meta: { ui: { resourceUri: EDITOR_URI, surface: 'editor', visibility: ['app'] } }
   }, ({ path }, extra) => run(extra, context => readTextFile(context, path)));
-  const tools = [contextTool, readTool];
+  const directoryTool = server.registerTool('list_editor_directory', {
+    description: '按需展开当前工作区的一层目录，不过滤隐藏文件或 node_modules。',
+    inputSchema: z.object({ path: z.string().min(1) }).strict(),
+    annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
+    _meta: { ui: { resourceUri: EDITOR_URI, surface: 'editor', visibility: ['app'] } }
+  }, ({ path }, extra) => run(extra, context => listDirectory(context, path)));
+  let saving = Promise.resolve();
+  const saveTool = server.registerTool('save_editor_text', {
+    description: '保存已有 UTF-8 文本；重新核对磁盘内容版本，冲突时拒绝覆盖。',
+    inputSchema: z.object({ path: z.string().min(1), text: z.string(), baseVersion: z.string().regex(/^sha256:[a-f0-9]{64}$/) }).strict(),
+    annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: false, openWorldHint: false },
+    _meta: { ui: { resourceUri: EDITOR_URI, surface: 'editor', visibility: ['app'] } }
+  }, ({ path, text, baseVersion }, extra) => {
+    saving = saving.then(() => run(extra, context => saveTextFile(context, path, text, baseVersion)));
+    return saving;
+  });
+  const tools = [contextTool, readTool, directoryTool, saveTool];
   const resource = server.registerResource('editor', EDITOR_URI, { title: '文本编辑器', mimeType: MCP_APP_MIME_TYPE }, async () => ({ contents: [{
-    uri: EDITOR_URI, mimeType: MCP_APP_MIME_TYPE, text: await readFile(new URL('./ui/editor.html', import.meta.url), 'utf8'),
+    uri: EDITOR_URI, mimeType: MCP_APP_MIME_TYPE, text: await readFile(new URL('./ui/dist/editor.html', import.meta.url), 'utf8'),
     _meta: { ui: { prefersBorder: false } }
   }] }));
   resource.disable();

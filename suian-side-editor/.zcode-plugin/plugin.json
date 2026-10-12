@@ -1,7 +1,7 @@
 {
   "name": "suian-side-editor",
   "version": "0.1.0",
-  "description": "独立侧栏文本编辑器开发版：可信工作区只读文本切片",
+  "description": "独立侧栏文本编辑器开发版：目录浏览、文件页签与手动编辑保存",
   "license": "MIT",
   "dependencies": ["suian-zcode-common"],
   "ui": {

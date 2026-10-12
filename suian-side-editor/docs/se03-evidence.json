@@ -1,0 +1,235 @@
+{
+  "schemaVersion": 1,
+  "ticket": "SE-03 / #43",
+  "date": "2026-10-12",
+  "base": "b895823f615ebeaa68d08f3d74115df3ca4c19e2",
+  "branch": "codex/side-editor-se03",
+  "status": {
+    "sdk": "passed",
+    "browser": "passed",
+    "native": "pending",
+    "independentReview": "pending",
+    "userAcceptance": "notPerformed"
+  },
+  "runtime": {
+    "node": "24.15.0",
+    "npm": "11.6.4"
+  },
+  "dependencies": {
+    "@codemirror/state": "6.7.6",
+    "@codemirror/view": "6.43.14",
+    "@codemirror/commands": "6.11.1",
+    "esbuild": "0.28.2"
+  },
+  "final": {
+    "tests": 19,
+    "passed": 19,
+    "failed": 0,
+    "browserGroups": 10,
+    "networkRequests": 0,
+    "pageErrors": 0
+  },
+  "scope": [
+    "lazyDirectoryTree",
+    "temporaryPinnedTabs",
+    "manualSaveWithContentVersion",
+    "dirtyCloseChoices",
+    "localCodeMirrorBundle"
+  ],
+  "notImplemented": [
+    "automaticSave",
+    "sessionSettings",
+    "externalFileMonitoring",
+    "durableRecovery",
+    "comments"
+  ],
+  "artifacts": [
+    {
+      "path": "ui/dist/editor.html",
+      "bytes": 299119,
+      "sha256": "a82b49b24dac0a4d0ec419d821976ea05406bca37bfff70958698a19114fd414"
+    },
+    {
+      "path": "ui/dist/THIRD-PARTY-LICENSES.txt",
+      "bytes": 12465,
+      "sha256": "23ce8b41b422c88e526c88e599317e4f56484732251311f789805f328f4af2c8"
+    }
+  ],
+  "logs": [
+    {
+      "name": "final-build",
+      "exitCode": 0,
+      "path": ".scratch/se03/final-build.log",
+      "bytes": 84,
+      "sha256": "8d07928e40500f2eab94b0764db483833c08dea6b324102ded211a56a2e95ac9"
+    },
+    {
+      "name": "final-test",
+      "exitCode": 0,
+      "path": ".scratch/se03/final-test.log",
+      "bytes": 2168,
+      "sha256": "c93f546d7b4f6f28f32c2b616950b21626aed591f4328c2e1b3910646c65dbbd"
+    },
+    {
+      "name": "final-browser",
+      "exitCode": 0,
+      "path": ".scratch/se03/final-browser.log",
+      "bytes": 963,
+      "sha256": "e83aea54105d25c31a2c3bf1a49a247984e102b6c56fda8b7fae2f07dfaabd3b"
+    },
+    {
+      "name": "final-check",
+      "exitCode": 0,
+      "path": ".scratch/se03/final-check.log",
+      "bytes": 178,
+      "sha256": "df4c261760becb456f8e2725686023e01695388a392cf8461a83bd32cda61335"
+    },
+    {
+      "name": "final-diff",
+      "exitCode": 0,
+      "path": ".scratch/se03/final-diff.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "tree-red",
+      "exitCode": 1,
+      "path": ".scratch/se03/tree-red.log",
+      "bytes": 971,
+      "sha256": "0508720d09b78977a4e60878153efb89ff5904e0c14d40f74dfbe1a613f817da"
+    },
+    {
+      "name": "save-red",
+      "exitCode": 1,
+      "path": ".scratch/se03/save-red.log",
+      "bytes": 965,
+      "sha256": "5a4639f3e49ae3dca29b6bc0a2096f6135f3283f53a803c90f4b42a3329e6396"
+    },
+    {
+      "name": "save-contracts",
+      "exitCode": 1,
+      "path": ".scratch/se03/save-contracts.log",
+      "bytes": 1292,
+      "sha256": "3236407e792e496e8eba431674ed0171fd8ae4ac3b70db343bee0848b07c9280"
+    },
+    {
+      "name": "browser-tabs-red",
+      "exitCode": 1,
+      "path": ".scratch/se03/browser-tabs-red.log",
+      "bytes": 293,
+      "sha256": "8229460a5c33754c9156e3b9201e897bda768a4b44aa9095ec9ada4759e4a4b2"
+    },
+    {
+      "name": "browser-save-red",
+      "exitCode": 1,
+      "path": ".scratch/se03/browser-save-red.log",
+      "bytes": 385,
+      "sha256": "a125348910d660d64474f974c79015cb4262d3ed3075bcc53898e8ca2a395a51"
+    },
+    {
+      "name": "browser-close-red",
+      "exitCode": 1,
+      "path": ".scratch/se03/browser-close-red.log",
+      "bytes": 727,
+      "sha256": "2480244ec981fab873a653cad989d3cea51aedae3dc899e0f7496af73a8d91ae"
+    },
+    {
+      "name": "browser-close-cancel-red",
+      "exitCode": 1,
+      "path": ".scratch/se03/browser-close-cancel-red.log",
+      "bytes": 1046,
+      "sha256": "86221b7cf41a0ff683cd7dfd19845c1891e9386b2d67e62ff0ad72975ab5c3e5"
+    },
+    {
+      "name": "browser-mixed-lines-red",
+      "exitCode": 1,
+      "path": ".scratch/se03/browser-mixed-lines-red.log",
+      "bytes": 936,
+      "sha256": "116dd83fab55ef4c4a3632cd44814a757058be09c68b9fe26da24e22e73873b6"
+    },
+    {
+      "name": "browser-theme-red",
+      "exitCode": 1,
+      "path": ".scratch/se03/browser-theme-red.log",
+      "bytes": 533,
+      "sha256": "687e96de3703014f983e70264d2e8da6ad8133618a3aed8cf6a4d52f468adfd4"
+    },
+    {
+      "name": "browser-shortcut-red",
+      "exitCode": 1,
+      "path": ".scratch/se03/browser-shortcut-red.log",
+      "bytes": 537,
+      "sha256": "3a2cff9301e9fd2cbfd617542a65916073024cf58ef069ff78266877c783a69c"
+    },
+    {
+      "name": "tree-boundary-red",
+      "exitCode": 1,
+      "path": ".scratch/se03/tree-boundary-red.log",
+      "bytes": 1111,
+      "sha256": "5526e5fa2e4c79536281a96db4740128670fb258e17e261dee97fc86354f6d68"
+    },
+    {
+      "name": "tree-links-red",
+      "exitCode": 1,
+      "path": ".scratch/se03/tree-links-red.log",
+      "bytes": 1345,
+      "sha256": "07969e2dd4762520bbcd549200c175a98e0f82740aadbe7f26bc3c7db1a12a3f"
+    },
+    {
+      "name": "save-unicode-red",
+      "exitCode": 1,
+      "path": ".scratch/se03/save-unicode-red.log",
+      "bytes": 1388,
+      "sha256": "427239e0b8e4d351ba91586ad1609cda36484aa15c2e9a4cc6719abd5cd13bf3"
+    },
+    {
+      "name": "browser-copy-red",
+      "exitCode": 1,
+      "path": ".scratch/se03/browser-copy-red.log",
+      "bytes": 1032,
+      "sha256": "e45405af3bbe01cf5972c69fc4f63eb55ca757388f982b669d778099744cc06b"
+    },
+    {
+      "name": "preview",
+      "exitCode": 0,
+      "path": ".scratch/se03/preview.log",
+      "bytes": 132,
+      "sha256": "cbb0d6cf13f2b67f976ed172dec58339f71dd03f15e358b380e7f067cd351227"
+    },
+    {
+      "name": "preview-font-check",
+      "exitCode": 0,
+      "path": ".scratch/se03/preview-font-check.log",
+      "bytes": 504,
+      "sha256": "dde6f9559679b1ee585afb640dd92e4eeeffe1a87b0e3e96069aaaccd1a7dcb4"
+    }
+  ],
+  "screenshots": [
+    {
+      "path": ".scratch/se03/editor-narrow.png",
+      "bytes": 21010,
+      "sha256": "032b48aed76e5b049eedff256785527c1bd34f1372e62c289ace55e2d585afbb"
+    },
+    {
+      "path": ".scratch/se03/editor-preview-narrow.png",
+      "bytes": 18891,
+      "sha256": "2b82e420a7facf928154932b643e2245a528ac558abf946d04134d46006ff4f2"
+    },
+    {
+      "path": ".scratch/se03/editor-preview-wide.png",
+      "bytes": 25430,
+      "sha256": "9e1e9ea1a9ede0655b056a2a30d08bb51a2a28eb6f0a8989d173e36841e9441b"
+    },
+    {
+      "path": ".scratch/se03/editor-wide.png",
+      "bytes": 26062,
+      "sha256": "b1735efb6614866b641845d6330352326eec85b52fc2fa163f0e725b0eb9aa86"
+    }
+  ],
+  "limits": [
+    "Native save smoke remains pending",
+    "SDK browser session meta supplied by fixture",
+    "Ordinary read-then-write is not external atomic compare-and-swap",
+    "User acceptance has not occurred"
+  ]
+}

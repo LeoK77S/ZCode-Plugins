@@ -1,0 +1,204 @@
+import { EditorState } from '@codemirror/state';
+import { EditorView, lineNumbers, keymap, drawSelection } from '@codemirror/view';
+import { defaultKeymap, history, historyKeymap } from '@codemirror/commands';
+
+const host = window.zcode;
+const folder = document.getElementById('folder'), files = document.getElementById('files');
+const tree = document.getElementById('tree'), status = document.getElementById('status');
+const editor = document.getElementById('editor'), empty = document.getElementById('empty');
+const tabs = document.getElementById('tabs'), breadcrumb = document.getElementById('breadcrumb');
+const save = document.getElementById('save'), statusText = document.getElementById('status-text'), fileInfo = document.getElementById('file-info');
+const closeDialog = document.getElementById('close-dialog'), closeSave = document.getElementById('close-save');
+let context, view, current;
+const documents = [];
+function showStatus(text, error = false) { statusText.textContent = text; status.classList.toggle('error', error); }
+function isDirty(file) { return file.text !== file.diskText; }
+function showFileStatus() {
+  if (!current) { save.disabled = true; fileInfo.textContent = ''; showStatus('选择文件开始编辑'); return; }
+  save.disabled = current.saving || !isDirty(current);
+  fileInfo.textContent = `UTF-8${current.encoding.bom ? ' BOM' : ''} · ${current.encoding.newline.toUpperCase()}`;
+  showStatus(current.error ?? (current.saving ? '正在保存…' : isDirty(current) ? '未保存' : current.saved ? '已保存' : '已读取'), Boolean(current.error));
+}
+function theme() { document.documentElement.dataset.theme = host.theme ?? 'light'; }
+async function call(name, args) {
+  const result = await host.callTool(name, args);
+  if (result.isError) throw new Error(result.structuredContent?.error ?? result.content?.[0]?.text ?? '文件操作失败');
+  if (!result.structuredContent) throw new Error('工具响应缺少数据');
+  return result.structuredContent;
+}
+function changeMixedText(text, changes, separator) {
+  // CodeMirror 把各类换行记作一个文档位置；映射回原正文只替换实际编辑的范围。
+  const offsets = [0];
+  for (let raw = 0; raw < text.length;) {
+    raw += text[raw] === '\r' && text[raw + 1] === '\n' ? 2 : 1;
+    offsets.push(raw);
+  }
+  const edits = [];
+  changes.iterChanges((from, to, _fromNew, _toNew, inserted) => {
+    edits.push({ from: offsets[from], to: offsets[to], text: inserted.toString().replaceAll('\n', separator) });
+  });
+  for (const edit of edits.reverse()) text = text.slice(0, edit.from) + edit.text + text.slice(edit.to);
+  return text;
+}
+function renderTabs() {
+  for (const file of documents) {
+    if (!file.tab) {
+      file.tabContainer = document.createElement('div');
+      file.tab = document.createElement('button'); file.tab.setAttribute('role', 'tab'); file.tab.setAttribute('aria-label', file.relativePath); file.tab.title = file.relativePath;
+      file.tab.className = 'tab-button';
+      const icon = document.getElementById('file-icon').content.firstElementChild.cloneNode(true); icon.classList.add('file-icon');
+      const title = document.createElement('span'); title.className = 'tab-title'; title.textContent = file.relativePath.split('/').at(-1);
+      file.dirtyMark = document.createElement('span'); file.dirtyMark.className = 'dirty-indicator'; file.dirtyMark.textContent = '●'; file.dirtyMark.setAttribute('aria-hidden', 'true');
+      file.tab.append(icon, title, file.dirtyMark);
+      file.close = document.createElement('button'); file.close.className = 'tab-close'; file.close.textContent = '×'; file.close.setAttribute('aria-label', `关闭 ${file.relativePath}`);
+      file.close.addEventListener('click', () => closeFile(file));
+      file.tabContainer.append(file.tab, file.close);
+      file.tab.addEventListener('click', () => activateFile(file));
+      file.tab.addEventListener('dblclick', () => { file.fixed = true; renderTabs(); });
+    }
+    file.tabContainer.className = `tab${file.fixed ? '' : ' temporary'}${file === current ? ' active' : ''}`;
+    file.tab.setAttribute('aria-selected', String(file === current));
+    file.dirtyMark.hidden = !isDirty(file);
+    file.close.disabled = Boolean(file.saving);
+    tabs.append(file.tabContainer);
+  }
+}
+function activateFile(file) {
+  if (current && view) { current.state = view.state; current.scrollTop = view.scrollDOM.scrollTop; current.scrollLeft = view.scrollDOM.scrollLeft; }
+  current = file;
+  empty.hidden = true; editor.hidden = false;
+  if (view) view.setState(file.state); else view = new EditorView({ state: file.state, parent: editor });
+  view.scrollDOM.scrollTop = file.scrollTop; view.scrollDOM.scrollLeft = file.scrollLeft;
+  renderTabs();
+  breadcrumb.replaceChildren();
+  const parts = [context.workspacePath.split(/[\\/]/).at(-1), ...file.relativePath.split('/')];
+  for (const [index, part] of parts.entries()) {
+    if (index) { const separator = document.createElement('span'); separator.className = 'crumb-separator'; separator.textContent = '›'; breadcrumb.append(separator); }
+    const crumb = document.createElement('span'); crumb.className = `crumb${index === parts.length - 1 ? ' current-file' : ''}`; crumb.textContent = part; breadcrumb.append(crumb);
+  }
+  for (const row of tree.querySelectorAll('.tree-row')) row.classList.toggle('selected', row.dataset.path === file.relativePath);
+  showFileStatus();
+}
+let opening = Promise.resolve();
+function openFile(path, fixed = false) {
+  opening = opening.then(async () => {
+    try {
+      const existing = documents.find(file => file.relativePath === path);
+      if (existing) { existing.fixed ||= fixed; activateFile(existing); return; }
+      showStatus('正在读取…');
+      const data = await call('read_editor_text', { path });
+      const canonical = documents.find(file => file.relativePath === data.relativePath);
+      if (canonical) { canonical.fixed ||= fixed; activateFile(canonical); return; }
+      const separator = { crlf: '\r\n', cr: '\r', lf: '\n', none: '\n' }[data.encoding.newline];
+      const file = { ...data, diskText: data.text, mixed: data.encoding.newline === 'mixed',
+        insertedSeparator: data.text.match(/\r\n|\r|\n/)?.[0] ?? '\n', fixed, scrollTop: 0, scrollLeft: 0 };
+      file.state = EditorState.create({ doc: data.text, extensions: [lineNumbers(), drawSelection(), history(), separator ? EditorState.lineSeparator.of(separator) : [],
+        keymap.of([{ key: 'Mod-s', run: () => { void saveFile(file); return true; } }, ...defaultKeymap, ...historyKeymap]),
+        EditorView.contentAttributes.of({ 'aria-label': '文件正文', spellcheck: 'false' }),
+        EditorView.updateListener.of(update => {
+          file.state = update.state;
+          if (!update.docChanged) return;
+          file.text = file.mixed ? changeMixedText(file.text, update.changes, file.insertedSeparator) : update.state.sliceDoc(); file.fixed = true;
+          renderTabs(); showFileStatus();
+        })] });
+      const temporary = documents.findIndex(item => !item.fixed);
+      if (temporary !== -1) { documents[temporary].tabContainer.remove(); documents.splice(temporary, 1, file); }
+      else documents.push(file);
+      activateFile(file);
+    } catch (error) { showStatus(error.message, true); }
+  });
+  return opening;
+}
+async function saveFile(file) {
+  if (file.saving) return false;
+  const text = file.text;
+  file.saving = true; file.error = undefined; renderTabs(); showFileStatus();
+  try {
+    const result = await call('save_editor_text', { path: file.relativePath, text, baseVersion: file.version });
+    file.version = result.version; file.diskText = result.text; file.encoding = result.encoding; file.saved = true;
+    return !isDirty(file);
+  } catch (error) { file.error = error.message; return false; }
+  finally { file.saving = false; renderTabs(); showFileStatus(); }
+}
+save.addEventListener('click', () => { void saveFile(current); });
+document.addEventListener('keydown', event => {
+  if (event.defaultPrevented || !(event.ctrlKey || event.metaKey) || event.altKey || event.key.toLowerCase() !== 's') return;
+  event.preventDefault();
+  if (current && !closeDialog.open) void saveFile(current);
+});
+function removeFile(file) {
+  const index = documents.indexOf(file);
+  documents.splice(index, 1); file.tabContainer.remove();
+  if (current !== file) { renderTabs(); return; }
+  current = undefined;
+  if (documents.length) activateFile(documents[Math.min(index, documents.length - 1)]);
+  else {
+    view.destroy(); view = undefined; editor.hidden = true; empty.hidden = false;
+    breadcrumb.textContent = context.workspacePath.split(/[\\/]/).at(-1);
+    for (const row of tree.querySelectorAll('.selected')) row.classList.remove('selected');
+    showFileStatus();
+  }
+}
+let closing;
+function closeFile(file) {
+  if (!isDirty(file)) { removeFile(file); return; }
+  closing = file;
+  document.getElementById('close-message').textContent = `保存 ${file.relativePath} 的更改吗？`;
+  document.getElementById('close-error').textContent = '';
+  closeDialog.showModal();
+}
+document.getElementById('close-cancel').addEventListener('click', () => { closeDialog.close(); closing = undefined; });
+document.getElementById('close-discard').addEventListener('click', () => { removeFile(closing); closeDialog.close(); closing = undefined; });
+closeSave.addEventListener('click', async () => {
+  const file = closing;
+  closeSave.disabled = true;
+  try {
+    const saved = await saveFile(file);
+    if (closing !== file || !closeDialog.open) return;
+    if (saved) { removeFile(file); closeDialog.close(); closing = undefined; }
+    else document.getElementById('close-error').textContent = file.error ?? '保存期间还有新的编辑，文件页仍然保留';
+  } finally { closeSave.disabled = false; }
+});
+async function loadDirectory(path, group) {
+  const { entries } = await call('list_editor_directory', { path });
+  for (const entry of entries) {
+    const item = document.createElement('div'), row = document.createElement('button');
+    row.className = 'tree-row'; row.dataset.path = entry.path; row.setAttribute('role', 'treeitem'); row.setAttribute('aria-label', entry.name);
+    const mark = entry.kind === 'directory' ? document.createElement('span') : document.getElementById('file-icon').content.firstElementChild.cloneNode(true);
+    mark.classList.add(entry.kind === 'directory' ? 'tree-arrow' : 'tree-file'); if (entry.kind === 'directory') mark.textContent = '›'; mark.setAttribute('aria-hidden', 'true');
+    const label = document.createElement('span'); label.className = 'tree-name'; label.textContent = entry.name; row.append(mark, label); item.append(row); group.append(item);
+    if (entry.kind === 'directory') {
+      row.setAttribute('aria-expanded', 'false');
+      const children = document.createElement('div'); children.className = 'tree-group'; children.setAttribute('role', 'group'); children.hidden = true; item.append(children);
+      let loaded = false;
+      row.addEventListener('click', async () => {
+        const expand = children.hidden; children.hidden = !expand; row.setAttribute('aria-expanded', String(expand));
+        if (!expand || loaded) return;
+        row.disabled = true;
+        try { await loadDirectory(entry.path, children); loaded = true; }
+        catch (error) { showStatus(error.message, true); children.hidden = true; row.setAttribute('aria-expanded', 'false'); }
+        finally { row.disabled = false; }
+      });
+    } else if (entry.kind === 'file') {
+      row.addEventListener('click', () => openFile(entry.path));
+      row.addEventListener('dblclick', () => openFile(entry.path, true));
+    }
+    else { row.disabled = true; row.title = entry.unavailableReason === 'path_outside_workspace' ? '链接目标位于工作区外，不可访问' : '不是可访问的普通文件或目录'; }
+  }
+}
+let rootLoaded = false;
+folder.addEventListener('click', async () => {
+  files.hidden = !files.hidden; folder.setAttribute('aria-expanded', String(!files.hidden));
+  if (files.hidden || rootLoaded) return;
+  folder.disabled = true;
+  try { await loadDirectory('.', tree); rootLoaded = true; }
+  catch (error) { showStatus(error.message, true); }
+  finally { folder.disabled = false; }
+});
+try {
+  if (!host) throw new Error('当前页面没有原生 ZCode 桥接');
+  host.subscribe(theme); await host.ready(); theme();
+  context = await call('get_editor_context', {});
+  document.getElementById('workspace-title').textContent = context.workspacePath.split(/[\\/]/).at(-1);
+  folder.disabled = false; showStatus('选择文件开始编辑');
+} catch (error) { showStatus(error.message, true); }
