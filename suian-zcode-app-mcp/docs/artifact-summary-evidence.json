@@ -29,5 +29,13 @@
     "state_and_revision_unchanged_by_hook": true
   },
   "coverage": ["单类最近 20 条", "各类最新 3 条保底", "不足 3 条全取", "字数不足每类至少 1 条", "9000/9001 码点", "JSON 转义展开计入预算", "Unicode 码点不拆开（含单码点 emoji）", "超长保底字段截短提示", "统计和缺快照诊断计入预算", "未知时间与同时间", "无伪造表行", "省略数量", "空状态", "输入与持久状态不变"],
+  "independent_review": {
+    "reviewed_commit": "0e9cddae3e96c7368eab72fd6871868c6ae74daf",
+    "standards_axis": "passed",
+    "specification_axis": "passed",
+    "resolved_findings": ["P3：emoji 完整性文档断言收窄为 Unicode 码点保证"],
+    "runtime_and_test_assertions_unchanged_after_regression": true,
+    "user_acceptance": false
+  },
   "limitations": ["未读取真实用户工件", "未更新用户安装缓存", "新版 Desktop 验收未执行", "真实模型主动维护评估未执行", "用户验收待进行"]
 }
