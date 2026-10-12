@@ -1,0 +1,370 @@
+{
+  "capturedAt": "2026-10-12T23:39:44.924Z",
+  "sourceCommit": "b1c2a220445097f2fe3301191c2e82a32f90e473",
+  "sourceHashes": {
+    "cli": "16860c6f278421cd98875ebe6c2335ea8bf6eea1ebd5ca357f13ca61b5026b46",
+    "server": "485ff1bad4acfdf1dbbb8bea350bfcce1bf6296478f02a4e9a47b44ef0688ec9",
+    "textFiles": "8480093bad3a4149defbde11e048dfaa565fc3c64937f78e662d11ba83d0eb40",
+    "html": "2c13431012c02693c394a5bd54e06871545d5a791f24c44a31a0343e2db55903",
+    "editorSource": "d921b43c89671c8da4870751b5b6f6a298ff411471aa98a424369e4b05889ef4"
+  },
+  "temporaryRegistration": {
+    "plugin": "se03-native-editor-probe@se03-native-local-test",
+    "server": "plugin:se03-native-editor-probe:suian-side-editor",
+    "resource": "ui://suian-side-editor/editor.html",
+    "entry": "public marketplace installation + Native chooser",
+    "formalSE08CachePackagingVerified": false,
+    "actualCodeAndDependencies": "实际 CLI、构建 HTML、SDK、CodeMirror 与 common 均执行固定 SE03 源码树中的产物和依赖；临时市场只缓存探针元信息，不作为 SE08 正式缓存安装证据。"
+  },
+  "environment": {
+    "retainedIsolatedDesktop": true,
+    "newGuiLaunches": 0,
+    "newModelTurns": 0,
+    "mode": "build",
+    "modeChanged": false,
+    "approvalClickedByAgent": false,
+    "workspace": "test-workspace-B",
+    "task": "SE03-native-test-task",
+    "permissionConfigurationChangedByAgent": false,
+    "hostInternalPermissionStateBeforeAfterCompared": false,
+    "humanApprovalIncludesProjectAllow": true,
+    "hostApprovalPersistenceAndScopeIndependentlyVerified": false
+  },
+  "observations": {
+    "appOnlyTools": 4,
+    "actualUiToolRequests": 11,
+    "successfulToolResponses": 10,
+    "expectedConflictResponses": 1,
+    "temporarySingleClickReplacement": true,
+    "doubleClickFixed": true,
+    "firstEditFixed": true,
+    "buttonSaveExactBytes": {
+      "bytes": 59,
+      "bom": true,
+      "newline": "crlf",
+      "sha256": "b122f5824a7b19e9cf3b66fdf8f6ad374ff387d9b3b0824f72cdf4b566690d98"
+    },
+    "ctrlSExactlyOneCall": true,
+    "ctrlSSaveExactBytes": {
+      "bytes": 83,
+      "bom": false,
+      "newline": "lf",
+      "sha256": "a4563d6ee60ac60127e2ef5c3f4c3ba0588dfe71e0529bf04da50e41be84860f"
+    },
+    "savedVersionUsedAsNextBaseVersion": true,
+    "conflict": {
+      "diskExternalBytesPreserved": true,
+      "diskSha256": "1eba7e47153227b3f5786af743004dc6f7bc3d09bdaca2f984fe76854e2b7972",
+      "unsavedUiTextAndDirtyPreserved": true,
+      "automaticRetry": false
+    },
+    "directory": {
+      "rootHiddenAndNodeModulesVisible": true,
+      "nodeModulesExpandedOnDemand": true,
+      "nodeModulesChildrenNotRecursivelyRead": true
+    },
+    "treeToggleNoExtraCalls": true,
+    "layoutDom": {
+      "viewport": {
+        "width": 415,
+        "height": 745
+      },
+      "treeShownEditorWidth": 220.4375,
+      "treeWidth": 186.89584350585938,
+      "treeHiddenEditorWidth": 407.3333435058594
+    },
+    "nativeGuestScreenshot": {
+      "path": ".scratch/se03-native-guest-final.png",
+      "sha256": "41af5a550e57aa4c6bba6d04765b0ee1788386b7d57913a764cf5c70db54faec",
+      "bytes": 41970,
+      "width": 623,
+      "height": 1117,
+      "directlyInspected": true
+    },
+    "computedFonts": {
+      "body": {
+        "fontFamily": "system-ui, \"Microsoft YaHei\", sans-serif",
+        "fontSize": "14px",
+        "fontStyle": "normal",
+        "fontWeight": "400"
+      },
+      ".tab-title": {
+        "fontFamily": "system-ui, \"Microsoft YaHei\", sans-serif",
+        "fontSize": "14px",
+        "fontStyle": "normal",
+        "fontWeight": "400"
+      },
+      ".tree-row": {
+        "fontFamily": "system-ui, \"Microsoft YaHei\", sans-serif",
+        "fontSize": "12px",
+        "fontStyle": "normal",
+        "fontWeight": "400"
+      },
+      ".cm-scroller": {
+        "fontFamily": "ui-monospace, Consolas, \"Cascadia Code\", monospace",
+        "fontSize": "12px",
+        "fontStyle": "normal",
+        "fontWeight": "400"
+      }
+    }
+  },
+  "calls": [
+    {
+      "id": 1,
+      "tool": "get_editor_context",
+      "arguments": {},
+      "uiRequestAt": "2026-10-12T23:22:33.377Z",
+      "uiMeta": {
+        "progressToken": 1
+      },
+      "permissionResolvedAt": "2026-10-12T23:22:57.339Z",
+      "decision": "allow",
+      "reason": "Approved once",
+      "rule": "mode.build.sideEffect",
+      "completedAt": "2026-10-12T23:22:57.343Z",
+      "isError": false,
+      "outcome": "success"
+    },
+    {
+      "id": 2,
+      "tool": "list_editor_directory",
+      "arguments": {
+        "path": "."
+      },
+      "uiRequestAt": "2026-10-12T23:25:41.102Z",
+      "uiMeta": {
+        "progressToken": 2
+      },
+      "permissionResolvedAt": "2026-10-12T23:25:44.374Z",
+      "decision": "allow",
+      "reason": "Approved once",
+      "rule": "mode.build.sideEffect",
+      "completedAt": "2026-10-12T23:25:44.382Z",
+      "isError": false,
+      "outcome": "success"
+    },
+    {
+      "id": 3,
+      "tool": "list_editor_directory",
+      "arguments": {
+        "path": "se03-smoke"
+      },
+      "uiRequestAt": "2026-10-12T23:26:08.471Z",
+      "uiMeta": {
+        "progressToken": 3
+      },
+      "permissionResolvedAt": "2026-10-12T23:26:10.873Z",
+      "decision": "allow",
+      "reason": "Approved once",
+      "rule": "mode.build.sideEffect",
+      "completedAt": "2026-10-12T23:26:10.876Z",
+      "isError": false,
+      "outcome": "success"
+    },
+    {
+      "id": 4,
+      "tool": "read_editor_text",
+      "arguments": {
+        "path": "se03-smoke/plain-lf.txt"
+      },
+      "uiRequestAt": "2026-10-12T23:26:49.630Z",
+      "uiMeta": {
+        "progressToken": 4
+      },
+      "permissionResolvedAt": "2026-10-12T23:26:51.416Z",
+      "decision": "allow",
+      "reason": "Approved once",
+      "rule": "mode.build.sideEffect",
+      "completedAt": "2026-10-12T23:26:51.419Z",
+      "isError": false,
+      "outcome": "success"
+    },
+    {
+      "id": 5,
+      "tool": "read_editor_text",
+      "arguments": {
+        "path": "se03-smoke/third.txt"
+      },
+      "uiRequestAt": "2026-10-12T23:27:13.668Z",
+      "uiMeta": {
+        "progressToken": 5
+      },
+      "permissionResolvedAt": "2026-10-12T23:27:15.412Z",
+      "decision": "allow",
+      "reason": "Approved once",
+      "rule": "mode.build.sideEffect",
+      "completedAt": "2026-10-12T23:27:15.415Z",
+      "isError": false,
+      "outcome": "success"
+    },
+    {
+      "id": 6,
+      "tool": "read_editor_text",
+      "arguments": {
+        "path": "se03-smoke/bom-crlf.txt"
+      },
+      "uiRequestAt": "2026-10-12T23:27:36.760Z",
+      "uiMeta": {
+        "progressToken": 6
+      },
+      "permissionResolvedAt": "2026-10-12T23:27:39.586Z",
+      "decision": "allow",
+      "reason": "Approved once",
+      "rule": "mode.build.sideEffect",
+      "completedAt": "2026-10-12T23:27:39.589Z",
+      "isError": false,
+      "outcome": "success"
+    },
+    {
+      "id": 7,
+      "tool": "save_editor_text",
+      "arguments": {
+        "path": "se03-smoke/bom-crlf.txt",
+        "text": "第一行 · BOM CRLF\r\n第二行 · Native按钮保存\r\n",
+        "baseVersion": "sha256:69435fc1e38de4a761764fb41e6f01c5b43cf8b7c93d23be6509982da4b17aeb"
+      },
+      "uiRequestAt": "2026-10-12T23:29:09.516Z",
+      "uiMeta": {
+        "progressToken": 7
+      },
+      "permissionResolvedAt": "2026-10-12T23:29:12.684Z",
+      "decision": "allow",
+      "reason": "Approved for this project",
+      "rule": "mode.build.highRisk",
+      "completedAt": "2026-10-12T23:29:12.692Z",
+      "isError": false,
+      "outcome": "success"
+    },
+    {
+      "id": 8,
+      "tool": "read_editor_text",
+      "arguments": {
+        "path": "se03-smoke/third.txt"
+      },
+      "uiRequestAt": "2026-10-12T23:30:07.201Z",
+      "uiMeta": {
+        "progressToken": 8
+      },
+      "permissionResolvedAt": "2026-10-12T23:30:14.310Z",
+      "decision": "allow",
+      "reason": "Approved once",
+      "rule": "mode.build.sideEffect",
+      "completedAt": "2026-10-12T23:30:14.312Z",
+      "isError": false,
+      "outcome": "success"
+    },
+    {
+      "id": 9,
+      "tool": "save_editor_text",
+      "arguments": {
+        "path": "se03-smoke/third.txt",
+        "text": "第一行 · BOM CRLF\n第二行 · Native CtrlS保存\n第三行 · 独立快捷键\n",
+        "baseVersion": "sha256:c0e6ac4801bd4f7315297b992a9f834d40bc0d7fc3df65a47fe7358895a7336d"
+      },
+      "uiRequestAt": "2026-10-12T23:30:44.525Z",
+      "uiMeta": {
+        "progressToken": 9
+      },
+      "permissionResolvedAt": "2026-10-12T23:30:46.166Z",
+      "decision": "allow",
+      "reason": "Approved once",
+      "rule": "mode.build.highRisk",
+      "completedAt": "2026-10-12T23:30:46.174Z",
+      "isError": false,
+      "outcome": "success"
+    },
+    {
+      "id": 10,
+      "tool": "save_editor_text",
+      "arguments": {
+        "path": "se03-smoke/third.txt",
+        "text": "第一行 · BOM CRLF\n第二行 · 冲突时保留我的输入\n",
+        "baseVersion": "sha256:a4563d6ee60ac60127e2ef5c3f4c3ba0588dfe71e0529bf04da50e41be84860f"
+      },
+      "uiRequestAt": "2026-10-12T23:31:52.996Z",
+      "uiMeta": {
+        "progressToken": 10
+      },
+      "permissionResolvedAt": "2026-10-12T23:31:57.810Z",
+      "decision": "allow",
+      "reason": "Approved once",
+      "rule": "mode.build.highRisk",
+      "completedAt": "2026-10-12T23:31:57.814Z",
+      "isError": true,
+      "outcome": "expected version_conflict"
+    },
+    {
+      "id": 11,
+      "tool": "list_editor_directory",
+      "arguments": {
+        "path": "node_modules"
+      },
+      "uiRequestAt": "2026-10-12T23:32:28.523Z",
+      "uiMeta": {
+        "progressToken": 11
+      },
+      "permissionResolvedAt": "2026-10-12T23:32:30.271Z",
+      "decision": "allow",
+      "reason": "Approved once",
+      "rule": "mode.build.sideEffect",
+      "completedAt": "2026-10-12T23:32:30.273Z",
+      "isError": false,
+      "outcome": "success"
+    }
+  ],
+  "modelCounter": {
+    "before": 5,
+    "after": 5,
+    "delta": 0
+  },
+  "limitations": {
+    "uiSdkMetaIsOnlyProgressToken": true,
+    "serverStdioWireCaptured": false,
+    "hostTrustedInjectionEvidence": "Host 注入依据沿用 SE01 源码分层证据；本轮成功服务端响应的会话与工作区身份一致，未捕获 server stdio wire。",
+    "mainRendererScreenshot": "主 renderer 截图遗漏 guest 局部画面；未用于 Native 视觉结论。",
+    "directIframeScreenshot": "OOPIF 的 Page.captureScreenshot 返回 CDP -32000：仅允许顶层目标；原失败日志 exit 1 保留。",
+    "nativeGuestScreenshot": "从当前可见且绑定隔离实例的 webview shell 顶层目标执行标准 Page.captureScreenshot；制作代理和根代理均已直接查看完整侧栏像素。",
+    "initialMultilineInsertText": "测试适配器的一次多行 Input.insertText 在 CRLF 文档中形成单行；未触发保存。后续改为逐行正常键盘输入与 Enter，未修改产品。该适配失败不作为产品字节写回红灯。",
+    "emptySyntheticCoreUsageWarnings": {
+      "event": "usage.tool.write.failed",
+      "count": 22,
+      "reason": "空合成任务出现 FOREIGN KEY constraint failed 用量事实写入告警；11 个 UI 工具均有实际回执，文件操作结果与磁盘/页面相符，未把告警当成保存失败。"
+    },
+    "H3NotRetested": true,
+    "userProductAcceptanceClaimed": false,
+    "independentReviewClaimed": false,
+    "fontAppearance": "同一 guest 的计算字体栈与已加载普通 inline CSS 一致，未发现字体覆盖；未按衬线观感判定缺陷或修改 CSS。",
+    "H4NotTested": true
+  },
+  "approval": {
+    "resolvedCount": 11,
+    "allowCount": 11,
+    "approvedOnceCount": 10,
+    "approvedForThisProjectCount": 1,
+    "projectApprovalCallId": 7,
+    "agentClickedApproval": false,
+    "note": "本轮由用户配合原生审批；id 7 保存按钮回执为 Approved for this project，其余为 Approved once。未程序化修改权限配置，未独立核对 Host 的持久化与作用范围。"
+  },
+  "rawEvidence": {
+    "location": "SE02 专用测试树的忽略目录 .scratch；原始路径/合成会话标识/截图不入库",
+    "manifestName": "se03-native-logs-to-transfer.json",
+    "manifestSha256": "900a3247451f0c4cfdd4106602b18d85f9bed06e0f67d5f55ab0db2f4f3c4ac7",
+    "frozenSourceSha256": "9b9e5a688b549c7a0d5c749e4cfbf7d2ee869b07204bb3694e37cdde7d3f0f6a",
+    "frozenFileCount": 154,
+    "allTransferSourcesFrozen": true,
+    "evidenceSelfCheckExit": 0,
+    "freezeCheckExit": 0,
+    "onlyNonzeroLog": {
+      "name": "se03-native-surface-capture.log",
+      "exitCode": 1,
+      "expectedLimitation": "OOPIF 仅允许顶层目标截图"
+    },
+    "activeSourcesExcluded": [
+      "GUI/controller 活动日志",
+      "CLI 日志原文件",
+      "模型请求日志原文件"
+    ]
+  },
+  "documentBaselineCommit": "68fa8b768a36a62b117e6bdfc275d607445663f0",
+  "documentScope": "仅追加本票 Native 验证记录；不修改生产源码、重跑 SDK/浏览器套件或操作 Host。"
+}
