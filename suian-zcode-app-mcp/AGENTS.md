@@ -45,7 +45,7 @@
 | artifact-host.mjs | 只读宿主消息的原始 Stop 断点与隐藏 forkOrigin，不用时间或父最新状态猜测 |
 | artifact-tools.mjs / artifact-ui.mjs | 当前调用者唯一定位、get 列表/详情与 set 注册，以及应用版本与 MCP Apps MIME 门控的页面资源 |
 | artifact-hook.mjs / hooks/hooks.json | 同步 SessionStart 初始化、UserPromptSubmit 简略摘要和 Stop 断点快照 |
-| artifact-prompt.mjs | 自动登记入口和分类统计摘要，不注入完整工件 |
+| artifact-prompt.mjs | 自动登记入口、分类统计和有类别保底的 20 条/9000 字符工件简表；只裁剪注入内容，不改变存储 |
 | ui/artifacts.html | 原生折叠分组列表与详情页，共用 get；会话详情实时查询，条目以文本呈现，资源不在页面编辑 |
 | control.mjs | 原 Host 改名读回、指定模型与权限模式创建、消息包装、v4 可选投递策略与提交回执、compact 维护命令与受理回执、归档保护与复原；改名/创建后双库标题复核，分叉时回执 warnings；按调用释放连接 |
 | glm.mjs | GLM 个人套餐额度/卡片投影、确认后重置与同次尝试回执；共用 controller 远控互斥 |
@@ -55,6 +55,6 @@
 | mcp.config.example.json | MCP 客户端连接示例 |
 | install.mjs / SKILL.md | 源码路由技能部署、原生外置配置初始化与指定旧根迁移；公共网关委托 common |
 | vendor/NOTICE.md | 公共消息投影库的来源与许可指针 |
-| tests/ | 真实 SQLite fixture 与 MCP/stdio 契约测试 |
+| tests/ | 真实 SQLite fixture、MCP/stdio、正式 Hook 与工件简表选择/裁剪契约测试 |
 | docs/ | 研究、工具规格、ADR、开票草稿与脱敏验收证据；agents/ 保存开票和领域文档入口 |
 | experiments/relay-gateway/ | 历史网关实验证据与迁移指针；实现统一维护于 `../suian-zcode-common/` |

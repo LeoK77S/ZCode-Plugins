@@ -1,0 +1,49 @@
+{
+  "date": "2026-10-12",
+  "base_commit": "e049c3c3ab5a3571c9839e600eed62ba99d24b9b",
+  "node": "24.15.0",
+  "mcp_sdk": "1.32.1",
+  "contract": {
+    "max_rows": 20,
+    "max_additional_context_codepoints": 9000,
+    "category_reservation": 3,
+    "min_per_nonempty_category_under_character_pressure": 1,
+    "order": "updated_at 降序，未知时间列后，相同时间保留存储顺序",
+    "storage_mutated_by_summary": false
+  },
+  "baseline": { "tests": 109, "pass": 109, "fail": 0, "exit_code": 0, "log_sha256": "5CEB32DB06D64A5CEACF64439B043AAFA32AC7147C78C4C81FBDB8CD7B198893" },
+  "red_checks": [
+    { "scope": "正式 Hook 简表", "exit_code": 1, "log_sha256": "EC33FF28F30E602C2874D09B5DDDD7340E9C0DBD531FABD722F3AB0FFB5FB9F0" },
+    { "scope": "时间排序、20 条与类别保底", "exit_code": 1, "log_sha256": "F15420C949E53E7726951A3B900CCFE11711E31D8BC9468301649C8A4A53F7CF" },
+    { "scope": "9000 字符与保底字段截短", "exit_code": 1, "log_sha256": "A2FBD4565E718708FEDADCF416779599433AB5C9C7F3253EDA4ADADF9E0421AE" }
+  ],
+  "regression": { "tests": 118, "pass": 118, "fail": 0, "exit_code": 0, "log_sha256": "2E14389ED9C76CEBE247B8B8247BE6904119C86F79E86BA645DD1880756AE14C" },
+  "syntax": { "passed": true, "exit_code": 0, "log_sha256": "CC258D839E50D5E0CF220528399D5C29A6BCC5C3A9EE2616A915627E0363D91D" },
+  "formal_hook": {
+    "registration": "hooks/hooks.json UserPromptSubmit 同步 command",
+    "transport": "真实 MCP SDK/InMemoryTransport + 隔离 SQLite + 正式 Hook 子进程",
+    "stored_items": 45,
+    "injected_rows": 20,
+    "injected_by_kind": { "pr": 11, "session": 3, "file": 3, "link": 3 },
+    "next_submission_reads_current_storage": true,
+    "state_and_revision_unchanged_by_hook": true
+  },
+  "coverage": ["单类最近 20 条", "各类最新 3 条保底", "不足 3 条全取", "字数不足每类至少 1 条", "9000/9001 码点", "JSON 转义展开计入预算", "Unicode 码点不拆开（含单码点 emoji）", "超长保底字段截短提示", "统计和缺快照诊断计入预算", "未知时间与同时间", "无伪造表行", "省略数量", "空状态", "输入与持久状态不变"],
+  "independent_review": {
+    "reviewed_commit": "0e9cddae3e96c7368eab72fd6871868c6ae74daf",
+    "standards_axis": "passed",
+    "specification_axis": "passed",
+    "resolved_findings": ["P3：emoji 完整性文档断言收窄为 Unicode 码点保证"],
+    "runtime_and_test_assertions_unchanged_after_regression": true,
+    "user_acceptance": false
+  },
+  "release_validation": {
+    "version": "0.4.0",
+    "master_base": "e049c3c3ab5a3571c9839e600eed62ba99d24b9b",
+    "dev_feature_commit": "10379eb75289a62f6b3137aadf56bf58fb8376e0",
+    "regression": { "tests": 118, "pass": 118, "fail": 0, "exit_code": 0, "log_sha256": "B3D252ECB17439BA14D26AF4756108A3508A69A7AAF7F75D6202255ACD66DD51" },
+    "manifest_package_lock_and_mcp_handshake_consistent": true,
+    "remote_client_version_source": "package.json"
+  },
+  "limitations": ["未读取真实用户工件", "未更新用户安装缓存", "新版 Desktop 验收未执行", "真实模型主动维护评估未执行", "用户验收待进行"]
+}
