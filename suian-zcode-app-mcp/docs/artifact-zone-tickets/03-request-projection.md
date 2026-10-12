@@ -12,7 +12,7 @@ GitHub Issue：[#29](https://github.com/ONEGAYI/ZCode-Plugins/issues/29)。完�
 
 ## 验收条件
 
-- [ ] UserPromptSubmit 输出管理提示词和分类统计，可含 revision；不自动附完整 ref/label/purpose/items，明确摘要可能过时。
+- [ ] UserPromptSubmit 输出一句登记入口和分类统计，可含 revision；详细维护规则及摘要时效说明放在工具描述，不自动附完整 ref/label/purpose/items。
 - [ ] 同轮工具续跑/重试保留旧摘要是接受的行为；下次用户提交读取当前统计，get/set 回执保持最新。
 - [ ] 同步 Stop 在返回前原子保存不可变内容和父会话＋完成消息 ID 的映射；不照搬命名插件的 async Stop。
 - [ ] 通过 Hook turnId 和只读宿主 anchor 精确定位完成 assistant response，不用 renderer rowId、时间戳或父最新状态猜断点。

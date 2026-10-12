@@ -1,12 +1,21 @@
 {
   "date": "2026-10-12",
   "status": "local_implementation_verified_user_acceptance_pending",
-  "automated": { "node": "24.15.0", "mcp_sdk": "1.32.1", "baseline_pass": 86, "regression_pass": 101, "fail": 0, "exit_code": 0, "entry": "npm test" },
+  "automated": { "node": "24.15.0", "mcp_sdk": "1.32.1", "baseline_pass": 86, "regression_pass": 102, "fail": 0, "exit_code": 0, "entry": "npm test" },
   "regression_fix": {
     "issue": "first_rejected_write_rolled_back_schema",
     "red": { "tests": 2, "fail": 2, "exit_code": 1, "log_sha256": "25EBED428067E1F113DDB31FC98D00400630090A0B8765F91B1F5D2D52ECB2D3" },
     "green": { "tests": 13, "pass": 13, "exit_code": 0, "log_sha256": "4D67908F40DD7AE31D92DD61958F92332CC4266C6D71D61313AC5B3226B5DD4C" },
     "final_regression_log_sha256": "DC90C61DF5DD7CA5ED977D1D817A357B0BCB9CE42C75D55FEED4AC9540FE364D"
+  },
+  "entry_prompt_revision": {
+    "injected_management_lines": 1,
+    "detailed_rules_location": "get_artifacts_and_set_artifacts_descriptions",
+    "red": { "tests": 2, "fail": 2, "exit_code": 1, "log_sha256": "41D031B381EF0AE52C7FC1780DFE26F9C2CE3AD7BAAF8B803DA73105C631B8C1" },
+    "green": { "tests": 14, "pass": 14, "exit_code": 0, "log_sha256": "BB9808EF590BCA016902AF51A9FD717683E9413B3599A5FDE20862B79B04F407" },
+    "regression": { "tests": 102, "pass": 102, "exit_code": 0, "log_sha256": "9E98090D986155072331B524E03E8FCE3AC2E90CF1B3C223F000B65FBA0951F3" },
+    "capacity_representation": "existing_fixed_contract_preserved",
+    "native_desktop_recheck": "not_rerun_for_text_only_change"
   },
   "runtime": { "desktop": "3.15.1.8093", "build": "f18d6db7", "cli": "0.16.9", "initialize_client_name": "zcode", "initialize_client_version": "0.16.9", "desktop_app_version_env": "3.15.1", "mime": "text/html;profile=mcp-app" },
   "native_checks": {

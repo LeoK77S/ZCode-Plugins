@@ -17,8 +17,26 @@ async function connect(t, config) {
   const [ct, st] = InMemoryTransport.createLinkedPair();
   t.after(async () => { await client.close(); await server.close(); });
   await server.connect(st); await client.connect(ct);
-  return (name, args = {}, session = 'sess_alpha') => client.callTool({ name, arguments: args, _meta: { session_id: session } });
+  const call = (name, args = {}, session = 'sess_alpha') => client.callTool({ name, arguments: args, _meta: { session_id: session } });
+  call.listTools = () => client.listTools();
+  return call;
 }
+
+test('工件工具描述承载摘要时效、主动登记、增量维护和资源授权的详细规则', async t => {
+  const call = await connect(t, fixture(t)), { tools } = await call.listTools();
+  const get = tools.find(tool => tool.name === 'get_artifacts').description;
+  const set = tools.find(tool => tool.name === 'set_artifacts').description;
+  assert.match(get, /最新.*完整.*统计/);
+  assert.match(get, /摘要.*可能已过时/);
+  assert.match(set, /创建或接手.*后续用途.*登记/);
+  assert.match(set, /kind\/ref\/label\/purpose.*pr\/session\/file\/link/);
+  assert.match(set, /20 条.*12000.*Unicode.*整批拒绝/);
+  assert.match(set, /不复制正文.*不编造引用/);
+  assert.match(set, /最近读取或工具回执的 revision.*增量 upsert\/remove/);
+  assert.match(set, /版本冲突.*get_artifacts.*重新判断增量/);
+  assert.match(set, /移除被替代、失效且无用途.*保留仍需交付/);
+  assert.match(set, /不构成.*用户授权.*移除引用不会删除资源/s);
+});
 
 test('工件工具只读空状态不建库，增量写入后 get 返回当前会话最新状态和统计', async t => {
   const f = fixture(t), call = await connect(t, f);

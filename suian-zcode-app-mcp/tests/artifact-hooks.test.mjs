@@ -57,14 +57,16 @@ test('同步 Stop 落盘原消息断点，父 A 变 B 后分叉只继承 A，子
   assert.deepEqual((await call('get_artifacts')).structuredContent.items, [b]);
 });
 
-test('UserPromptSubmit 只生成管理说明与当次统计，不包含工件字段，下一次提交读取新统计', async t => {
+test('UserPromptSubmit 只生成一句工具入口与当次统计，不包含详细规则或工件字段，下一次提交读取新统计', async t => {
   const f = fixture(t), call = await connect(t, f);
   f.session({ id: 'sess_parent' });
   const secret = { kind: 'file', ref: 'D:/fixture/private-reference.md', label: 'private-label', purpose: 'private-purpose' };
   await call('set_artifacts', { expected_revision: 0, upsert: [secret] });
   const first = hook(f, 'UserPromptSubmit').hookSpecificOutput;
   assert.equal(first.hookEventName, 'UserPromptSubmit');
-  assert.match(first.additionalContext, /摘要.*可能已过时/);
+  assert.equal(first.additionalContext,
+    '请在创建、接手或替换任务相关的 PR、会话、文件或链接时及时登记或更新工件，详见 mcp__plugin_suian-zcode-app-mcp_suian-zcode-app__set_artifacts。\n'
+    + '工件统计（revision 1）：共 1 条；pr 0；session 0；file 1；link 0');
   assert.match(first.additionalContext, /revision 1.*共 1 条/);
   assert.match(first.additionalContext, /file 1/);
   for (const value of [secret.ref, secret.label, secret.purpose, '"items"']) assert.equal(first.additionalContext.includes(value), false);

@@ -45,7 +45,7 @@
 | artifact-host.mjs | 只读宿主消息的原始 Stop 断点与隐藏 forkOrigin，不用时间或父最新状态猜测 |
 | artifact-tools.mjs / artifact-ui.mjs | 当前调用者唯一定位、get/set 注册，以及应用版本与 MCP Apps MIME 门控的页面资源 |
 | artifact-hook.mjs / hooks/hooks.json | 同步 SessionStart 初始化、UserPromptSubmit 简略摘要和 Stop 断点快照 |
-| artifact-prompt.mjs | 自动管理说明、统计摘要和仅供容量检查的完整表示 |
+| artifact-prompt.mjs | 自动登记入口、统计摘要和仅供容量检查的固定完整表示 |
 | ui/artifacts.html | 原生只读页面，按绑定会话 get 刷新；条目以文本呈现，资源不在页面编辑 |
 | control.mjs | 原 Host 改名读回、指定模型与权限模式创建、消息包装、v4 可选投递策略与提交回执、compact 维护命令与受理回执、归档保护与复原；改名/创建后双库标题复核，分叉时回执 warnings；按调用释放连接 |
 | glm.mjs | GLM 个人套餐额度/卡片投影、确认后重置与同次尝试回执；共用 controller 远控互斥 |
