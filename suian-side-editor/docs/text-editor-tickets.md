@@ -1,6 +1,6 @@
 # suian-side-editor 开票索引
 
-日期：2026-10-12。状态：用户已批准规格、粒度与发布，11 张 GitHub Issues 已创建；SE-00 已验证，SE-01 的只读基础切片已集成，真实宿主能力条件尚待验证。
+日期：2026-10-12。状态：用户已批准规格、粒度与发布，11 张 GitHub Issues 已创建；SE-00 已验证，SE-01 的只读基础切片及 H1/H2 实测证据已集成，补充证据复核中。SE-03 已开始实施，H3 仍待证明。
 
 实施启动：用户已要求在规格工作树按 implement-spec 执行。统一集成分支为 codex/side-editor-plan，实际基线已核对到 dev 的 b48e8a4；该提交与规划起点 403f877 的文件树一致。单票使用独立子工作树，合并由专门代理串行验证；本轮实施不包括后续 SE-09／10。
 
@@ -13,9 +13,9 @@
 | 本地标识 | GitHub | 交付行为 | Blocked by | 当前状态 |
 | --- | --- | --- | --- | --- |
 | [SE-00](issues/00-shared-ui-capability.md) | [#40](https://github.com/ONEGAYI/ZCode-Plugins/issues/40) | 提取现有原生 UI 能力判定，保持工件插件行为 | 无 | 本地实现、集成与两轴审查通过 |
-| [SE-01](issues/01-sidebar-context-and-read.md) | [#41](https://github.com/ONEGAYI/ZCode-Plugins/issues/41) | 从独立侧栏冷启动，可信绑定当前工作区并读取文本 | #40 | 实施中，H1/H2 待真实验证 |
+| [SE-01](issues/01-sidebar-context-and-read.md) | [#41](https://github.com/ONEGAYI/ZCode-Plugins/issues/41) | 从独立侧栏冷启动，可信绑定当前工作区并读取文本 | #40 | 本地 H1/H2 实测通过，补充证据复核中 |
 | [SE-02](issues/02-main-composer-capability.md) | [#42](https://github.com/ONEGAYI/ZCode-Plugins/issues/42) | 验证主对话评论接入能保持原生的并发清理语义 | #41 | H3 待证明 |
-| [SE-03](issues/03-tree-tabs-and-manual-save.md) | [#43](https://github.com/ONEGAYI/ZCode-Plugins/issues/43) | 浏览目录、打开临时或固定文件页并手动编辑保存 | #41 | 等待依赖及能力条件 |
+| [SE-03](issues/03-tree-tabs-and-manual-save.md) | [#43](https://github.com/ONEGAYI/ZCode-Plugins/issues/43) | 浏览目录、打开临时或固定文件页并手动编辑保存 | #41 | 实施中；尚未通过保存／页面／Native 验证 |
 | [SE-04](issues/04-save-mode-and-conflicts.md) | [#44](https://github.com/ONEGAYI/ZCode-Plugins/issues/44) | 持久化会话保存模式，自动保存并处理外部修改 | #43 | 等待依赖及能力条件 |
 | [SE-05](issues/05-durable-editor-recovery.md) | [#45](https://github.com/ONEGAYI/ZCode-Plugins/issues/45) | 恢复打开页、未保存正文、焦点页面与阅读位置 | #44 | 等待依赖及能力条件 |
 | [SE-06](issues/06-selection-comment-context.md) | [#46](https://github.com/ONEGAYI/ZCode-Plugins/issues/46) | 将完整的选区评论快照加入当前主对话胶囊 | #42、#43 | 等待依赖及能力条件 |

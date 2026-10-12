@@ -1,6 +1,6 @@
 # suian-side-editor — 独立侧栏文本编辑器
 
-当前阶段：需求、规格与票粒度已批准，11 张 GitHub Issues 已发布，依据 implement-spec 开始本地实施；宿主能力条件与完整验收尚未通过。
+当前阶段：需求、规格与票粒度已批准，11 张 GitHub Issues 已发布，依据 implement-spec 本地实施。只读切片与 H1/H2 已经人工原生审批实测通过，补充证据复核中；H3/H4 与完整首版验收尚未通过。
 
 ## 范围与约定
 
@@ -34,7 +34,8 @@
 | text-files.mjs | 相对路径及真实目标检查、UTF-8 只读正文和字节版本 |
 | ui/editor.html | SE-01 的相对路径输入与只读预览，后续编辑业务尚未实施 |
 | tests/ | 公开 MCP/stdio 文件边界契约与实际资源浏览器烟测 |
-| README.md / docs/se01-verification.md / docs/se01-evidence.json | 开发使用、脱敏验证证据与仍未通过的真实宿主条件 |
+| README.md / docs/se01-verification.md / docs/se01-evidence.json | 开发使用、首次验证轨迹与总证据索引 |
+| docs/se01-native-verification.md / docs/se01-native-evidence.json | 实际 Desktop 首开、关闭重开、会话／工作区归属与原生审批的限定证据 |
 | docs/design-discussion.md | 已确认交互、问题轮次、宿主能力边界与后续特性范围 |
 | docs/text-editor-spec.md | 首版行为、工程接口边界、能力门槛与验证标准 |
 | docs/text-editor-tickets.md / docs/issues/ | 实施依赖图、原子票草稿和后续待做特性 |
