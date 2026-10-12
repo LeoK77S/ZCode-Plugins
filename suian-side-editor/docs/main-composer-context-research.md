@@ -31,3 +31,7 @@ app.asar/package.json version 为 3.15.1。renderer 与沙箱别名中的对应�
 精确批次匹配权威 userInput／queue 可只清理插件自己的已受理缓存，但不能保证主输入框的新胶囊免于旧 ACK 删除。该方案不构成 H3 完整通过。
 
 需要上游提供可关联的 context revision、按捕获 revision 清理和消费批次反馈，或公开具有独立条目 ID 的原生附件 API。当前公开接口与已核对安装产物没有这条完整契约。首版并发要求保持不变；未满足时评论票与完整验收保持阻塞，不实施定时重发、禁用新增或私有宿主修改作为替代。
+
+## SE-02 实际 Desktop 续验
+
+真实隔离 Desktop 已验证 tooltip 明细、完整字段进入正常 userInput、普通成功清理及模型运行期间的排队受理；同页替换仍是一枚胶囊，正常清理和原生删除后页面没有关联消费反馈。尚无可控 admission gate，模型 completion hold 未作为竞态证明，H3 继续阻塞。运行轨迹、首次 FK 失败与 Native 夹具修正见 [SE-02 验证](se02-verification.md)，脱敏日志摘要见 [证据 JSON](se02-evidence.json)。
