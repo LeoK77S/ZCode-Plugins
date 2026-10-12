@@ -1,7 +1,13 @@
 {
   "date": "2026-10-12",
-  "status": "local_implementation_review_pending",
-  "automated": { "node": "24.15.0", "mcp_sdk": "1.32.1", "baseline_pass": 86, "regression_pass": 99, "fail": 0, "exit_code": 0, "entry": "npm test" },
+  "status": "local_implementation_fix_recheck_pending",
+  "automated": { "node": "24.15.0", "mcp_sdk": "1.32.1", "baseline_pass": 86, "regression_pass": 101, "fail": 0, "exit_code": 0, "entry": "npm test" },
+  "regression_fix": {
+    "issue": "first_rejected_write_rolled_back_schema",
+    "red": { "tests": 2, "fail": 2, "exit_code": 1, "log_sha256": "25EBED428067E1F113DDB31FC98D00400630090A0B8765F91B1F5D2D52ECB2D3" },
+    "green": { "tests": 13, "pass": 13, "exit_code": 0, "log_sha256": "4D67908F40DD7AE31D92DD61958F92332CC4266C6D71D61313AC5B3226B5DD4C" },
+    "final_regression_log_sha256": "DC90C61DF5DD7CA5ED977D1D817A357B0BCB9CE42C75D55FEED4AC9540FE364D"
+  },
   "runtime": { "desktop": "3.15.1.8093", "build": "f18d6db7", "cli": "0.16.9", "initialize_client_name": "zcode", "initialize_client_version": "0.16.9", "desktop_app_version_env": "3.15.1", "mime": "text/html;profile=mcp-app" },
   "native_checks": {
     "production_get_set_and_synchronous_hooks": "passed",
@@ -22,7 +28,8 @@
     "full_unique_request_projection": "waiting_for_upstream_issue_36",
     "user_acceptance": "pending"
   },
-  "review": { "standards": "pending", "spec": "pending" },
-  "isolation": { "fresh_profile_workspace_databases_and_Electron_storage": true, "provider": "local_synthetic_SSE", "user_credentials_copied": false, "user_MCP_configuration_changed": false, "upstream_modified": false, "source_cli_and_asar_unchanged": "pending_final_hash_check", "raw_runtime_material_cleaned": false },
+  "review": { "standards": "passed_initial_review", "spec": "P1_fixed_awaiting_recheck" },
+  "isolation": { "fresh_profile_workspace_databases_and_Electron_storage": true, "provider": "local_synthetic_SSE", "user_credentials_copied": false, "user_MCP_configuration_changed": false, "upstream_modified": false, "source_cli_and_asar_unchanged": true, "owned_probe_processes_stopped": true, "raw_runtime_material_cleaned": true },
+  "source_sha256": { "cli": "B816E38656E70FB585FE2AB1EA010DA89CDA928DAC1CCB5D83255FD18796DA6E", "asar": "C98B4B2A80E5EA46CE93F934F9580EFF11BC487570C87478FA36A3F4BD3D101F" },
   "delivery": { "pushed": false, "PR_created": false, "merged": false }
 }

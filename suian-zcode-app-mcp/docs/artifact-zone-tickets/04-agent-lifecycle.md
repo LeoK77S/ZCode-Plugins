@@ -2,7 +2,7 @@
 
 GitHub Issue：[#30](https://github.com/ONEGAYI/ZCode-Plugins/issues/30)。完整版唯一投影另见 [#36](https://github.com/ONEGAYI/ZCode-Plugins/issues/36)，不阻塞本票。
 
-本地标识：AZ-04。状态：待 #29 完成后实施，生产功能尚未实现。Blocked by：#29。
+本地标识：AZ-04。状态：管理提示词、skills 和提交摘要已本地实施；真实模型主动维护评估尚未执行，待确认隔离测试模型与账号。实现依赖：#29，已在本地接入。技术验证与后续评估任务见 [验证记录](../artifact-demo-verification.md)。
 
 ## 问题与交付
 

@@ -40,6 +40,25 @@ test('工件工具只读空状态不建库，增量写入后 get 返回当前会
   assert.equal((await call('get_artifacts', {}, 'sess_other')).structuredContent.stats.total, 0);
 });
 
+for (const code of ['revision_conflict', 'capacity_exceeded']) {
+  test(`新库首次 ${code} 后仍可读取空状态并合法重试`, async t => {
+    const f = fixture(t), call = await connect(t, f);
+    const item = { kind: 'file', ref: 'D:/fixture/a.md', label: '结果', purpose: '交付' };
+    const rejected = await call('set_artifacts', code === 'revision_conflict'
+      ? { expected_revision: 1, upsert: [item] }
+      : { expected_revision: 0, upsert: Array.from({ length: 21 }, (_, i) => ({ ...item, ref: `D:/fixture/${i}.md` })) });
+    assert.equal(rejected.isError, true);
+    assert.equal(rejected.structuredContent.code, code);
+    const empty = await call('get_artifacts');
+    assert.equal(empty.isError, undefined);
+    assert.deepEqual(empty.structuredContent, { revision: 0, items: [], stats: { total: 0, by_kind: { pr: 0, session: 0, file: 0, link: 0 } } });
+    const retried = await call('set_artifacts', { expected_revision: 0, upsert: [item] });
+    assert.equal(retried.isError, undefined);
+    assert.equal(retried.structuredContent.revision, 1);
+    assert.deepEqual((await call('get_artifacts')).structuredContent.items, [item]);
+  });
+}
+
 test('20/21 条与 12000/12001 Unicode 码点边界包含固定说明和版本，中文 emoji 按码点计数', async t => {
   const f = fixture(t), call = await connect(t, f);
   const item = { kind: 'file', ref: 'D:/fixture/a.md', label: '文😀', purpose: '交付' };

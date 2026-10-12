@@ -2,7 +2,7 @@
 
 GitHub Issue：[#29](https://github.com/ONEGAYI/ZCode-Plugins/issues/29)。完整版唯一投影另见 [#36](https://github.com/ONEGAYI/ZCode-Plugins/issues/36)，不阻塞本票。
 
-本地标识：AZ-03。状态：待 #28 完成后实施，生产功能尚未实现。Blocked by：#28。本票采用现有正式 Hook，不等待每请求唯一投影槽。
+本地标识：AZ-03。状态：已本地实施，正式同步 Hook 和历史断点原生分叉通过隔离验证，待用户验收和发布。实现依赖：#28，已在本地接入。本票采用现有正式 Hook，不等待每请求唯一投影槽。开发结果见 [验证记录](../artifact-demo-verification.md)。
 
 ## 问题与交付
 

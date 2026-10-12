@@ -56,6 +56,8 @@ export function createArtifactStore({ artifactDbPath, sessionDbPath }) {
           session_id TEXT NOT NULL, message_id TEXT NOT NULL, turn_id TEXT NOT NULL, snapshot_id TEXT NOT NULL,
           PRIMARY KEY (session_id, message_id)
         ); PRAGMA user_version = 1;`);
+        // 库结构单独提交，业务拒绝只回滚工件状态。
+        db.exec('COMMIT; BEGIN IMMEDIATE');
       } else if (version !== 1) throw Object.assign(new Error('工件存储版本不兼容'), { code: 'artifact_storage_incompatible' });
       return db;
     } catch (error) { db.close(); throw error; }

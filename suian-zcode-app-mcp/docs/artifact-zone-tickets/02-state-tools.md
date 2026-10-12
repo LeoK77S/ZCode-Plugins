@@ -2,7 +2,7 @@
 
 GitHub Issue：[#28](https://github.com/ONEGAYI/ZCode-Plugins/issues/28)。完整版唯一投影另见 [#36](https://github.com/ONEGAYI/ZCode-Plugins/issues/36)，不阻塞本票。
 
-本地标识：AZ-02。状态：可以实施，生产功能尚未实现。Blocked by：无。完整版唯一投影已拆为独立等待上游事项，不作为本票前置条件。
+本地标识：AZ-02。状态：已本地实施，公开 MCP/stdio 契约与隔离 Desktop 接线通过，待用户验收和发布。Blocked by：无。完整版唯一投影已拆为独立等待上游事项，不作为本票前置条件。开发结果见 [验证记录](../artifact-demo-verification.md)。
 
 ## 问题与交付
 
