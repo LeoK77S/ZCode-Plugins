@@ -1,0 +1,271 @@
+{
+  "date": "2026-10-12",
+  "scope": "SE-01 / #41 read-only development slice",
+  "baseline": "a647bc9938883e7e313b314917315649d868f6ed",
+  "issueComplete": false,
+  "hostGates": {
+    "H1": "not_verified_in_Desktop",
+    "H2": "not_verified_in_Desktop"
+  },
+  "versions": {
+    "node": "24.15.0",
+    "mcpSdk": "1.32.1",
+    "zod": "4.6.5",
+    "playwright": "1.62.1",
+    "desktopExe": "3.15.1.8093",
+    "desktopPackage": "3.15.1",
+    "cli": "0.16.9",
+    "plugin": "0.1.0"
+  },
+  "checks": {
+    "contract": {
+      "passed": 10,
+      "failed": 0,
+      "skipped": 0,
+      "exit": 0
+    },
+    "syntax": {
+      "exit": 0
+    },
+    "browser": {
+      "exit": 0,
+      "actualResourceAndSdk": true,
+      "realHostMeta": false,
+      "networkRequests": 0
+    }
+  },
+  "guiLaunches": 3,
+  "modelEndpointRequestsSinceThirdGuiLaunch": 0,
+  "nativePluginDiscovery": {
+    "enabled": true,
+    "diagnostics": [],
+    "mode": "inline plugins.dirs"
+  },
+  "emptySessionProbe": {
+    "create": "messages=[]; persistence=immediate",
+    "liveHelperList": "session present",
+    "publicClose": "closed=true",
+    "afterCloseList": "empty",
+    "freshHelperList": "empty",
+    "desktopSelectableColdTask": false
+  },
+  "uncompletedCondition": "Reach an actual Desktop-selected cold session without a model turn, then verify first surface open/reopen and actual SDK request meta/env across workspaces.",
+  "systemRegistration": {
+    "fixedKeys": [
+      "HKCU/Software/Classes/Directory/shell/ZCode.OpenInZCode",
+      "HKCU/Software/Classes/Drive/shell/ZCode.OpenInZCode"
+    ],
+    "startupBeforeSnapshot": false,
+    "testOwned": false,
+    "rollbackOrDeletion": false
+  },
+  "installation": {
+    "asar": {
+      "resource": "{{ZCODE_INSTALL}}/resources/app.asar",
+      "bytes": 340511069,
+      "sha256": "c98b4b2a80e5ea46ce93f934f9580eff11bc487570c87478fa36a3f4bd3d101f"
+    },
+    "cli": {
+      "resource": "{{ZCODE_INSTALL}}/resources/glm/zcode.cjs",
+      "bytes": 15126820,
+      "sha256": "b816e38656e70fb585fe2ab1ea010da89cda928dac1ccb5d83255fd18796da6e"
+    }
+  },
+  "logs": [
+    {
+      "file": ".scratch/se01-native-red.log",
+      "bytes": 1042,
+      "sha256": "8f97283095a202907b3d9d010a5bef7fe5fb8e89a3ae59a929cfdcf0b0a22409",
+      "exit": "1"
+    },
+    {
+      "file": ".scratch/se01-native-green.log",
+      "bytes": 226,
+      "sha256": "75fea6433e9bc77ac06dc1df1a65c27d688ccd750f56eaa5d3ba6997997f1db3",
+      "exit": "0"
+    },
+    {
+      "file": ".scratch/se01-context-red.log",
+      "bytes": 1028,
+      "sha256": "dccd54ae817f4cbb7afa9a3bc4557ab26c23430dc954acfb23cb154790354a16",
+      "exit": "1"
+    },
+    {
+      "file": ".scratch/se01-context-green.log",
+      "bytes": 225,
+      "sha256": "eda91dc2be5d5811b93e9f799264b6be56b7da8c747752f215b5c82aff5ad17c",
+      "exit": "0"
+    },
+    {
+      "file": ".scratch/se01-read-red.log",
+      "bytes": 955,
+      "sha256": "35b01a54876284b681b9cd3984a75f185ccdd669201aadb92493e815c931d96c",
+      "exit": "1"
+    },
+    {
+      "file": ".scratch/se01-read-green.log",
+      "bytes": 492,
+      "sha256": "29baefbd806167eb49a679be1b7bdb009c738be5004a773427579b0e70900079",
+      "exit": "0"
+    },
+    {
+      "file": ".scratch/se01-boundary-red.log",
+      "bytes": 1116,
+      "sha256": "a8c573529c0993bfeafdca3843dbdfa6e644daae7014dab17eabeee8df3399d3",
+      "exit": "1"
+    },
+    {
+      "file": ".scratch/se01-boundary-green.log",
+      "bytes": 600,
+      "sha256": "b323fb526d96059536df7884971a63cc46dd7e74045e5db25ddbfb97f93415ff",
+      "exit": "0"
+    },
+    {
+      "file": ".scratch/se01-errors-red.log",
+      "bytes": 1238,
+      "sha256": "0b98cc50335671fe17173edb839a1822d0d960eb1408c9d2d8e67cf3f74eb43f",
+      "exit": "1"
+    },
+    {
+      "file": ".scratch/se01-errors-green.log",
+      "bytes": 711,
+      "sha256": "057ac7954367999fb7db7adae1a27f77f904bd3632a09a7b233ab78362bb86b0",
+      "exit": "0"
+    },
+    {
+      "file": ".scratch/se01-ui-red.log",
+      "bytes": 2129,
+      "sha256": "e66166166fe6cc225e914154a8c7fe8858ed5805bdaa5dd4a16416c23ee62b58",
+      "exit": "1"
+    },
+    {
+      "file": ".scratch/se01-ui-green.log",
+      "bytes": 815,
+      "sha256": "fc4f592c009066852328a46f789f516d9c4d0af8dd4777daeb239669b586ae0a",
+      "exit": "0"
+    },
+    {
+      "file": ".scratch/se01-install.log",
+      "bytes": 96,
+      "sha256": "f852be64c9b0d4e9e5607a09e46a50fe24d66313640b9b419a775297dd080914",
+      "exit": "0"
+    },
+    {
+      "file": ".scratch/se01-stdio-regression.log",
+      "bytes": 624,
+      "sha256": "8362040c1feefbfc442f7ff5bb3d17fe087c61e8e90dba20dfd9927cb8110c69",
+      "exit": "interrupted (tool exit 1)"
+    },
+    {
+      "file": ".scratch/se01-stdio-fixed.log",
+      "bytes": 229,
+      "sha256": "9e770bbc4629af7acc145e678ad86906598412fb5a05fb58f604e98099058cbc",
+      "exit": "0"
+    },
+    {
+      "file": ".scratch/se01-full.log",
+      "bytes": 1249,
+      "sha256": "9880b491a97a7bd928758a93070405ed5bcfbde21d88b2abfe6dae9f9ad384b7",
+      "exit": "0"
+    },
+    {
+      "file": ".scratch/se01-final-check.log",
+      "bytes": 82,
+      "sha256": "366f6b55904e8dde6965a246b80bc53b303d2302d83439d3c8cef402383de22e",
+      "exit": "0"
+    },
+    {
+      "file": ".scratch/se01-browser.log",
+      "bytes": 158,
+      "sha256": "57ec13535f668c4329c6161ee1f218969c62821405add40aca1bceaf340370a8",
+      "exit": "0"
+    },
+    {
+      "file": ".scratch/se01-desktop-run.log",
+      "bytes": 410,
+      "sha256": "a5c08a62317ce8f4fc01f88cbd02b0dd53d138d10f83dfff13836fee3e293167",
+      "exit": "1"
+    },
+    {
+      "file": ".scratch/se01-desktop-run2.log",
+      "bytes": 807,
+      "sha256": "8cb1281b182acd2dccf254a78ae3fc0bf5178a26b460231ea053140d16f9fa5a",
+      "exit": "0"
+    },
+    {
+      "file": ".scratch/se01-desktop-run3.log",
+      "bytes": 778,
+      "sha256": "a86f97058665f08ffff71df3963fc7980694db1ab9b21ae302910a6761b84c90",
+      "exit": "0"
+    },
+    {
+      "file": ".scratch/se01-native-plugin-list.log",
+      "bytes": 18573,
+      "sha256": "f1542d86d41c23198c8a36794a9b99a71bc32d69c8823da0a64e6dd7ee00d71e",
+      "exit": "0"
+    },
+    {
+      "file": ".scratch/se01-empty-sessions.log",
+      "bytes": 2640,
+      "sha256": "5c2211a449190e0e543169d07236e0a5091f12c35fec1f3f035d518e5315ee11",
+      "exit": "1"
+    },
+    {
+      "file": ".scratch/se01-empty-sessions2.log",
+      "bytes": 5221,
+      "sha256": "fdbf37dfd56756af535718f53b43061264776c9c2b70ce993a597b771340318b",
+      "exit": "0"
+    },
+    {
+      "file": ".scratch/se01-persisted-session-list.log",
+      "bytes": 222,
+      "sha256": "8d2b5657a290108b1bda737ba8d093b29c00e6ff1c5c017e946a1da95bbf8aeb",
+      "exit": "0"
+    },
+    {
+      "file": ".scratch/se01-empty-session-durability.log",
+      "bytes": 6539,
+      "sha256": "32875e308566f534d70e9bd3f51502ce2f4a83ce568f74c0e6aed3cca988c449",
+      "exit": "0"
+    },
+    {
+      "file": ".scratch/se01-renderer-refresh.log",
+      "bytes": 2518,
+      "sha256": "92c59803f7f5041f2915494c3e7d0520a02700e93d219999e7262ad5463fd077",
+      "exit": "0"
+    },
+    {
+      "file": ".scratch/se01-explorer-directory-current.log",
+      "bytes": 385,
+      "sha256": "3878fea7960dadde424cfd9afcc444839437509aeb97f10a302079285f2730dd",
+      "exit": "read-only snapshot; no recorded exit"
+    },
+    {
+      "file": ".scratch/se01-explorer-drive-current.log",
+      "bytes": 377,
+      "sha256": "6e36cf987203be50cf87c21b2c71a020887bdfada248c00231670b5774cfa925",
+      "exit": "read-only snapshot; no recorded exit"
+    }
+  ],
+  "notes": [
+    "Raw logs remain ignored and may contain synthetic session identifiers and machine paths; do not publish raw logs.",
+    "Contract/browser results do not establish H1/H2 or user acceptance."
+  ],
+  "cleanup": {
+    "recordedDesktopAndHelperPidsChecked": 6,
+    "remainingRecordedProcesses": 0,
+    "scope": "Only recorded isolated Desktop main/Utility Host and public-protocol helper PIDs; not a system-wide cleanup assertion."
+  },
+  "processChecks": [
+    {
+      "file": ".scratch/se01-isolated-processes-before.json",
+      "bytes": 985,
+      "sha256": "a8a20ff5b680cfadffd451ad361e3bb273857942d74e889310b81ef731aae5a6"
+    },
+    {
+      "file": ".scratch/se01-isolated-processes-after.json",
+      "bytes": 546,
+      "sha256": "ee6695fbe047bff1d67202df78e771c58d5df7cd2374e713350fd297a60b7f18"
+    }
+  ]
+}
