@@ -1,6 +1,6 @@
 # suian-side-editor
 
-独立侧栏文本编辑器的**只读开发切片**。已实现 SE-01 的本地资源、app-only MCP 工具、可信归属拒绝和文本读取；安装版 Desktop 的 H1/H2 已经人工原生审批实测通过，补充证据正在独立复核。GitHub [#41](https://github.com/ONEGAYI/ZCode-Plugins/issues/41) 尚未关闭，本插件暂不加入市场清单。
+独立侧栏文本编辑器的**只读开发切片**。已实现 SE-01 的本地资源、app-only MCP 工具、可信归属拒绝和文本读取；安装版 Desktop 的 H1/H2 已经人工原生审批实测及两轴复核通过。GitHub [#41](https://github.com/ONEGAYI/ZCode-Plugins/issues/41) 尚未关闭，本插件暂不加入市场清单。
 
 ## 当前可验证的行为
 
