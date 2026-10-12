@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import packageMetadata from '../package.json' with { type: 'json' };
 
 const workspace = 'D:\\fixture';
 const model = { provider_id: 'fixture', model_id: 'flash', reasoning_level: 'low' };
@@ -28,6 +29,7 @@ async function fixture(overrides = {}) {
           if (boundClientId !== undefined && boundClientId !== params[0].clientId) throw new Error('fault.connection.clientChanged');
           assert.equal(params[0].kind, 'clientHello');
           assert.equal(params[0].protocolVersion, 3);
+          assert.equal(params[0].appVersion, packageMetadata.version);
           if (overrides[method]) return overrides[method](params);
           boundClientId = params[0].clientId;
           return;

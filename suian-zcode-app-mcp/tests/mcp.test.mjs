@@ -6,6 +6,9 @@ import { ElicitRequestSchema } from '@modelcontextprotocol/sdk/types.js';
 import { fixture } from './fixtures.mjs';
 import { writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
+import packageMetadata from '../package.json' with { type: 'json' };
+import pluginMetadata from '../.zcode-plugin/plugin.json' with { type: 'json' };
+import lockMetadata from '../package-lock.json' with { type: 'json' };
 
 test('创建和发信公布正文与 Markdown 路径二选一，文件正文按 UTF-8 原样交给控制器', async t => {
   const f = fixture(t), calls = [];
@@ -100,7 +103,7 @@ test('compact_session 公布指定目标与受理语义，严格校验参数并�
   assert.equal(rejected.structuredContent.reason_code, 'compactOperationLock');
 });
 
-test('MCP 握手公布十二个工具，查询工具保持只读', async t => {
+test('MCP 握手版本与插件元信息一致，公布十二个工具并保持查询只读', async t => {
   const f = fixture(t);
   f.task({ id: 'sess_alpha', title: 'MCP 工具' });
   f.session({ id: 'sess_alpha', title: 'MCP 工具' });
@@ -112,6 +115,10 @@ test('MCP 握手公布十二个工具，查询工具保持只读', async t => {
   t.after(async () => { await client.close(); await server.close(); });
   await server.connect(serverTransport);
   await client.connect(clientTransport);
+  assert.equal(pluginMetadata.version, packageMetadata.version);
+  assert.equal(lockMetadata.version, packageMetadata.version);
+  assert.equal(lockMetadata.packages[''].version, packageMetadata.version);
+  assert.equal(client.getServerVersion().version, packageMetadata.version);
   const listed = await client.listTools();
   assert.deepEqual(listed.tools.map(tool => tool.name), ['list_sessions', 'read_session', 'rename_session', 'start_session', 'send_message', 'compact_session', 'archive_session', 'restore_session', 'get_glm_balance', 'reset_glm_quota', 'get_artifacts', 'set_artifacts']);
   for (const tool of listed.tools) assert.equal(tool.annotations.readOnlyHint, ['list_sessions', 'read_session', 'get_glm_balance', 'get_artifacts'].includes(tool.name));

@@ -50,7 +50,7 @@
 | control.mjs | 原 Host 改名读回、指定模型与权限模式创建、消息包装、v4 可选投递策略与提交回执、compact 维护命令与受理回执、归档保护与复原；改名/创建后双库标题复核，分叉时回执 warnings；按调用释放连接 |
 | glm.mjs | GLM 个人套餐额度/卡片投影、确认后重置与同次尝试回执；共用 controller 远控互斥 |
 | sessions.mjs | 只读索引查询、会话定位、历史投影与分页；sessionTitle 轻量双库标题读取供复核，sessionMode 读取 CLI 会话库权限供继承与首发后确认（不用索引或创建响应的 mode） |
-| package.json / package-lock.json | 固定依赖版本与测试入口 |
+| package.json / package-lock.json | package.json 提供插件和运行时自报版本；原生清单与锁文件同步版本，固定依赖与测试入口 |
 | mcp.config.example.json | MCP 客户端连接示例 |
 | install.mjs / SKILL.md | 源码路由技能部署、原生外置配置初始化与指定旧根迁移；公共网关委托 common |
 | vendor/NOTICE.md | 公共消息投影库的来源与许可指针 |
