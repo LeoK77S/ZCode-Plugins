@@ -1,6 +1,6 @@
 # suian-side-editor
 
-独立侧栏文本编辑器的**只读开发切片**。已实现 SE-01 的本地资源、app-only MCP 工具、可信归属拒绝和文本读取；真实 Desktop 的 H1/H2 门槛尚未完成，[#41](https://github.com/ONEGAYI/ZCode-Plugins/issues/41) 保持未完成。本插件暂不加入市场清单。
+独立侧栏文本编辑器的**只读开发切片**。已实现 SE-01 的本地资源、app-only MCP 工具、可信归属拒绝和文本读取；安装版 Desktop 的 H1/H2 已经人工原生审批实测及两轴复核通过。GitHub [#41](https://github.com/ONEGAYI/ZCode-Plugins/issues/41) 尚未关闭，本插件暂不加入市场清单。
 
 ## 当前可验证的行为
 
@@ -29,6 +29,6 @@ npm run check
 
 ## 证据与限制
 
-实现范围及未完成条件见 [SE-01 验证记录](docs/se01-verification.md)，脱敏日志摘要见 [JSON 证据](docs/se01-evidence.json)。规格与原子票见 [首版规格](docs/text-editor-spec.md) 和 [SE-01](docs/issues/01-sidebar-context-and-read.md)。
+实现范围与首次轨迹见 [SE-01 验证记录](docs/se01-verification.md)，实际首开、关闭重开及两个工作区的结果见 [Native 续验](docs/se01-native-verification.md)。脱敏日志摘要见 [JSON 证据](docs/se01-evidence.json)。规格与原子票见 [首版规格](docs/text-editor-spec.md) 和 [SE-01](docs/issues/01-sidebar-context-and-read.md)。
 
 读取使用常规 `realpath`、文件句柄和字节读取，版本描述实际读取到的内容；不宣称跨任意外部编辑器的原子文件快照，也不宣称工作区目录被并发替换时具有原子路径隔离保证。
