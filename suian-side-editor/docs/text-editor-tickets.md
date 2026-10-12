@@ -1,6 +1,6 @@
 # suian-side-editor 开票索引
 
-日期：2026-10-12。状态：用户已批准规格、粒度与发布，11 张 GitHub Issues 已创建；SE-00 已验证，SE-01 的只读基础切片及 H1/H2 实测证据已集成并通过两轴复核。SE-02／03 已开始实施，H3 仍待证明。
+日期：2026-10-12，实施状态更新至 2026-10-13。用户已批准规格、粒度与发布，11 张 GitHub Issues 已创建；SE-00 与 SE-01 已完成本地验证及两轴复核。SE-02 调查已完成，H3 未满足；SE-03 已完成代码、整合验证及两轴复核，Native 保存烟测仍待进行。
 
 实施启动：用户已要求在规格工作树按 implement-spec 执行。统一集成分支为 codex/side-editor-plan，实际基线已核对到 dev 的 b48e8a4；该提交与规划起点 403f877 的文件树一致。单票使用独立子工作树，合并由专门代理串行验证；本轮实施不包括后续 SE-09／10。
 
@@ -14,13 +14,13 @@
 | --- | --- | --- | --- | --- |
 | [SE-00](issues/00-shared-ui-capability.md) | [#40](https://github.com/ONEGAYI/ZCode-Plugins/issues/40) | 提取现有原生 UI 能力判定，保持工件插件行为 | 无 | 本地实现、集成与两轴审查通过 |
 | [SE-01](issues/01-sidebar-context-and-read.md) | [#41](https://github.com/ONEGAYI/ZCode-Plugins/issues/41) | 从独立侧栏冷启动，可信绑定当前工作区并读取文本 | #40 | 本地实现、H1/H2 实测与两轴复核通过 |
-| [SE-02](issues/02-main-composer-capability.md) | [#42](https://github.com/ONEGAYI/ZCode-Plugins/issues/42) | 验证主对话评论接入能保持原生的并发清理语义 | #41 | 接入探针实施中；H3 待证明 |
-| [SE-03](issues/03-tree-tabs-and-manual-save.md) | [#43](https://github.com/ONEGAYI/ZCode-Plugins/issues/43) | 浏览目录、打开临时或固定文件页并手动编辑保存 | #41 | SDK 19/19 与构建浏览器通过；Native 保存烟测及两轴复核待进行 |
+| [SE-02](issues/02-main-composer-capability.md) | [#42](https://github.com/ONEGAYI/ZCode-Plugins/issues/42) | 验证主对话评论接入能保持原生的并发清理语义 | #41 | 调查与两轴复核完成；H3 未满足，能力门槛未放行 |
+| [SE-03](issues/03-tree-tabs-and-manual-save.md) | [#43](https://github.com/ONEGAYI/ZCode-Plugins/issues/43) | 浏览目录、打开临时或固定文件页并手动编辑保存 | #41 | SDK 19/19、12 组构建浏览器与两轴复核通过；Native 保存烟测待进行 |
 | [SE-04](issues/04-save-mode-and-conflicts.md) | [#44](https://github.com/ONEGAYI/ZCode-Plugins/issues/44) | 持久化会话保存模式，自动保存并处理外部修改 | #43 | 等待依赖及能力条件 |
 | [SE-05](issues/05-durable-editor-recovery.md) | [#45](https://github.com/ONEGAYI/ZCode-Plugins/issues/45) | 恢复打开页、未保存正文、焦点页面与阅读位置 | #44 | 等待依赖及能力条件 |
-| [SE-06](issues/06-selection-comment-context.md) | [#46](https://github.com/ONEGAYI/ZCode-Plugins/issues/46) | 将完整的选区评论快照加入当前主对话胶囊 | #42、#43 | 等待依赖及能力条件 |
-| [SE-07](issues/07-send-cleanup-and-concurrent-comments.md) | [#47](https://github.com/ONEGAYI/ZCode-Plugins/issues/47) | 自动清理已受理评论，保留发送期间新增评论 | #46 | 等待依赖及能力条件 |
-| [SE-08](issues/08-package-and-end-to-end-acceptance.md) | [#48](https://github.com/ONEGAYI/ZCode-Plugins/issues/48) | 完成独立插件安装包与首版端到端验收 | #45、#47 | 等待依赖及能力条件 |
+| [SE-06](issues/06-selection-comment-context.md) | [#46](https://github.com/ONEGAYI/ZCode-Plugins/issues/46) | 将完整的选区评论快照加入当前主对话胶囊 | #42、#43 | H3 未满足，保持阻塞 |
+| [SE-07](issues/07-send-cleanup-and-concurrent-comments.md) | [#47](https://github.com/ONEGAYI/ZCode-Plugins/issues/47) | 自动清理已受理评论，保留发送期间新增评论 | #46 | H3 未满足，保持阻塞 |
+| [SE-08](issues/08-package-and-end-to-end-acceptance.md) | [#48](https://github.com/ONEGAYI/ZCode-Plugins/issues/48) | 完成独立插件安装包与首版端到端验收 | #45、#47 | H3 未满足，保持阻塞 |
 | [SE-09](issues/09-future-remote-workspace.md) | [#49](https://github.com/ONEGAYI/ZCode-Plugins/issues/49) | 后续特性：远程工作区文本编辑 | #48 | 后续待做 |
 | [SE-10](issues/10-future-file-management.md) | [#50](https://github.com/ONEGAYI/ZCode-Plugins/issues/50) | 后续特性：新建、重命名与删除文件 | #48 | 后续待做 |
 
