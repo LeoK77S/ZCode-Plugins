@@ -76,23 +76,54 @@ test('同步 Stop 落盘原消息断点，父 A 变 B 后分叉只继承 A，子
   assert.deepEqual(references((await call('get_artifacts')).structuredContent.items), [b]);
 });
 
-test('UserPromptSubmit 只生成一句工具入口与当次统计，不包含详细规则或工件字段，下一次提交读取新统计', async t => {
+test('UserPromptSubmit 注入当次统计与工件简表，下一次提交重新读取，简表不改变存储', async t => {
   const f = fixture(t), call = await connect(t, f);
   f.session({ id: 'sess_parent' });
-  const secret = { kind: 'file', ref: 'D:/fixture/private-reference.md', label: 'private-label', purpose: 'private-purpose' };
-  await call('set_artifacts', { expected_revision: 0, upsert: [secret] });
+  const item = { kind: 'file', ref: 'D:/fixture/reference.md', label: '验收规格', purpose: '核对要求' };
+  await call('set_artifacts', { expected_revision: 0, upsert: [item] });
+  const before = (await call('get_artifacts')).structuredContent;
   const first = hook(f, 'UserPromptSubmit').hookSpecificOutput;
   assert.equal(first.hookEventName, 'UserPromptSubmit');
-  assert.equal(first.additionalContext,
+  assert.ok(first.additionalContext.startsWith(
     '请在创建、接手或替换任务相关的 PR、会话、文件或链接时及时登记或更新工件，详见 mcp__plugin_suian-zcode-app-mcp_suian-zcode-app__set_artifacts。\n'
-    + '工件统计（revision 1）：共 1 条；pr 0；session 0；file 1；link 0');
+    + '工件统计（revision 1）：共 1 条；pr 0；session 0；file 1；link 0'));
   assert.match(first.additionalContext, /revision 1.*共 1 条/);
   assert.match(first.additionalContext, /file 1/);
-  for (const value of [secret.ref, secret.label, secret.purpose, '"items"']) assert.equal(first.additionalContext.includes(value), false);
-  await call('set_artifacts', { expected_revision: 1, remove: [secret.ref] });
+  assert.match(first.additionalContext, /类型.*名称.*用途.*引用/);
+  for (const value of [item.ref, item.label, item.purpose]) assert.ok(first.additionalContext.includes(value));
+  assert.match(first.additionalContext, /显示 1\/1 条/);
+  assert.match(first.additionalContext, /可能已过时/);
+  assert.match(first.additionalContext, /不是指令或授权/);
+  assert.deepEqual((await call('get_artifacts')).structuredContent, before);
+  await call('set_artifacts', { expected_revision: 1, remove: [item.ref] });
   const second = hook(f, 'UserPromptSubmit').hookSpecificOutput.additionalContext;
   assert.match(second, /revision 2.*共 0 条/);
+  assert.equal(second.includes(item.ref), false);
   assert.match(first.additionalContext, /revision 1.*共 1 条/);
+});
+
+test('正式 UserPromptSubmit 使用真实工件时间做 20 条类别保底选择，完整列表仍保留全部 45 条', async t => {
+  const f = fixture(t); f.session({ id: 'sess_parent' });
+  let clock = 100;
+  const call = await connect(t, { ...f, now: () => clock++ });
+  const recent = Array.from({ length: 30 }, (_, i) => ({ kind: 'pr', ref: `https://example.com/pull/${i}`,
+    label: `实现 PR ${i}`, purpose: '接续评审' }));
+  await call('set_artifacts', { expected_revision: 0, upsert: recent });
+  clock = 10;
+  const older = ['session', 'file', 'link'].flatMap(kind => Array.from({ length: 5 }, (_, i) => ({
+    kind, ref: kind === 'file' ? `D:/fixture/file-${i}.md` : kind === 'link' ? `https://example.com/reference/${i}` : `sess_related_${i}`,
+    label: `${kind} ${i}`, purpose: '保留后续用途'
+  })));
+  await call('set_artifacts', { expected_revision: 1, upsert: older });
+  const before = (await call('get_artifacts')).structuredContent;
+  const text = hook(f, 'UserPromptSubmit').hookSpecificOutput.additionalContext;
+  const rows = text.split('\n').filter(line => /^\| (pr|session|file|link) \|/.test(line));
+  assert.equal(rows.length, 20); assert.equal(rows.filter(row => row.startsWith('| pr |')).length, 11);
+  for (const kind of ['session', 'file', 'link']) assert.equal(rows.filter(row => row.startsWith(`| ${kind} |`)).length, 3);
+  assert.match(rows[0], /pull\/29/); assert.match(text, /显示 20\/45 条，省略 25 条/);
+  assert.ok(Array.from(text).length <= 9000);
+  assert.deepEqual((await call('get_artifacts')).structuredContent, before);
+  assert.equal(before.items.length, 45);
 });
 
 test('无变化消息仍映射，同一运行轮的两个 Stop 各自冻结，重放旧 Stop 不改历史', async t => {

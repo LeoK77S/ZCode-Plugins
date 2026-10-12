@@ -136,7 +136,7 @@ git -C "{{repo_dir}}" sparse-checkout set suian-zcode-title suian-zcode-common
 
 通过两个本机只读工具检索会话与聊天历史；六个写工具经公共网关调用原 Host 改名、创建、发信、压缩上下文、归档与复原。另提供 GLM 套餐额度和重置卡查询，以及经用户许可消耗一张卡重置额度。stdio 接入，消息包装来源标识；原 Host 调用不另占官方席位，重置仍需要客户端确认表单。接入与边界见 [suian-zcode-app-mcp](./suian-zcode-app-mcp/)。
 
-工件 demo 提供当前会话的 get/set 增量工具、提交时管理摘要、Stop 历史快照与原生侧栏。开发分支增加按类型折叠的列表与统一详情，详情含时间和会话实时状态；start_session 自动登记双方关系，统计摘要模式不限制工件数量。原生分叉继承选中断点；缺快照会提示，子会话仍可独立维护。UI 按应用版本和 MCP Apps 能力启用。验证范围及首开连接条件见[开发验证](./suian-zcode-app-mcp/docs/artifact-demo-verification.md)，完整版唯一请求投影继续等待上游。
+工件 demo 提供当前会话的 get/set 增量工具、提交时管理摘要、Stop 历史快照与原生侧栏。提交摘要含有类别保底的部分简表，最多 20 条、整体 9000 字符；工件存储仍不限制数量。侧栏按类型折叠，统一详情含时间和会话实时状态；start_session 自动登记双方关系。原生分叉继承选中断点；缺快照会提示，子会话仍可独立维护。UI 按应用版本和 MCP Apps 能力启用。验证范围及首开连接条件见[开发验证](./suian-zcode-app-mcp/docs/artifact-demo-verification.md)，完整版唯一请求投影继续等待上游。
 
 ## suian-zcode-common — 公共基础能力
 
