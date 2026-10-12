@@ -20,4 +20,6 @@
 
 工件区 #27 核验后，已按用户明确要求创建 `wait-for-upstreaming` 并添加到当时全部开放 Issues（#28–#31），保留既有标签。该标签不替代正文中的能力条件，也不表示已创建上游支持票。
 
-仓库未在本项目部署 triage 技能，因此本轮不建立额外的 triage 标签体系。
+2026-10-11 已按用户的 demo 调整要求改写 #28–#31，移除这四票的 wait-for-upstreaming 并保留其它标签；完整版唯一投影另建 #36，保留 enhancement 和 wait-for-upstreaming。#27 保持历史调研结论，具体依赖以新版 [开票索引](../artifact-zone-tickets.md) 为准。
+
+仓库未在本项目部署 triage 技能，也没有 ready-for-agent 标签，因此本轮在票正文表达就绪/依赖状态，不建立额外的 triage 标签体系。

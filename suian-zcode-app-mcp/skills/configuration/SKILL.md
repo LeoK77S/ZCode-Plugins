@@ -7,7 +7,7 @@ description: 配置 ZCode 会话 MCP 的数据库、网关和授权目录，或�
 
 原生根为 `${ZCODE_SKILL_DIR}/../..`；源码模式沿用已确定的根。先读[路径与配置](../paths.md)。
 
-原生模式编辑 dataPath/config.json，保留未变字段；JSON 无效明确报错。按需设置 indexDbPath、sessionDbPath、gatewayConfigPath、authDataDir。.mcp.json 已注册服务，不再向用户或工作区配置追加另一个服务；个人配置不写入版本缓存。
+原生模式编辑 dataPath/config.json，保留未变字段；JSON 无效明确报错。按需设置 indexDbPath、sessionDbPath、artifactDbPath、gatewayConfigPath、authDataDir。.mcp.json 已注册服务，同步工件 Hook 也读这份配置；不再追加另一个服务或重复 Hook，个人配置不写入版本缓存。
 
 默认数据库和网关位置有效时不新增路径设置。自定义 gatewayConfigPath 与命名插件指向同一公共文件，不把 control_token 或远控链接放入配置、args/env 或聊天。
 

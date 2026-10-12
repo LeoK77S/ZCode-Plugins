@@ -19,7 +19,7 @@ export function fixture(t) {
     PRIMARY KEY (workspace_key, task_id)
   );`);
   history.exec(`CREATE TABLE session (
-    id TEXT PRIMARY KEY, title TEXT, directory TEXT, path TEXT, revert TEXT, permission TEXT
+    id TEXT PRIMARY KEY, title TEXT, directory TEXT, path TEXT, revert TEXT, permission TEXT, parent_id TEXT, task_type TEXT
   );
   CREATE TABLE message (
     id TEXT PRIMARY KEY, session_id TEXT, sequence INTEGER,
@@ -31,15 +31,15 @@ export function fixture(t) {
   );`);
   t.after(() => { index.close(); history.close(); rmSync(directory, { recursive: true }); });
   return {
-    indexDbPath, sessionDbPath, index, history,
+    indexDbPath, sessionDbPath, artifactDbPath: join(directory, 'artifacts.sqlite'), index, history,
     task({ id, title = id, workspace = 'D:\\work\\alpha', key = workspace,
       identity = null, updated = 10, pinned = 0, archived = 0, deleted = 0, mode = 'build' }) {
       index.prepare('INSERT INTO tasks VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)')
         .run(key, workspace, identity, id, title, 'glm', mode, 'completed', 1, updated, pinned, archived, deleted);
     },
-    session({ id, title = id, directory = 'D:\\work\\alpha', revert = null, permission = null }) {
-      history.prepare('INSERT INTO session VALUES (?,?,?,?,?,?)')
-        .run(id, title, directory, directory, revert && JSON.stringify(revert), permission && JSON.stringify(permission));
+    session({ id, title = id, directory = 'D:\\work\\alpha', revert = null, permission = null, parent = null, taskType = null }) {
+      history.prepare('INSERT INTO session VALUES (?,?,?,?,?,?,?,?)')
+        .run(id, title, directory, directory, revert && JSON.stringify(revert), permission && JSON.stringify(permission), parent, taskType);
     },
     message({ id, session = 'sess_alpha', role = 'user', parent, sequence, time = 1,
       info = {}, parts = [{ type: 'text', text: id }] }) {

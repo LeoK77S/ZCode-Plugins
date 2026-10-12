@@ -33,7 +33,9 @@ ZCode-Plugins/
 ├── suian-zcode-app-mcp/    # ZCode 会话 MCP（检索、聊天历史、原 Host 改名/创建/发信/压缩与 stdio 接入）
 │   ├── .zcode-plugin/      # 原生插件元信息
 │   ├── .mcp.json           # 原生 stdio 注册，配置指向外置 dataPath
-│   └── skills/             # setup / configuration / sessions / glm / debug
+│   ├── hooks/              # 同步工件初始化、提交摘要与 Stop 快照
+│   ├── ui/                 # 原生只读工件侧栏资源
+│   └── skills/             # setup / configuration / sessions / artifacts / glm / debug
 │
 ├── suian-zcode-common/    # 公共网关、远控/授权/通知/投影模块、Windows 配置与 Agent skill
 │   ├── .zcode-plugin/      # 必需公共插件元信息

@@ -1,0 +1,7 @@
+{
+  "hooks": {
+    "SessionStart": [{ "hooks": [{ "type": "command", "command": "node \"${ZCODE_PLUGIN_ROOT}/artifact-hook.mjs\" --config \"${ZCODE_PLUGIN_DATA}/config.json\"", "timeoutMs": 15000 }] }],
+    "UserPromptSubmit": [{ "hooks": [{ "type": "command", "command": "node \"${ZCODE_PLUGIN_ROOT}/artifact-hook.mjs\" --config \"${ZCODE_PLUGIN_DATA}/config.json\"", "timeoutMs": 15000 }] }],
+    "Stop": [{ "hooks": [{ "type": "command", "command": "node \"${ZCODE_PLUGIN_ROOT}/artifact-hook.mjs\" --config \"${ZCODE_PLUGIN_DATA}/config.json\"", "timeoutMs": 15000 }] }]
+  }
+}

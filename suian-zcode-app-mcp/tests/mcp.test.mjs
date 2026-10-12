@@ -100,7 +100,7 @@ test('compact_session 公布指定目标与受理语义，严格校验参数并�
   assert.equal(rejected.structuredContent.reason_code, 'compactOperationLock');
 });
 
-test('MCP 握手公布十个工具，三个查询工具保持只读', async t => {
+test('MCP 握手公布十二个工具，查询工具保持只读', async t => {
   const f = fixture(t);
   f.task({ id: 'sess_alpha', title: 'MCP 工具' });
   f.session({ id: 'sess_alpha', title: 'MCP 工具' });
@@ -113,10 +113,10 @@ test('MCP 握手公布十个工具，三个查询工具保持只读', async t =>
   await server.connect(serverTransport);
   await client.connect(clientTransport);
   const listed = await client.listTools();
-  assert.deepEqual(listed.tools.map(tool => tool.name), ['list_sessions', 'read_session', 'rename_session', 'start_session', 'send_message', 'compact_session', 'archive_session', 'restore_session', 'get_glm_balance', 'reset_glm_quota']);
-  for (const tool of listed.tools) assert.equal(tool.annotations.readOnlyHint, ['list_sessions', 'read_session', 'get_glm_balance'].includes(tool.name));
-  assert.equal(listed.tools.at(-1).annotations.destructiveHint, true);
-  assert.equal(listed.tools.at(-1).annotations.idempotentHint, false);
+  assert.deepEqual(listed.tools.map(tool => tool.name), ['list_sessions', 'read_session', 'rename_session', 'start_session', 'send_message', 'compact_session', 'archive_session', 'restore_session', 'get_glm_balance', 'reset_glm_quota', 'get_artifacts', 'set_artifacts']);
+  for (const tool of listed.tools) assert.equal(tool.annotations.readOnlyHint, ['list_sessions', 'read_session', 'get_glm_balance', 'get_artifacts'].includes(tool.name));
+  assert.equal(listed.tools.find(tool => tool.name === 'reset_glm_quota').annotations.destructiveHint, true);
+  assert.equal(listed.tools.find(tool => tool.name === 'reset_glm_quota').annotations.idempotentHint, false);
   const list = await client.callTool({ name: 'list_sessions', arguments: { query: 'MCP', limit: 1 } });
   assert.equal(list.structuredContent.sessions[0].session_id, 'sess_alpha');
   assert.deepEqual(JSON.parse(list.content[0].text), list.structuredContent);

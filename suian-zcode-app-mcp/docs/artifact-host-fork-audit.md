@@ -4,7 +4,103 @@
 
 后续隔离运行已完成，V4 稳定分叉与事件时点的实际反例见 [发行版核验报告](artifact-host-capabilities.md)。本文保留静态阶段的协议依据与待验证项，不代表后续验证尚未进行。
 
-## 结论
+## 2026-10-11：3.15.1 分叉能力边界
+
+**范围**：先只读核对官方 3.15.1 源码快照 `aac4755666d09fdcd70272fcf063c077a639015f`、原生插件封装和公共网关入口，随后运行本机 3.15.1.8093 的隔离 AgentServer 验证历史断点路线。未操作真实活动会话或点击 Desktop UI；2026-10-10 的 3.14.5 证据不冒充新版结果。
+
+**以执行分叉操作时的父状态为继承基准，原生 UI 分叉仍未取得准确工件快照保证**。新版 Hook 枚举仍只有七项，SessionStart 输入也没有分叉来源或外置修订绑定。stable fork 先提交子数据和命令事实，再追加 SessionForked，事件中没有插件工件 revision。仅监听通知后读取父最新状态，仍然不能确定分叉操作时的工件。
+
+**插件发起分叉是可继续验证的候选路线**。V4 的 forkAssistant 命令已有父会话、命令 ID 和稳定聊天目标；core 在提交子数据的同一 bundle 中写入 sourceCommandId、父 ID 和包含子 ID 的 accepted 命令事实。插件若在发起命令前冻结自身工件修订，可以研究按这份命令事实绑定副本。它仅覆盖经插件发起的分叉，不能据此宣称原生按钮也会自动冻结工件。
+
+| 路径 | 已核实事实 | 能力边界 |
+| --- | --- | --- |
+| 原生 Desktop 的 forkAssistant | 允许父会话继续运行；子数据提交后才产生父分叉事件 | 未见插件分叉边界，也没有外置工件 revision；不承诺原生按钮的准确快照 |
+| 插件经原 Host 发起 V4 分叉 | 命令可与子 ID 关联，命令事实随 fork bundle 持久化 | 有关联依据，冻结、子初始化和并发写入约束仍需实现及隔离验证 |
+| SessionStart 补做子初始化 | 子 resume 会运行现有 SessionStart；Hook 只给当前 sessionId 等通用字段 | 需要只读解析可靠父子/命令事实，并在子首次读状态前完成初始化；不能只按 parentID 猜测普通子会话是分叉 |
+| 分叉响应后才复制 | 宿主注册子 record 后 await 子 app.resume，再返回分叉结果 | 可能晚于子启动 Hook，简单的“调用 → 收响应 → 复制”不是完整方案 |
+| 外置版本历史加时间匹配 | 宿主没有把插件 revision 绑定到分叉命令 | 不能仅靠时间戳或通知到达顺序证明精确修订 |
+
+### 受控分叉的验证条件
+
+下面是候选路线的验证条件，不是已批准的实现规格，也没有新增 fork 工具：
+
+1. 发命令前，插件持久冻结父工件 revision，并以实际命令 ID 记录分叉意图。所有父工件更新需遵守这段受控操作的边界，否则冻结值不能称为分叉时状态。
+2. 只读获取宿主持久命令事实，准确绑定该命令的 child ID；不能将同时发生的原生按钮分叉或普通子会话套用为同一次操作。
+3. 子首次 Hook、摘要、get/set 或 UI 读取前完成独立状态初始化。要验证是否能在响应返回前从持久事实完成接线，且不把等待父操作与等待子 Hook 组成循环。
+4. 副本采用冻结修订；父状态随后更新不影响子状态。重复 Hook、重复查询或恢复不得覆盖子会话已经维护的状态。
+5. 分叉提交后宿主注册失败、RPC 超时或插件退出时，保留可识别的部分完成事实。不能把已经持久化的子会话当作未创建，也不能盲目再发分叉命令。
+6. 使用隔离 Host、合成聊天和隔离工件数据库捕获命令、持久事实、Hook 与第一次工件读取顺序。须覆盖父并发更新、子立即启动、插件重启和重复处理；mock 的自设执行顺序不算宿主验证。
+
+**针对操作时快照的结论**：已审查的 3.15.1 接口仍不足以覆盖原生 UI 分叉的准确外置快照；插件受控分叉具有命令身份关联依据，仍是待验证候选。用户本轮要求先探索能力边界再决定方案，尚未接受更换分叉入口、放宽快照语义或把分叉移出 demo。后续提出的历史断点方案见下一节。
+
+### 历史断点快照方案
+
+**用户提出新的继承基准**：以所选已完成生成轮的工件快照初始化子会话。每次 Stop 提前保存不可变版本，分叉按该断点的快照 ID 读取；父会话之后的变化不影响它。这区别于前文讨论的“点击分叉操作时冻结父当前状态”。旧结论不能直接用于否定新路线。
+
+源码支持的常规链路为：持久化已完成 assistant step → 等待 Stop Hook → 固定最终消息断点 → 发布成功 TurnComplete → 该轮最终 assistant 获得 canFork。因快照预先保存，分叉通知的晚到不再要求插件重新猜测父当时状态。
+
+已核实的候选身份链：
+
+| 环节 | 源码中的可靠字段 | 对快照绑定的用途 |
+| --- | --- | --- |
+| Stop 输入 | sessionId、turnId | 定位父会话与运行时生成轮 |
+| 最终稳定断点 | 消息 anchor.turnId、boundaryMessageId | 将 Stop 的运行时轮身份对应到实际聊天断点 |
+| 子分叉来源 | forkOrigin.parentSessionId、forkOrigin.targetMessageId | 只读定位父历史断点，再读取对应不可变版本 |
+
+以父会话 ID 和断点消息 ID 建立快照索引，并保留 turnId 作对应证据。不要使用 renderer rowId、时间戳或父“最新一份快照”作为替代标识。Stop 输入没有直接给出 boundaryMessageId；隔离运行已通过只读宿主消息的 anchor.turnId 定位完成消息，Hook transcript 本身没有稳定消息 ID。
+
+关键边界：
+
+- 快照 Hook 应采用同步落盘方式；命名插件当前的 async Stop 注册不能直接作为此处的快照完成保证。
+- Stop 可要求同一轮继续生成，因此可能执行多次。一次 Stop 不等于一个最终可分叉断点；必须绑定消息身份，并以最终稳定断点选取对应版本。
+- 工件没变化时可以复用同一快照内容 ID，但仍必须记录该聊天断点的映射。Git 默认不产生无变化提交，不能因此漏掉断点。
+- 3.15.1 的 automationCreateLimitReached 分支显式跳过 Stop 后仍把轮状态标为 success，故不能概括“所有 canFork 目标必有 Stop 快照”。旧会话或 Hook 失败也可能缺少快照；缺失时不得回退父最新状态或把空集合称为准确继承。
+- 快照不可变，子状态只初始化一次；重复 Hook、恢复和父后续更新不得改变历史快照或覆盖子已经维护的状态。
+
+**存储方案已确认**：在插件自有 SQLite 内保存不可变快照和断点映射。内容无变化时复用快照，但仍登记每个断点，不引入独立 Git 仓库。
+
+**缺失规则已确认**：原生分叉创建的子会话保留，首次工件 get/UI 明确报告 snapshot_missing。提示不阻断分支，也不影响子会话后续独立工件读写；不复制父最新状态，不将未继承状态冒充准确快照。
+
+**运行验证**：本轮已执行同步快照 Hook 和原生稳定分叉，A→B→从 A 分叉的子首次插件读取仍为 A；无变化、多 Stop、缺失诊断和正常子生成均通过隔离探针。生产 get/UI 尚未验收，详细范围见下一节。
+
+固定来源：[常规 Stop 及续跑](https://github.com/zai-org/ZCode/blob/aac4755666d09fdcd70272fcf063c077a639015f/apps/zcode-cli/packages/core/src/runtime/methods/turn-stop.ts#L201)、[跳过 Stop 的特殊分支](https://github.com/zai-org/ZCode/blob/aac4755666d09fdcd70272fcf063c077a639015f/apps/zcode-cli/packages/core/src/runtime/methods/turn-stop.ts#L176)、[最终边界在 TurnComplete 前落盘](https://github.com/zai-org/ZCode/blob/aac4755666d09fdcd70272fcf063c077a639015f/apps/zcode-cli/packages/core/src/runtime/methods/turn.ts#L672)、[断点 anchor 与运行时 turnId](https://github.com/zai-org/ZCode/blob/aac4755666d09fdcd70272fcf063c077a639015f/apps/zcode-cli/packages/core/src/runtime/methods/stable-fork-boundary.ts#L83)、[canFork 成功轮资格](https://github.com/zai-org/ZCode/blob/aac4755666d09fdcd70272fcf063c077a639015f/apps/zcode-cli/packages/bootstrap/src/zcode-protocol-v4/product-projection.ts#L930)、[子 forkOrigin](https://github.com/zai-org/ZCode/blob/aac4755666d09fdcd70272fcf063c077a639015f/apps/zcode-cli/packages/core/src/runtime/methods/session-fork.ts#L414)。
+
+### 3.15.1 历史断点路线的隔离运行
+
+**结论**：在本机 3.15.1.8093 发行包的隔离 AgentServer 中，同步 Stop 可以保存工件历史快照，原生稳定分叉的子 SessionStart 可以在分叉响应前定位并读取所选旧断点。该路线足以继续 demo 实施；生产工具与真实 Desktop 侧栏尚未验收。
+
+| 场景 | 实际结果 |
+| --- | --- |
+| 第一轮保存 A，父后续改为 B，再从第一轮原生分叉 | 子首次读取 A，父仍为 B |
+| 两个完成轮的工件内容相同 | 内容 ID 复用，两条完成消息各有映射 |
+| 同一运行时轮两次 Stop，第一次 C、第二次 D | 不同消息分别映射；仅最终消息有稳定断点，分叉读取 D |
+| 子更新为 C 后在同一 Host 恢复 | 子仍为 C，没有被历史 A 覆盖 |
+| 人为删除 B 断点映射后原生分叉 | 宿主接受分叉，首次读取报告 snapshot_missing |
+| 缺快照子会话随后更新夹具工件并发送新输入 | 存储读写成功，新一轮正常完成 |
+
+**身份接线已实测**：Stop 运行时只读消息库中已有对应 turnId 的已完成 assistant response 和原始消息 ID，最终完成后 anchor.boundaryMessageId 与它对应。Hook transcript 只含对话内容，不能从它提取稳定消息身份。子 task_type=fork，隐藏 fork_notice 的 metadata.forkOrigin 包含原始父 ID 和目标消息 ID；不能使用子复制后重映射的 ID。
+
+快照注册使用原生同步 Stop；子初始化使用原生 SessionStart。工件夹具为独立 SQLite，不写 ZCode 会话库。父 A 子 SessionStart 的首次读取早于 forkAssistant accepted 响应；既往“通知到达后读取父最新状态”的竞态不参与这条路径。
+
+**固定产物**：EXE ProductVersion 为 3.15.1.8093，随包 CLI --version 为 0.16.9，Electron Node 为 v24.14.0。CLI 15,126,820 字节，SHA-256 为 B816E38656E70FB585FE2AB1EA010DA89CDA928DAC1CCB5D83255FD18796DA6E；app.asar 340,511,069 字节，SHA-256 为 C98B4B2A80E5EA46CE93F934F9580EFF11BC487570C87478FA36A3F4BD3D101F。运行后两者哈希均未变化。
+
+使用安装 EXE 的 Electron Node 模式运行原封不动的 resources/glm/zcode.cjs app-server --stdio --surface desktop。工作区、配置、Provider、数据库及临时文件均位于独立工作树的忽略目录；子环境采用白名单，只复制安装包公开的 Provider 配置。模型是本地合成 OpenAI SSE，未复制用户凭据、连接真实活动会话、调用线上模型或修改上游源码。
+
+**验证限度**：get/set 是直接操作独立 SQLite 的测试夹具，尚未通过生产 MCP 工具验收；探针的 revision 用于标记状态，不定义生产子版本规则。未点击真实 Desktop UI、测试冷进程恢复、多窗口并发或真实 Agent 主动维护；缺快照由删除映射模拟，未执行 automationCreateLimitReached 或真实 Hook 失败路径。
+
+每次运行首次保存日志与退出码；早期协议入口、偏好回执、响应字段和 CAS 水位的夹具错误已修正，并在证据中列为排除的设置失败。后续运行及 Stop/anchor 回读断言通过，不把前述失败算作产品缺陷。已核对最后两次探针的已知 PID 及直接子进程无残留。
+
+完整脱敏时序、产物哈希、场景与限制见 [JSON 运行证据](artifact-turn-snapshot-evidence.json)。原始探针、配置、数据库与日志按项目约定清理；可实施行为汇总到 [demo 规格](artifact-zone-spec.md)。
+
+### 3.15.1 固定来源
+
+- [Hook 枚举与输入](https://github.com/zai-org/ZCode/blob/aac4755666d09fdcd70272fcf063c077a639015f/apps/zcode-cli/packages/contracts/src/hooks/index.ts#L7)；[SessionStart 实际输入装配](https://github.com/zai-org/ZCode/blob/aac4755666d09fdcd70272fcf063c077a639015f/apps/zcode-cli/packages/core/src/runtime/methods/hooks.ts#L20)。
+- [forkAssistant 的稳定目标及命令 ID](https://github.com/zai-org/ZCode/blob/aac4755666d09fdcd70272fcf063c077a639015f/apps/zcode-cli/packages/bootstrap/src/zcode-protocol-v4/commands/handlers/fork-edit-retry.ts#L327)。
+- [命令事实、子 bundle 提交与后续分叉事件](https://github.com/zai-org/ZCode/blob/aac4755666d09fdcd70272fcf063c077a639015f/apps/zcode-cli/packages/core/src/runtime/methods/session-fork.ts#L721)。
+- [V4 子注册在返回结果之前](https://github.com/zai-org/ZCode/blob/aac4755666d09fdcd70272fcf063c077a639015f/apps/zcode-cli/packages/bootstrap/src/zcode-protocol/v4-bridge.ts#L1340)；[子 resume 在分叉响应之前](https://github.com/zai-org/ZCode/blob/aac4755666d09fdcd70272fcf063c077a639015f/apps/zcode-cli/packages/bootstrap/src/zcode-protocol/server-operations.ts#L2193)；[resume 实际等待 SessionStart Hook](https://github.com/zai-org/ZCode/blob/aac4755666d09fdcd70272fcf063c077a639015f/apps/zcode-cli/packages/core/src/runtime/methods/resume.ts#L250)。
+- 当前 [公共网关客户端](../../suian-zcode-common/gateway-client.mjs#L52)只公开 call/probe/close；[已有 V4 原 Host 调用](../control.mjs#L163)展示 hello、initialize 与 sendConversationCommandV4 接线。通用 call 的存在不等于受控分叉或事件订阅已经实现。
+
+## 2026-10-10：操作时快照的静态结论
 
 **现有实现能产生父子会话 ID，但没有核实到纯插件可在原生分叉操作中冻结外置工件状态的入口**。插件 Hook 没有分叉事件；宿主的 `SessionForked` 是子会话数据提交后产生的运行时事实。对外事件通知没有等待外挂完成持久快照的回执。
 

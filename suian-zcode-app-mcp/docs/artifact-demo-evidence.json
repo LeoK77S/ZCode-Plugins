@@ -1,0 +1,44 @@
+{
+  "date": "2026-10-12",
+  "status": "local_implementation_verified_user_acceptance_pending",
+  "automated": { "node": "24.15.0", "mcp_sdk": "1.32.1", "baseline_pass": 86, "regression_pass": 102, "fail": 0, "exit_code": 0, "entry": "npm test" },
+  "regression_fix": {
+    "issue": "first_rejected_write_rolled_back_schema",
+    "red": { "tests": 2, "fail": 2, "exit_code": 1, "log_sha256": "25EBED428067E1F113DDB31FC98D00400630090A0B8765F91B1F5D2D52ECB2D3" },
+    "green": { "tests": 13, "pass": 13, "exit_code": 0, "log_sha256": "4D67908F40DD7AE31D92DD61958F92332CC4266C6D71D61313AC5B3226B5DD4C" },
+    "final_regression_log_sha256": "DC90C61DF5DD7CA5ED977D1D817A357B0BCB9CE42C75D55FEED4AC9540FE364D"
+  },
+  "entry_prompt_revision": {
+    "injected_management_lines": 1,
+    "detailed_rules_location": "get_artifacts_and_set_artifacts_descriptions",
+    "red": { "tests": 2, "fail": 2, "exit_code": 1, "log_sha256": "41D031B381EF0AE52C7FC1780DFE26F9C2CE3AD7BAAF8B803DA73105C631B8C1" },
+    "green": { "tests": 14, "pass": 14, "exit_code": 0, "log_sha256": "BB9808EF590BCA016902AF51A9FD717683E9413B3599A5FDE20862B79B04F407" },
+    "regression": { "tests": 102, "pass": 102, "exit_code": 0, "log_sha256": "9E98090D986155072331B524E03E8FCE3AC2E90CF1B3C223F000B65FBA0951F3" },
+    "capacity_representation": "existing_fixed_contract_preserved",
+    "native_desktop_recheck": "not_rerun_for_text_only_change"
+  },
+  "runtime": { "desktop": "3.15.1.8093", "build": "f18d6db7", "cli": "0.16.9", "initialize_client_name": "zcode", "initialize_client_version": "0.16.9", "desktop_app_version_env": "3.15.1", "mime": "text/html;profile=mcp-app" },
+  "native_checks": {
+    "production_get_set_and_synchronous_hooks": "passed",
+    "historical_A_fork_after_parent_B": "passed",
+    "fork_child_revision_zero_and_parent_independence": "passed",
+    "sidebar_latest_refresh_without_model_request": "passed",
+    "sidebar_bound_parent_B_child_A": "passed",
+    "snapshot_missing_native_fork_and_later_get_set_generation": "passed",
+    "sidebar_snapshot_missing_with_own_C_state": "passed",
+    "sidebar_empty_and_storage_error": "passed",
+    "native_guest_capture_and_DPI_aware_window_layout": "passed",
+    "artifact_strings_render_as_text": "passed"
+  },
+  "limits": {
+    "real_model_active_maintenance": "not_run_no_isolated_test_account",
+    "cold_session_first_open": "host_can_report_MCP_App_connection_unavailable_until_target_connection_ready",
+    "arbitrary_future_host_message_schema": "not_claimed",
+    "full_unique_request_projection": "waiting_for_upstream_issue_36",
+    "user_acceptance": "pending"
+  },
+  "review": { "standards": "passed", "spec": "passed_after_P1_fix", "implementation_head": "695f4f4c7c6273e22ef17cba0fd27e8c7b9db9ff", "initial_P1": "resolved" },
+  "isolation": { "fresh_profile_workspace_databases_and_Electron_storage": true, "provider": "local_synthetic_SSE", "user_credentials_copied": false, "user_MCP_configuration_changed": false, "upstream_modified": false, "source_cli_and_asar_unchanged": true, "owned_probe_processes_stopped": true, "raw_runtime_material_cleaned": true },
+  "source_sha256": { "cli": "B816E38656E70FB585FE2AB1EA010DA89CDA928DAC1CCB5D83255FD18796DA6E", "asar": "C98B4B2A80E5EA46CE93F934F9580EFF11BC487570C87478FA36A3F4BD3D101F" },
+  "delivery": { "scope": "implementation_verification_snapshot", "pushed": false, "PR_created": false, "merged": false }
+}

@@ -1,23 +1,34 @@
-# 工件区：请求尾部唯一投影与分叉独立副本
+# 工件 demo：可累积摘要与历史断点分叉快照
 
-本地标识：AZ-03。GitHub：[#29](https://github.com/ONEGAYI/ZCode-Plugins/issues/29)。状态：实现票受阻，尚未实施。Blocked by：[#28](https://github.com/ONEGAYI/ZCode-Plugins/issues/28)，以及 [#27](https://github.com/ONEGAYI/ZCode-Plugins/issues/27) 已验证的宿主入口和目标版本。
+GitHub Issue：[#29](https://github.com/ONEGAYI/ZCode-Plugins/issues/29)。完整版唯一投影另见 [#36](https://github.com/ONEGAYI/ZCode-Plugins/issues/36)，不阻塞本票。
+
+本地标识：AZ-03。状态：已本地实施，正式同步 Hook 和历史断点原生分叉通过隔离验证，待用户验收和发布。实现依赖：#28，已在本地接入。本票采用现有正式 Hook，不等待每请求唯一投影槽。开发结果见 [验证记录](../artifact-demo-verification.md)。
 
 ## 问题与交付
 
-每个模型请求直接看到最新工件，set 后续跑不必重复 get。旧自动投影不进入后续历史，分叉继承操作时的工件副本后独立推进。
+每次用户提交提醒 Agent 管理工件并给出当前分类统计。原生分叉从所选历史完成轮的不可变快照初始化独立子状态，父后续变化不混入旧断点。
 
-负责范围：app-mcp 的已验证宿主接入适配、状态读取与分叉初始化、安装/skill 配置和隔离宿主验证；不改 ZCode sources、vendor 投影库或公共网关业务状态。
+负责范围：原生 Hook 注册和入口、SQLite 快照/断点映射、只读宿主消息身份适配、幂等子初始化、get/set/摘要读取前接线和隔离宿主验证。
 
 ## 验收条件
 
-- [ ] 使用 AZ-01 证实的官方插件入口。目标发行版能力缺失时明确报告前置条件，不安装不能满足目标的旧式追加 Hook。
-- [ ] 空状态也附加管理说明、revision 与空集合；每次读取最新状态，set 成功后的下一次实际请求使用新 revision。
-- [ ] 连续轮次、同轮多次工具续跑、重试、压缩与恢复中的每个适用请求只有一份自动投影，位于最终 messages 数组末端。
-- [ ] Provider 序列化后的工具调用/结果顺序合法；不能用移动到系统前缀的实现满足尾部验收。
-- [ ] 权威运行时历史、聊天持久化及恢复快照没有自动投影；普通工具参数、get 结果和用户文本仍按原机制保留。
-- [ ] 读取/生成失败明确阻止本次请求携带未知或旧状态，不静默省略或回退。
-- [ ] 分叉时冻结父状态并初始化独立子状态；父状态先更新、子会话后启动仍读取旧快照，子更新不改父状态。
-- [ ] 普通新建子会话保持空状态，不能仅凭 parentID 将其误判为分叉；恢复或重复通知不覆盖子状态。
-- [ ] 使用隔离宿主与模型边界捕获实际请求和存储结果，先写契约测试暴露追加/过期快照问题，再实现；不以 formatter 单测代替宿主证据。
+- [ ] UserPromptSubmit 输出一句登记入口和分类统计，可含 revision；详细维护规则及摘要时效说明放在工具描述，不自动附完整 ref/label/purpose/items。
+- [ ] 同轮工具续跑/重试保留旧摘要是接受的行为；下次用户提交读取当前统计，get/set 回执保持最新。
+- [ ] 同步 Stop 在返回前原子保存不可变内容和父会话＋完成消息 ID 的映射；不照搬命名插件的 async Stop。
+- [ ] 通过 Hook turnId 和只读宿主 anchor 精确定位完成 assistant response，不用 renderer rowId、时间戳或父最新状态猜断点。
+- [ ] 无变化内容复用快照，仍登记每个断点；同轮多 Stop 各绑定不同消息，所选最终断点继承对应版本。
+- [ ] 子身份只读核对 task_type=fork 与 fork_notice.metadata.forkOrigin；使用原始父 ID/目标消息 ID，不以 parent_id 或子重映射消息 ID 代替。
+- [ ] SessionStart 及首次摘要/get/set/UI 前共用一次性初始化；已有子状态和子独立版本不被重复 Hook、恢复或父更新覆盖。
+- [ ] A 完成后父变 B，从 A 旧断点原生分叉，子首次插件读取仍为 A；普通子会话为空，不误判为分叉。
+- [ ] 旧断点或缺映射时明确提示 snapshot_missing，保留宿主子会话；不复制父最新状态，不冒充成功继承，也不阻断后续工件操作或正常聊天。
+- [ ] 使用真实隔离 SQLite 与发行包 Hook/V4 入口做 TDD 和宿主验收；补验进程冷恢复及并发，不能把已有临时探针算作生产验收。
 
-证据与基准：[工件区规格](../artifact-zone-spec.md)、[ADR 0001](../adr/0001-session-artifact-projection.md)。
+## 已验证入口与限制
+
+本机 3.15.1.8093，原封不动随包 zcode.cjs，Electron Node 模式 app-server --stdio --surface desktop。隔离运行已通过 A/B、无变化、同轮两次 Stop、子 warm resume、缺快照后读写与正常子生成；子 SessionStart 读取早于分叉响应。Hook transcript 没有稳定消息 ID，实际接线读取宿主消息库的 anchor。
+
+源码另有 automationCreateLimitReached 跳过 Stop 后以 success 收口；不能宣称所有 canFork 目标必有快照。该特殊分支或真实 Hook 故障未实跑，缺失场景用删除映射模拟。
+
+固定源码：[常规 Stop](https://github.com/zai-org/ZCode/blob/aac4755666d09fdcd70272fcf063c077a639015f/apps/zcode-cli/packages/core/src/runtime/methods/turn-stop.ts#L201)、[特殊成功分支](https://github.com/zai-org/ZCode/blob/aac4755666d09fdcd70272fcf063c077a639015f/apps/zcode-cli/packages/core/src/runtime/methods/turn-stop.ts#L176)、[稳定边界](https://github.com/zai-org/ZCode/blob/aac4755666d09fdcd70272fcf063c077a639015f/apps/zcode-cli/packages/core/src/runtime/methods/stable-fork-boundary.ts#L83)、[子 forkOrigin](https://github.com/zai-org/ZCode/blob/aac4755666d09fdcd70272fcf063c077a639015f/apps/zcode-cli/packages/core/src/runtime/methods/session-fork.ts#L414)。
+
+父规格：[demo 规格](https://github.com/ONEGAYI/ZCode-Plugins/issues/28)，见可折叠全文。

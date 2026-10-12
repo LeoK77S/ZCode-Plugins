@@ -1,6 +1,6 @@
 # 工件区：核验请求级投影与分叉快照入口
 
-本地标识：AZ-01。GitHub：[#27](https://github.com/ONEGAYI/ZCode-Plugins/issues/27)。状态：调研完成，当前正式插件能力不足；工件功能尚未实施。Blocked by：无。
+本地标识：AZ-01。GitHub：[#27](https://github.com/ONEGAYI/ZCode-Plugins/issues/27)。状态：原始严格投影调研完成，该目标仍等待上游；调整范围后的 demo 已本地实施，见 [开发验证](../artifact-demo-verification.md)。Blocked by：无。
 
 ## 问题与交付
 
@@ -24,4 +24,4 @@
 
 ## 已完成的核验
 
-见 [当前发行版核验报告](../artifact-host-capabilities.md) 与 [脱敏运行证据](../artifact-host-capabilities-evidence.json)。使用 3.14.5.7961 安装包的正式 Electron Node 启动链，捕获九个合成端点实际请求，并测试 V4 稳定分叉。核验动作完成，能力结论为否定；这些勾选不表示严格工件目标通过，也不解除 #28–#30 的前置条件。
+见 [原始发行版核验报告](../artifact-host-capabilities.md) 与 [脱敏运行证据](../artifact-host-capabilities-evidence.json)。使用 3.14.5.7961 安装包的正式 Electron Node 启动链，捕获九个合成端点实际请求，并测试 V4 稳定分叉。核验动作完成，能力结论为否定；这些勾选不表示严格工件目标通过。该结论归属于原始严格目标，不阻塞已调整为 demo 的 #28–#31。

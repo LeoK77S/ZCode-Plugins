@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { createSessionReader } from './sessions.mjs';
 import { createSessionController } from './control.mjs';
 import { resolveCaller } from './caller.mjs';
+import { registerArtifactTools } from './artifact-tools.mjs';
 import { readFile } from 'node:fs/promises';
 import { extname, isAbsolute } from 'node:path';
 
@@ -142,5 +143,6 @@ export function createMcpServer(config, { controller } = {}) {
       return result(data);
     } catch (error) { return { ...result({ ...error.partial_result, error: error.message }), isError: true }; }
   });
+  registerArtifactTools(server, config);
   return server;
 }
