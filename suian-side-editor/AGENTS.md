@@ -28,6 +28,13 @@
 | 路径 | 职责 |
 | --- | --- |
 | AGENTS.md / CLAUDE.md | 本插件规则与 Claude 导入入口 |
+| .zcode-plugin/plugin.json / .mcp.json | session 侧栏声明、stdio 注册及宿主工作区的显式环境绑定 |
+| package.json / package-lock.json | 独立插件的精确运行依赖、测试和语法检查入口 |
+| cli.mjs / server.mjs | stdio 服务、app-only 工具与本地 UI 资源；可信工作区和宿主 session meta 验证 |
+| text-files.mjs | 相对路径及真实目标检查、UTF-8 只读正文和字节版本 |
+| ui/editor.html | SE-01 的相对路径输入与只读预览，后续编辑业务尚未实施 |
+| tests/ | 公开 MCP/stdio 文件边界契约与实际资源浏览器烟测 |
+| README.md / docs/se01-verification.md / docs/se01-evidence.json | 开发使用、脱敏验证证据与仍未通过的真实宿主条件 |
 | docs/design-discussion.md | 已确认交互、问题轮次、宿主能力边界与后续特性范围 |
 | docs/text-editor-spec.md | 首版行为、工程接口边界、能力门槛与验证标准 |
 | docs/text-editor-tickets.md / docs/issues/ | 实施依赖图、原子票草稿和后续待做特性 |

@@ -1,0 +1,10 @@
+{
+  "name": "suian-side-editor",
+  "version": "0.1.0",
+  "description": "独立侧栏文本编辑器开发版：可信工作区只读文本切片",
+  "license": "MIT",
+  "dependencies": ["suian-zcode-common"],
+  "ui": {
+    "surfaces": [{ "id": "editor", "title": { "zh-CN": "文本编辑器", "en": "Text editor" }, "server": "suian-side-editor", "resourceUri": "ui://suian-side-editor/editor.html", "availability": "session" }]
+  }
+}
