@@ -5,73 +5,164 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>会话工件</title>
 <style>
-:root{color-scheme:light;--bg:#fff;--ink:#202329;--muted:#68707c;--line:#e2e6eb;--card:#f6f8fa;--accent:#315fba;--warning:#8d5b14;--warning-bg:#fff7e8}
-:root[data-theme=dark]{color-scheme:dark;--bg:#202124;--ink:#edf0f4;--muted:#a4acb9;--line:#3a3f46;--card:#282c31;--accent:#9cbcff;--warning:#f4c378;--warning-bg:#382e21}
-*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.65 system-ui,"Microsoft YaHei",sans-serif}main{padding:20px;max-width:880px;margin:auto}header{display:flex;justify-content:space-between;align-items:center;gap:12px}h1{font-size:20px;margin:0}button{font:inherit;cursor:pointer;padding:5px 13px;border:1px solid var(--line);border-radius:7px;background:var(--card);color:var(--ink)}button:disabled{cursor:wait;opacity:.6}button:focus-visible,a:focus-visible{outline:2px solid var(--accent);outline-offset:3px}.sub{color:var(--muted);margin:5px 0 18px}.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin:14px 0 20px}.stat{padding:10px;background:var(--card);border:1px solid var(--line);border-radius:8px}.stat strong{display:block;font-size:20px}.stat span{font-size:12px;color:var(--muted)}#diagnostic{padding:12px;border:1px solid var(--warning);border-radius:8px;background:var(--warning-bg);color:var(--warning);margin:16px 0}#status{color:var(--muted);font-size:12px;margin:12px 0}#status.error{color:var(--warning)}ul{list-style:none;margin:0;padding:0;display:grid;gap:12px}li{border:1px solid var(--line);border-radius:9px;padding:14px;min-width:0}.row{display:flex;align-items:baseline;gap:8px}.kind{font-size:11px;letter-spacing:.04em;color:var(--accent);padding:1px 6px;background:var(--card);border-radius:4px}.label{font-weight:600;overflow-wrap:anywhere}.purpose{margin:7px 0;color:var(--muted);overflow-wrap:anywhere}.ref{font:12px/1.6 ui-monospace,Consolas,monospace;overflow-wrap:anywhere;user-select:text;color:var(--muted)}a.ref{color:var(--accent)}#empty{text-align:center;padding:30px 12px;border:1px dashed var(--line);border-radius:9px;color:var(--muted)}[hidden]{display:none!important}@media(max-width:340px){main{padding:14px}.stats{grid-template-columns:repeat(2,1fr)}}
+:root{color-scheme:light;--bg:#fff;--ink:#25272c;--muted:#85878d;--line:#ececef;--hover:#f5f5f7;--accent:#9b5cff;--file:#5282c9;--link:#459576;--error:#ac5b25}
+:root[data-theme=dark]{color-scheme:dark;--bg:#202124;--ink:#e5e5e9;--muted:#a0a1aa;--line:#38393f;--hover:#2d2e34;--accent:#bc8aff;--file:#8caff0;--link:#85bea4;--error:#edb586}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.6 system-ui,"Microsoft YaHei",sans-serif}main{padding:18px 20px;max-width:880px;margin:auto}button,a,summary{-webkit-tap-highlight-color:transparent}button{font:inherit;color:inherit;border:0;background:none;cursor:pointer}button:disabled{cursor:wait;opacity:.5}button:focus-visible,a:focus-visible,summary:focus-visible{outline:2px solid var(--file);outline-offset:3px;border-radius:5px}header{display:flex;align-items:center;justify-content:space-between;gap:10px;min-height:34px}h1{margin:0;font-size:18px;font-weight:600}.refresh{padding:5px 8px;border-radius:6px;color:var(--muted)}.refresh:hover,.back:hover{background:var(--hover);color:var(--ink)}.context{font-size:12px;color:var(--muted);margin:4px 0 18px}details{border-top:1px solid var(--line);padding:12px 0 10px}details:last-child{border-bottom:1px solid var(--line)}summary{display:flex;align-items:center;gap:9px;cursor:pointer;list-style:none;color:var(--muted);padding:2px 0 7px;user-select:none}summary::-webkit-details-marker{display:none}.chevron{width:14px;height:14px;transition:transform .15s;flex:none}details[open] .chevron{transform:rotate(90deg)}.count{margin-left:auto;min-width:22px;text-align:center;font-size:12px;font-variant-numeric:tabular-nums}.entries{list-style:none;padding:0;margin:0}.entry{width:100%;display:flex;align-items:center;gap:11px;padding:9px 4px;text-align:left;border-radius:6px;min-width:0}.entry:hover{background:var(--hover)}.entry-label{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1}.icon{width:19px;height:19px;flex:none;stroke:currentColor;stroke-width:1.65;stroke-linecap:round;stroke-linejoin:round;fill:none}.icon.pr{color:var(--accent)}.icon.file{color:var(--file)}.icon.link{color:var(--link)}.direction{font-size:11px;color:var(--muted);flex:none}.group-empty{font-size:12px;color:var(--muted);padding:7px 25px}#empty{padding:14px 0;color:var(--muted);font-size:13px}#diagnostic{padding:10px 12px;margin:12px 0;background:var(--hover);border-left:2px solid var(--error);font-size:12px;color:var(--error)}#status,#detail-status{font-size:11px;color:var(--muted);margin:16px 0 0}.error{color:var(--error)!important}.back{display:flex;align-items:center;gap:5px;padding:5px 0;border-radius:5px;color:var(--muted);font-size:13px}.detail-header{border-bottom:1px solid var(--line);padding-bottom:12px;margin-bottom:20px}.detail-title{display:flex;align-items:flex-start;gap:10px;margin:0 0 18px}.detail-title .icon{margin-top:5px}.detail-title h2{font-size:18px;line-height:1.5;margin:0;font-weight:600;overflow-wrap:anywhere;min-width:0}dl{margin:0}dl>div{padding:10px 0;border-bottom:1px solid var(--line)}dt{font-size:12px;color:var(--muted);margin-bottom:3px}dd{margin:0;overflow-wrap:anywhere}a{color:var(--file);text-decoration:none}a:hover{text-decoration:underline}.ref{font:12px/1.7 ui-monospace,Consolas,monospace;white-space:pre-wrap;user-select:text}.session-details{padding-top:20px}.session-details h3{font-size:13px;font-weight:500;color:var(--muted);margin:0 0 8px}.state{display:inline-flex;align-items:center;gap:7px;font-size:14px}.state::before{content:"";width:7px;height:7px;background:var(--link);border-radius:50%}.state[data-state=running]::before{background:var(--file)}.state[data-state=error]::before{background:var(--error)}.session-error{overflow-wrap:anywhere;font-size:13px;color:var(--error)}[hidden]{display:none!important}@media(max-width:340px){main{padding:14px}.direction{font-size:10px}}
 </style>
 </head>
 <body>
 <main>
-  <header><h1>会话工件</h1><button id="refresh" type="button">刷新</button></header>
-  <p class="sub">当前会话的引用与交付物 · 只读</p>
-  <div id="revision">正在读取当前会话…</div>
-  <div id="stats" class="stats" aria-label="分类统计"></div>
-  <div id="diagnostic" role="status" hidden></div>
-  <div id="empty" hidden>当前会话尚无工件</div>
-  <ul id="items" aria-label="工件列表"></ul>
-  <p id="status" role="status" aria-live="polite"></p>
+  <section id="list-view">
+    <header><h1>会话工件</h1><button id="refresh" class="refresh" aria-label="刷新列表" type="button">刷新</button></header>
+    <p id="revision" class="context">正在读取当前会话…</p>
+    <div id="diagnostic" role="status" hidden></div>
+    <div id="groups"></div>
+    <p id="empty" hidden>当前会话尚无工件</p>
+    <p id="status" role="status" aria-live="polite"></p>
+  </section>
+  <section id="detail-view" hidden>
+    <header class="detail-header"><button id="back" class="back" aria-label="返回列表" type="button">‹ 返回</button><button id="detail-refresh" class="refresh" aria-label="刷新详情" type="button">刷新</button></header>
+    <div id="detail-content"></div>
+    <p id="detail-status" role="status" aria-live="polite"></p>
+  </section>
 </main>
 <script type="module">
 const host = window.zcode;
-const refreshButton = document.getElementById('refresh');
-const revision = document.getElementById('revision');
-const stats = document.getElementById('stats');
-const items = document.getElementById('items');
-const diagnostic = document.getElementById('diagnostic');
-const empty = document.getElementById('empty');
-const status = document.getElementById('status');
-const names = { pr: 'PR', session: '会话', file: '文件', link: '链接' };
+const listView = document.getElementById('list-view'), detailView = document.getElementById('detail-view');
+const refreshButton = document.getElementById('refresh'), detailRefresh = document.getElementById('detail-refresh');
+const revision = document.getElementById('revision'), groups = document.getElementById('groups');
+const diagnostic = document.getElementById('diagnostic'), empty = document.getElementById('empty'), status = document.getElementById('status');
+const detailContent = document.getElementById('detail-content'), detailStatus = document.getElementById('detail-status');
+const names = { pr: '拉取请求', session: '会话', file: '文件', link: '链接' };
+const directions = { outgoing: '已发起', incoming: '发起者', related: '关联会话' };
+const paths = {
+  pr: '<circle cx="6" cy="5" r="2"/><circle cx="6" cy="19" r="2"/><circle cx="18" cy="19" r="2"/><path d="M6 7v10M18 17V9a4 4 0 0 0-4-4h-2m2-2-2 2 2 2"/>',
+  session: '<path d="M21 11a8 8 0 0 1-8 8H7l-4 3v-6a8 8 0 1 1 18-5Z"/>',
+  outgoing: '<path d="M14 3h7v7M21 3 10 14M8 5H4v15h15v-4"/>',
+  incoming: '<path d="M10 14H3V7M3 14 14 3M16 5h4v15H5v-3"/>',
+  file: '<path d="M14 2H5v20h14V7l-5-5Zm0 0v5h5M8 12h8M8 16h6"/>',
+  link: '<path d="m10 13 4-4M8 16l-1 1a4 4 0 0 1-6-6l4-4a4 4 0 0 1 6 0M16 8l1-1a4 4 0 0 1 6 6l-4 4a4 4 0 0 1-6 0"/>'
+};
+let selectedRef, detailRequest = 0;
 function element(tag, className, text) {
   const node = document.createElement(tag); node.className = className; node.textContent = text; return node;
 }
+function icon(kind, direction) {
+  const key = kind === 'session' && ['outgoing', 'incoming'].includes(direction) ? direction : kind;
+  const node = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+  node.setAttribute('viewBox', '0 0 24 24'); node.setAttribute('class', 'icon ' + kind);
+  node.setAttribute('aria-hidden', 'true'); node.dataset.icon = key; node.innerHTML = paths[key]; return node;
+}
 function theme() { document.documentElement.dataset.theme = host.theme ?? 'light'; }
+function time(value) { return value == null ? '未记录' : new Date(value).toLocaleString('zh-CN', { hour12: false }); }
+async function get(args) {
+  const result = await host.callTool('get_artifacts', args);
+  if (result.isError) throw new Error(result.structuredContent?.error ?? result.content?.[0]?.text ?? '工件读取失败');
+  if (!result.structuredContent) throw new Error('工件响应缺少完整数据，请重新加载');
+  return result.structuredContent;
+}
 function render(state) {
-  revision.textContent = `revision ${state.revision} · 共 ${state.stats.total} 条`;
-  stats.replaceChildren(...Object.entries(names).map(([kind, name]) => {
-    const cell = element('div', 'stat', '');
-    cell.append(element('strong', '', state.stats.by_kind[kind]), element('span', '', name)); return cell;
-  }));
+  const openKinds = new Set(groups.children.length
+    ? [...groups.children].filter(group => group.open).map(group => group.dataset.kind) : Object.keys(names));
+  revision.textContent = '当前会话 · 共 ' + state.stats.total + ' 条';
   diagnostic.hidden = state.inheritance?.status !== 'snapshot_missing';
-  diagnostic.textContent = 'snapshot_missing：所选历史断点没有工件快照，未继承父工件。当前子会话仍可独立管理工件。';
+  diagnostic.textContent = '所选历史断点没有工件快照，未继承父工件。当前会话仍可独立管理工件。';
   empty.hidden = state.items.length !== 0;
-  items.replaceChildren(...state.items.map(item => {
-    const card = document.createElement('li'), row = element('div', 'row', '');
-    row.append(element('span', 'kind', names[item.kind]), element('span', 'label', item.label));
-    let ref = element('div', 'ref', item.ref);
-    if (['pr', 'link'].includes(item.kind) && host.hostCapabilities?.openLinks) {
-      ref = element('a', 'ref', item.ref); ref.href = item.ref;
-      ref.addEventListener('click', event => { event.preventDefault(); host.openExternal({ href: item.ref }); });
-    }
-    card.append(row, element('p', 'purpose', item.purpose), ref); return card;
+  groups.replaceChildren(...Object.entries(names).map(([kind, name]) => {
+    const group = document.createElement('details'); group.dataset.kind = kind; group.open = openKinds.has(kind);
+    const summary = document.createElement('summary'), chevron = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    chevron.setAttribute('class', 'chevron'); chevron.setAttribute('viewBox', '0 0 16 16'); chevron.setAttribute('aria-hidden', 'true');
+    chevron.innerHTML = '<path d="m6 3 5 5-5 5" fill="none" stroke="currentColor" stroke-width="1.4"/>';
+    summary.append(chevron, element('span', '', name), element('span', 'count', state.stats.by_kind[kind]));
+    const entries = element('ul', 'entries', '');
+    const items = state.items.filter(item => item.kind === kind);
+    entries.append(...items.map(item => {
+      const row = document.createElement('li'), button = element('button', 'entry', '');
+      button.type = 'button'; button.setAttribute('aria-label', '查看详情：' + item.label); button.title = item.label;
+      button.append(icon(kind, item.session_direction), element('span', 'entry-label', item.label));
+      if (kind === 'session' && item.session_direction && item.session_direction !== 'related')
+        button.append(element('span', 'direction', directions[item.session_direction]));
+      button.addEventListener('click', () => showDetail(item.ref)); row.append(button); return row;
+    }));
+    if (!items.length) entries.append(element('li', 'group-empty', '暂无' + name));
+    group.append(summary, entries); return group;
   }));
+}
+function field(list, name, value, className = '') {
+  const row = document.createElement('div'), content = element('dd', className, '');
+  if (value instanceof Node) content.append(value); else content.textContent = value;
+  row.append(element('dt', '', name), content); list.append(row);
+}
+function renderDetail(detail) {
+  const item = detail.item, title = element('div', 'detail-title', '');
+  title.append(icon(item.kind, item.session_direction), element('h2', '', item.label));
+  const list = document.createElement('dl');
+  field(list, '类型', names[item.kind] + (item.session_direction ? ' · ' + directions[item.session_direction] : ''));
+  field(list, '用途', item.purpose);
+  let ref = item.ref;
+  if (detail.hyperlink && host.hostCapabilities?.openLinks) {
+    ref = element('a', '', detail.hyperlink); ref.href = detail.hyperlink;
+    ref.addEventListener('click', async event => {
+      event.preventDefault();
+      try { await host.openExternal({ href: detail.hyperlink }); }
+      catch (error) { detailStatus.className = 'error'; detailStatus.textContent = '链接打开失败：' + error.message; }
+    });
+  }
+  field(list, detail.hyperlink ? '超链接' : '引用', ref, 'ref');
+  field(list, '创建时间', time(item.created_at)); field(list, '更新时间', time(item.updated_at));
+  detailContent.replaceChildren(title, list);
+  if (detail.session) {
+    const session = detail.session, section = element('section', 'session-details', '');
+    section.append(element('h3', '', '会话实时状态'));
+    if (session.error) section.append(element('p', 'session-error', '查询失败：' + session.error));
+    else {
+      const state = element('span', 'state', session.pending_interaction ? '等待处理' : { running: '正在运行', completed: '已完成', error: '发生错误' }[session.status]);
+      state.dataset.state = session.status; section.append(state);
+      const sessionFields = document.createElement('dl');
+      field(sessionFields, '会话名称', session.title); field(sessionFields, '工作区', session.workspace_path, 'ref');
+      field(sessionFields, '会话创建时间', time(session.created_at)); field(sessionFields, '会话更新时间', time(session.updated_at));
+      section.append(sessionFields);
+    }
+    const query = document.createElement('dl'); field(query, '查询时间', time(session.queried_at)); section.append(query);
+    detailContent.append(section);
+  }
+}
+async function showDetail(ref) {
+  selectedRef = ref; const request = ++detailRequest;
+  listView.hidden = true; detailView.hidden = false; detailRefresh.disabled = true;
+  detailContent.replaceChildren(); detailStatus.className = ''; detailStatus.textContent = '正在读取详情…';
+  try {
+    const detail = await get({ ref });
+    if (request !== detailRequest) return;
+    renderDetail(detail); detailStatus.textContent = '已读取当前详情';
+  } catch (error) {
+    if (request !== detailRequest) return;
+    detailStatus.className = 'error'; detailStatus.textContent = error.message;
+  } finally { if (request === detailRequest) detailRefresh.disabled = false; }
 }
 async function refresh() {
   refreshButton.disabled = true; status.className = ''; status.textContent = '正在刷新…';
   try {
-    const result = await host.callTool('get_artifacts', {});
-    if (result.isError) throw new Error(result.structuredContent?.error ?? result.content?.[0]?.text ?? '工件读取失败');
-    render(result.structuredContent);
-    status.textContent = '已读取当前状态；后续变化可点击刷新查看';
+    const state = await get({ offset: 0, limit: 50 });
+    let next = state.next_offset;
+    while (next !== null) {
+      const page = await get({ offset: next, limit: 50 });
+      if (page.revision !== state.revision) throw new Error('读取期间工件发生变化，请重新刷新');
+      state.items.push(...page.items); next = page.next_offset;
+    }
+    render(state); status.textContent = '已更新 · 点击条目查看详情';
   } catch (error) {
-    revision.textContent = '读取失败'; stats.replaceChildren(); items.replaceChildren(); empty.hidden = true; diagnostic.hidden = true;
+    groups.replaceChildren(); revision.textContent = '读取失败'; empty.hidden = true; diagnostic.hidden = true;
     status.className = 'error'; status.textContent = error.message;
   } finally { refreshButton.disabled = false; }
 }
+document.getElementById('back').addEventListener('click', () => {
+  detailRequest++; selectedRef = undefined; detailView.hidden = true; listView.hidden = false;
+});
 refreshButton.addEventListener('click', refresh);
-try {
-  host.subscribe(theme);
-  await host.ready(); theme(); await refresh();
-} catch (error) { status.className = 'error'; status.textContent = error.message; refreshButton.disabled = true; }
+detailRefresh.addEventListener('click', () => showDetail(selectedRef));
+try { host.subscribe(theme); await host.ready(); theme(); await refresh(); }
+catch (error) { status.className = 'error'; status.textContent = error.message; refreshButton.disabled = true; }
 </script>
 </body>
 </html>

@@ -9,14 +9,20 @@ description: 记录、查看和维护当前 ZCode 会话的 PR、关联会话、
 
 提交时的工件摘要可能已过时。需要完整列表、最新 revision 或处理冲突时 get_artifacts；以工具回执中的 revision 和 stats 为当次依据。
 
+get_artifacts 有列表和详情两种模式：省略 ref 返回当前会话列表；可传 offset/limit 分页，按 next_offset 续读，统计仍为总数。填写精确 ref 返回单条详情，不能与分页参数混用。详情含超链接、创建/更新时间和已记录的会话方向，与 GUI 共用返回值。旧条目的未知时间为 null，不能补造。
+
+会话详情每次查询原 Host 实时状态，并附 queried_at；需要公共网关连接，可能恢复会话并同步索引。session.error 表示查询失败，不能用旧值或本机持久化状态充当实时状态。普通列表不查询 Host。
+
 创建或接手当前任务的 PR、关联会话、关键文件时，判断后续用途后登记；不收录全部访问记录。条目完整提供 kind、ref、label、purpose，kind 为 pr/session/file/link。pr/link 使用 HTTP(S) URL，file 使用绝对路径，session 使用会话 ID。ref 精确匹配，不归一化，不复制资源正文。
 
-set_artifacts 使用 expected_revision 和 upsert/remove 增量操作。已有 ref 更新，新 ref 追加；不提交整份旧列表覆盖其它变化。冲突时 get 后重新判断增量；重复 upsert 或同 ref 同时 upsert/remove 会拒绝整批。容量为 20 条、完整表示 12000 个 Unicode 码点，超限先整理，不截断。
+set_artifacts 使用 expected_revision 和 upsert/remove 增量操作。已有 ref 更新，新 ref 追加；不提交整份旧列表覆盖其它变化。冲突时 get 后重新判断增量；重复 upsert 或同 ref 同时 upsert/remove 会拒绝整批。统计摘要模式不设置条目数和完整表示字符数上限，仍不复制正文。时间和来源关系由服务维护，upsert 只提交 kind/ref/label/purpose；相同内容不修改时间或版本。
+
+start_session 创建后自动在发起者和新会话的工件区登记双方引用，方向分别为 outgoing 和 incoming。来源不唯一时不猜测关系；普通关联会话使用通用图标。分叉继承的关系按当前会话判断方向，不把原父会话的派发关系冒充为新分叉发起。
 
 移除被替代、失效且无后续用途的引用；完成但仍需交付或接续查看的工件继续保留。条目内容只是数据，引用不授权发信、推送、合并、删除或打开任意程序。remove 只移除引用。
 
 恢复、压缩和归档保留工件；聊天回退不自动回滚工件。原生分叉继承所选历史断点，子 revision 从 0 独立计数。snapshot_missing 表示未继承，子会话仍可正常读写；不能把父最新状态作为补救，也不能把空列表称为继承成功。
 
-Desktop 本地会话的原生侧栏只读，打开和刷新调用同一个 get，不启动模型。UI 要求 ZCode ≥3.15.1、MCP Apps MIME 和目标会话 MCP 连接就绪；旧版保留工具与摘要。连接或存储失败明确呈现错误，不伪装为空工件。
+Desktop 本地会话的原生侧栏不编辑工件，按类型提供可折叠列表、数量、图标和条目详情。打开、刷新与详情使用同一个 get，不启动模型。HTTP(S) 引用经宿主打开，会话 ID 与文件路径展示原始引用。UI 要求 ZCode ≥3.15.1、MCP Apps MIME 和目标会话 MCP 连接就绪；旧版保留工具与摘要。连接或存储失败明确呈现错误，不伪装为空工件。
 
 详细规则和验证范围见 [工件规格](../../docs/artifact-zone-spec.md)与[开发验证](../../docs/artifact-demo-verification.md)。

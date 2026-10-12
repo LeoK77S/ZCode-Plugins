@@ -88,6 +88,18 @@ export function createSessionController({ reader, gatewayConfigPath, connect = c
     return { source: 'original_host', session_id: args.session_id, workspace_path: remote.workspacePath, archived };
   };
   return {
+    async getSessionStatus(args) {
+      return attached(targetOf(args), async remote => {
+        const snapshot = await remote.call('zcode-task', 'getTaskSnapshot', [{ taskId: args.session_id, workspacePath: remote.workspacePath, messageLimit: 1 }]);
+        const meta = snapshot?.meta;
+        if (meta?.taskId !== args.session_id || !['running', 'completed', 'error'].includes(meta.status))
+          throw new Error('status_not_confirmed: 原 Host 没有返回目标会话的有效状态');
+        return { source: 'original_host', session_id: meta.taskId, title: meta.title, workspace_path: remote.workspacePath,
+          status: meta.status, created_at: meta.createdAt ?? null, updated_at: meta.updatedAt ?? null,
+          pending_interaction: Boolean(meta.pendingInteraction || snapshot.runtime?.pendingPermissions?.length || snapshot.runtime?.pendingElicitations?.length),
+          queried_at: now() };
+      });
+    },
     async getGlmBalance({ workspace_path }) {
       return attached({ workspacePath: workspace_path }, remote => getGlmBalance(remote, { now }));
     },
@@ -107,7 +119,7 @@ export function createSessionController({ reader, gatewayConfigPath, connect = c
           ...(warnings.length ? { warnings } : {}) };
       });
     },
-    async startSession({ workspace_path, title, message, model, lock_title = false, creator, originWarning, permissionMode, permissionWarning }) {
+    async startSession({ workspace_path, title, message, model, lock_title = false, creator, originWarning, permissionMode, permissionWarning, onCreated }) {
       return attached({ workspacePath: workspace_path }, async remote => {
         let modelSelection;
         if (model) {
@@ -126,6 +138,7 @@ export function createSessionController({ reader, gatewayConfigPath, connect = c
         // 来源警告在 try 外构造：部分失败的 partial_result 也要携带（PR #15 契约），复核警告只在成功路径合并
         const warnings = [...(originWarning ? [originWarning] : []), ...(permissionWarning ? [permissionWarning] : [])];
         try {
+          await onCreated?.(result);
           await setTitlePolicy({ sessionId: meta.taskId, locked: lock_title });
           result.lock_title = lock_title;
           Object.assign(result, await send(remote, meta.taskId, createdMessage(message, creator, originWarning)));

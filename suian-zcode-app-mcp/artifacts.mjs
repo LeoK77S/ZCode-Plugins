@@ -1,7 +1,6 @@
 import { DatabaseSync } from 'node:sqlite';
 import { mkdirSync, statSync } from 'node:fs';
 import { dirname, isAbsolute, win32 } from 'node:path';
-import { artifactRepresentation } from './artifact-prompt.mjs';
 import { createHash } from 'node:crypto';
 import { readForkOrigin, readStopBoundary } from './artifact-host.mjs';
 
@@ -33,7 +32,7 @@ function storedState(db, sessionId) {
   return row ? { revision: row.revision, items: JSON.parse(row.items), ...(row.inheritance ? { inheritance: JSON.parse(row.inheritance) } : {}) } : { revision: 0, items: [] };
 }
 
-export function createArtifactStore({ artifactDbPath, sessionDbPath }) {
+export function createArtifactStore({ artifactDbPath, sessionDbPath, now = Date.now }) {
   function exists() {
     try { statSync(artifactDbPath); return true; }
     catch (error) { if (error.code === 'ENOENT') return false; throw error; }
@@ -83,8 +82,48 @@ export function createArtifactStore({ artifactDbPath, sessionDbPath }) {
     finally { db.close(); }
   }
 
+  function update(db, sessionId, { expected_revision, upsert = [], remove = [] }) {
+    const previous = storedState(db, sessionId);
+    if (expected_revision !== undefined && previous.revision !== expected_revision) throw Object.assign(new Error('工件版本冲突，请 get_artifacts 后重新判断增量'), {
+      code: 'revision_conflict', expected_revision, current_revision: previous.revision
+    });
+    let removed = 0, upserted = 0;
+    const items = previous.items.filter(item => { if (!remove.includes(item.ref)) return true; removed++; return false; });
+    for (const item of upsert) {
+      const index = items.findIndex(old => old.ref === item.ref), previousItem = items[index];
+      if (previousItem && ['kind', 'ref', 'label', 'purpose'].every(key => previousItem[key] === item[key]) &&
+          (item.session_link === undefined || JSON.stringify(item.session_link) === JSON.stringify(previousItem.session_link))) continue;
+      const time = now(), link = item.session_link ?? previousItem?.session_link;
+      const updated = { ...item, created_at: previousItem ? previousItem.created_at ?? null : time, updated_at: time,
+        ...(item.kind === 'session' && link ? { session_link: link } : {}) };
+      if (index < 0) items.push(updated);
+      else items[index] = updated;
+      upserted++;
+    }
+    const changed = removed + upserted > 0, revision = previous.revision + Number(changed);
+    if (changed) db.prepare('INSERT INTO artifact_state (session_id,revision,items) VALUES (?,?,?) ON CONFLICT(session_id) DO UPDATE SET revision=excluded.revision, items=excluded.items')
+      .run(sessionId, revision, JSON.stringify(items));
+    return { revision, changed, upserted, removed, stats: artifactStats(items) };
+  }
+
   return {
     initialize,
+    linkSessions({ creator, created, creatorLabel, createdLabel }) {
+      initialize(creator);
+      const db = open(true);
+      try {
+        const session_link = { creator, created };
+        for (const [id, ref, label, purpose] of [
+          [creator, created, createdLabel, '由当前会话发起的任务'],
+          [created, creator, creatorLabel, '当前会话的发起会话']
+        ]) {
+          const old = storedState(db, id).items.find(item => item.ref === ref);
+          update(db, id, { upsert: [{ kind: 'session', ref, label: old?.label ?? label, purpose: old?.purpose ?? purpose, session_link }] });
+        }
+        db.exec('COMMIT');
+      } catch (error) { db.exec('ROLLBACK'); throw error; }
+      finally { db.close(); }
+    },
     snapshot(sessionId, turnId) {
       const messageId = readStopBoundary(sessionDbPath, sessionId, turnId);
       initialize(sessionId);
@@ -104,7 +143,9 @@ export function createArtifactStore({ artifactDbPath, sessionDbPath }) {
       const db = open();
       try {
         const state = db ? storedState(db, sessionId) : { revision: 0, items: [] };
-        return { ...state, stats: artifactStats(state.items) };
+        const items = state.items.map(item => item.session_link ? { ...item, session_direction:
+          sessionId === item.session_link.creator ? 'outgoing' : sessionId === item.session_link.created ? 'incoming' : 'related' } : item);
+        return { ...state, items, stats: artifactStats(items) };
       } finally { db?.close(); }
     },
     set(sessionId, { expected_revision, upsert = [], remove = [] }) {
@@ -112,27 +153,9 @@ export function createArtifactStore({ artifactDbPath, sessionDbPath }) {
       initialize(sessionId);
       const db = open(true);
       try {
-        const previous = storedState(db, sessionId);
-        if (previous.revision !== expected_revision) throw Object.assign(new Error('工件版本冲突，请 get_artifacts 后重新判断增量'), {
-          code: 'revision_conflict', expected_revision, current_revision: previous.revision
-        });
-        let removed = 0, upserted = 0;
-        const items = previous.items.filter(item => { if (!remove.includes(item.ref)) return true; removed++; return false; });
-        for (const item of upsert) {
-          const index = items.findIndex(old => old.ref === item.ref);
-          if (index < 0) { items.push(item); upserted++; }
-          else if (JSON.stringify(items[index]) !== JSON.stringify(item)) { items[index] = item; upserted++; }
-        }
-        const changed = removed + upserted > 0;
-        const revision = previous.revision + Number(changed);
-        const characters = Array.from(artifactRepresentation({ revision, items })).length;
-        if (items.length > 20 || characters > 12000) throw Object.assign(new Error('工件容量超限，整次增量未保存'), {
-          code: 'capacity_exceeded', total: items.length, max_items: 20, characters, max_characters: 12000
-        });
-        if (changed) db.prepare('INSERT INTO artifact_state (session_id,revision,items) VALUES (?,?,?) ON CONFLICT(session_id) DO UPDATE SET revision=excluded.revision, items=excluded.items')
-          .run(sessionId, revision, JSON.stringify(items));
+        const result = update(db, sessionId, { expected_revision, upsert, remove });
         db.exec('COMMIT');
-        return { revision, changed, upserted, removed, stats: artifactStats(items) };
+        return result;
       } catch (error) { db.exec('ROLLBACK'); throw error; }
       finally { db.close(); }
     }

@@ -1,0 +1,29 @@
+{
+  "date": "2026-10-12",
+  "base_commit": "e5e258a8635f803ccf23f8a8ab936099e4b59405",
+  "node": "24.15.0",
+  "mcp_sdk": "1.32.1",
+  "baseline": { "tests": 102, "pass": 102, "fail": 0, "exit_code": 0, "log_sha256": "52003A6A5A22F2E4A4F70F1EF5C6DA22B7640D835CC1FA5D0A4E44179A5AB811" },
+  "regression": { "tests": 109, "pass": 109, "fail": 0, "exit_code": 0, "log_sha256": "6F6F8672A40FAD1715D9F1F7BFAE4F912277EEC408173229E3B64A8BD4FAE4AC" },
+  "red_checks": [
+    { "scope": "容量限制", "exit_code": 1, "log_sha256": "FC088396CB4D1EC82C3CBF172171B9A4BD3DD9E19DC9AE24F05923E2B5184F9B" },
+    { "scope": "时间与单条详情", "exit_code": 1, "log_sha256": "A6EB49825EB8D8E05ED9DF3C74CA9A9E9F954108CB8CF34BDAC1581695A2D978" },
+    { "scope": "原 Host 实时状态", "exit_code": 1, "log_sha256": "B618C9A85E34495B6AB3B71DCF4DB6553034A944849E8125C35C226C4C098622" },
+    { "scope": "首发前双向创建关系", "exit_code": 1, "log_sha256": "79A82353D08DDA1132B292EFD4B50393F69511F9B52BC3D122DB3808A58A4BFC" },
+    { "scope": "列表分页", "exit_code": 1, "log_sha256": "B46CF05F008C617B4BC7250198FC8D6CAF4ADACAF7C84BE57F78AD70E21C6FE4" },
+    { "scope": "浏览器新交互", "exit_code": 1, "log_sha256": "53BBB1CEEC3AF4E3492A5879FA9263A872EDB29087641C7B7BFD7A52551B6B9B" },
+    { "scope": "会话图标实际可绘制", "exit_code": 1, "log_sha256": "A73871B640CF7872C0A717DEE5749194FCE8CA87900712056EA18E92A4C3D807" }
+  ],
+  "browser": {
+    "engine": "Chromium",
+    "transport": "真实 MCP SDK + InMemoryTransport + 隔离 SQLite",
+    "host_rpc": "模拟边界",
+    "passed": true,
+    "exit_code": 0,
+    "log_sha256": "CC256187DCA5AC1C6E5D3920658B28D6C018B68B3C2C17F389182323E9D7F024",
+    "coverage": ["折叠与数量", "刷新保留折叠", "图标可见", "详情与返回", "HTTP(S) 外链", "时间", "每次点击会话重查", "查询失败清除旧状态", "迟到响应不重新打开详情", "文本安全", "320px 深色布局", "205 条分页", "空状态", "列表连接失败"],
+    "images": ["images/artifact-panel/list.png", "images/artifact-panel/detail.png", "images/artifact-panel/dark-narrow.png"]
+  },
+  "syntax": { "passed": true, "exit_code": 0, "log_sha256": "CC258D839E50D5E0CF220528399D5C29A6BCC5C3A9EE2616A915627E0363D91D" },
+  "limitations": ["新版未安装到用户缓存", "新版实际 Desktop 验收未执行", "未发起真实用户会话的 Host 状态查询", "真实模型主动维护评估未执行", "HTTP(S) 外链以外只展示会话 ID 和文件路径", "用户验收待进行"]
+}

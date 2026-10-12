@@ -57,6 +57,20 @@ UI 契约覆盖版本、客户端身份和 MCP Apps MIME 的组合，包括应�
 
 依据：[UI_PLUGIN.md](https://github.com/zai-org/ZCode/blob/aac4755666d09fdcd70272fcf063c077a639015f/UI_PLUGIN.md)、[UI 连接凭证入口](https://github.com/zai-org/ZCode/blob/aac4755666d09fdcd70272fcf063c077a639015f/apps/zcode-cli/packages/bootstrap/src/zcode-protocol/mcp-ui/protocol.ts#L222)、[共享连接池](https://github.com/zai-org/ZCode/blob/aac4755666d09fdcd70272fcf063c077a639015f/apps/zcode-cli/packages/adapters/src/mcp/pool.ts)。
 
+## 开发分支的列表与详情改版
+
+2026-10-12，按用户的新交互要求取消原 20 条和 12000 字符限制，补充分组折叠、方向图标、统一详情与服务记录时间。get_artifacts 省略 ref 返回列表，指定精确 ref 返回详情；页面使用同一接口，会话详情每次查询原 Host。
+
+独立工作树的基线 102 项通过；改版回归 109 项通过、0 失败，退出码 0。容量、时间详情、实时查询、首发前关系和分页各自先观察契约失败，再实施；会话图标的 CSS 名称冲突也通过浏览器可绘制视口检查复现并修正。另覆盖旧时间未知、双向关系写入原子性和分叉不冒充原创建方向。
+
+Chromium 加载 MCP 正式注册返回的 HTML，通过真实 SDK/InMemoryTransport 调用正式 get/set，与真实隔离 SQLite 连接。原 Host RPC 在此检查中使用模拟边界，不读取用户凭据、不创建实际用户会话。浏览器覆盖折叠后数量、刷新保留折叠、图标可见、详情往返、HTTP(S) 打开、时间、每次会话点击重新查询、查询错误、迟到响应、文字安全、320px 深色窄栏、205 条分页和空状态。
+
+![分组工件列表](images/artifact-panel/list.png)
+
+![统一工件详情](images/artifact-panel/detail.png)
+
+日志首次执行时落盘并记录退出码；脱敏结果与日志 SHA256 见 [改版证据](artifact-panel-evidence.json)。旧版 Desktop 的原生接线证据仍归属于上文；新版未安装到实际用户缓存，尚未进行新版 Desktop 与用户验收。
+
 ## 真实 Agent 主动维护评估
 
 本轮没有可用于隔离测试的真实模型账号，未复制用户凭据。合成 SSE 按固定脚本发起 get/set，不能证明真实 Agent 会主动登记、维护或清理。该评估保持未执行状态。
