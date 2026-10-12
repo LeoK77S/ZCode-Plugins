@@ -38,7 +38,11 @@
 
 **11 条原生审批回执均为 build 下的 allow**。ID 7 按钮保存的 reason 是 `Approved for this project`；其余 10 条是 `Approved once`。保存走 `mode.build.highRisk`，其余工具走 `mode.build.sideEffect`。用户配合点击原生审批，制作代理没有操作任何批准按钮。
 
-“未改权限配置”只指代理未程序化修改。没有 Host 权限状态的前后快照，项目允许是否被持久化及其作用范围未独立核查，不能据此宣称 Host 内部权限状态完全不变。
+**本轮出现一条项目规则更新跳过，未证实持久化成功**。冻结 CLI 时窗第 27 行是 ID 7 的项目允许回执，第 28 行紧接本轮唯一的 `tool.permission.project_update.skipped`；两条日志时间均为 `2026-10-12T23:29:12.684Z`，SID 相同。skip 自身没有 toolCallId 或 requestId；本轮 11 次审批共用 trace/span，它们不是唯一调用标识。结合单步串行操作与相邻日志记录本轮跳过现象，不声称 skip 与 ID 7 有直接请求 ID 关联。
+
+skip 的日志文字是 `without persisted session`，但[固定官方源码的 guard](https://github.com/zai-org/ZCode/blob/aac4755666d09fdcd70272fcf063c077a639015f/apps/zcode-cli/packages/core/src/tool/executor/permission-rules-persistence.ts#L46-L67) 实际在无法取得 `session.projectID` 时跳过项目规则更新。本次权限补查没有直接读取 Core DB，不能区分 session 缺失与 projectID 字段缺失，因此不概括为“没有 Core 会话”。这只证明本轮存在更新跳过；通常有持久 Core 归属的任务，其同工具同路径免审或重启复用均未实测。
+
+“未改权限配置”仍只指代理未程序化修改。没有 Host 权限状态的前后快照，上述项目规则更新跳过也不能证明其他内存权限状态完全不变；通常持久任务的授权持久化及作用范围未独立核查。
 
 证据按来源区分：
 

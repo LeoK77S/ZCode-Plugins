@@ -106,6 +106,37 @@
         "fontStyle": "normal",
         "fontWeight": "400"
       }
+    },
+    "projectRuleUpdate": {
+      "adjacentApprovalCallId": 7,
+      "event": "tool.permission.project_update.skipped",
+      "loggedAt": "2026-10-12T23:29:12.684Z",
+      "frozenCliLines": [
+        27,
+        28
+      ],
+      "observedSkipCount": 1,
+      "correlationBasis": [
+        "single-step serial operations",
+        "adjacent log rows",
+        "same timestamp",
+        "same sessionId"
+      ],
+      "sharedTraceAndSpanNotUniquePerCall": true,
+      "skipHasToolCallId": false,
+      "skipHasRequestId": false,
+      "directRequestCorrelationIdClaimed": false,
+      "originalLogMessage": "Project permission update skipped without persisted session",
+      "projectRuleUpdateSkippedObserved": true,
+      "projectRulePersistenceSuccessEstablished": false,
+      "sourceGuard": "无法取得 session.projectID 时跳过项目规则更新",
+      "sourceGuardUrl": "https://github.com/zai-org/ZCode/blob/aac4755666d09fdcd70272fcf063c077a639015f/apps/zcode-cli/packages/core/src/tool/executor/permission-rules-persistence.ts#L46-L67",
+      "sourceNote": "根测试树忽略目录中的 se04-permission-research.md；只读官方固定 aac4755 与实际 CLI 0.16.9 的核对",
+      "coreDatabaseDirectlyReadForThisInvestigation": false,
+      "sessionExistenceOrProjectIdAbsenceDistinguished": false,
+      "coreSessionAbsenceEstablished": false,
+      "ordinaryPersistedCoreTaskApprovalReuseTested": false,
+      "scope": "仅本轮出现项目规则更新跳过，未证实持久化成功；不声称 skip 与某调用有直接请求 ID 关联，不泛化通常持久任务，也不证明 Host 其他内存权限状态不变"
     }
   },
   "calls": [
@@ -343,7 +374,7 @@
     "approvedForThisProjectCount": 1,
     "projectApprovalCallId": 7,
     "agentClickedApproval": false,
-    "note": "本轮由用户配合原生审批；id 7 保存按钮回执为 Approved for this project，其余为 Approved once。未程序化修改权限配置，未独立核对 Host 的持久化与作用范围。"
+    "note": "本轮由用户配合原生审批；id 7 保存按钮回执为 Approved for this project，其余为 Approved once。本轮出现一条与项目允许相邻的更新跳过日志，未证实持久化成功；skip 没有直接请求 ID，trace/span 为多次审批共用。未程序化修改权限配置，无前后快照，未实测通常持久 Core 任务的授权持久化与作用范围。"
   },
   "rawEvidence": {
     "location": "SE02 专用测试树的忽略目录 .scratch；原始路径/合成会话标识/截图不入库",
