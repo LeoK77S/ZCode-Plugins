@@ -16,7 +16,8 @@ test('分别缓存的两个业务插件通过公共包入口启动，MCP 公布�
   const repo = fileURLToPath(new URL('../../', import.meta.url));
   const roots = {};
   for (const name of ['suian-zcode-common', 'suian-zcode-title', 'suian-zcode-app-mcp']) {
-    const dest = join(root, '市场 缓存', name, '0.1.0');
+    const { version } = JSON.parse(await readFile(join(repo, name, '.zcode-plugin', 'plugin.json'), 'utf8'));
+    const dest = join(root, '市场 缓存', name, version);
     await cp(join(repo, name), dest, { recursive: true, filter: path => !['node_modules', 'tests', 'docs', 'experiments', '.local', '.scratch', 'config.local.json'].includes(basename(path)) });
     roots[name] = dest;
     const sourceModules = join(repo, name, 'node_modules');
@@ -38,6 +39,7 @@ test('分别缓存的两个业务插件通过公共包入口启动，MCP 公布�
   const client = new Client({ name: 'native-cache-contract', version: '1.0.0' });
   t.after(() => client.close());
   await client.connect(transport);
+  assert.equal(client.getServerVersion().version, JSON.parse(await readFile(join(roots['suian-zcode-app-mcp'], '.zcode-plugin', 'plugin.json'), 'utf8')).version);
   assert.equal((await client.listTools()).tools.length, 12);
   await client.close();
   const hook = JSON.parse(await readFile(join(roots['suian-zcode-title'], 'hooks', 'hooks.json'), 'utf8')).hooks.Stop[0].hooks[0];

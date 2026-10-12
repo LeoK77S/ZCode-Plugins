@@ -6,6 +6,7 @@ import { resolveCaller } from './caller.mjs';
 import { registerArtifactTools } from './artifact-tools.mjs';
 import { readFile } from 'node:fs/promises';
 import { extname, isAbsolute } from 'node:path';
+import packageMetadata from './package.json' with { type: 'json' };
 
 const annotations = { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false };
 const result = data => ({ content: [{ type: 'text', text: JSON.stringify(data) }], structuredContent: data });
@@ -21,7 +22,7 @@ async function messageInput(args) {
 }
 
 export function createMcpServer(config, { controller } = {}) {
-  const server = new McpServer({ name: 'suian-zcode-app-mcp', version: '0.1.0' });
+  const server = new McpServer({ name: 'suian-zcode-app-mcp', version: packageMetadata.version });
   const reader = createSessionReader(config);
   controller ??= createSessionController({ reader, gatewayConfigPath: config.gatewayConfigPath });
   server.registerTool('list_sessions', {
