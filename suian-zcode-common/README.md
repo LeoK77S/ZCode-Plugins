@@ -50,8 +50,13 @@ npm ci 后运行 link.mjs，将稳定运行入口链接到本公共根，再把�
 | notification-action.mjs | `copyPromptAndOpenWorkspace({prompt,dataDir})`：复制调用方提示词后打开用户默认工作区；仅用户点击后执行 |
 | notification-install.mjs | `installToastAssets()` / `removeToastAssets()`：接收调用方的 protocol、appId、shortcutName、description、pluginRoot、dataDir |
 | prerequisites.mjs | `checkRuntime()`：两插件的 Node / 公共依赖检查；传入 sqliteBin 时额外检查 sqlite3 CLI，只读查询内存库 |
+| ui-capabilities.mjs | `supportsZcodeMcpApps({clientInfo,capabilities,zcodeAppVersion})`：ZCode 应用版本与 MCP Apps MIME 判定；`MCP_APP_MIME_TYPE` 为页面 MIME 常量 |
 | link.mjs | `linkCommon()`：建立稳定公共入口和业务端 Node 包链接，不复制代码或覆盖普通目录 |
 | vendor/projection.js | `getConversationMessageProjectionPolicy()`：两个插件引用同一固定产物 |
+
+UI 判定要求客户端名为 `zcode`、应用版本至少为 3.15.1，且 MCP Apps `mimeTypes` 数组包含 `text/html;profile=mcp-app`。公共模块只返回布尔值，资源和工具注册仍归业务插件。
+
+调用方提供 Desktop 的 `zcodeAppVersion`；仅为 `null` 或 `undefined` 时回退客户端版本，未知版本、空字符串或旧版应用均不启用 UI。支持原有三段版本、可选的第四段构建号与 `+` 构建信息，不接受预发布版本。
 
 调用方继续指定自己的数据目录和通知身份。既有授权密文保留，但插件的默认调用不再读取它；Toast 冷却、`suian-zcode-title://` 协议和 AUMID 不迁移。MCP 两个读取工具共享投影库，其余原 Host 调用与命名 worker 共享网关 RPC。会话命名策略保存在公共目录，通知状态仍归调用方。
 
