@@ -45,19 +45,17 @@ function archiveActivity(snapshot, sessionId) {
 
 export function createSessionController({ reader, gatewayConfigPath, connect = connectHost, setTitlePolicy = writeTitlePolicy, now = Date.now,
   delay = ms => new Promise(resolve => setTimeout(resolve, ms)) }) {
-  let busy = false;
+  let resetting = false;
   const glmAttempts = new Map();
   const deliveryClientId = `suian-zcode-app-mcp-${randomUUID()}`;
   const targetOf = args => ({ sessionId: args.session_id,
     workspacePath: args.workspace_path ?? reader.readSession({ session_id: args.session_id, workspace_key: args.workspace_key, limit: 1 }).session.workspace_path });
+  // 写调用允许并发：网关为每个本地连接维护独立 RPC ID 空间并共享同一 Host 桥，
+  // 一步工具轮的批量归档等写操作各自建立连接，不再互相拒绝。
   const attached = async (target, run, timeoutMs = 120000) => {
-    if (busy) throw new Error('remote_busy: 本 MCP 正在使用远控连接，请等待当前调用结束');
-    busy = true;
-    try {
-      const remote = await connect({ ...target, gatewayConfigPath, timeoutMs, handshakeTimeoutMs: 8000 });
-      try { return await run(remote); }
-      finally { remote.close(); }
-    } finally { busy = false; }
+    const remote = await connect({ ...target, gatewayConfigPath, timeoutMs, handshakeTimeoutMs: 8000 });
+    try { return await run(remote); }
+    finally { remote.close(); }
   };
   const send = async (remote, session_id, content) => {
     const input_id = randomUUID();
@@ -104,8 +102,13 @@ export function createSessionController({ reader, gatewayConfigPath, connect = c
       return attached({ workspacePath: workspace_path }, remote => getGlmBalance(remote, { now }));
     },
     async resetGlmQuota(args, { requestConfirmation, signal } = {}) {
-      // 180 秒用户确认，加上确认前后额度读取、提交与刷新；其他工具保持 120 秒。
-      return attached({ workspacePath: args.workspace_path }, remote => resetGlmQuota(remote, args, { requestConfirmation, attempts: glmAttempts, now, signal }), 360000);
+      // 重置在用户确认前后对账卡片列表，并发重置会双双通过对账并双烧卡，保持单飞拒绝；其余写调用可并发。
+      if (resetting) throw new Error('remote_busy: 本 MCP 正在执行额度重置，请等待当前调用结束');
+      resetting = true;
+      try {
+        // 180 秒用户确认，加上确认前后额度读取、提交与刷新；其他工具保持 120 秒。
+        return await attached({ workspacePath: args.workspace_path }, remote => resetGlmQuota(remote, args, { requestConfirmation, attempts: glmAttempts, now, signal }), 360000);
+      } finally { resetting = false; }
     },
     async renameSession(args) {
       const target = targetOf(args);

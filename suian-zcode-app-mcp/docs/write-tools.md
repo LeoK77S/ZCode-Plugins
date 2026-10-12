@@ -4,7 +4,7 @@
 
 ## 连接与授权
 
-写工具通过公共网关调用已开启远控的 Desktop，目标为窗口已打开的本地工作区。默认 connectHost 不新建官方 terminal；旧网关缺少 RPC 时明确要求重载，不回退直连。一个 MCP 进程仍只接收一个写调用，冲突返回 remote_busy，读取可继续。本地工作区分流已有隔离验证，真实手机验收以当前证据为准。
+写工具通过公共网关调用已开启远控的 Desktop，目标为窗口已打开的本地工作区。默认 connectHost 不新建官方 terminal；旧网关缺少 RPC 时明确要求重载，不回退直连。写调用允许并发，各自建立独立网关连接（网关为每个本地连接维护独立 RPC ID 空间，共享同一 Host 桥）；仅额度重置保持单飞，确认流程期间的并发重置返回 remote_busy。读取可继续。本地工作区分流已有隔离验证，真实手机验收以当前证据为准。
 
 默认从 ~/.zcode/tools/suian-zcode-gateway/config.json 读取公共配置；自定义目录用 --gateway-config {{path}}。本地令牌只放请求头，不复制到 MCP 配置。手机使用远端工作区时本地 RPC 返回 remote_workspace_busy，不切走手机。
 

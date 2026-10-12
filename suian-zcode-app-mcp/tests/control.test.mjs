@@ -151,7 +151,7 @@ test('compact 拒绝或回执未知时保留命令 ID，不重发并释放互斥
   await f.controller.renameSession({ session_id: 'sess_new', title: '新标题' });
 });
 
-test('compact 仅等待 ACK，duplicate 不代表完成；回执后可继续发信', { timeout: 2000 }, async () => {
+test('compact 仅等待 ACK，duplicate 不代表完成；期间的并发发信在独立连接上成功', { timeout: 2000 }, async () => {
   const submitted = Promise.withResolvers(), ackGate = Promise.withResolvers();
   const f = await fixture({ sendConversationCommandV4: async ([{ envelope }]) => {
     if (envelope.type === 'compact') {
@@ -165,13 +165,11 @@ test('compact 仅等待 ACK，duplicate 不代表完成；回执后可继续发�
   const compacting = f.controller.compactSession({ session_id: 'sess_working' }).then(result => { received = true; return result; });
   await submitted.promise;
   assert.equal(received, false);
-  await assert.rejects(f.controller.sendMessage({ session_id: 'sess_working', message: '更新' }), /remote_busy/);
-  assert.equal(f.connections.length, 1);
+  assert.equal((await f.controller.sendMessage({ session_id: 'sess_working', message: '更新' })).admitted_delivery, 'queue');
+  assert.equal(f.connections.length, 2);
   ackGate.resolve();
-  const result = await compacting;
-  assert.equal(result.command_status, 'duplicate');
-  assert.equal(f.connections[0].closed, true);
-  assert.equal((await f.controller.sendMessage({ session_id: 'sess_working', message: '更新' })).delivery_status, 'accepted');
+  assert.equal((await compacting).command_status, 'duplicate');
+  assert.ok(f.connections.every(c => c.closed));
 });
 
 test('v4 握手失败或协议不支持时释放连接，不恢复会话或提交消息', async () => {
@@ -489,12 +487,49 @@ test('创建后名称未确认保留首发提交回执，不重发并释放连�
   assert.ok(f.connections.every(c => c.closed));
 });
 
-test('同一 MCP 的并发写请求明确拒绝，不建立争用席位的第二条连接', async () => {
+test('同一 MCP 的并发写请求各自建立连接成功，不再互相拒绝', async () => {
   const gate = Promise.withResolvers(), started = Promise.withResolvers();
   const f = await fixture({ sendPrompt: async () => { started.resolve(); await gate.promise; } });
   const first = f.controller.startSession({ workspace_path: workspace, message: 'hello' });
   await started.promise;
-  await assert.rejects(f.controller.startSession({ workspace_path: workspace, message: 'again' }), /remote_busy/);
-  assert.equal(f.connections.length, 1);
-  gate.resolve(); await first;
+  const second = f.controller.startSession({ workspace_path: workspace, message: 'again' });
+  assert.equal(f.connections.length, 2);
+  gate.resolve();
+  assert.equal((await first).session_id, 'sess_new');
+  assert.equal((await second).session_id, 'sess_new');
+  assert.ok(f.connections.every(c => c.closed));
+});
+
+test('一步工具轮并发归档多个会话全部成功，不再只有首个调用成功', async () => {
+  const sessions = { sess_a: { archived: false }, sess_b: { archived: false }, sess_c: { archived: false } };
+  const { createSessionController } = await import('../control.mjs');
+  const connections = [];
+  const controller = createSessionController({
+    reader: { readSession: () => ({ session: { workspace_path: workspace } }),
+      listSessions: ({ query }) => ({ sessions: [{ session_id: query, archived: sessions[query].archived }] }) },
+    delay: async () => {},
+    connect: async () => {
+      const connection = { closed: false }; connections.push(connection);
+      return { workspacePath: workspace, close: () => { connection.closed = true; }, call: async (channel, method, params) => {
+        if (method === 'getTaskSnapshot') return { meta: { taskId: params[0].taskId, status: 'completed' }, runtime: { plan: null, backgroundBashJobs: [], pendingCommands: [], pendingPermissions: [] } };
+        if (method === 'archiveTask') { sessions[params[0].taskId].archived = true; return { taskId: params[0].taskId }; }
+      } };
+    }
+  });
+  const results = await Promise.all(['sess_a', 'sess_b', 'sess_c'].map(session_id => controller.archiveSession({ session_id })));
+  assert.deepEqual(results.map(result => result.archived), [true, true, true]);
+  assert.deepEqual(Object.values(sessions).map(session => session.archived), [true, true, true]);
+  assert.equal(connections.length, 3);
+  assert.ok(connections.every(connection => connection.closed));
+});
+
+test('额度重置保持单飞，确认流程期间的并发重置明确拒绝', async () => {
+  const entered = Promise.withResolvers(), gate = Promise.withResolvers();
+  const f = await fixture({ getView: () => { entered.resolve(); return gate.promise; } });
+  const confirm = () => ({ action: 'accept', content: { confirm: true } });
+  const first = f.controller.resetGlmQuota({ workspace_path: workspace, reset_type: 'FIVE_HOUR' }, { requestConfirmation: confirm });
+  await entered.promise;
+  await assert.rejects(f.controller.resetGlmQuota({ workspace_path: workspace, reset_type: 'FIVE_HOUR' }, { requestConfirmation: confirm }), /remote_busy/);
+  gate.resolve({ providers: [] });
+  await assert.rejects(first, /glm_provider_unavailable/);
 });
