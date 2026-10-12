@@ -10,6 +10,8 @@ import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
 import { createMcpServer } from '../server.mjs';
 import { fixture } from './fixtures.mjs';
 
+const references = items => items.map(({ kind, ref, label, purpose }) => ({ kind, ref, label, purpose }));
+
 const root = fileURLToPath(new URL('../', import.meta.url));
 function hook(f, event, sessionId = 'sess_parent', turnId = 'turn_A') {
   const config = join(dirname(f.sessionDbPath), 'config.json');
@@ -21,13 +23,29 @@ function hook(f, event, sessionId = 'sess_parent', turnId = 'turn_A') {
   assert.equal(run.status, 0, run.stderr);
   return JSON.parse(run.stdout);
 }
-async function connect(t, f) {
-  const server = createMcpServer(f), client = new Client({ name: 'artifact-hooks-contract', version: '1' });
+async function connect(t, f, options) {
+  const server = createMcpServer(f, options), client = new Client({ name: 'artifact-hooks-contract', version: '1' });
   const [ct, st] = InMemoryTransport.createLinkedPair();
   t.after(async () => { await client.close(); await server.close(); });
   await server.connect(st); await client.connect(ct);
   return (name, args = {}, session = 'sess_parent') => client.callTool({ name, arguments: args, _meta: { session_id: session } });
 }
+
+test('分叉保留创建关系与时间，但不会冒充原发起者的派发方向', async t => {
+  const f = fixture(t); f.session({ id: 'sess_parent' });
+  const call = await connect(t, f, { controller: { startSession: async args => {
+    await args.onCreated({ session_id: 'sess_started', title: '已派发任务' });
+    return { session_id: 'sess_started', delivery_status: 'accepted' };
+  } } });
+  await call('start_session', { workspace_path: 'D:/fixture', message: '执行任务' });
+  const original = (await call('get_artifacts')).structuredContent.items[0];
+  assert.equal(original.session_direction, 'outgoing');
+  boundary(f, 'original_link', 'turn_A', 1); hook(f, 'Stop');
+  fork(f, 'sess_fork', 'original_link'); hook(f, 'SessionStart', 'sess_fork');
+  const copied = (await call('get_artifacts', {}, 'sess_fork')).structuredContent.items[0];
+  assert.equal(copied.session_direction, 'related'); assert.equal(copied.created_at, original.created_at);
+  assert.deepEqual(copied.session_link, original.session_link);
+});
 function boundary(f, id, turnId, sequence) {
   f.message({ id, session: 'sess_parent', role: 'assistant', sequence,
     info: { time: { completed: 123 }, semantics: { kind: 'assistant_response' }, anchor: { turnId } } });
@@ -43,18 +61,19 @@ test('同步 Stop 落盘原消息断点，父 A 变 B 后分叉只继承 A，子
   f.session({ id: 'sess_parent' });
   const a = { kind: 'file', ref: 'D:/fixture/A.md', label: '历史 A', purpose: '交付' }, b = { ...a, label: '最新 B' };
   await call('set_artifacts', { expected_revision: 0, upsert: [a] });
+  const frozenA = (await call('get_artifacts')).structuredContent.items;
   boundary(f, 'original_A', 'turn_A', 1); hook(f, 'Stop');
   await call('set_artifacts', { expected_revision: 1, upsert: [b] });
   boundary(f, 'original_B', 'turn_B', 2); hook(f, 'Stop', 'sess_parent', 'turn_B');
   fork(f, 'sess_child', 'original_A'); hook(f, 'SessionStart', 'sess_child');
   const child = (await call('get_artifacts', {}, 'sess_child')).structuredContent;
-  assert.deepEqual(child.items, [a]); assert.equal(child.revision, 0);
+  assert.deepEqual(child.items, frozenA); assert.equal(child.revision, 0);
   assert.equal(child.inheritance.status, 'inherited'); assert.equal(child.inheritance.target_message_id, 'original_A');
   const c = { ...a, label: '子 C' };
   await call('set_artifacts', { expected_revision: 0, upsert: [c] }, 'sess_child');
   hook(f, 'SessionStart', 'sess_child');
-  assert.deepEqual((await call('get_artifacts', {}, 'sess_child')).structuredContent.items, [c]);
-  assert.deepEqual((await call('get_artifacts')).structuredContent.items, [b]);
+  assert.deepEqual(references((await call('get_artifacts', {}, 'sess_child')).structuredContent.items), [c]);
+  assert.deepEqual(references((await call('get_artifacts')).structuredContent.items), [b]);
 });
 
 test('UserPromptSubmit 只生成一句工具入口与当次统计，不包含详细规则或工件字段，下一次提交读取新统计', async t => {
@@ -116,7 +135,7 @@ test('缺快照显示诊断但允许子 get/set；迟到快照和 SessionStart �
   boundary(f, 'missing_boundary', 'turn_late', 3); hook(f, 'Stop', 'sess_parent', 'turn_late');
   hook(f, 'SessionStart', 'sess_missing');
   const kept = (await call('get_artifacts', {}, 'sess_missing')).structuredContent;
-  assert.deepEqual(kept.items, [own]); assert.equal(kept.inheritance.status, 'snapshot_missing');
+  assert.deepEqual(references(kept.items), [own]); assert.equal(kept.inheritance.status, 'snapshot_missing');
   assert.match(hook(f, 'UserPromptSubmit', 'sess_missing').hookSpecificOutput.additionalContext, /snapshot_missing.*仍可独立读写/);
   f.session({ id: 'sess_ordinary_child', parent: 'sess_parent', taskType: 'agent' });
   const ordinary = (await call('get_artifacts', {}, 'sess_ordinary_child')).structuredContent;
@@ -132,7 +151,7 @@ test('首次 set 也先准确继承；未完成或其它轮的消息不充当 St
   fork(f, 'sess_set_first', 'original');
   const b = { ...a, ref: 'D:/fixture/B.md', label: 'B' };
   assert.equal((await call('set_artifacts', { expected_revision: 0, upsert: [b] }, 'sess_set_first')).structuredContent.stats.total, 2);
-  assert.deepEqual((await call('get_artifacts', {}, 'sess_set_first')).structuredContent.items, [a, b]);
+  assert.deepEqual(references((await call('get_artifacts', {}, 'sess_set_first')).structuredContent.items), [a, b]);
   f.message({ id: 'unfinished', session: 'sess_parent', role: 'assistant', sequence: 5,
     info: { semantics: { kind: 'assistant_response' }, anchor: { turnId: 'turn_incomplete' } } });
   const bad = spawnSync(process.execPath, [join(root, 'artifact-hook.mjs'), '--config', join(dirname(f.sessionDbPath), 'config.json')], {

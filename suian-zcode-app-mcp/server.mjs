@@ -90,7 +90,13 @@ export function createMcpServer(config, { controller } = {}) {
       else permissionWarning = { code: 'permission_not_inherited', message: '发起会话的权限模式不可读或非规范值，新会话使用 Host 默认权限',
         ...(Array.isArray(reading.observed) ? { observed_modes: reading.observed } : {}) };
     }
-    return controller.startSession({ ...input, creator: origin.sessionId, originWarning: origin.warning, permissionMode, permissionWarning });
+    return controller.startSession({ ...input, creator: origin.sessionId, originWarning: origin.warning, permissionMode, permissionWarning,
+      ...(origin.sessionId ? { onCreated: created => {
+        const titles = reader.sessionTitle({ session_id: origin.sessionId });
+        artifactStore.linkSessions({ creator: origin.sessionId, created: created.session_id,
+          creatorLabel: titles.session_title ?? titles.index_title ?? origin.sessionId,
+          createdLabel: input.title ?? created.title ?? created.session_id });
+      } } : {}) });
   }));
   server.registerTool('send_message', {
     title: '向 ZCode 会话发送信息',
@@ -144,6 +150,6 @@ export function createMcpServer(config, { controller } = {}) {
       return result(data);
     } catch (error) { return { ...result({ ...error.partial_result, error: error.message }), isError: true }; }
   });
-  registerArtifactTools(server, config);
+  const artifactStore = registerArtifactTools(server, config, { controller });
   return server;
 }
