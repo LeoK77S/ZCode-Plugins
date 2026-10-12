@@ -1,0 +1,47 @@
+{
+  "date": "2026-10-12",
+  "feature": "原生安装保留自动命名的既有开关语义",
+  "baseCommit": "465cbac07da47ee015a4779d4e912212e7e6c022",
+  "contract": [
+    "原生配置文件不存在时，新建 enabled:false，等待首次模型选择与核验后启用",
+    "已有配置省略 enabled 时继续默认启用，不因安装或迁移被暂停",
+    "已有配置显式 enabled:true 或 false 时原样保留",
+    "重复安装保留开关、模型选择和自定义字段",
+    "源码兼容模式的安装行为保持原样"
+  ],
+  "baseline": { "tests": 12, "passed": 12, "failed": 0, "exitCode": 0 },
+  "red": {
+    "command": "node --test --test-name-pattern=\"旧配置省略 enabled\" suian-zcode-title/tests/install.test.mjs",
+    "tests": 1,
+    "passed": 0,
+    "failed": 1,
+    "exitCode": 1,
+    "failure": "安装器将旧配置省略 enabled 时的默认启用状态改为暂停，断言 actual:false / expected:true"
+  },
+  "green": {
+    "command": "node --test suian-zcode-title/tests/install.test.mjs",
+    "tests": 13,
+    "passed": 13,
+    "failed": 0,
+    "exitCode": 0
+  },
+  "regression": {
+    "command": "node --test suian-zcode-common/tests/*.test.mjs suian-zcode-title/tests/*.test.mjs suian-zcode-app-mcp/tests/*.test.mjs",
+    "tests": 261,
+    "passed": 261,
+    "failed": 0,
+    "skipped": 0,
+    "exitCode": 0,
+    "environment": "独立工作树按锁文件安装 common 和 MCP 依赖，并使用工作树内的公共包链接；首次完整回归因缺少 MCP 依赖失败，补齐后重跑通过"
+  },
+  "checks": ["node --check suian-zcode-title/install.mjs", "git diff --check"],
+  "review": { "standards": "未发现可操作问题", "spec": "未发现需求符合性问题" },
+  "localLogs": {
+    "note": "日志包含测试临时路径，仅本机保留，由 *.log 忽略规则排除",
+    "baseline": "native-install-enabled-baseline.log",
+    "red": "native-install-enabled-red.log",
+    "green": "native-install-enabled-green.log",
+    "regression": "native-install-enabled-regression.log"
+  },
+  "runtimeAcceptance": "未对运行中的 ZCode 执行真实 Stop 或改名验收"
+}

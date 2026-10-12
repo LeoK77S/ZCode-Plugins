@@ -120,6 +120,36 @@ test('原生初始化只安装通知资产和外置配置，不重复写全局 H
   assert.equal(config.enabled,false,'首次初始化必须等待用户选择模型');
   assert.equal(config.registration,'native');
   assert.equal(config.dataDir,dataDir);
+  await installPlugin({pluginRoot,dataDir,configPath,nativePlugin:true,shell});
+  assert.equal(JSON.parse(shell.state.files.get(configPath)).enabled,false,'重复安装不能解除首次配置的暂停状态');
+});
+
+test('原生安装保留旧配置省略 enabled 时的默认启用状态，重复安装不改变模型和自定义字段', async () => {
+  const shell=makeShell(),pluginRoot='D:\\native\\title',dataDir='D:\\native-data\\state',configPath='D:\\native-data\\config.json';
+  shell.run=async command=>command==='sqlite3'?'[{"ready":1}]':'';
+  const previous={selection:{providerId:'fixture-provider',modelId:'fixture-model',options:{reasoningLevel:'low'}},dataDir:'custom-state',timeoutMs:60000};
+  shell.state.files.set(configPath,JSON.stringify(previous));
+  for(let attempt=0;attempt<2;attempt++) {
+    await installPlugin({pluginRoot,dataDir,configPath,nativePlugin:true,shell});
+    const config=JSON.parse(shell.state.files.get(configPath));
+    assert.equal(config.enabled!==false,true,'旧配置省略 enabled 时默认启用，不能被安装器暂停');
+    assert.deepEqual(config.selection,previous.selection);
+    assert.equal(config.dataDir,previous.dataDir);
+    assert.equal(config.timeoutMs,previous.timeoutMs);
+  }
+});
+
+test('原生重复安装保留已有配置的显式启用和暂停状态', async () => {
+  for(const enabled of [true,false]) {
+    const shell=makeShell(),pluginRoot='D:\\native\\title',dataDir='D:\\native-data\\state',configPath='D:\\native-data\\config.json';
+    shell.run=async command=>command==='sqlite3'?'[{"ready":1}]':'';
+    const previous={enabled,selection:{providerId:'fixture-provider',modelId:'fixture-model',options:{reasoningLevel:'low'}}};
+    shell.state.files.set(configPath,JSON.stringify(previous));
+    for(let attempt=0;attempt<2;attempt++) {
+      await installPlugin({pluginRoot,dataDir,configPath,nativePlugin:true,shell});
+      assert.deepEqual(JSON.parse(shell.state.files.get(configPath)),{...previous,registration:'native',dataDir});
+    }
+  }
 });
 
 test('原生迁移只删除指定旧根的 Hook 与技能，同一匹配项内的他人 Hook 保留', async () => {
