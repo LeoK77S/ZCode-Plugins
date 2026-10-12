@@ -2,7 +2,26 @@
 
 **状态**：规格与五张票已整体确认并发布，2026-10-10。本文区分已接受的目标、已核实的源码事实与实现方案；不是实现完成或用户验收记录。实际编号见 [开票索引](artifact-zone-tickets.md)。
 
-后续 [#27 发行版核验](artifact-host-capabilities.md) 已完成，当前正式插件能力不足。下面的公开源码审查是设计时依据；当前安装包的静态对照与隔离运行证据单独留在核验报告中。
+后续 [#27 发行版核验](artifact-host-capabilities.md) 已完成，3.14.5 的正式插件不能满足当时的严格投影与操作时快照目标。下面原有源码审查保留为设计时依据；2026-10-11 的 demo 范围与 3.15.1 历史断点证据见本节新增记录。
+
+## 2026-10-11：demo 范围调整
+
+**已确定**：先交付使用简略工件摘要的 demo。摘要只有工件登记、维护提示词和种类/条数等统计信息，允许在运行时上下文中累积；不自动包含完整工件条目。每会话独立真实状态与增量工具继续保留，完整版的每请求唯一最新尾部投影仍等待上游。
+
+本节之后的原有目标描述保留为完整版基线，不自动套用为 demo 的交付承诺。2026-10-11 本轮澄清已确认：用户提交时生成摘要，get/set 回执更新统计；get 每次读取最新真实 revision 与完整条目；demo 包含原生只读侧栏。
+
+**分叉决定已收敛**：继承所选历史完成轮的准确快照；仅在断点确实缺少快照时明确提示，并允许子工件区继续独立读写，不复制父最新状态。四张现有开放票 #28–#31 的 demo 改写稿已完成，公开同步状态见 [开票索引](artifact-zone-tickets.md)。阶段决策见 [ADR 0002](adr/0002-artifact-demo-summary.md)。
+
+**历史断点路线已通过隔离能力验证**：同步 Stop 保存 SQLite 不可变快照，绑定父会话及完成消息断点。3.15.1.8093 实测父 A→B 后从 A 原生分叉，子首次读 A；内容无变化仍映射断点，同轮多 Stop 最终断点读取第二份。缺失时保留子会话并提示 snapshot_missing，子夹具工件仍可读写，正常聊天生成也不受阻。生产 get/set 和真实 UI 尚未验收。详细证据见 [分叉核查](artifact-host-fork-audit.md)。
+
+**3.15.1 的已核实能力**：官方源码快照 `aac4755666d09fdcd70272fcf063c077a639015f` 增加 MCP Apps 交互页面与会话级 `ui.surfaces` 侧栏；适用范围为 Desktop 本地工作区。清单及 surface 定义未提供按宿主版本启用子功能的字段，不能凭空增加 `minZCodeVersion` 或把未知字段当作宿主执行契约。
+
+- [PluginManifest 与 surface 类型](https://github.com/zai-org/ZCode/blob/aac4755666d09fdcd70272fcf063c077a639015f/apps/zcode-cli/packages/contracts/src/plugins/index.ts#L142)和[实际 surface 解析器](https://github.com/zai-org/ZCode/blob/aac4755666d09fdcd70272fcf063c077a639015f/apps/zcode-cli/packages/adapters/src/plugins/ui-surfaces.ts#L18)分别核对了声明和加载行为。
+- [MCP 初始化](https://github.com/zai-org/ZCode/blob/aac4755666d09fdcd70272fcf063c077a639015f/apps/zcode-cli/packages/adapters/src/mcp/index.ts#L1531)发送客户端版本以及 `extensions["io.modelcontextprotocol/ui"]` 支持的 MIME 类型；[应用接线](https://github.com/zai-org/ZCode/blob/aac4755666d09fdcd70272fcf063c077a639015f/apps/zcode-cli/packages/bootstrap/src/app/create-app.ts#L406)将 appVersion 传给 MCP 适配器。
+- [UI 桥接契约](https://github.com/zai-org/ZCode/blob/aac4755666d09fdcd70272fcf063c077a639015f/packages/shared/src/mcp-apps/contract.ts#L26)明确 `hostInfo.version` 是桥接版本、与应用版本无关，当前值为 `"1"`。页面 `getHostVersion()` 不能用于比较 ZCode 3.15.1。
+- [官方 UI 插件文档](https://github.com/zai-org/ZCode/blob/aac4755666d09fdcd70272fcf063c077a639015f/UI_PLUGIN.md#L335)要求页面握手后按实际宿主能力启用功能；[MCP Apps 服务示例](https://github.com/modelcontextprotocol/ext-apps/blob/82221c0c8ce7661efa6771c9d461511b1650495f/src/server/index.examples.ts#L252)展示初始化后按客户端 UI 能力选择页面工具或普通文本工具。
+
+**demo 接入方案**：保持同一个原生插件包，普通工具和摘要独立于 UI；ZCode 应用版本至少 3.15.1 且 MCP 初始化支持所需 UI MIME 类型时暴露 UI 元数据。旧版、未知版本或能力不足时保留工具与摘要。页面按实际能力使用宿主服务；真实 Desktop UI 仍需实施验收。具体边界见 [demo 规格](artifact-zone-spec.md)。
 
 ## 已接受的目标
 

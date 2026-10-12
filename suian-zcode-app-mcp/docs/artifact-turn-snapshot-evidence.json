@@ -1,0 +1,277 @@
+{
+  "date": "2026-10-11",
+  "scope": "ZCode 3.15.1 isolated AgentServer native stable fork; throwaway SQLite checkpoint fixture",
+  "artifacts": {
+    "desktopProductVersion": "3.15.1.8093",
+    "artifacts": {
+      "resources/glm/zcode.cjs": {
+        "bytes": 15126820,
+        "sha256": "b816e38656e70fb585fe2ab1ea010da89cda928dac1ccb5d83255fd18796da6e"
+      },
+      "resources/app.asar": {
+        "bytes": 340511069,
+        "sha256": "c98b4b2a80e5ea46ce93f934f9580eff11bc487570c87478fa36a3f4bd3d101f"
+      }
+    },
+    "cliVersion": "0.16.9",
+    "electronNodeVersion": "v24.14.0",
+    "fixtureNodeVersion": "v24.15.0",
+    "cliAndAsarUnchangedAfterRun": true
+  },
+  "isolation": {
+    "root": "{{CHECKPOINT_PROBE_ROOT}}",
+    "childEnvironment": "whitelist, isolated HOME/USERPROFILE/APPDATA/LOCALAPPDATA/TEMP/TMP and ZCode storage/provider paths",
+    "provider": "loopback synthetic OpenAI chat completions SSE",
+    "publicBundledProviderConfigCopied": true,
+    "userCredentialsCopied": false,
+    "activeUserSessionsTouched": false,
+    "installedFilesModified": false,
+    "officialSourceModified": false,
+    "zcodeDatabaseWritesByPlugin": false
+  },
+  "interfaces": {
+    "fork": "v4/conversation/rowsRange -> v4/command forkAssistant with baseRevision/baseLogEpoch",
+    "snapshot": "synchronous native Stop hook",
+    "childInit": "native SessionStart before fork response",
+    "identity": "readonly message.anchor.turnId and boundaryMessageId; child fork_notice.metadata.forkOrigin; task_type=fork",
+    "hookTranscriptContainsMessageIdentity": false,
+    "productionGetSetImplemented": false
+  },
+  "cases": {
+    "historicalFork": {
+      "completedFirstState": "A",
+      "parentAtFork": "B",
+      "childFirstRead": "A",
+      "passed": true
+    },
+    "noChange": {
+      "differentCompletedMessageIds": true,
+      "snapshotContentIdReused": true,
+      "eachBreakpointMapped": true,
+      "passed": true
+    },
+    "multipleStops": {
+      "sameRuntimeTurn": true,
+      "stopHookActiveValues": [
+        false,
+        true
+      ],
+      "snapshotLabels": [
+        "C",
+        "D"
+      ],
+      "differentAssistantMessageIds": true,
+      "onlyFinalAssistantHasStableBoundary": true,
+      "childOfFinalBreakpoint": "D",
+      "passed": true
+    },
+    "existingChildResume": {
+      "childUpdatedTo": "C",
+      "stateAfterWarmResume": "C",
+      "passed": true
+    },
+    "missingSnapshot": {
+      "fixture": "explicitly remove B breakpoint mapping to represent absent snapshot",
+      "nativeForkStatus": "accepted",
+      "firstReadDiagnostic": "snapshot_missing",
+      "parentLatestWasNotCopied": true,
+      "subsequentFixtureStateWrite": "C",
+      "normalChildGenerationCompleted": true,
+      "passed": true
+    }
+  },
+  "timeline": [
+    {
+      "atMs": 0,
+      "event": "SessionStart",
+      "session": "PARENT",
+      "turn": "TURN_1",
+      "initStatus": "ordinary",
+      "stateLabels": [
+        "A"
+      ]
+    },
+    {
+      "atMs": 908,
+      "event": "Stop",
+      "session": "PARENT",
+      "turn": "TURN_1",
+      "message": "MESSAGE_1",
+      "snapshotContentId": "9e485ae28107caae4fdb4f5fbeb7944ab1cf058af4375984758debc2822f6ef4",
+      "stopHookActive": false,
+      "initStatus": "ordinary",
+      "stateLabels": [
+        "A"
+      ]
+    },
+    {
+      "atMs": 1191,
+      "event": "Stop",
+      "session": "PARENT",
+      "turn": "TURN_2",
+      "message": "MESSAGE_2",
+      "snapshotContentId": "b28cd1a178f71c210a669b8d9a34c06ad16762d9ef75b5e426a41f044cb04575",
+      "stopHookActive": false,
+      "initStatus": "ordinary",
+      "stateLabels": [
+        "B"
+      ]
+    },
+    {
+      "atMs": 1413,
+      "event": "Stop",
+      "session": "PARENT",
+      "turn": "TURN_3",
+      "message": "MESSAGE_3",
+      "snapshotContentId": "b28cd1a178f71c210a669b8d9a34c06ad16762d9ef75b5e426a41f044cb04575",
+      "stopHookActive": false,
+      "initStatus": "ordinary",
+      "stateLabels": [
+        "B"
+      ]
+    },
+    {
+      "atMs": 1810,
+      "event": "SessionStart",
+      "session": "CHILD_A",
+      "initStatus": "inherited",
+      "stateLabels": [
+        "A"
+      ],
+      "forkOrigin": {
+        "parent": "PARENT",
+        "message": "MESSAGE_1"
+      }
+    },
+    {
+      "atMs": 2179,
+      "event": "Stop",
+      "session": "PARENT",
+      "turn": "TURN_4",
+      "message": "MESSAGE_4",
+      "snapshotContentId": "8fb624ce1fce939dbbca4e31dcfa1df66d3b0b541c608df64d1e1d47f82d483a",
+      "stopHookActive": false,
+      "initStatus": "ordinary",
+      "stateLabels": [
+        "C"
+      ]
+    },
+    {
+      "atMs": 2303,
+      "event": "Stop",
+      "session": "PARENT",
+      "turn": "TURN_4",
+      "message": "MESSAGE_5",
+      "snapshotContentId": "90fbe5b80cab6d461fa6f9b3b66350957095dca93c063d5a09e04fcbaab371f5",
+      "stopHookActive": true,
+      "initStatus": "ordinary",
+      "stateLabels": [
+        "D"
+      ]
+    },
+    {
+      "atMs": 2687,
+      "event": "SessionStart",
+      "session": "CHILD_D",
+      "initStatus": "inherited",
+      "stateLabels": [
+        "D"
+      ],
+      "forkOrigin": {
+        "parent": "PARENT",
+        "message": "MESSAGE_5"
+      }
+    },
+    {
+      "atMs": 3082,
+      "event": "SessionStart",
+      "session": "CHILD_MISSING",
+      "initStatus": "snapshot_missing",
+      "stateLabels": [],
+      "forkOrigin": {
+        "parent": "PARENT",
+        "message": "MESSAGE_2"
+      }
+    },
+    {
+      "atMs": 3360,
+      "event": "Stop",
+      "session": "CHILD_MISSING",
+      "turn": "TURN_5",
+      "message": "MESSAGE_6",
+      "snapshotContentId": "8fb624ce1fce939dbbca4e31dcfa1df66d3b0b541c608df64d1e1d47f82d483a",
+      "stopHookActive": false,
+      "initStatus": "snapshot_missing",
+      "stateLabels": [
+        "C"
+      ],
+      "forkOrigin": {
+        "parent": "PARENT",
+        "message": "MESSAGE_2"
+      }
+    }
+  ],
+  "forkResponseOrder": [
+    {
+      "child": "CHILD_A",
+      "status": "accepted",
+      "sessionStartReadAtMs": 1810,
+      "forkResponseAtMs": 1903,
+      "firstReadBeforeResponse": true
+    },
+    {
+      "child": "CHILD_D",
+      "status": "accepted",
+      "sessionStartReadAtMs": 2687,
+      "forkResponseAtMs": 2783,
+      "firstReadBeforeResponse": true
+    },
+    {
+      "child": "CHILD_MISSING",
+      "status": "accepted",
+      "sessionStartReadAtMs": 3082,
+      "forkResponseAtMs": 3199,
+      "firstReadBeforeResponse": true
+    }
+  ],
+  "commands": [
+    {
+      "name": "prepare",
+      "exitCode": 0
+    },
+    {
+      "name": "observe-normal-stop",
+      "exitCode": 0
+    },
+    {
+      "name": "snapshot-probe",
+      "exitCode": 0
+    },
+    {
+      "name": "snapshot-probe-plus-child-generation",
+      "exitCode": 0
+    },
+    {
+      "name": "readback-stop-anchor-crosscheck",
+      "exitCode": 0
+    }
+  ],
+  "excludedSetupFailures": [
+    "Desktop Host hello/initialize method names were incorrectly used as AgentServer RPCs",
+    "runtime-preferences fixture initially omitted nativeSearchEnhancementsEnabled",
+    "create-result fixture read the wrong sessionId field",
+    "fork fixture initially omitted required CAS watermarks"
+  ],
+  "notTested": [
+    "real Desktop sidebar rendering and actions",
+    "production get_artifacts/set_artifacts MCP tools and revision semantics",
+    "cold process restart and multi-window contention",
+    "real online Agent prompt adherence",
+    "actual automationCreateLimitReached path or a failing Stop command"
+  ],
+  "cleanup": {
+    "successfulProbeHostsExitedNormally": true,
+    "knownProbePidsAndImmediateChildrenRemaining": 0,
+    "rawFiles": "removed after evidence export, resolved target and reparse-point checks"
+  }
+}

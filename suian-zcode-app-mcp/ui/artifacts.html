@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>会话工件</title>
+<style>
+:root{color-scheme:light;--bg:#fff;--ink:#202329;--muted:#68707c;--line:#e2e6eb;--card:#f6f8fa;--accent:#315fba;--warning:#8d5b14;--warning-bg:#fff7e8}
+:root[data-theme=dark]{color-scheme:dark;--bg:#202124;--ink:#edf0f4;--muted:#a4acb9;--line:#3a3f46;--card:#282c31;--accent:#9cbcff;--warning:#f4c378;--warning-bg:#382e21}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.65 system-ui,"Microsoft YaHei",sans-serif}main{padding:20px;max-width:880px;margin:auto}header{display:flex;justify-content:space-between;align-items:center;gap:12px}h1{font-size:20px;margin:0}button{font:inherit;cursor:pointer;padding:5px 13px;border:1px solid var(--line);border-radius:7px;background:var(--card);color:var(--ink)}button:disabled{cursor:wait;opacity:.6}button:focus-visible,a:focus-visible{outline:2px solid var(--accent);outline-offset:3px}.sub{color:var(--muted);margin:5px 0 18px}.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin:14px 0 20px}.stat{padding:10px;background:var(--card);border:1px solid var(--line);border-radius:8px}.stat strong{display:block;font-size:20px}.stat span{font-size:12px;color:var(--muted)}#diagnostic{padding:12px;border:1px solid var(--warning);border-radius:8px;background:var(--warning-bg);color:var(--warning);margin:16px 0}#status{color:var(--muted);font-size:12px;margin:12px 0}#status.error{color:var(--warning)}ul{list-style:none;margin:0;padding:0;display:grid;gap:12px}li{border:1px solid var(--line);border-radius:9px;padding:14px;min-width:0}.row{display:flex;align-items:baseline;gap:8px}.kind{font-size:11px;letter-spacing:.04em;color:var(--accent);padding:1px 6px;background:var(--card);border-radius:4px}.label{font-weight:600;overflow-wrap:anywhere}.purpose{margin:7px 0;color:var(--muted);overflow-wrap:anywhere}.ref{font:12px/1.6 ui-monospace,Consolas,monospace;overflow-wrap:anywhere;user-select:text;color:var(--muted)}a.ref{color:var(--accent)}#empty{text-align:center;padding:30px 12px;border:1px dashed var(--line);border-radius:9px;color:var(--muted)}[hidden]{display:none!important}@media(max-width:340px){main{padding:14px}.stats{grid-template-columns:repeat(2,1fr)}}
+</style>
+</head>
+<body>
+<main>
+  <header><h1>会话工件</h1><button id="refresh" type="button">刷新</button></header>
+  <p class="sub">当前会话的引用与交付物 · 只读</p>
+  <div id="revision">正在读取当前会话…</div>
+  <div id="stats" class="stats" aria-label="分类统计"></div>
+  <div id="diagnostic" role="status" hidden></div>
+  <div id="empty" hidden>当前会话尚无工件</div>
+  <ul id="items" aria-label="工件列表"></ul>
+  <p id="status" role="status" aria-live="polite"></p>
+</main>
+<script type="module">
+const host = window.zcode;
+const refreshButton = document.getElementById('refresh');
+const revision = document.getElementById('revision');
+const stats = document.getElementById('stats');
+const items = document.getElementById('items');
+const diagnostic = document.getElementById('diagnostic');
+const empty = document.getElementById('empty');
+const status = document.getElementById('status');
+const names = { pr: 'PR', session: '会话', file: '文件', link: '链接' };
+function element(tag, className, text) {
+  const node = document.createElement(tag); node.className = className; node.textContent = text; return node;
+}
+function theme() { document.documentElement.dataset.theme = host.theme ?? 'light'; }
+function render(state) {
+  revision.textContent = `revision ${state.revision} · 共 ${state.stats.total} 条`;
+  stats.replaceChildren(...Object.entries(names).map(([kind, name]) => {
+    const cell = element('div', 'stat', '');
+    cell.append(element('strong', '', state.stats.by_kind[kind]), element('span', '', name)); return cell;
+  }));
+  diagnostic.hidden = state.inheritance?.status !== 'snapshot_missing';
+  diagnostic.textContent = 'snapshot_missing：所选历史断点没有工件快照，未继承父工件。当前子会话仍可独立管理工件。';
+  empty.hidden = state.items.length !== 0;
+  items.replaceChildren(...state.items.map(item => {
+    const card = document.createElement('li'), row = element('div', 'row', '');
+    row.append(element('span', 'kind', names[item.kind]), element('span', 'label', item.label));
+    let ref = element('div', 'ref', item.ref);
+    if (['pr', 'link'].includes(item.kind) && host.hostCapabilities?.openLinks) {
+      ref = element('a', 'ref', item.ref); ref.href = item.ref;
+      ref.addEventListener('click', event => { event.preventDefault(); host.openExternal({ href: item.ref }); });
+    }
+    card.append(row, element('p', 'purpose', item.purpose), ref); return card;
+  }));
+}
+async function refresh() {
+  refreshButton.disabled = true; status.className = ''; status.textContent = '正在刷新…';
+  try {
+    const result = await host.callTool('get_artifacts', {});
+    if (result.isError) throw new Error(result.structuredContent?.error ?? result.content?.[0]?.text ?? '工件读取失败');
+    render(result.structuredContent);
+    status.textContent = '已读取当前状态；后续变化可点击刷新查看';
+  } catch (error) {
+    revision.textContent = '读取失败'; stats.replaceChildren(); items.replaceChildren(); empty.hidden = true; diagnostic.hidden = true;
+    status.className = 'error'; status.textContent = error.message;
+  } finally { refreshButton.disabled = false; }
+}
+refreshButton.addEventListener('click', refresh);
+try {
+  host.subscribe(theme);
+  await host.ready(); theme(); await refresh();
+} catch (error) { status.className = 'error'; status.textContent = error.message; refreshButton.disabled = true; }
+</script>
+</body>
+</html>

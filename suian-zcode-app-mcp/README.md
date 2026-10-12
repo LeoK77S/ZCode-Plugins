@@ -1,6 +1,6 @@
 # suian-zcode-app-mcp
 
-给 Agent 一组管理 ZCode 会话的工具：找回之前的聊天、整理会话名称、在不同会话之间传递信息，也能查询 GLM 套餐额度。
+给 Agent 一组管理 ZCode 会话和工件的工具：找回聊天、整理名称、跨会话传递信息、维护交付引用，也能查询 GLM 套餐额度。
 
 安装到 ZCode 或其他支持 MCP 的客户端后，直接告诉 Agent 想完成什么，它会调用相应工具。
 
@@ -9,6 +9,8 @@
 通过根目录的[插件市场](../marketplace.json)按需安装本插件，common 会作为依赖自动安装。再让 Agent 使用[setup](./skills/setup/SKILL.md)完成依赖、公共包链接与外置配置。原生 .mcp.json 自动注册服务，不再另加全局 MCP。
 
 技能分别负责[configuration](./skills/configuration/SKILL.md)配置路径和客户端，[sessions](./skills/sessions/SKILL.md)操作会话，[glm](./skills/glm/SKILL.md)查询额度与许可后重置，[debug](./skills/debug/SKILL.md)排查服务。原生服务带插件命名空间，按客户端实际清单定位。旧源码接入仍可使用，迁移时先转存自定义路径再清理自有注册；可复制根 README 的[迁移提示词](../README.md#旧源码安装迁移)或[原生升级提示词](../README.md#原生插件升级)。
+
+[artifacts](./skills/artifacts/SKILL.md)负责当前会话的 PR、关联会话、文件和链接工件。原生插件还自动加载工件的同步 Hook 和只读侧栏资源。
 
 ## 日常可以怎么用
 
@@ -25,6 +27,14 @@
 创建和发信都支持直接正文 `message` 或 Markdown 文档绝对路径 `message_file`，两者二选一。短指令直接填正文；长文与汇报推荐先写到工作区已被 Git 忽略的临时目录（如 `.zcode/tmp/`），再传文档路径。服务读取 UTF-8 文档全文发送，文件不可读或正文为空时会在创建、恢复及发信前报错。
 
 ## 基于官方 Web 远控通道
+
+### 工件 demo
+
+Agent 在用户提交时收到管理说明和分类统计；需要最新版本或完整列表时调用 get_artifacts，以 expected_revision 增量 set。每会话最多 20 条，完整表示最多 12000 个 Unicode 码点。状态保存在插件外置 SQLite，工件工具不依赖网关，也不写 ZCode 会话库。
+
+同步 Stop 保存历史断点快照，原生分叉按所选断点初始化独立副本。缺快照显示 snapshot_missing，仍允许子会话管理自身工件；恢复、压缩和归档保留状态，聊天回退不自动回滚。
+
+Desktop 本地会话在侧边面板的“打开标签页”中选择“工件”，可查看 revision、统计和完整条目，刷新无需模型。UI 要求应用版本至少 3.15.1、MCP Apps MIME 与目标会话 MCP 连接就绪。首开若宿主报告连接不可用，先核对该会话的 MCP 连接，再重新加载；旧版保留工具和摘要。此 demo 不提供每请求唯一状态投影，真实模型主动维护评估尚未执行。规格与实测边界见[开发验证](./docs/artifact-demo-verification.md)。
 
 查询会话和聊天记录时，插件直接读取本机已经保存的内容。更名、创建会话、发送消息、压缩上下文、归档和查询套餐额度，则通过 ZCode 自带的「移动端远程控制」操作当前窗口，账号仍由 ZCode 管理。
 
@@ -97,6 +107,8 @@ https://github.com/ONEGAYI/ZCode-Plugins.git
 | `restore_session` | 将归档会话恢复到列表 |
 | `get_glm_balance` | 查询 GLM 个人套餐的模型、工具额度和可用重置卡 |
 | `reset_glm_quota` | 经本次用户许可和客户端确认表单，消耗一张对应卡重置 5h 或周模型额度 |
+| `get_artifacts` | 无业务参数，读取宿主绑定的当前会话最新 revision、items、stats 与继承诊断 |
+| `set_artifacts` | 以 expected_revision 和 upsert/remove 原子增量更新当前会话工件 |
 
 ### 手动接入 MCP
 
@@ -126,7 +138,9 @@ npm ci --ignore-scripts --no-fund --no-audit
 
 公共网关的环境变量必须配置在 Desktop 启动环境中，不能只放在 MCP 服务的 `env`。手动配置流程也以 [公共网关 skill](../suian-zcode-common/SKILL.md) 为准；当前两个 SQLite 工具可独立运行，无需远控授权链接。
 
-默认读取当前系统用户的 `~/.zcode/v2/tasks-index.sqlite` 和 `~/.zcode/cli/db/db.sqlite`。自定义路径可在 args 追加 `--index-db {{index_db_path}} --session-db {{session_db_path}}`，或设置对应环境变量。也可用 `--config {{config_file}}` 读取外置 JSON 的 indexDbPath、sessionDbPath、gatewayConfigPath、authDataDir。优先级为命令参数 > 对应环境变量 > 外置配置 > 默认路径。
+默认读取当前系统用户的 `~/.zcode/v2/tasks-index.sqlite` 和 `~/.zcode/cli/db/db.sqlite`。自定义路径可在 args 追加 `--index-db {{index_db_path}} --session-db {{session_db_path}} --artifact-db {{artifact_db_path}}`，或设置对应环境变量。也可用 `--config {{config_file}}` 读取外置 JSON 的 indexDbPath、sessionDbPath、artifactDbPath、gatewayConfigPath、authDataDir。优先级为命令参数 > 对应环境变量 > 外置配置 > 默认路径。
+
+原生工件默认放在 dataPath/artifacts.sqlite；源码模式使用 ~/.zcode/tools/suian-zcode-app-mcp/artifacts.sqlite。Hook 与 MCP 读取同一外置配置。仅手动添加 stdio 服务不会加载 Hook 或侧栏，完整 demo 推荐原生插件安装。
 
 ### 调用示例
 

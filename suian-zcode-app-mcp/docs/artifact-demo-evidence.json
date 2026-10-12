@@ -1,0 +1,28 @@
+{
+  "date": "2026-10-12",
+  "status": "local_implementation_review_pending",
+  "automated": { "node": "24.15.0", "mcp_sdk": "1.32.1", "baseline_pass": 86, "regression_pass": 99, "fail": 0, "exit_code": 0, "entry": "npm test" },
+  "runtime": { "desktop": "3.15.1.8093", "build": "f18d6db7", "cli": "0.16.9", "initialize_client_name": "zcode", "initialize_client_version": "0.16.9", "desktop_app_version_env": "3.15.1", "mime": "text/html;profile=mcp-app" },
+  "native_checks": {
+    "production_get_set_and_synchronous_hooks": "passed",
+    "historical_A_fork_after_parent_B": "passed",
+    "fork_child_revision_zero_and_parent_independence": "passed",
+    "sidebar_latest_refresh_without_model_request": "passed",
+    "sidebar_bound_parent_B_child_A": "passed",
+    "snapshot_missing_native_fork_and_later_get_set_generation": "passed",
+    "sidebar_snapshot_missing_with_own_C_state": "passed",
+    "sidebar_empty_and_storage_error": "passed",
+    "native_guest_capture_and_DPI_aware_window_layout": "passed",
+    "artifact_strings_render_as_text": "passed"
+  },
+  "limits": {
+    "real_model_active_maintenance": "not_run_no_isolated_test_account",
+    "cold_session_first_open": "host_can_report_MCP_App_connection_unavailable_until_target_connection_ready",
+    "arbitrary_future_host_message_schema": "not_claimed",
+    "full_unique_request_projection": "waiting_for_upstream_issue_36",
+    "user_acceptance": "pending"
+  },
+  "review": { "standards": "pending", "spec": "pending" },
+  "isolation": { "fresh_profile_workspace_databases_and_Electron_storage": true, "provider": "local_synthetic_SSE", "user_credentials_copied": false, "user_MCP_configuration_changed": false, "upstream_modified": false, "source_cli_and_asar_unchanged": "pending_final_hash_check", "raw_runtime_material_cleaned": false },
+  "delivery": { "pushed": false, "PR_created": false, "merged": false }
+}

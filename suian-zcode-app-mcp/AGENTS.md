@@ -2,7 +2,7 @@
 
 目标：做独立的 MCP 服务，让 ZCode 与外部 Agent 查询会话，并逐步沿官方授权原 Host 链路增加控制能力。公共层提供协议、授权与通知模块；suian-zcode-title（会话自动命名）使用它完成命名业务。
 
-当前状态：公开十个工具。list_sessions 与 read_session 保持本机 SQLite 只读连接；其余工具通过公共网关 connectHost 调用原 Host，不新增官方 terminal。契约见 docs/readonly-tools.md、docs/write-tools.md 与 docs/glm-balance-design.md。
+当前状态：公开十二个工具。list_sessions 与 read_session 保持本机 SQLite 只读连接；会话控制和 GLM 工具通过公共网关 connectHost 调用原 Host，不新增官方 terminal。get_artifacts / set_artifacts 操作插件自有 SQLite，不依赖网关。契约见 docs/readonly-tools.md、docs/write-tools.md、docs/glm-balance-design.md 与 docs/artifact-zone-spec.md。
 
 ## 守则（沿自研究期，开发期继续适用）
 
@@ -29,17 +29,24 @@
 
 - 本项目沿用根 [CONTEXT.md](../CONTEXT.md) 与本目录 `docs/adr/` 的术语和决策，见 [领域文档入口](docs/agents/domain.md)。
 - 开票使用当前仓库 GitHub Issues。先完成本地规格与票草稿，发布须有用户明确授权；票的依赖须同时表达宿主能力条件，见 [开票约定](docs/agents/issue-tracker.md)。
-- 工件区已开票，当前发行版正式插件能力不足，等待上游支持，工件功能未实施，当前公开工具数量不变；结果见 [宿主核验](docs/artifact-host-capabilities.md)，设计目标见 [设计记录](docs/artifact-zone-design.md)，实际编号与依赖见 [开票索引](docs/artifact-zone-tickets.md)。
+- 工件 demo 的两项工具、可累积摘要、历史断点快照和原生只读侧栏已在本地实施。完整版唯一投影继续等待上游。实施范围见 [demo 规格](docs/artifact-zone-spec.md)，开发与宿主限制见 [开发验证](docs/artifact-demo-verification.md)，历史研究见 [分叉核查](docs/artifact-host-fork-audit.md)，公开票同步状态和依赖见 [开票索引](docs/artifact-zone-tickets.md)。真实模型评估和用户验收不能用技术夹具代替。
 
 ## 文件职责
 
 | 路径 | 职责 |
 | --- | --- |
 | cli.mjs | stdio 入口、数据库/公共网关配置路径；旧 stdin DPAPI 保存入口兼容 |
+| config.mjs | MCP 和原生 Hook 共用的外置配置、路径优先级与 Desktop 应用版本来源 |
 | .zcode-plugin/plugin.json / .mcp.json | 原生元信息与 stdio 注册；参数 --config 指向外置配置 |
-| skills/ | setup / configuration / sessions / glm / debug，paths.md 统一路径与配置说明 |
+| skills/ | setup / configuration / sessions / artifacts / glm / debug，paths.md 统一路径与配置说明 |
 | server.mjs | MCP 工具注册、参数校验与结构化响应 |
 | caller.mjs | 每次请求的发起会话定位：MCP 元数据优先，trace_id 与工具名只读匹配本地调用记录 |
+| artifacts.mjs | 插件 SQLite 的当前状态、CAS、容量、不可变快照和幂等分叉初始化；每次读取不缓存 |
+| artifact-host.mjs | 只读宿主消息的原始 Stop 断点与隐藏 forkOrigin，不用时间或父最新状态猜测 |
+| artifact-tools.mjs / artifact-ui.mjs | 当前调用者唯一定位、get/set 注册，以及应用版本与 MCP Apps MIME 门控的页面资源 |
+| artifact-hook.mjs / hooks/hooks.json | 同步 SessionStart 初始化、UserPromptSubmit 简略摘要和 Stop 断点快照 |
+| artifact-prompt.mjs | 自动管理说明、统计摘要和仅供容量检查的完整表示 |
+| ui/artifacts.html | 原生只读页面，按绑定会话 get 刷新；条目以文本呈现，资源不在页面编辑 |
 | control.mjs | 原 Host 改名读回、指定模型与权限模式创建、消息包装、v4 可选投递策略与提交回执、compact 维护命令与受理回执、归档保护与复原；改名/创建后双库标题复核，分叉时回执 warnings；按调用释放连接 |
 | glm.mjs | GLM 个人套餐额度/卡片投影、确认后重置与同次尝试回执；共用 controller 远控互斥 |
 | sessions.mjs | 只读索引查询、会话定位、历史投影与分页；sessionTitle 轻量双库标题读取供复核，sessionMode 读取 CLI 会话库权限供继承与首发后确认（不用索引或创建响应的 mode） |
