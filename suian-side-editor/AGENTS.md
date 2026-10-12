@@ -18,6 +18,7 @@
 - 领域术语：根 `../CONTEXT.md`。
 - 设计澄清：`docs/design-discussion.md`。
 - 首版规格与票草稿：`docs/text-editor-spec.md`、`docs/text-editor-tickets.md`。
+- 实施证据与宿主预读：`docs/development-verification.md`、`docs/native-ui-binding-research.md`。
 - 已接受的架构决定：`docs/adr/`。
 - 文档组织与开票：`docs/agents/domain.md`、`docs/agents/issue-tracker.md`。
 
@@ -29,5 +30,6 @@
 | docs/design-discussion.md | 已确认交互、问题轮次、宿主能力边界与后续特性范围 |
 | docs/text-editor-spec.md | 首版行为、工程接口边界、能力门槛与验证标准 |
 | docs/text-editor-tickets.md / docs/issues/ | 实施依赖图、原子票草稿和后续待做特性 |
+| docs/development-verification.md / docs/native-ui-binding-research.md | 已执行验证与明确区分源码依据、宿主实测的能力记录 |
 | docs/adr/ | 已接受且影响后续实现的架构决定 |
 | docs/agents/ | 领域文档和 GitHub 开票入口 |

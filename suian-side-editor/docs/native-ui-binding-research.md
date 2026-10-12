@@ -27,6 +27,6 @@ connectMcpServer 是内部 ZCodeApp 方法，CLI /mcp connect 可调用，但当
 - 无模型前置调用的新会话及冷恢复会话首开、关闭重开。
 - 实际 SDK handler 的 meta 位置与 session_id，不只模拟请求。
 - 同一工作区多个会话的请求归属，以及两个工作区的 stdio env 隔离。
-- 当前实际安装产物的连接时序；现有 demo 的冷会话失败反例不能抹去，见 [真实接线记录](../../suian-zcode-app-mcp/docs/artifact-demo-verification.md:56)。
+- 当前实际安装产物的连接时序；现有 demo 的冷会话失败反例不能抹去，见 [真实接线记录](../../suian-zcode-app-mcp/docs/artifact-demo-verification.md#宿主限制与版本修正)。
 
 缺少可满足 H1 的接口或运行验证时，保留具体能力条件；不通过固定等待、偷偷发模型消息或修改宿主来宣称通过。

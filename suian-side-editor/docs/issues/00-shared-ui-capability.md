@@ -1,6 +1,6 @@
 # SE-00 · 提取现有原生 UI 能力判定，保持工件插件行为
 
-**状态**：已发布，尚未实施；依赖与实际能力条件未满足前保持阻塞。
+**状态**：本地实现、集成验证与独立两轴审查通过；集成提交 a647bc9，尚未推送、PR 或关闭 Issue。证据见 [实施验证](../development-verification.md)。
 
 **GitHub**：[#40](https://github.com/ONEGAYI/ZCode-Plugins/issues/40)。
 
