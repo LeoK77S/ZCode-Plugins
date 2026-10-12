@@ -37,5 +37,13 @@
     "runtime_and_test_assertions_unchanged_after_regression": true,
     "user_acceptance": false
   },
+  "release_validation": {
+    "version": "0.4.0",
+    "master_base": "e049c3c3ab5a3571c9839e600eed62ba99d24b9b",
+    "dev_feature_commit": "10379eb75289a62f6b3137aadf56bf58fb8376e0",
+    "regression": { "tests": 118, "pass": 118, "fail": 0, "exit_code": 0, "log_sha256": "B3D252ECB17439BA14D26AF4756108A3508A69A7AAF7F75D6202255ACD66DD51" },
+    "manifest_package_lock_and_mcp_handshake_consistent": true,
+    "remote_client_version_source": "package.json"
+  },
   "limitations": ["未读取真实用户工件", "未更新用户安装缓存", "新版 Desktop 验收未执行", "真实模型主动维护评估未执行", "用户验收待进行"]
 }
