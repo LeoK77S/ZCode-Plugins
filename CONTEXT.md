@@ -69,7 +69,7 @@ _Avoid_: 历史消息、持久化工件状态、一次性 Hook 提醒
 
 demo 工具、摘要、历史断点和原生侧栏已实施；开发分支增加分组详情、服务记录时间与自动创建关系。完整版唯一投影继续等待上游。交付规则见 [工件区规格](suian-zcode-app-mcp/docs/artifact-zone-spec.md) 和 [ADR 0002](suian-zcode-app-mcp/docs/adr/0002-artifact-demo-summary.md)。
 
-## 侧栏文本编辑器（规划中，尚未实施）
+## 侧栏文本编辑器（开发中，已有只读基础切片）
 
 **侧栏编辑器（side editor）**：独立插件 `suian-side-editor` 提供的文本编辑页面。首版编辑当前本机工作区内已有的 UTF-8 文本文件，评论与模型回复沿用主对话。通用能力放在 `suian-zcode-common`，编辑器业务留在本插件。
 
@@ -91,4 +91,4 @@ demo 工具、摘要、历史断点和原生侧栏已实施；开发分支增加
 
 **主对话评论胶囊（main composer context pill）**：编辑器将评论提供给主对话输入区后，由宿主显示的聚合上下文附件。它等待用户正常发送，模型回复进入主对话；发送成功后只清理本次提交的评论，失败或被阻止时保留，期间新增评论留给下一条消息。公开 updateModelContext 的同页固定 ID 尚不能直接保证该并发语义，接入须验证；产品流程不要求额外手动清空或再次带入已发送的旧评论。
 
-当前已确认行为与待决边界见 [设计澄清](suian-side-editor/docs/design-discussion.md)。以上术语不表示功能已经实现。
+当前已确认行为与待决边界见 [设计澄清](suian-side-editor/docs/design-discussion.md)。只读基础切片的实现和验证见 [实施记录](suian-side-editor/docs/development-verification.md)；编辑、保存、恢复与评论术语仍描述已批准的目标行为，不表示这些功能已经实现。

@@ -37,10 +37,16 @@ ZCode-Plugins/
 │   ├── ui/                 # 原生只读工件侧栏资源
 │   └── skills/             # setup / configuration / sessions / artifacts / glm / debug
 │
-├── suian-side-editor/     # 规划中的独立侧栏文本编辑器，设计澄清与开票准备
+├── suian-side-editor/     # 开发中的独立侧栏文本编辑器，当前交付只读基础切片
 │   ├── AGENTS.md          # 本插件规则与文档入口
 │   ├── CLAUDE.md          # 导入 AGENTS.md
-│   └── docs/              # 已确认交互、领域入口、架构决定与待决问题
+│   ├── .zcode-plugin/     # 原生侧栏元信息（尚未加入正式市场清单）
+│   ├── .mcp.json          # stdio 与宿主工作区绑定
+│   ├── cli.mjs / server.mjs # 启动入口与 app-only 只读工具
+│   ├── text-files.mjs     # 工作区内 UTF-8 读取、边界与版本
+│   ├── ui/               # 本地只读侧栏页面
+│   ├── tests/            # 公开契约与浏览器烟测
+│   └── docs/             # 规格、票、架构决定与分层验证证据
 │
 ├── suian-zcode-common/    # 公共网关、远控/授权/通知/投影模块、Windows 配置与 Agent skill
 │   ├── .zcode-plugin/      # 必需公共插件元信息

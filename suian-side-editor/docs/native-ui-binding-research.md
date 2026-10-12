@@ -24,7 +24,15 @@ connectMcpServer 是内部 ZCodeApp 方法，CLI /mcp connect 可调用，但当
 
 ## SE-01 仍需验证
 
-- 无模型前置调用的新会话及冷恢复会话首开、关闭重开。
+补查发现，公开 `IZCodeTaskService.createTask` 属于 `zcode-task` channel。它没有 initialMessage 参数，必填 workspacePath，可选 modelSelection、mcpServers、deferPersistenceUntilFirstPrompt 等，返回 taskId 与 initialSlashCommands。既有业务插件的 create 封装随后会发送消息，不能直接用于本票的无模型前置探针。
+
+此入口在 createSession 后调用 syncTaskMeta、初始化分组排序并广播 task_created，比裸 CLI session/create 多了 Desktop 任务索引接入。普通分支在同一 Host 创建目标 Runtime 与按 session ID 绑定的 MCP lease，构造时异步连接 MCP；创建返回不等于连接已就绪。
+
+来源：[公开任务契约](https://github.com/zai-org/ZCode/blob/aac4755666d09fdcd70272fcf063c077a639015f/packages/services/src/session/zcodeTaskService.ts#L220-L247)、[Host 创建实现](https://github.com/zai-org/ZCode/blob/aac4755666d09fdcd70272fcf063c077a639015f/packages/services/src/zcode-agent/zcodeTaskServiceAdapter.ts#L1966-L2054)。实际安装包 out/host/index.js 的对应实现已只读核实一致，SHA-256 为 3fc3c5b286d7871e87f257eb09ab8e7165e8705307c2ee6cb66b687cd4c7f4bc。
+
+任务索引与 core session 主记录不同；这条创建链没有自动 ensureSessionPersisted，不能据此保证进程退出后的空会话冷恢复。SE-01 的 H1 验收是无模型前置的侧栏首开与面板关闭重开，不额外要求空 core 会话跨进程持久化。裸 CLI 关闭后 list 为空，也不能独自证明创建时没有持久化：关闭语义与任务索引是否建立都必须区分。
+
+- 从实际 Desktop 的新测试会话无模型前置地首开侧栏、关闭重开。
 - 实际 SDK handler 的 meta 位置与 session_id，不只模拟请求。
 - 同一工作区多个会话的请求归属，以及两个工作区的 stdio env 隔离。
 - 当前实际安装产物的连接时序；现有 demo 的冷会话失败反例不能抹去，见 [真实接线记录](../../suian-zcode-app-mcp/docs/artifact-demo-verification.md#宿主限制与版本修正)。
