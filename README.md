@@ -10,16 +10,17 @@
 | suian-zcode-title | setup、configuration、control、debug |
 | suian-zcode-app-mcp | setup、configuration、sessions、artifacts、glm、debug |
 
-可以通过 ZCode 原生插件管理器添加本仓库市场；本地验收时使用已有源码目录：
+在 ZCode 桌面端按以下步骤安装：
 
-```powershell
-zcode plugins marketplace add "{{repo_dir}}"
-zcode plugins install suian-zcode-title@suian-zcode-plugins
-# 需要会话 MCP 时再安装
-zcode plugins install suian-zcode-app-mcp@suian-zcode-plugins
-```
+1. 打开左侧栏的 **插件市场**，点击 **添加** → **插件市场**，填入本仓库的 GitHub 地址：[https://github.com/ONEGAYI/ZCode-Plugins.git](https://github.com/ONEGAYI/ZCode-Plugins.git)。
+2. 添加成功后，在该市场安装 `suian-zcode-common`、`suian-zcode-title` 和 `suian-zcode-app-mcp` 三个插件。
+3. 安装完成后，**新开一个对话**，发送下面的提示词：
 
-安装任一业务插件会自动安装 common；已有显式停用状态仍会保留。安装只获取代码，随后让 Agent 使用所选插件的 setup 技能完成初始化。Node 依赖、公共网关和模型选择不会由市场安装自动执行。
+   ```text
+   帮我配置三个 suian-zcode 插件
+   ```
+
+安装任一业务插件会自动安装 common；已有显式停用状态仍会保留。市场安装只获取插件代码，Node 依赖、公共网关和模型选择由 Agent 按各插件的 setup 技能完成配置。
 
 公共代码经一个稳定目录入口共享；业务插件不复制实现。个人配置与状态留在版本缓存外。原生 Hook/MCP 由宿主加载，迁移旧源码安装时只清理对应的旧全局注册，保留其他配置。具体步骤见各插件的 skills/setup/SKILL.md。
 
