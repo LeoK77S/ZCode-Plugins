@@ -1,4 +1,4 @@
-import { EditorState } from '@codemirror/state';
+import { EditorState, Compartment } from '@codemirror/state';
 import { EditorView, lineNumbers, keymap, drawSelection } from '@codemirror/view';
 import { defaultKeymap, history, historyKeymap } from '@codemirror/commands';
 
@@ -11,6 +11,7 @@ const save = document.getElementById('save'), statusText = document.getElementBy
 const closeDialog = document.getElementById('close-dialog'), closeSave = document.getElementById('close-save');
 let context, view, current;
 const documents = [];
+const lineBreaks = { crlf: '\r\n', cr: '\r', lf: '\n', none: '\n' };
 function showStatus(text, error = false) { statusText.textContent = text; status.classList.toggle('error', error); }
 function isDirty(file) { return file.text !== file.diskText; }
 function showFileStatus() {
@@ -89,11 +90,12 @@ function openFile(path, fixed = false) {
       const data = await call('read_editor_text', { path });
       const canonical = documents.find(file => file.relativePath === data.relativePath);
       if (canonical) { canonical.fixed ||= fixed; activateFile(canonical); return; }
-      const separator = { crlf: '\r\n', cr: '\r', lf: '\n', none: '\n' }[data.encoding.newline];
+      const separator = lineBreaks[data.encoding.newline];
       const file = { ...data, diskText: data.text, mixed: data.encoding.newline === 'mixed',
-        insertedSeparator: data.text.match(/\r\n|\r|\n/)?.[0] ?? '\n', fixed, scrollTop: 0, scrollLeft: 0 };
-      file.state = EditorState.create({ doc: data.text, extensions: [lineNumbers(), drawSelection(), history(), separator ? EditorState.lineSeparator.of(separator) : [],
+        insertedSeparator: data.text.match(/\r\n|\r|\n/)?.[0] ?? '\n', fixed, scrollTop: 0, scrollLeft: 0, lineSeparator: new Compartment() };
+      file.state = EditorState.create({ doc: data.text, extensions: [lineNumbers(), drawSelection(), history(), file.lineSeparator.of(separator ? EditorState.lineSeparator.of(separator) : []),
         keymap.of([{ key: 'Mod-s', run: () => { void saveFile(file); return true; } }, ...defaultKeymap, ...historyKeymap]),
+        EditorView.clipboardInputFilter.of((text, state) => text.replace(/\r\n|\r|\n/g, state.lineBreak)),
         EditorView.contentAttributes.of({ 'aria-label': '文件正文', spellcheck: 'false' }),
         EditorView.updateListener.of(update => {
           file.state = update.state;
@@ -116,6 +118,14 @@ async function saveFile(file) {
   try {
     const result = await call('save_editor_text', { path: file.relativePath, text, baseVersion: file.version });
     file.version = result.version; file.diskText = result.text; file.encoding = result.encoding; file.saved = true;
+    file.mixed = result.encoding.newline === 'mixed';
+    file.insertedSeparator = result.text.match(/\r\n|\r|\n/)?.[0] ?? '\n';
+    const separator = lineBreaks[result.encoding.newline];
+    // 同步序列化约定，只转换当前正文的分隔符，不用旧响应覆盖保存等待期间的新输入。
+    if (separator) file.text = file.text.replace(/\r\n|\r|\n/g, separator);
+    const effects = file.lineSeparator.reconfigure(separator ? EditorState.lineSeparator.of(separator) : []);
+    if (current === file) view.dispatch({ effects });
+    else file.state = file.state.update({ effects }).state;
     return !isDirty(file);
   } catch (error) { file.error = error.message; return false; }
   finally { file.saving = false; renderTabs(); showFileStatus(); }

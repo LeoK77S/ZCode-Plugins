@@ -18,7 +18,7 @@ UI 使用本地 CodeMirror 6，提供右侧目录树、内部单临时／多固�
 
 Node 24.15.0、npm 11.6.4。查询 npm 官方包元数据后，精确锁定 `@codemirror/state` 6.7.6、`@codemirror/view` 6.43.14、`@codemirror/commands` 6.11.1 与 esbuild 0.28.2，传递依赖由锁文件固定。
 
-`ui/editor-template.html`、`ui/editor.css`、`ui/editor.mjs` 是源文件；`build-ui.mjs` 是唯一构建入口。宿主资源返回 `ui/dist/editor.html`，JS 与 CSS 自包含，不请求 CDN；包的第三方许可证随 `ui/dist/THIRD-PARTY-LICENSES.txt` 输出。生成内容不手工修改。
+`ui/editor-template.html`、`ui/editor.css`、`ui/editor.mjs` 是源文件；`build-ui.mjs` 是唯一构建入口。宿主资源返回 `ui/dist/editor.html`，JS 与 CSS 自包含，不请求 CDN；本次 bundle 的第三方版权和许可证完整嵌入返回 HTML 的 head 注释，并保留 `ui/dist/THIRD-PARTY-LICENSES.txt`。生成内容不手工修改。
 
 CodeMirror 的 `lineSeparator` 与 `sliceDoc()` 保持统一 CRLF／LF／CR。混合换行由 CodeMirror 正确分行，UI 将实际编辑范围映射回原正文，保留未触及的分隔符；新插入的换行沿用该文件首个分隔符。未修改保存保持全部字节，验证覆盖 BOM、中文、混合分隔符正文追加。
 
@@ -48,13 +48,26 @@ CodeMirror 的 `lineSeparator` 与 `sliceDoc()` 保持统一 CRLF／LF／CR。�
 
 | 检查 | 结果 | 日志 |
 | --- | --- | --- |
-| 本地 UI 构建 | 退出码 0；HTML 299119 字节，11 个依赖许可 | `final-build.log` |
-| SDK／真实 stdio／临时文件／Windows ACL | **19/19**，退出码 0 | `final-test.log` |
-| 真实构建 HTML 与 SDK 浏览器 | 10 组行为摘要通过，退出码 0；零网络请求、零页面异常 | `final-browser.log` |
-| JS 语法 | 退出码 0 | `final-check.log` |
-| diff 格式 | 退出码 0 | `final-diff.log` |
+| 本地 UI 构建 | 退出码 0；HTML 312054 字节，11 个依赖许可 | `review-final-build.log` |
+| SDK／真实 stdio／临时文件／Windows ACL | **19/19**，退出码 0 | `review-final-sdk.log` |
+| 真实构建 HTML 与 SDK 浏览器 | 12 组行为摘要通过，退出码 0；零网络请求、零页面异常 | `review-complete-browser-green.log` |
+| JS 语法 | 退出码 0 | `review-complete-check-green.log` |
+| diff 格式 | 退出码 0 | `review-complete-diff-green.log` |
 
 浏览器还验证了目录展开才读取子层、node_modules 内文件可读、内部页签双击、保存期间继续输入、失败不关页、页面不自填会话／工作区、缺失可信 meta 禁止文件操作。
+
+## 2026-10-13 审查追加修复
+
+**两项 P2 候选均已在真实构建页复现并修复**。独立复核仍待负责人执行，不能将修复自检当作审查通过。
+
+- 规范轴：`a\nb\r\nc` 删除首个 LF 后保存为统一 CRLF，继续 Enter 时 UI 仍按旧混合换行序列化。第二次请求是 `ab\r\nc\n`，服务端成功转 CRLF 后 UI 残留 dirty，保存并关闭失败。`review-newline-red` 与 `review-newline-payload-red` 退出码均为 1。保存回执现在更新混合标记、插入约定与 CodeMirror 的 lineSeparator Compartment，只转换当前正文的分隔符，不用旧响应覆盖新增正文，也不重建编辑状态。
+- 规格轴：CRLF/BOM 文件标准粘贴 `一\n二`，实际只有一个 CM 行。`review-paste-red` 退出码为 1。公开 clipboardInputFilter 按当前 state.lineBreak 归一化入站文本；ClipboardEvent/DataTransfer 回归验证正确两行、原 BOM/CRLF 保存并关闭，以及正常 undo/redo 内容和映射选区。没有读写用户 OS 剪贴板。
+
+新增用例同时覆盖保存等待期间输入新正文、切换文件页再回到原文件、继续编辑、成功保存并关闭。先前的晚到回执、取消关闭、冲突及其他契约仍通过。重跑范围仅为本插件的构建／SDK／浏览器／语法，未跑未受影响的 common 或 app 回归。
+
+追加测试中的两个额外位置假设曾失败：DOM focus 不保证恢复光标，CodeMirror redo 本来会恢复映射后的原选区。分别改为明确键盘定位，以及按精确包源码核实的默认 redo 选区；未为错误的测试假设修改产品行为。相关失败日志保留，没有算作上述两项产品缺陷的红灯。
+
+许可内容核对先确认原 HTML 没有完整 MIT、独立许可文件已有完整文本。现同一构建文本随资源嵌入；`review-license-after.log` 内容检查通过，未增加产品流程或通用许可框架。
 
 ## 视觉核对与待验项
 
