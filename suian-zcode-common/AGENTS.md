@@ -37,9 +37,10 @@
 | notification-install.mjs | 按调用方身份安装/移除协议桥、快捷方式与 AUMID |
 | windows.mjs | 公共 PowerShell 执行与安装用文件/系统边界 |
 | prerequisites.mjs | 两插件共用的安装检查：Node 版本、公共依赖；仅命名调用方要求 sqlite3 CLI 只读 JSON 能力 |
+| ui-capabilities.mjs | ZCode 应用版本与 MCP Apps MIME 判定；不注册业务资源或工具 |
 | vendor/ | 固定消息投影和远控协议库，见 NOTICE.md |
 | SKILL.md / README.md | 源码兼容路由与公共模块接口，完整操作流程在对应 skills/ 技能 |
-| tests/ | 回环网关、隔离 Windows 配置、远控、DPAPI 与通知契约 |
+| tests/ | 回环网关、隔离 Windows 配置、远控、DPAPI、通知与 UI 能力判定契约 |
 | experiments/ | 仅发合成 auth_init 的研究探针，不自动执行 |
 | package.json / package-lock.json | 固定 Node/ws 版本与测试入口 |
 | docs/ | 脱敏验证证据；历史与本次验证分开 |
