@@ -69,7 +69,7 @@ Chromium 加载 MCP 正式注册返回的 HTML，通过真实 SDK/InMemoryTransp
 
 ![统一工件详情](images/artifact-panel/detail.png)
 
-日志首次执行时落盘并记录退出码；脱敏结果与日志 SHA256 见 [改版证据](artifact-panel-evidence.json)。旧版 Desktop 的原生接线证据仍归属于上文；新版未安装到实际用户缓存，尚未进行新版 Desktop 与用户验收。
+日志首次执行时落盘并记录退出码；脱敏结果与日志 SHA256 见 [改版证据](artifact-panel-evidence.json)。规范轴和需求轴的独立复核均通过，固定实现提交为 a6f5745；审查不代替用户验收。旧版 Desktop 的原生接线证据仍归属于上文；新版未安装到实际用户缓存，尚未进行新版 Desktop 与用户验收。
 
 ## 真实 Agent 主动维护评估
 
