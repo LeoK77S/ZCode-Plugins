@@ -1,9 +1,11 @@
 {
   "name": "suian-zcode-app-mcp",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "private": true,
   "type": "module",
-  "engines": { "node": ">=24.0.0" },
+  "engines": {
+    "node": ">=24.0.0"
+  },
   "scripts": {
     "start": "node cli.mjs",
     "test": "node --test tests/*.test.mjs"
