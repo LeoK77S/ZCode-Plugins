@@ -269,7 +269,8 @@
       "file": ".scratch/se01-native-frozen/runner.log",
       "bytes": 505,
       "sha256": "515bc2fa50d6737322708c840f08374fa4b039a780463f2f82ea6aea38895462",
-      "exit": "running source; frozen snapshot only"
+      "exit": "running source; frozen snapshot only; process exit unavailable",
+      "sourceFile": ".scratch/se01-native-gui-run.log"
     },
     {
       "file": ".scratch/se01-native-a1-after-guarded-dom.log",
@@ -746,12 +747,6 @@
       "exit": "0"
     },
     {
-      "file": ".scratch/se01-native-gui-run.log",
-      "bytes": 505,
-      "sha256": "515bc2fa50d6737322708c840f08374fa4b039a780463f2f82ea6aea38895462",
-      "exit": "running; retained"
-    },
-    {
       "file": ".scratch/se01-native-host-plugin-list.log",
       "bytes": 34834,
       "sha256": "e59e79144024609dfb8b39ad1ec12d9577171b7b13f85e6e493170a78ab55f07",
@@ -974,5 +969,11 @@
     "BReboundThroughNativeRemoteControl": true,
     "serverWireCaptured": false
   },
-  "currentInstance": "retained_for_SE02_SE03_by_coordinator_request"
+  "currentInstance": "retained_for_SE02_SE03_by_coordinator_request",
+  "artifactTransferCorrection": {
+    "activeSource": ".scratch/se01-native-gui-run.log",
+    "frozenSnapshot": ".scratch/se01-native-frozen/runner.log",
+    "duplicateActiveSourceExcluded": true,
+    "nativeRerun": false
+  }
 }
