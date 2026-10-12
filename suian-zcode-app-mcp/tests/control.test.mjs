@@ -532,4 +532,5 @@ test('额度重置保持单飞，确认流程期间的并发重置明确拒绝',
   await assert.rejects(f.controller.resetGlmQuota({ workspace_path: workspace, reset_type: 'FIVE_HOUR' }, { requestConfirmation: confirm }), /remote_busy/);
   gate.resolve({ providers: [] });
   await assert.rejects(first, /glm_provider_unavailable/);
+  await assert.rejects(f.controller.resetGlmQuota({ workspace_path: workspace, reset_type: 'FIVE_HOUR' }, { requestConfirmation: confirm }), /glm_provider_unavailable/);
 });
