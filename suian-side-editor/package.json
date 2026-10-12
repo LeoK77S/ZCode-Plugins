@@ -3,7 +3,24 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "engines": { "node": ">=24.0.0" },
-  "scripts": { "start": "node cli.mjs", "test": "node --test tests/*.test.mjs", "test:browser": "node tests/browser-smoke.mjs", "check": "node --check cli.mjs && node --check server.mjs && node --check text-files.mjs" },
-  "dependencies": { "@modelcontextprotocol/sdk": "1.32.1", "zod": "4.6.5" }
+  "engines": {
+    "node": ">=24.0.0"
+  },
+  "scripts": {
+    "start": "node cli.mjs",
+    "test": "node --test tests/*.test.mjs",
+    "test:browser": "node tests/browser-editor.mjs",
+    "check": "node --check cli.mjs && node --check server.mjs && node --check text-files.mjs && node --check build-ui.mjs && node --check ui/editor.mjs",
+    "build": "node build-ui.mjs"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "1.32.1",
+    "zod": "4.6.5"
+  },
+  "devDependencies": {
+    "@codemirror/commands": "6.11.1",
+    "@codemirror/state": "6.7.6",
+    "@codemirror/view": "6.43.14",
+    "esbuild": "0.28.2"
+  }
 }

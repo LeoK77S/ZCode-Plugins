@@ -31,11 +31,13 @@
 | .zcode-plugin/plugin.json / .mcp.json | session 侧栏声明、stdio 注册及宿主工作区的显式环境绑定 |
 | package.json / package-lock.json | 独立插件的精确运行依赖、测试和语法检查入口 |
 | cli.mjs / server.mjs | stdio 服务、app-only 工具与本地 UI 资源；可信工作区和宿主 session meta 验证 |
-| text-files.mjs | 相对路径及真实目标检查、UTF-8 只读正文和字节版本 |
-| ui/editor.html | SE-01 的相对路径输入与只读预览，后续编辑业务尚未实施 |
+| text-files.mjs | 工作区边界、按层目录、UTF-8/BOM/换行特征、字节版本与拒绝旧基线的写回 |
+| ui/editor-template.html / ui/editor.css / ui/editor.mjs | 页面结构和主题、目录树、CodeMirror 内部页签与手动保存业务 |
+| build-ui.mjs / ui/dist/ | 唯一本地 UI 构建入口、随插件返回的自包含 HTML 与第三方许可；不手改生成文件 |
 | tests/ | 公开 MCP/stdio 文件边界契约与实际资源浏览器烟测 |
 | README.md / docs/se01-verification.md / docs/se01-evidence.json | 开发使用、首次验证轨迹与总证据索引 |
 | docs/se01-native-verification.md / docs/se01-native-evidence.json | 实际 Desktop 首开、关闭重开、会话／工作区归属与原生审批的限定证据 |
+| docs/se03-verification.md / docs/se03-evidence.json | 目录／保存 SDK 契约、真实构建浏览器与视觉核对；Native 烟测状态单独记录 |
 | docs/design-discussion.md | 已确认交互、问题轮次、宿主能力边界与后续特性范围 |
 | docs/text-editor-spec.md | 首版行为、工程接口边界、能力门槛与验证标准 |
 | docs/text-editor-tickets.md / docs/issues/ | 实施依赖图、原子票草稿和后续待做特性 |
