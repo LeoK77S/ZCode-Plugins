@@ -25,7 +25,7 @@
     "tests": 19,
     "passed": 19,
     "failed": 0,
-    "browserGroups": 10,
+    "browserGroups": 12,
     "networkRequests": 0,
     "pageErrors": 0
   },
@@ -46,8 +46,8 @@
   "artifacts": [
     {
       "path": "ui/dist/editor.html",
-      "bytes": 299119,
-      "sha256": "a82b49b24dac0a4d0ec419d821976ea05406bca37bfff70958698a19114fd414"
+      "bytes": 312054,
+      "sha256": "2c13431012c02693c394a5bd54e06871545d5a791f24c44a31a0343e2db55903"
     },
     {
       "path": "ui/dist/THIRD-PARTY-LICENSES.txt",
@@ -237,13 +237,83 @@
       "path": ".scratch/se03/staged-diff.log",
       "bytes": 0,
       "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "review-newline-red",
+      "exitCode": 1,
+      "path": ".scratch/se03/review-newline-red.log",
+      "bytes": 1339,
+      "sha256": "07db1704121810b3396e6309fcd61a4c8ff63bee9efb1a959d795ffe64ee4fb4"
+    },
+    {
+      "name": "review-newline-payload-red",
+      "exitCode": 1,
+      "path": ".scratch/se03/review-newline-payload-red.log",
+      "bytes": 1092,
+      "sha256": "b1fb47d8e45e0a5ef57dd7fed9a8bb78a91fbe031ec4d7282dd6cc871956da0f"
+    },
+    {
+      "name": "review-paste-red",
+      "exitCode": 1,
+      "path": ".scratch/se03/review-paste-red.log",
+      "bytes": 1160,
+      "sha256": "16ef65890b37cdb604e643202553f36498f03a3bd2033cf1308411adcbb39d5a"
+    },
+    {
+      "name": "review-final-build",
+      "exitCode": 0,
+      "path": ".scratch/se03/review-final-build.log",
+      "bytes": 84,
+      "sha256": "d19c746a4c662622357301294a86ee5093030316db0943c7be77cfcfeef8c579"
+    },
+    {
+      "name": "review-final-sdk",
+      "exitCode": 0,
+      "path": ".scratch/se03/review-final-sdk.log",
+      "bytes": 2165,
+      "sha256": "c4f4be37b2c9ab868c2e145d635a112ceb9e5508aae45dbe50f6d248b0bd17d5"
+    },
+    {
+      "name": "review-complete-browser-green",
+      "exitCode": 0,
+      "path": ".scratch/se03/review-complete-browser-green.log",
+      "bytes": 1196,
+      "sha256": "5da31533a3db05e92e21e523e1cdd99f6c871f3857494e1f9816ef0df8730412"
+    },
+    {
+      "name": "review-complete-check-green",
+      "exitCode": 0,
+      "path": ".scratch/se03/review-complete-check-green.log",
+      "bytes": 178,
+      "sha256": "df4c261760becb456f8e2725686023e01695388a392cf8461a83bd32cda61335"
+    },
+    {
+      "name": "review-complete-diff-green",
+      "exitCode": 0,
+      "path": ".scratch/se03/review-complete-diff-green.log",
+      "bytes": 651,
+      "sha256": "1a69b213ec9e5847bcce985e1f693116d0a7de6b98e12aa2a644bb73e25b1b3d"
+    },
+    {
+      "name": "review-license-before",
+      "exitCode": 0,
+      "path": ".scratch/se03/review-license-before.log",
+      "bytes": 114,
+      "sha256": "71bab20316ce1b5e389498d6f5600fbc0ef57b8583cc68179475d0ae458f0230"
+    },
+    {
+      "name": "review-license-after",
+      "exitCode": 0,
+      "path": ".scratch/se03/review-license-after.log",
+      "bytes": 148,
+      "sha256": "95f0c762bdba8c51045eb518737592bddf112415bdf47ca4b41d6eb56bf0cc7f"
     }
   ],
   "screenshots": [
     {
       "path": ".scratch/se03/editor-narrow.png",
-      "bytes": 21010,
-      "sha256": "032b48aed76e5b049eedff256785527c1bd34f1372e62c289ace55e2d585afbb"
+      "bytes": 23404,
+      "sha256": "948a7b9ad95fa64882996d5b3fa58a932fec95829ee46d4ec2b4f03be7a976bb"
     },
     {
       "path": ".scratch/se03/editor-preview-narrow.png",
@@ -257,8 +327,8 @@
     },
     {
       "path": ".scratch/se03/editor-wide.png",
-      "bytes": 26062,
-      "sha256": "b1735efb6614866b641845d6330352326eec85b52fc2fa163f0e725b0eb9aa86"
+      "bytes": 28880,
+      "sha256": "61e84b6145b3e0ee28fde0bda529b46fd1c699d46e596fd437bf5f0f82e74ea3"
     }
   ],
   "limits": [
@@ -267,5 +337,16 @@
     "Ordinary read-then-write is not external atomic compare-and-swap",
     "User acceptance has not occurred"
   ],
-  "docIntegrationHead": "bdd84ad8b9fdf2227e179b27ae58f6039f703ebe"
+  "docIntegrationHead": "bdd84ad8b9fdf2227e179b27ae58f6039f703ebe",
+  "reviewFix": {
+    "date": "2026-10-13",
+    "base": "654a2fdabf69941d2d89fa80979ae034c464940b",
+    "confirmed": [
+      "mixed-to-uniform serialization after save",
+      "LF clipboard paste into CRLF document"
+    ],
+    "status": "selfVerifiedAwaitingIndependentRecheck",
+    "licensedDependencies": 11,
+    "htmlIncludesFullThirdPartyLicenses": true
+  }
 }
