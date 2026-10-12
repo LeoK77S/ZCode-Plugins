@@ -1,6 +1,6 @@
 {
   "date": "2026-10-12",
-  "status": "local_implementation_fix_recheck_pending",
+  "status": "local_implementation_verified_user_acceptance_pending",
   "automated": { "node": "24.15.0", "mcp_sdk": "1.32.1", "baseline_pass": 86, "regression_pass": 101, "fail": 0, "exit_code": 0, "entry": "npm test" },
   "regression_fix": {
     "issue": "first_rejected_write_rolled_back_schema",
@@ -28,7 +28,7 @@
     "full_unique_request_projection": "waiting_for_upstream_issue_36",
     "user_acceptance": "pending"
   },
-  "review": { "standards": "passed_initial_review", "spec": "P1_fixed_awaiting_recheck" },
+  "review": { "standards": "passed", "spec": "passed_after_P1_fix", "implementation_head": "695f4f4c7c6273e22ef17cba0fd27e8c7b9db9ff", "initial_P1": "resolved" },
   "isolation": { "fresh_profile_workspace_databases_and_Electron_storage": true, "provider": "local_synthetic_SSE", "user_credentials_copied": false, "user_MCP_configuration_changed": false, "upstream_modified": false, "source_cli_and_asar_unchanged": true, "owned_probe_processes_stopped": true, "raw_runtime_material_cleaned": true },
   "source_sha256": { "cli": "B816E38656E70FB585FE2AB1EA010DA89CDA928DAC1CCB5D83255FD18796DA6E", "asar": "C98B4B2A80E5EA46CE93F934F9580EFF11BC487570C87478FA36A3F4BD3D101F" },
   "delivery": { "pushed": false, "PR_created": false, "merged": false }
