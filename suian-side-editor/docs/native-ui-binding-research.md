@@ -38,3 +38,22 @@ connectMcpServer 是内部 ZCodeApp 方法，CLI /mcp connect 可调用，但当
 - 当前实际安装产物的连接时序；现有 demo 的冷会话失败反例不能抹去，见 [真实接线记录](../../suian-zcode-app-mcp/docs/artifact-demo-verification.md#宿主限制与版本修正)。
 
 缺少可满足 H1 的接口或运行验证时，保留具体能力条件；不通过固定等待、偷偷发模型消息或修改宿主来宣称通过。
+
+## 原生入口与权限的补充边界
+
+真实 Host 的 listSurfaces 已返回 editor，原生菜单随后显示该入口。该列表按目标工作区发现已启用插件，包括 inline；getPluginsOverview 的 installedPlugins 仅映射市场安装记录。菜单初始列表为空，须等待异步结果，不能把即时截图或 installedPlugins=[] 当作 inline 加载失败。
+
+来源：[surface 发现](https://github.com/zai-org/ZCode/blob/aac4755666d09fdcd70272fcf063c077a639015f/apps/zcode-cli/packages/bootstrap/src/zcode-protocol/plugin-ui-surfaces.ts#L12-L45)、[安装记录映射](https://github.com/zai-org/ZCode/blob/aac4755666d09fdcd70272fcf063c077a639015f/apps/zcode-cli/packages/bootstrap/src/plugins.ts#L362-L385)、[异步列表](https://github.com/zai-org/ZCode/blob/aac4755666d09fdcd70272fcf063c077a639015f/packages/ui/src/plugin-ui/adapters/usePluginUiSurfaces.ts#L24-L40)。
+
+实际页面已通过资源读取与 SDK 握手，但首次 get_editor_context 命中 build 的工具审批并超时。readOnlyHint 被正确读取为只读、低风险；普通 MCP 工具仍统一 needsApproval=true。build 的只读直通同时要求不需要审批，所以标注不会独自免除审批。该分类在实际 CLI 与固定源码一致；审批卡未出现的具体投影断点尚未核实。
+
+公开 permission.allowedTools 在 build 判定前按规范工具完整名精确匹配，可作为仅两项只读工具的隔离预授权候选，不改变 app-only 可见性。它在 Runtime 创建时加载，不能假定修改配置立即影响已有实例。当前探针保持 build，为新 Runtime 配置两个名称，尚不将候选写成实际通过：
+
+```text
+mcp__plugin_suian-side-editor_suian-side-editor__get_editor_context
+mcp__plugin_suian-side-editor_suian-side-editor__read_editor_text
+```
+
+来源：[MCP 分类](https://github.com/zai-org/ZCode/blob/aac4755666d09fdcd70272fcf063c077a639015f/apps/zcode-cli/packages/core/src/mcp/index.ts#L129-L148)、[精确授权规则](https://github.com/zai-org/ZCode/blob/aac4755666d09fdcd70272fcf063c077a639015f/apps/zcode-cli/packages/core/src/permission/service.ts#L252-L259)、[build 分支](https://github.com/zai-org/ZCode/blob/aac4755666d09fdcd70272fcf063c077a639015f/apps/zcode-cli/packages/core/src/permission/service.ts#L495-L550)。实际 CLI SHA-256 为 b816e38656e70fb585fe2ab1ea010da89cda928dac1ccb5d83255fd18796da6e。
+
+原生权限模式菜单先更新下一次 Submission 的草稿，不会立即更新已有 Runtime，不能凭标签改变认定工具已使用新权限。公开 zcode-task.setMode 可无模型 turn 地修改单任务 Runtime；本票优先验证上述精确工具授权，不把更宽的模式作为默认 build 通过证据。权限模式与插件自己的手动／自动保存模式分别记录。
