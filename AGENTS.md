@@ -5,12 +5,12 @@
 ## 仓库级约定
 
 - 新增子项目必须在本文件文件树登记，并拥有自己的 `AGENTS.md`；通用规则写这里，专属规则写子项目内。
-- `suian-zcode-common/` 是两个插件共用的公共基础能力实现和配置入口：网关、远控协议/探活、DPAPI、Toast 与消息投影。插件仅维护业务规则和提示词，不复制公共实现；运行数据归调用方，网关数据保留原目录。
+- `suian-zcode-common/` 是业务插件共用的公共基础能力实现和配置入口：网关、远控协议/探活、DPAPI、Toast 与消息投影。插件仅维护业务规则和提示词，不复制公共实现；运行数据归调用方，网关数据保留原目录。
 - `marketplace.json` 是原生市场入口；两个业务条目的 dependencies 都包含 common。原生插件分别缓存，通过公共 link.mjs 建立 Node 包链接，不硬拼同级缓存路径。skills/ 按职责拆分，根 SKILL.md 仅作源码兼容路由。
 - 开源发布前完成个人信息脱敏（用户名、会话标识、本机路径、授权凭据），由插件各自 `.gitignore` 挡住运行时数据。
 - 提交信息用中文，`类型: 简述` 格式，正文分条说明做了什么、为什么做。
 - `sources/` 下的 submodule 是研究用的第三方上游快照：只读、不 fork、不修改、不安装依赖；升级钉定提交须在 `sources/README.md` 同步登记。
-- 研究与验证笔记统一放 `suian-zcode-title/docs/notes/`（与命名相关）或 `suian-zcode-app-mcp/docs/`（与会话操控 MCP 相关），入库存脱敏版。
+- 研究与验证笔记统一放 `suian-zcode-title/docs/notes/`（与命名相关）、`suian-zcode-app-mcp/docs/`（与会话操控 MCP 相关）或 `suian-side-editor/docs/`（与侧栏编辑器相关），入库存脱敏版。
 
 ## 文件树
 
@@ -36,6 +36,11 @@ ZCode-Plugins/
 │   ├── hooks/              # 同步工件初始化、提交摘要与 Stop 快照
 │   ├── ui/                 # 原生只读工件侧栏资源
 │   └── skills/             # setup / configuration / sessions / artifacts / glm / debug
+│
+├── suian-side-editor/     # 规划中的独立侧栏文本编辑器，设计澄清与开票准备
+│   ├── AGENTS.md          # 本插件规则与文档入口
+│   ├── CLAUDE.md          # 导入 AGENTS.md
+│   └── docs/              # 已确认交互、领域入口、架构决定与待决问题
 │
 ├── suian-zcode-common/    # 公共网关、远控/授权/通知/投影模块、Windows 配置与 Agent skill
 │   ├── .zcode-plugin/      # 必需公共插件元信息
