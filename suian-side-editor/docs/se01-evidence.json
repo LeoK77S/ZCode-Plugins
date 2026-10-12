@@ -2,10 +2,10 @@
   "date": "2026-10-12",
   "scope": "SE-01 / #41 read-only development slice",
   "baseline": "a647bc9938883e7e313b314917315649d868f6ed",
-  "issueComplete": false,
+  "issueComplete": true,
   "hostGates": {
-    "H1": "not_verified_in_Desktop",
-    "H2": "not_verified_in_Desktop"
+    "H1": "verified_in_isolated_Desktop_with_native_human_tool_approval",
+    "H2": "verified_UI_request_Host_source_and_trusted_response_server_wire_not_captured"
   },
   "versions": {
     "node": "24.15.0",
@@ -34,7 +34,7 @@
       "networkRequests": 0
     }
   },
-  "guiLaunches": 3,
+  "guiLaunches": 4,
   "modelEndpointRequestsSinceThirdGuiLaunch": 0,
   "nativePluginDiscovery": {
     "enabled": true,
@@ -47,9 +47,10 @@
     "publicClose": "closed=true",
     "afterCloseList": "empty",
     "freshHelperList": "empty",
-    "desktopSelectableColdTask": false
+    "desktopSelectableColdTask": false,
+    "requiredByH1": false
   },
-  "uncompletedCondition": "Reach an actual Desktop-selected cold session without a model turn, then verify first surface open/reopen and actual SDK request meta/env across workspaces.",
+  "uncompletedCondition": null,
   "systemRegistration": {
     "fixedKeys": [
       "HKCU/Software/Classes/Directory/shell/ZCode.OpenInZCode",
@@ -57,7 +58,13 @@
     ],
     "startupBeforeSnapshot": false,
     "testOwned": false,
-    "rollbackOrDeletion": false
+    "rollbackOrDeletion": false,
+    "fourthGuiAndNativeComplete": {
+      "checkedRows": 8,
+      "beforeMatchesNextStartup": true,
+      "afterMatchesBefore": true,
+      "standardKeysModifiedByAgent": false
+    }
   },
   "installation": {
     "asar": {
@@ -245,16 +252,703 @@
       "bytes": 377,
       "sha256": "6e36cf987203be50cf87c21b2c71a020887bdfada248c00231670b5774cfa925",
       "exit": "read-only snapshot; no recorded exit"
+    },
+    {
+      "file": ".scratch/se01-native-frozen/desktop.log",
+      "bytes": 505497,
+      "sha256": "d675d82fa2217c45c1a45138b1afb39e5430765cf6df3a46463104e1efb6871c",
+      "exit": "running source; frozen snapshot only"
+    },
+    {
+      "file": ".scratch/se01-native-frozen/cli.jsonl",
+      "bytes": 419718,
+      "sha256": "0b045c655fb873ad941d81b5072fb6a0a2a4fa06285875200652324df46edaa0",
+      "exit": "running source; frozen snapshot only"
+    },
+    {
+      "file": ".scratch/se01-native-frozen/runner.log",
+      "bytes": 505,
+      "sha256": "515bc2fa50d6737322708c840f08374fa4b039a780463f2f82ea6aea38895462",
+      "exit": "running source; frozen snapshot only"
+    },
+    {
+      "file": ".scratch/se01-native-a1-after-guarded-dom.log",
+      "bytes": 2957,
+      "sha256": "cdf0e1583fa62ca89ca8ba998afd3821d91f22da76de9b19dd6f99c6dd75d4fe",
+      "exit": "0"
+    },
+    {
+      "file": ".scratch/se01-native-a1-build-red.log",
+      "bytes": 561,
+      "sha256": "869c4cba56105442c68e4682f9b347820dc98eec770ce3df10d8da0985ef8a52",
+      "exit": "1"
+    },
+    {
+      "file": ".scratch/se01-native-a1-close-before-guarded.log",
+      "bytes": 2849,
+      "sha256": "0b2cdc212aa5f24cf82ac0d2676503bd84df0179db9a660c005b62e7a5d9dd15",
+      "exit": "0"
+    },
+    {
+      "file": ".scratch/se01-native-a1-close-final.log",
+      "bytes": 2874,
+      "sha256": "da778a4f256632e55fb2f0509230a3f379142db8b055f154fa160f83592a8260",
+      "exit": "0"
+    },
+    {
+      "file": ".scratch/se01-native-a1-editor-guarded-expanded.log",
+      "bytes": 2713,
+      "sha256": "6a45960f995934542e2d868261efc2fce0b8581744ffb7a77affd61adaf6f5ad",
+      "exit": "0"
+    },
+    {
+      "file": ".scratch/se01-native-a1-editor-guarded-open.log",
+      "bytes": 458,
+      "sha256": "73e729917363b3a21a68445c42543119dd292613ed65d44c26162bcf3c478c97",
+      "exit": "1"
+    },
+    {
+      "file": ".scratch/se01-native-a1-editor-guarded-retry.log",
+      "bytes": 460,
+      "sha256": "bc522d8060b5896d545609cc2199dd8f6459106be8e7d153282bac9249c1c5f5",
+      "exit": "1"
+    },
+    {
+      "file": ".scratch/se01-native-a1-editor-open.log",
+      "bytes": 2745,
+      "sha256": "f890bfb588696ef298a699c27484f290028430885ee5ed4bef95c043999e507d",
+      "exit": "0"
+    },
+    {
+      "file": ".scratch/se01-native-a1-event-summary.log",
+      "bytes": 2625,
+      "sha256": "5726940ab9c6073cf114d46c6fcda7e5df8e9da0a2408909651c452b139ee1c4",
+      "exit": "0"
+    },
+    {
+      "file": ".scratch/se01-native-a1-guarded-open-inspect.log",
+      "bytes": 2957,
+      "sha256": "cdf0e1583fa62ca89ca8ba998afd3821d91f22da76de9b19dd6f99c6dd75d4fe",
+      "exit": "0"
+    },
+    {
+      "file": ".scratch/se01-native-a1-guarded-read-expanded.log",
+      "bytes": 561,
+      "sha256": "869c4cba56105442c68e4682f9b347820dc98eec770ce3df10d8da0985ef8a52",
+      "exit": "1"
+    },
+    {
+      "file": ".scratch/se01-native-a1-guarded-read-retry.log",
+      "bytes": 561,
+      "sha256": "869c4cba56105442c68e4682f9b347820dc98eec770ce3df10d8da0985ef8a52",
+      "exit": "1"
+    },
+    {
+      "file": ".scratch/se01-native-a1-guarded-read.log",
+      "bytes": 561,
+      "sha256": "869c4cba56105442c68e4682f9b347820dc98eec770ce3df10d8da0985ef8a52",
+      "exit": "1"
+    },
+    {
+      "file": ".scratch/se01-native-a1-mode-guarded-by-testid.log",
+      "bytes": 2870,
+      "sha256": "aca5c9a65e8cdd8d1a377fbc2bf0dc25acdb9aa3e80f3ba5fb1c74dd4ae9ed57",
+      "exit": "0"
+    },
+    {
+      "file": ".scratch/se01-native-a1-mode-guarded.log",
+      "bytes": 498,
+      "sha256": "4cd137bb1f0d0048c16d8dd1514f0b916fdfd3ce5fb8ffec679682a3347b27ed",
+      "exit": "1"
+    },
+    {
+      "file": ".scratch/se01-native-a1-plugin-inspect.log",
+      "bytes": 177,
+      "sha256": "fb1570839981eec6f83edc7f6cf6a0a88ea3374dba1e3d34489cdb459023db80",
+      "exit": "0"
+    },
+    {
+      "file": ".scratch/se01-native-a1-read-first.log",
+      "bytes": 1251,
+      "sha256": "db2e8f2e3af483e121feb6ee0d3dc72513d12e7ce16633c0face1a71b41dee55",
+      "exit": "1"
+    },
+    {
+      "file": ".scratch/se01-native-a1-sidebar-menu.log",
+      "bytes": 2855,
+      "sha256": "2d1a10631fd654e449f2fa53e1bca3767299a72ba3f3be0f9b8657420b933943",
+      "exit": "0"
+    },
+    {
+      "file": ".scratch/se01-native-a1-sidebar-refresh.log",
+      "bytes": 2946,
+      "sha256": "ab2d23f373a421ba5f91e2fde70b1464572c589f743f40b5e2455365a840b7fb",
+      "exit": "0"
+    },
+    {
+      "file": ".scratch/se01-native-a2-after-permission.log",
+      "bytes": 177,
+      "sha256": "fb1570839981eec6f83edc7f6cf6a0a88ea3374dba1e3d34489cdb459023db80",
+      "exit": "0"
+    },
+    {
+      "file": ".scratch/se01-native-a2-editor-open.log",
+      "bytes": 2767,
+      "sha256": "f3b095eca2702d77cde30278836075a24ee3e9c17a00837f3a2cd8ddfb1a8c04",
+      "exit": "0"
+    },
+    {
+      "file": ".scratch/se01-native-a2-plugin-inspect.log",
+      "bytes": 138,
+      "sha256": "8f1f56b3807faba09a1ec1af65d2a0e7e757deea7eb5a093a6760b82c7587058",
+      "exit": "0"
+    },
+    {
+      "file": ".scratch/se01-native-a2-read-first.log",
+      "bytes": 561,
+      "sha256": "869c4cba56105442c68e4682f9b347820dc98eec770ce3df10d8da0985ef8a52",
+      "exit": "1"
+    },
+    {
+      "file": ".scratch/se01-native-a2-targets.log",
+      "bytes": 5889,
+      "sha256": "ce0ff786a11477593d8fa7e3aee5d3cc907bab5ef955ccfa747c0c636a459697",
+      "exit": "not recorded"
+    },
+    {
+      "file": ".scratch/se01-native-a3-close.log",
+      "bytes": 2999,
+      "sha256": "1d8d1c224d56f252927637bfd3fc3f9a046cd91148a5ded12779dc28006b794c",
+      "exit": "0"
+    },
+    {
+      "file": ".scratch/se01-native-a3-human-context-observe.log",
+      "bytes": 282,
+      "sha256": "71bd76ab43601a49b4c0cdb6d0ff0feb1d380f9aeda7de387d43cc12bc264738",
+      "exit": "0"
+    },
+    {
+      "file": ".scratch/se01-native-a3-human-read-observe-corrected.log",
+      "bytes": 456,
+      "sha256": "84d7dbc309366b0c875bf65cae1dc3277c965ee1e28b114f8c581e0f5238ce89",
+      "exit": "0"
+    },
+    {
+      "file": ".scratch/se01-native-a3-human-read-observe.log",
+      "bytes": 905,
+      "sha256": "ee35fd70ffa2197d325d7f7f774326a94e44915afa471f1abd03705b4f6b6659",
+      "exit": "1"
+    },
+    {
+      "file": ".scratch/se01-native-a3-human-read-trigger.log",
+      "bytes": 51,
+      "sha256": "60ad2cc4e7c1ee963c36ac0b41575f1634572ef807bc9d3b795faa5a55407267",
+      "exit": "0"
+    },
+    {
+      "file": ".scratch/se01-native-a3-human-trigger.log",
+      "bytes": 54,
+      "sha256": "5a5c266f9a221ef24c5dd7363c211f868ea2d240a4d95ee7ad3aff9449f48e68",
+      "exit": "0"
+    },
+    {
+      "file": ".scratch/se01-native-a3-reopen.log",
+      "bytes": 2760,
+      "sha256": "1d7c0849cfd807e6f0cb98672f879427140ac5bbb7f02716c3797785c9aedb6b",
+      "exit": "0"
+    },
+    {
+      "file": ".scratch/se01-native-a3-reopened-current.log",
+      "bytes": 444,
+      "sha256": "b57d050533041d819f6316937c205f10650860bacec88f6da8d759a27fb6bac4",
+      "exit": "0"
+    },
+    {
+      "file": ".scratch/se01-native-a3-reopened-read-observe.log",
+      "bytes": 456,
+      "sha256": "84d7dbc309366b0c875bf65cae1dc3277c965ee1e28b114f8c581e0f5238ce89",
+      "exit": "0"
+    },
+    {
+      "file": ".scratch/se01-native-a3-reopened-read-trigger.log",
+      "bytes": 51,
+      "sha256": "669d2f7118e1ae3a850d66246b4d193584b6314c17bbf0530a6c55124e377c29",
+      "exit": "0"
+    },
+    {
+      "file": ".scratch/se01-native-a3-reopened-state.log",
+      "bytes": 378,
+      "sha256": "6052e8b2163c90a364e1ee02192e5442ec3f8bf1ee0b555524cdf5951568e2b5",
+      "exit": "0"
+    },
+    {
+      "file": ".scratch/se01-native-a3-sdk-after-read.log",
+      "bytes": 5278,
+      "sha256": "c51445196022c0154441612bf7f20f95ad9438ae7ed17eb23bb532d36f63c265",
+      "exit": "0"
+    },
+    {
+      "file": ".scratch/se01-native-a3-sdk-after-reopen.log",
+      "bytes": 7013,
+      "sha256": "ec4631e51f1204551541414dd8612242a7d2889a273102e66a741bd92e38b7bc",
+      "exit": "0"
+    },
+    {
+      "file": ".scratch/se01-native-a3-sdk-console-observe.log",
+      "bytes": 3543,
+      "sha256": "0d7ee4580f6c6c38b2354e0b57af457540f8965efb16036164422a06bcc8557d",
+      "exit": "0"
+    },
+    {
+      "file": ".scratch/se01-native-a4-context-observe.log",
+      "bytes": 282,
+      "sha256": "02c7d51e2657339d3a0d789a40a1f89c0e6b1ceb8fe9d013b984431aacae4b36",
+      "exit": "0"
+    },
+    {
+      "file": ".scratch/se01-native-a4-context-trigger.log",
+      "bytes": 54,
+      "sha256": "0803def0199f9816f16323e7901b7f155e0c96dc036b5bc5cb8986946aa074fd",
+      "exit": "0"
+    },
+    {
+      "file": ".scratch/se01-native-a4-read-observe.log",
+      "bytes": 456,
+      "sha256": "219fadd61b969b228e9a10dbf74da6430b660a00816fd6b65b2e014eac2a4610",
+      "exit": "0"
+    },
+    {
+      "file": ".scratch/se01-native-a4-read-trigger.log",
+      "bytes": 51,
+      "sha256": "f6086e3742aabcd94244c21c2b096adc36c3902b90952a75172906a747fb7be3",
+      "exit": "0"
+    },
+    {
+      "file": ".scratch/se01-native-a4-sdk-console-observe.log",
+      "bytes": 5278,
+      "sha256": "5d7519899f2f889c54808fb9788094117b3ca1bf44b9a232e03df7726a9b0055",
+      "exit": "0"
+    },
+    {
+      "file": ".scratch/se01-native-after-create-a1-dom.log",
+      "bytes": 3988,
+      "sha256": "160a10be1ab016704dd7c99467ee49eefc8e14b1ee6b4874fa01a23fb255ee3f",
+      "exit": "0"
+    },
+    {
+      "file": ".scratch/se01-native-b-dialog-open.log",
+      "bytes": 58,
+      "sha256": "a8351efde2f7ba2cb60f97f6b0a31542dab0985414c2c78212f17d3cf66999d1",
+      "exit": "0"
+    },
+    {
+      "file": ".scratch/se01-native-b-ready.log",
+      "bytes": 841,
+      "sha256": "2ca8a0309f0424e5ee937443e197b28366b191465774bc9eea242773ca4f6064",
+      "exit": "0"
+    },
+    {
+      "file": ".scratch/se01-native-b-remote-descriptor-after-restart.log",
+      "bytes": 1203,
+      "sha256": "f9ccf74408959168d8bc94580c7d57018b4651d5f7af83552a88c28fbf0ce513",
+      "exit": "0"
+    },
+    {
+      "file": ".scratch/se01-native-b-remote-descriptor.log",
+      "bytes": 376,
+      "sha256": "ddcdef5eaf183b3159a36a117b6306e0134ffb1677daace885caa90ce6f8c836",
+      "exit": "-1073740791"
+    },
+    {
+      "file": ".scratch/se01-native-b-remote-dialog-close.log",
+      "bytes": 4114,
+      "sha256": "aa9045947447506684599d1695d07df1010e79dd4cbe73d1e77ab0a5492b782a",
+      "exit": "0"
+    },
+    {
+      "file": ".scratch/se01-native-b-remote-panel.log",
+      "bytes": 4089,
+      "sha256": "70585f9a972238385dc95e9b095afc85b41909831805c69b5efec2fad229fedc",
+      "exit": "0"
+    },
+    {
+      "file": ".scratch/se01-native-b-remote-restart.log",
+      "bytes": 4083,
+      "sha256": "8bcfb077bf192d35486c88c05641f23e23b0766b21b4343a00218d28a82ef01b",
+      "exit": "0"
+    },
+    {
+      "file": ".scratch/se01-native-b-remote-stop.log",
+      "bytes": 4089,
+      "sha256": "25a51cce7022b6a30e78662f8f34acca134e0bcab3411ca7b3c8589a886cd3f8",
+      "exit": "0"
+    },
+    {
+      "file": ".scratch/se01-native-b-remote-stopped-state.log",
+      "bytes": 2651,
+      "sha256": "ca6426e6fb3aa661dd698ac8f30abae4ff2abdfa2ccfac131c20fef787eac219",
+      "exit": "0"
+    },
+    {
+      "file": ".scratch/se01-native-b1-context-observe.log",
+      "bytes": 470,
+      "sha256": "4c53917c9129b09d2ae6474fec37aad2c585bb3324fc7c9d77be21a7c3125538",
+      "exit": "1"
+    },
+    {
+      "file": ".scratch/se01-native-b1-context-trigger.log",
+      "bytes": 54,
+      "sha256": "6032a14324fd3fcead52b1db6fb80ac147d9c4f64c4df1e678c0005098044069",
+      "exit": "0"
+    },
+    {
+      "file": ".scratch/se01-native-b1-human-trigger.log",
+      "bytes": 466,
+      "sha256": "0b169f9ad9906c6935256b95a17bdebc07f6a73c71510e0ed8dae2ac98df2878",
+      "exit": "1"
+    },
+    {
+      "file": ".scratch/se01-native-b1-open-stage.log",
+      "bytes": 2625,
+      "sha256": "8c019687c51ed334bdb3fe32fc3e7c6f110bacf264f24599ba7e2bfaf4c21046",
+      "exit": "0"
+    },
+    {
+      "file": ".scratch/se01-native-b2-context-observe.log",
+      "bytes": 266,
+      "sha256": "4fdf363b5aa12ddf98c112261689e66c88fee9beb717c4551f18a79f0afc7d62",
+      "exit": "0"
+    },
+    {
+      "file": ".scratch/se01-native-b2-read-observe.log",
+      "bytes": 452,
+      "sha256": "39b124eaeb32ce8b2166cd5d60b99b5938285db9058f01fc3c07856f8aecd84c",
+      "exit": "0"
+    },
+    {
+      "file": ".scratch/se01-native-b2-read-trigger.log",
+      "bytes": 51,
+      "sha256": "68edae2bc9d2a44f0ff6342417338b395038d39f83772e37fe1b72f24b9d6d9c",
+      "exit": "0"
+    },
+    {
+      "file": ".scratch/se01-native-b2-ready-confirmed.log",
+      "bytes": 787,
+      "sha256": "dd6d36b1268236bca6b0f646c4fc8a98f53391efdc4a854589d409ab6003cba7",
+      "exit": "0"
+    },
+    {
+      "file": ".scratch/se01-native-b2-ready.log",
+      "bytes": 768,
+      "sha256": "d3695e221424f5cf776ec6cd5a37d054c06193eee498788d7e57de877d4a6d0a",
+      "exit": "0"
+    },
+    {
+      "file": ".scratch/se01-native-b2-sdk-context-request.log",
+      "bytes": 95,
+      "sha256": "75358624cb75ece35cb53d0b5c1756e85b465fb375bf8f6901eab63bc443a36f",
+      "exit": "0"
+    },
+    {
+      "file": ".scratch/se01-native-b2-sdk-context-response.log",
+      "bytes": 95,
+      "sha256": "75358624cb75ece35cb53d0b5c1756e85b465fb375bf8f6901eab63bc443a36f",
+      "exit": "0"
+    },
+    {
+      "file": ".scratch/se01-native-b2-sdk-read-request.log",
+      "bytes": 185,
+      "sha256": "9a922684b8be66d7699dfb697219f8c658f72f15528d7761c4570c8ec2524f83",
+      "exit": "0"
+    },
+    {
+      "file": ".scratch/se01-native-b2-sdk-read-response.log",
+      "bytes": 185,
+      "sha256": "9a922684b8be66d7699dfb697219f8c658f72f15528d7761c4570c8ec2524f83",
+      "exit": "0"
+    },
+    {
+      "file": ".scratch/se01-native-b2-surface-open.log",
+      "bytes": 54,
+      "sha256": "d8cca4e7901f127c4eb3bd2c85aea400fb1fed0a405f73623d1a67ccde323744",
+      "exit": "0"
+    },
+    {
+      "file": ".scratch/se01-native-common-ci.log",
+      "bytes": 28,
+      "sha256": "f498e3136681f80a697709cd4177511707c5cda3e2b7f98d3be9097f880b72a7",
+      "exit": "0"
+    },
+    {
+      "file": ".scratch/se01-native-create-a1.log",
+      "bytes": 1058,
+      "sha256": "2b50960b78d954f40c8d7f6f059015fca4db2fd4e7da15aefec9862e9a3d58fb",
+      "exit": "0"
+    },
+    {
+      "file": ".scratch/se01-native-create-a2.log",
+      "bytes": 1058,
+      "sha256": "0e0c5356e3e8132d6e55e8390e8cf36743a0d900711f1f8094c22d49ad0aff89",
+      "exit": "0"
+    },
+    {
+      "file": ".scratch/se01-native-create-a3.log",
+      "bytes": 1058,
+      "sha256": "030bf26a5197e4080d8186db18ed6a054fc1deccd2471ee58dc5462b65b1024f",
+      "exit": "0"
+    },
+    {
+      "file": ".scratch/se01-native-create-a4.log",
+      "bytes": 1058,
+      "sha256": "b691dd0dbafe13b218d0317016686db4b7c3a4ba46b59504625737227c158fd7",
+      "exit": "0"
+    },
+    {
+      "file": ".scratch/se01-native-create-b1.log",
+      "bytes": 1058,
+      "sha256": "7d9dd3cf2f0bbc91bd35fcb9394fd7a6796ba41975fa05f5d4df6c325f77c0ef",
+      "exit": "0"
+    },
+    {
+      "file": ".scratch/se01-native-create-b2.log",
+      "bytes": 1213,
+      "sha256": "e287cf49f236e5e6c72a59bd3f2d7cfa780bb14bc14b8102188bfffa7ef3df26",
+      "exit": "0"
+    },
+    {
+      "file": ".scratch/se01-native-evidence-build-a.log",
+      "bytes": 28,
+      "sha256": "5c29746f0a687f389c260543406b8760adb18803b7b3502bd547877fb1703cfc",
+      "exit": "0"
+    },
+    {
+      "file": ".scratch/se01-native-evidence-build.log",
+      "bytes": 28,
+      "sha256": "5c29746f0a687f389c260543406b8760adb18803b7b3502bd547877fb1703cfc",
+      "exit": "0"
+    },
+    {
+      "file": ".scratch/se01-native-evidence-final.log",
+      "bytes": 28,
+      "sha256": "5c29746f0a687f389c260543406b8760adb18803b7b3502bd547877fb1703cfc",
+      "exit": "0"
+    },
+    {
+      "file": ".scratch/se01-native-exact-allowlist.log",
+      "bytes": 177,
+      "sha256": "b7d6522764300276ebb1a65476945fd3ecf1eacb468b5f6ed2ea85bd52d8e765",
+      "exit": "0"
+    },
+    {
+      "file": ".scratch/se01-native-final-state.log",
+      "bytes": 378,
+      "sha256": "2e15898906990c1c763c6a2989a89431a6ff35792987222f7d41745e32fcf6eb",
+      "exit": "0"
+    },
+    {
+      "file": ".scratch/se01-native-gui-run.log",
+      "bytes": 505,
+      "sha256": "515bc2fa50d6737322708c840f08374fa4b039a780463f2f82ea6aea38895462",
+      "exit": "running; retained"
+    },
+    {
+      "file": ".scratch/se01-native-host-plugin-list.log",
+      "bytes": 34834,
+      "sha256": "e59e79144024609dfb8b39ad1ec12d9577171b7b13f85e6e493170a78ab55f07",
+      "exit": "0"
+    },
+    {
+      "file": ".scratch/se01-native-host-plugin-overview.log",
+      "bytes": 12958,
+      "sha256": "e0d7eea760fe50ef2e1c4709f9663192955d4c2875b89ffaebe360b9e1a4e3d7",
+      "exit": "0"
+    },
+    {
+      "file": ".scratch/se01-native-host-surfaces.log",
+      "bytes": 358,
+      "sha256": "2c5d505094dbb25cd83fe5e1eec6d885de62b724bc9241852cf144633c176422",
+      "exit": "0"
+    },
+    {
+      "file": ".scratch/se01-native-initial-dom.log",
+      "bytes": 2511,
+      "sha256": "0d56ba3e1c27039b3c34b81e10b94fdcadd7aee3fbc9d85b7113aafb295b4c8f",
+      "exit": "0"
+    },
+    {
+      "file": ".scratch/se01-native-mode-identities.log",
+      "bytes": 6432,
+      "sha256": "9b6072a9b3a244a5bf5d7eb74c1bd8b9531f980a501fd3fb4494db98f25f3f34",
+      "exit": "0"
+    },
+    {
+      "file": ".scratch/se01-native-mode-options.log",
+      "bytes": 2873,
+      "sha256": "87241c4eff676cc6a90b1412016669834a6dd1f7b012d5a6a6d984373467a175",
+      "exit": "0"
+    },
+    {
+      "file": ".scratch/se01-native-paused-state.log",
+      "bytes": 555,
+      "sha256": "544eb332d1b537df3a3b2e398f54f3c60a2a7bf1236c61a0b83e79e724ff4e7d",
+      "exit": "0"
+    },
+    {
+      "file": ".scratch/se01-native-permission-static.log",
+      "bytes": 6124,
+      "sha256": "9777c77518f99128bd1c08a6b935dd6448a83f3a86395c6667acd72f69be9091",
+      "exit": "0"
+    },
+    {
+      "file": ".scratch/se01-native-remote-menu.log",
+      "bytes": 3925,
+      "sha256": "f3754c02edaeaf0ba07e2eb373cb2dd1bc3045405ebca7a69a09e3cc01c004f9",
+      "exit": "0"
+    },
+    {
+      "file": ".scratch/se01-native-select-a2.log",
+      "bytes": 3147,
+      "sha256": "c03ea9d3ddd210f57810e71b20d2493da633093f53198a01bc60058bafb2c4b3",
+      "exit": "0"
+    },
+    {
+      "file": ".scratch/se01-native-selected-a1.log",
+      "bytes": 2475,
+      "sha256": "34b0222c696452df7fa202d70d8eed1c034b82ce372dc80fba0a9340f43d3b8f",
+      "exit": "0"
+    },
+    {
+      "file": ".scratch/se01-native-targets.log",
+      "bytes": 4476,
+      "sha256": "47a403286f49062fd089c16ca2371119997962a57bf3b4f1cf0f07ba4b1a9d25",
+      "exit": "not recorded"
+    },
+    {
+      "file": ".scratch/se01-native-task-identities-attrs.log",
+      "bytes": 3518,
+      "sha256": "4ee123dd9c8ca6a2f94d6abaf3b3908f9017a06ed00de87a5939550e890c9eb1",
+      "exit": "0"
+    },
+    {
+      "file": ".scratch/se01-native-task-identities-json.log",
+      "bytes": 4033,
+      "sha256": "2ac25dc5c5df8102926b00ab298ee50f70385b8f99856ad962fc66aa716df08b",
+      "exit": "0"
+    },
+    {
+      "file": ".scratch/se01-native-task-identities.log",
+      "bytes": 4571,
+      "sha256": "0059d14f844b4a8296289bb91b1ef0c395fc60784523aff314b64d73cbb0ff88",
+      "exit": "0"
+    },
+    {
+      "file": ".scratch/se01-registry-after-native-complete.log",
+      "bytes": 73,
+      "sha256": "13c238d79fe342a47381a8830dcd44a8d38816a41165b995f04d1941419af8bb",
+      "exit": "0"
+    },
+    {
+      "file": ".scratch/se01-registry-after-native-start.log",
+      "bytes": 73,
+      "sha256": "13c238d79fe342a47381a8830dcd44a8d38816a41165b995f04d1941419af8bb",
+      "exit": "not recorded"
+    },
+    {
+      "file": ".scratch/se01-registry-preflight.log",
+      "bytes": 73,
+      "sha256": "13c238d79fe342a47381a8830dcd44a8d38816a41165b995f04d1941419af8bb",
+      "exit": "0"
+    },
+    {
+      "file": ".scratch/native-context-B2.json",
+      "bytes": 228,
+      "sha256": "ccbe88b5b0474d3fc9ff35a9397ae7ae0dcf48482b65b5bdc5fa73f644ebef28",
+      "exit": "data capture; not executable"
+    },
+    {
+      "file": ".scratch/native-editor-A3-first.json",
+      "bytes": 414,
+      "sha256": "7dc4f8c2202685f0cdf3e0a9b822e6aeb2958a16aa6e7ac032d07f3e63a66538",
+      "exit": "data capture; not executable"
+    },
+    {
+      "file": ".scratch/native-editor-A3-reopened.json",
+      "bytes": 414,
+      "sha256": "7dc4f8c2202685f0cdf3e0a9b822e6aeb2958a16aa6e7ac032d07f3e63a66538",
+      "exit": "data capture; not executable"
+    },
+    {
+      "file": ".scratch/native-editor-A4-first.json",
+      "bytes": 414,
+      "sha256": "e2bc99a5c5b283c01e18f83b4b42b9efe4c47675886303eef9f9d472f71106d7",
+      "exit": "data capture; not executable"
+    },
+    {
+      "file": ".scratch/native-editor-B2-first.json",
+      "bytes": 410,
+      "sha256": "dadb6cf6fc1440961fd2c2f713accf0df89f6520ce5be6679c84b77cce4d10a6",
+      "exit": "data capture; not executable"
+    },
+    {
+      "file": ".scratch/se01-native-a3-sdk-console-messages.json",
+      "bytes": 10554,
+      "sha256": "72257f7fb00cbed94e9a68e3b155729b52225b2dd88881dca4c24b9ea80d322d",
+      "exit": "data capture; not executable"
+    },
+    {
+      "file": ".scratch/se01-native-a4-sdk-console-messages.json",
+      "bytes": 8206,
+      "sha256": "50d448a963f78be8becfbab3bba727db812d6553af9e9e3a050dcd9180d4e2f0",
+      "exit": "data capture; not executable"
+    },
+    {
+      "file": ".scratch/se01-native-b-remote-descriptor.json",
+      "bytes": 1661,
+      "sha256": "43ab6a63d39c2cf896dce949a14c2577e0017a5510c153288f20781b3ce37e5e",
+      "exit": "data capture; not executable"
+    },
+    {
+      "file": ".scratch/se01-native-b2-sdk-console-messages.json",
+      "bytes": 8197,
+      "sha256": "a66ac5dc751fffb2c06e3446c4106e7974e4c9e3ffdc060b70e7daefb8e450cf",
+      "exit": "data capture; not executable"
+    },
+    {
+      "file": ".scratch/se01-native-retained-processes.json",
+      "bytes": 960,
+      "sha256": "e245a2efef3c03ae6956b50374c79193bd6e129e1138cfed060ebb0f518d0990",
+      "exit": "data capture; not executable"
+    },
+    {
+      "file": ".scratch/se01-registry-after-native-complete.json",
+      "bytes": 2273,
+      "sha256": "3696b3b0411219e66df5f5dd8aee484dbbf79350e86f5023f7d9e3cf559425f6",
+      "exit": "data capture; not executable"
+    },
+    {
+      "file": ".scratch/se01-registry-after-native-start.json",
+      "bytes": 2273,
+      "sha256": "3696b3b0411219e66df5f5dd8aee484dbbf79350e86f5023f7d9e3cf559425f6",
+      "exit": "data capture; not executable"
+    },
+    {
+      "file": ".scratch/se01-registry-before-next-gui.json",
+      "bytes": 2273,
+      "sha256": "3696b3b0411219e66df5f5dd8aee484dbbf79350e86f5023f7d9e3cf559425f6",
+      "exit": "data capture; not executable"
     }
   ],
   "notes": [
-    "Raw logs remain ignored and may contain synthetic session identifiers and machine paths; do not publish raw logs.",
-    "Contract/browser results do not establish H1/H2 or user acceptance."
+    "Raw logs remain ignored and include synthetic session IDs and machine paths; do not publish them.",
+    "Contract/browser fixtures are separate from actual Native H1/H2 verification.",
+    "Human tool approvals do not establish user product acceptance.",
+    "Frozen active-log hashes cover one captured instant; current retained logs may continue changing."
   ],
   "cleanup": {
     "recordedDesktopAndHelperPidsChecked": 6,
     "remainingRecordedProcesses": 0,
-    "scope": "Only recorded isolated Desktop main/Utility Host and public-protocol helper PIDs; not a system-wide cleanup assertion."
+    "scope": "Only recorded isolated Desktop main/Utility Host and public-protocol helper PIDs; not a system-wide cleanup assertion.",
+    "earlierRunOnly": true
   },
   "processChecks": [
     {
@@ -267,5 +961,18 @@
       "bytes": 546,
       "sha256": "ee6695fbe047bff1d67202df78e771c58d5df7cd2374e713350fd297a60b7f18"
     }
-  ]
+  ],
+  "issueClosed": false,
+  "userProductAcceptanceClaimed": false,
+  "nativeContinuation": {
+    "evidence": "se01-native-evidence.json",
+    "record": "se01-native-verification.md",
+    "isolatedModelEndpointRequests": 0,
+    "turnSent": false,
+    "approvalBy": "human_native_UI",
+    "B1Fault": "fault.subscribe.sessionNotFound",
+    "BReboundThroughNativeRemoteControl": true,
+    "serverWireCaptured": false
+  },
+  "currentInstance": "retained_for_SE02_SE03_by_coordinator_request"
 }
