@@ -6,6 +6,7 @@ import { mkdtemp, mkdir, writeFile, readFile, rename, symlink, rm } from 'node:f
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { execFileSync } from 'node:child_process';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
 import { EDITOR_URI } from '../server.mjs';
@@ -26,23 +27,31 @@ async function fixture(t) {
   const request = (name, args = {}) => client.callTool({ name, arguments: args, _meta: { session_id: 'review-A' } });
   const html = (await client.readResource({ uri: EDITOR_URI })).contents[0].text;
   const calls = [], errors = [], holds = [];
-  function hold(match) { const token = { match }; token.ready = new Promise(resolve => { token.arrived = resolve; }); holds.push(token); return token; }
+  function hold(match, { beforeCall = false } = {}) { const token = { match, beforeCall }; token.ready = new Promise(resolve => { token.arrived = resolve; }); holds.push(token); return token; }
   async function page() {
     const page = await browser.newPage({ viewport: { width: 1000, height: 700 } }); page.setDefaultTimeout(2500);
     await page.exposeFunction('editorCall', async (name, args) => {
-      const entry = { name, args }; calls.push(entry); const result = await request(name, args); entry.result = result;
-      const token = holds.find(token => !token.release && token.match(entry, calls));
+      const entry = { name, args }; calls.push(entry);
+      const before = holds.find(token => token.beforeCall && !token.release && token.match(entry, calls));
+      if (before) await new Promise(resolve => { before.release = resolve; before.arrived(); });
+      const result = await request(name, args); entry.result = result;
+      const token = holds.find(token => !token.beforeCall && !token.release && token.match(entry, calls));
       if (token) return new Promise(resolve => { token.result = result; token.release = () => resolve(result); token.arrived(); });
       return result;
     });
-    const resources = await installResourceBridge(page, client); page.on('pageerror', error => errors.push(error.message));
+    const resources = await installResourceBridge(page, client, { read: result => {
+      const entry = { name: 'resources/read', result }; calls.push(entry);
+      const token = holds.find(token => !token.beforeCall && !token.release && token.match(entry, calls));
+      if (token) return new Promise(resolve => { token.result = result; token.release = () => resolve(result); token.arrived(); });
+      return result;
+    } }); page.on('pageerror', error => errors.push(error.message));
     await page.goto('data:text/html,<!doctype html><html><body></body></html>'); await page.setContent(html); return { page, resources };
   }
   const saved = async (path, text) => {
     const data = (await request('read_editor_text', { path })).structuredContent;
     return { path, fixed: true, scrollTop: 0, scrollLeft: 0, ...(text ? { draft: { text, diskText: data.text, baseVersion: data.version, encoding: data.encoding } } : {}) };
   };
-  return { workspaceRoot, dataPath, request, page, saved, calls, errors, hold, db };
+  return { workspaceRoot, dataPath, request, page, saved, calls, errors, hold, db, client };
 }
 
 for (const variant of ['clean','dirty-source','both-dirty']) test(`恢复规范目标合流-${variant}：页签唯一，脏副本不丢失且退订不影响另一页`, async t => {
@@ -117,4 +126,33 @@ test('恢复尚未完成时不可编辑提前显示的首页，完成后新正�
   await content.focus(); await page.keyboard.press('Control+End'); await page.keyboard.type('恢复完成后新增'); await page.getByText('恢复副本已同步', { exact: true }).waitFor();
   assert.equal((await f.request('get_editor_state')).structuredContent.state.files[0].draft.text, 'alpha 外部新正文\n恢复完成后新增');
   assert.equal(await readFile(join(f.workspaceRoot, 'alpha.txt'), 'utf8'), 'alpha 外部新正文\n'); assert.deepEqual(f.errors, []);
+});
+
+test('规范合流的新受审读取作废同版本迟到权限错误，后续自动保存与外部通知仍可用', { skip: process.platform !== 'win32' }, async t => {
+  const f = await fixture(t), first = await f.saved('folder/file.txt'), second = await f.saved('other/file.txt');
+  await f.request('update_editor_state', { state: { files: [first,second], currentPath: 'other/file.txt' } });
+  await rename(join(f.workspaceRoot, 'folder'), join(f.workspaceRoot, 'retired')); await symlink(join(f.workspaceRoot, 'other'), join(f.workspaceRoot, 'folder'), 'junction');
+  const next = f.hold(entry => entry.name === 'read_editor_text' && entry.args.path === 'other/file.txt', { beforeCall: true });
+  const stale = f.hold(entry => entry.name === 'resources/read' && JSON.parse(entry.result.contents[0].text).code === 'permission_denied');
+  const { page } = await f.page(); await next.ready;
+  const opened = f.calls.find(call => call.name === 'read_editor_text').result.structuredContent;
+  const path = join(f.workspaceRoot, 'other/file.txt');
+  const run = script => execFileSync('powershell.exe', ['-NoProfile','-NonInteractive','-Command','$ErrorActionPreference="Stop";' + script], { env: { SystemRoot: process.env.SystemRoot, PATH: process.env.PATH, SUIAN_TEST_FILE: path }, windowsHide: true, stdio: 'pipe' });
+  const restore = '$file=$env:SUIAN_TEST_FILE; $acl=New-Object Security.AccessControl.FileSecurity; $acl.SetSecurityDescriptorSddlForm([IO.File]::ReadAllText($file+".sddl")); Set-Acl -LiteralPath $file -AclObject $acl;';
+  run('$file=$env:SUIAN_TEST_FILE; $acl=Get-Acl -LiteralPath $file; [IO.File]::WriteAllText($file+".sddl",$acl.Sddl); $sid=[Security.Principal.WindowsIdentity]::GetCurrent().User; $rule=New-Object Security.AccessControl.FileSystemAccessRule($sid,"Read","Deny"); $acl.AddAccessRule($rule); Set-Acl -LiteralPath $file -AclObject $acl;');
+  try {
+    assert.equal(JSON.parse((await f.client.readResource({ uri: opened.resourceUri })).contents[0].text).code, 'permission_denied');
+    await stale.ready; assert.equal(JSON.parse(stale.result.contents[0].text).code, 'permission_denied');
+  } finally { run(restore); }
+  next.release(); await page.getByRole('button', { name: '保存方式', exact: true }).getByText('手动保存', { exact: true }).waitFor();
+  const newer = f.calls.filter(call => call.name === 'read_editor_text').at(-1).result.structuredContent;
+  assert.equal(newer.version, opened.version, '权限恢复后第二次受审读取的字节版本不变'); assert.equal(newer.resourceUri, opened.resourceUri);
+  stale.release(); await page.getByRole('button', { name: '保存方式', exact: true }).click(); await page.getByRole('button', { name: '保存方式', exact: true }).getByText('自动保存', { exact: true }).waitFor();
+  const content = page.getByRole('textbox', { name: '文件正文', exact: true }); await content.focus(); await page.keyboard.press('Control+End'); await page.keyboard.type('new');
+  try { await page.getByText('已保存', { exact: true }).waitFor(); }
+  catch (error) { assert.fail(`${error.message}\n${JSON.stringify({ status: await page.locator('#status-text').innerText(), conflictVisible: await page.locator('#conflict-bar').isVisible(), saveRequests: f.calls.filter(call => call.name === 'save_editor_text').length, disk: await readFile(path, 'utf8') })}`); }
+  assert.equal(await readFile(path, 'utf8'), 'other original\nnew');
+  assert.equal(await page.locator('#conflict-bar').isVisible(), false);
+  await writeFile(path, 'latest external\n'); await f.client.readResource({ uri: opened.resourceUri }); await content.filter({ hasText: 'latest external' }).waitFor();
+  assert.deepEqual(f.errors, []);
 });

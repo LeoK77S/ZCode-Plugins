@@ -63,6 +63,7 @@ async function loadRecovery() {
       const existing = documents.find(file => file.relativePath === path);
       const file = existing ?? { lineSeparator: new Compartment() };
       if (!existing || draft || !isDirty(existing)) {
+        file.readRevision = (file.readRevision ?? 0) + 1;
         Object.assign(file, { ...data, relativePath: path, fixed: file.fixed || saved.fixed, scrollTop: saved.scrollTop, scrollLeft: saved.scrollLeft, pathChanged,
           text: draft?.text ?? data?.text ?? '', diskText: draft?.diskText ?? data?.text ?? '', version: draft?.baseVersion ?? data?.version,
           encoding: draft?.encoding ?? data?.encoding ?? { name: 'utf-8', bom: false, newline: 'none' },

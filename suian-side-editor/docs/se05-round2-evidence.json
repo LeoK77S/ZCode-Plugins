@@ -1,0 +1,48 @@
+{
+  "ticket": "SE-05 / #45",
+  "baseline": "ac67d05f750996c724969f4de39525273fb6bb37",
+  "finding": {
+    "axis": "spec",
+    "priority": "P2",
+    "trigger": "规范合流新受审读取未推进readRevision，迟到同版本旧资源错误误阻塞",
+    "originalReport": "只读推演",
+    "thisRound": "实际 stdio、Windows ACL 与构建页面复现",
+    "independentRereview": "待根安排"
+  },
+  "red": {
+    "sameVersion": true,
+    "sameResourceUri": true,
+    "resourceError": "permission_denied",
+    "statusAfterLateError": "系统拒绝访问该文件",
+    "conflictVisible": true,
+    "saveRequests": 0,
+    "firstTimeoutPreserved": true,
+    "publicDiagnosticRedPreserved": true
+  },
+  "green": {
+    "addedCases": 1,
+    "browser": { "previousGroups": 53, "totalGroups": 54, "nodeCases": 34, "scriptGroups": 20, "passedGroups": 54 },
+    "sdk": { "equivalentTotal": 37, "unchangedCasesReused": 36, "newUiResourceCaseExecuted": 1 },
+    "autoSaveAfterLateError": true,
+    "externalNotificationAfterSave": true,
+    "build": true,
+    "syntax": true,
+    "native": false,
+    "H3": false,
+    "H4": false,
+    "ticketComplete": false,
+    "userAccepted": false
+  },
+  "artifact": {
+    "path": "ui/dist/editor.html",
+    "bytes": 322668,
+    "sha256": "8d776896b375c7c7fd55e220f6e1d17e599c35e9e7ebe62ed4ca8b95e8c38551",
+    "licenseBytes": 12465,
+    "licenseSha256": "23ce8b41b422c88e526c88e599317e4f56484732251311f789805f328f4af2c8"
+  },
+  "preserved": [
+    { "directory": ".scratch/se05-local", "files": 76, "manifestSha256": "e93a2e0b0db1087eaa2138fe73ede093e5d502df10f4d8cacf52e429868fa01d" },
+    { "directory": ".scratch/se05-review-fix", "files": 58, "manifestSha256": "79381da33b0204e7f55608ffd545d0a15e49dc59e5eeef373ecfe8bc97c16237" }
+  ],
+  "localEvidenceDirectory": ".scratch/se05-round2"
+}
