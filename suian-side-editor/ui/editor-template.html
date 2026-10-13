@@ -13,6 +13,7 @@
   <div class="toolbar">
     <div id="breadcrumb" aria-label="文件路径">文本编辑器</div>
     <div class="actions">
+      <button id="comment-selection" class="save-button" disabled title="先选择文件正文">评论选区</button>
       <button id="save-mode" class="save-mode" aria-label="保存方式" disabled title="切换手动或自动保存">正在读取方式…</button>
       <button id="save" class="save-button" disabled title="保存（Ctrl+S）">保存</button>
       <button id="folder" class="icon-button" aria-label="文件列表" aria-expanded="false" disabled title="文件列表">
@@ -22,6 +23,7 @@
   </div>
   <div id="conflict-bar" hidden role="alert"><span>当前编辑已保留，自动保存已暂停</span><button id="keep-edit">保留编辑</button><button id="reload-file">重新读取</button></div>
   <div id="settings-error" hidden role="alert"></div>
+  <div id="comment-status" role="status" aria-live="polite">待发送评论 0 条</div>
 </header>
 <div class="workspace">
   <main id="main"><div id="editor-frame"><div id="empty">从文件列表选择文本</div><div id="editor" hidden></div></div></main>
@@ -41,6 +43,12 @@
 <dialog id="reload-dialog" aria-label="重新读取文件">
   <h2>重新读取文件</h2><p id="reload-message"></p>
   <div class="dialog-actions"><button id="reload-cancel">取消重新读取</button><button id="reload-confirm">放弃编辑并重新读取</button></div>
+</dialog>
+<dialog id="comment-dialog" aria-label="选区评论">
+  <h2>选区评论</h2><p id="comment-location"></p><pre id="comment-selection-text"></pre>
+  <label for="comment-body">评论内容</label><textarea id="comment-body" rows="4"></textarea>
+  <p id="comment-error" class="dialog-error" role="alert"></p>
+  <div class="dialog-actions"><button id="comment-cancel">取消评论</button><button id="comment-submit">加入主对话</button></div>
 </dialog>
 <!-- EDITOR_SCRIPT -->
 </body>

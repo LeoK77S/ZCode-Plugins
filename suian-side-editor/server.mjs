@@ -7,6 +7,7 @@ import { MCP_APP_MIME_TYPE, supportsZcodeMcpApps } from 'suian-zcode-common/ui-c
 import { readTextFile, listDirectory, saveTextFile, fileFailure } from './text-files.mjs';
 import { editorSettings, editorRecovery, recoveryState } from './editor-settings.mjs';
 import { installTextResources } from './text-resources.mjs';
+import { installCommentState } from './comment-state.mjs';
 
 export const EDITOR_URI = 'ui://suian-side-editor/editor.html';
 const failure = (code, message) => Object.assign(new Error(message), { code });
@@ -33,9 +34,11 @@ async function boundContext(workspaceRoot, meta) {
     capabilities: { readText: true, saveText: true } };
 }
 
-export function createMcpServer({ workspaceRoot = process.env.SUIAN_SIDE_EDITOR_WORKSPACE, dataPath = process.env.ZCODE_PLUGIN_DATA, zcodeAppVersion = process.env.ZCODE_APP_VERSION } = {}) {
+export function createMcpServer({ workspaceRoot = process.env.SUIAN_SIDE_EDITOR_WORKSPACE, dataPath = process.env.ZCODE_PLUGIN_DATA, zcodeAppVersion = process.env.ZCODE_APP_VERSION,
+  hostConnector, gatewayConfigPath = process.env.SUIAN_SIDE_EDITOR_GATEWAY_CONFIG } = {}) {
   const server = new McpServer({ name: 'suian-side-editor', version: '0.1.0' });
-  const textResources = installTextResources(server);
+  const commentState = installCommentState(server, { hostConnector, gatewayConfigPath });
+  const textResources = installTextResources(server, commentState);
   async function run(extra, action) {
     try {
       const data = await action(await boundContext(workspaceRoot, extra._meta));
@@ -95,7 +98,12 @@ export function createMcpServer({ workspaceRoot = process.env.SUIAN_SIDE_EDITOR_
     annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false },
     _meta: { ui: { resourceUri: EDITOR_URI, surface: 'editor', visibility: ['app'] } }
   }, ({ state }, extra) => run(extra, context => editorRecovery(dataPath, context, state)));
-  const tools = [contextTool, readTool, directoryTool, saveTool, settingsTool, updateSettingsTool, stateTool, updateStateTool];
+  const commentTool = server.registerTool('get_editor_comment_state', {
+    description: '登记可信会话的评论状态只读资源；后续资源订阅不反复工具审批。运行状态只是发送保护的保守代理。', inputSchema: z.object({}).strict(),
+    annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
+    _meta: { ui: { resourceUri: EDITOR_URI, surface: 'editor', visibility: ['app'] } }
+  }, (_args, extra) => run(extra, context => commentState.register(context)));
+  const tools = [contextTool, readTool, directoryTool, saveTool, settingsTool, updateSettingsTool, stateTool, updateStateTool, commentTool];
   const resource = server.registerResource('editor', EDITOR_URI, { title: '文本编辑器', mimeType: MCP_APP_MIME_TYPE }, async () => ({ contents: [{
     uri: EDITOR_URI, mimeType: MCP_APP_MIME_TYPE, text: await readFile(new URL('./ui/dist/editor.html', import.meta.url), 'utf8'),
     _meta: { ui: { prefersBorder: false } }
