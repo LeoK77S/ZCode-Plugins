@@ -54,12 +54,36 @@ https://github.com/ONEGAYI/ZCode-Plugins.git
 
 ### 原生插件升级
 
-原生插件使用原生管理器更新；更新代码后仍需刷新依赖、公共链接与后台入口。可以复制以下提示词：
+原生插件升级分为**更新代码**和**重新配置**两步。推荐每次更新后，再在会话中让 ZCode 配置已安装的 suian 插件，刷新依赖、公共链接与后台入口，确保新功能可用。
+
+**第一步：更新插件代码**
+
+- **让 ZCode 更新**：拉取插件市场副本仓库的远端最新 HEAD，再找到 ZCode 安装目录中的 CLI，运行 `zcode plugins update {{plugin_id}}`，升级 common 和已安装的业务插件。版本缓存由原生管理器维护；拉取代码的对象是市场副本仓库。
+- **在桌面端更新**：打开插件市场，点击刷新更新市场目录，再升级 common 和已安装的业务插件。刷新市场和升级插件代码是两个操作。
+
+让 ZCode 更新时，可以复制以下提示词：
 
 ```text
 请升级我已安装的 ZCode-Plugins 原生插件，保留插件选择、启用或暂停状态和个人配置。
-通过原生管理器更新 common 与所选业务插件，不在插件缓存中 git pull。
-更新后重新查询插件清单，以新的 rootPath、dataPath 读取各自 setup 技能并执行升级，
+先查询实际插件清单和市场来源，找到 suian-zcode-plugins 的市场副本仓库，
+核对来源分支并拉取远端最新 HEAD；遇到本地修改或分叉时说明原因，不强制覆盖。
+若市场副本不含 Git 元数据，使用下述 CLI 的 plugins marketplace update suian-zcode-plugins 刷新。
+找到 ZCode 实际安装目录，定位随应用提供的 zcode CLI，不依赖它已加入 PATH。
+用该 CLI 先运行 zcode plugins update suian-zcode-common@suian-zcode-plugins，
+随后仅对实际已安装的业务插件执行对应命令：
+zcode plugins update suian-zcode-title@suian-zcode-plugins
+zcode plugins update suian-zcode-app-mcp@suian-zcode-plugins
+不要在插件版本缓存中 git pull。更新后核对各插件的新版本和 rootPath，报告结果。
+```
+
+**第二步：更新后重新配置**
+
+通过任一种方式更新后，推荐在会话中再次让 ZCode 配置所选插件。可以复制以下提示词：
+
+```text
+我已更新 ZCode-Plugins 原生插件，请重新配置 suian-zcode-common 和我已安装的业务插件，
+确保新功能可用，保留插件选择、启用或暂停状态、已有模型、授权和个人配置。
+重新查询实际插件清单，以新的 rootPath、dataPath 读取各自 setup 技能并执行升级配置，
 刷新公共与 MCP 的锁定依赖、公共包链接、命名通知入口，并按需安全重载网关。
 保留当前 ZCode；重载前让我暂停移动端远控，由你继续完成配置与本机检查。
 已有 MCP 进程可能仍用旧代码，按技能安排断开重连或择时重开，并核对实际工具清单。
