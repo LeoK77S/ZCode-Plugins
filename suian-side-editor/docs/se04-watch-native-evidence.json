@@ -15,7 +15,9 @@
     "wrapper": "se04-watch-native-editor-probe@se04-watch-native-local-test",
     "surfaceTitle": "SE04 订阅续验",
     "resource": "ui://suian-side-editor/editor.html",
-    "installation": "public workspace-scope local test marketplace",
+    "installation": "public user-scope local test marketplace inside isolated profile",
+    "installationScope": "user",
+    "installationScopeUsedToProveWorkspaceOrSessionBinding": false,
     "officialIndependentCacheInstallationVerified": false
   },
   "environment": {
@@ -106,7 +108,7 @@
     { "name": "first_context_timeout", "sentAt": "2026-10-13T05:01:09.384Z", "cancelledAt": "2026-10-13T05:02:09.395Z", "frozenFiles": 6, "countedAsSuccess": false },
     { "name": "second_context_timeout", "sentAt": "2026-10-13T05:20:17.494Z", "cancelledAt": "2026-10-13T05:21:17.492Z", "permissionReason": "Permission request cancelled", "causeLimit": "approval observer preparation missed window; no claim Host cannot approve", "countedAsSuccess": false },
     { "name": "normal_page_reload_adapter", "observed": "shell reload lost mounted pane; tag context menu did not have reload", "recovery": "public runtime release then normal snapshot restore and actual Native Reload button", "privatePatchUsed": false },
-    { "name": "sky_target_mismatch", "observed": "opaque window identifier wrongly treated as native handle", "wrongWindowOperated": false, "wrongImageOrConversationPersisted": false, "subsequentPath": "verified fake-B ordinary CDP UI" },
+    { "name": "sky_target_mismatch", "observed": "opaque window ID numeric equality was used as ownership evidence, but actual screenshot mismatched the intended isolated task", "windowOwnershipConfirmedByNumericEquality": false, "specificMismatchCause": "unknown", "clickOrInputPerformedOnMismatchedWindow": false, "wrongImageOrConversationPersisted": false, "subsequentPath": "verified fake-B ordinary CDP UI" },
     { "name": "external_write_argument_parser", "firstExit": 1, "firstAttemptWroteFile": false, "quotedArgumentRecoveryPassed": true },
     { "name": "offline_assertion_adapters", "observed": ["version is a sha256 string, not an object", "ID0 initialize is separate from IDs1-42"], "firstFailuresRetained": true, "correctedChecksPassed": true, "nativeRepeated": false },
     { "name": "offscreen_close_button_input", "firstClickHitTarget": false, "normalHorizontalWheelThenCloseSucceeded": true, "countedAsProductBug": false },

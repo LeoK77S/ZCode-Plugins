@@ -11,7 +11,7 @@
 | 源码 | `1e30d8474b4a0ebc1b2d09bc3638ae3d91f2c1d2`，与统一基线 `dcc810e2593901d812b51a5d1e9a18af238338fd` 的执行代码等同 |
 | 实际返回 HTML | 319353 字节，SHA-256 `890d5a0a32fbd5287ebf5868bc7f2b21b724449bfe5c014fb540e4e688fd2b67` |
 | 宿主 | 已保留的隔离 Desktop 3.15.1.8093／内置 CLI 0.16.9；没有新启动 GUI |
-| 临时入口 | 工作区级公开安装的 `se04-watch-native-editor-probe@se04-watch-native-local-test`，原生菜单“SE04 订阅续验” |
+| 临时入口 | 隔离 profile 内 user-scope 的临时市场公开安装 `se04-watch-native-editor-probe@se04-watch-native-local-test`，原生菜单“SE04 订阅续验”；安装范围不作为工作区／会话绑定证据 |
 | 运行入口 | 包装器执行上述固定源码 CLI，返回其实际构建资源，复用自有 common 与 SDK 依赖；不是 SE-08 发行安装 |
 | 测试任务 | 隔离工作区 B 内已有正常持久化合成任务 A；公开 snapshot 已核对四条用户输入和四条合成回复，主 Agent 保持 build |
 | 插件数据 | 实际启动环境捕获 Host 默认 `ZCODE_PLUGIN_DATA`，没有覆写；位于隔离 profile 的插件数据根，使用新 wrapper 自己的 `editor-state.sqlite` |
@@ -67,7 +67,7 @@ CLI 有 21 条本 wrapper 的 `tool.permission.resolved`，全部为 `allow / Ap
 | 首次 ctx | `05:01:09.384Z` 发出，`05:02:09.395Z` 超时取消；六项原始证据先冻结，不算成功 |
 | 第二次 ctx | `05:20:17.494Z` 发出，`05:21:17.492Z` 取消，CLI 原因为 Permission request cancelled；审批脚本准备错过窗口，归代理时机，不归宿主不可审批 |
 | 恢复入口 | 普通 Shell Page.reload 曾使面板失挂载；标签菜单不提供重载。后来公开 runtime 释放＋正常任务 snapshot 恢复，出现 Native“重新加载”；`05:32:44` 这一组才进入成功请求总账 |
-| Sky 目标 | 窗口标识被错误当作原生句柄，截图属于其他聊天；立即停止，未操作该窗口，错误图像及正文没有入库。随后只使用已绑定隔离 CDP 普通页面 |
+| Sky 目标 | 将 opaque 窗口 ID 与句柄数值相等用作归属证据，但实际截图与预期隔离任务不符；数值相等不足以核实归属，具体失配原因未知。立即停止，未执行点击或输入，错误图像及正文没有入库；随后只使用已绑定隔离 CDP 普通页面 |
 | 输入／选择适配 | 外写命令未引用 `@textfile`，首次在解析阶段失败且未写盘；离线检查曾把 version 字符串当对象、把 ID0 初始化算入 1–42；更正后的日志另存，没有重跑 Native。关闭第三页第一次输入落在横向溢出区域，正常 wheel 后才关闭成功 |
 | 本轮截图 | 绑定 Shell 的标准截图 10 秒未返回；追加一次仅对绑定 guest 的标准截图返回 `-32000: Command can only be executed on top-level targets`。没有可核实 PNG，本轮 Native 视觉未验；ACK／DOM／磁盘不冒称视觉验收，也不把 SE-03 图片归本轮 |
 
