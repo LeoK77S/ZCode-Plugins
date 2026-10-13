@@ -5,6 +5,7 @@ import { isAbsolute } from 'node:path';
 import { createHash } from 'node:crypto';
 import { MCP_APP_MIME_TYPE, supportsZcodeMcpApps } from 'suian-zcode-common/ui-capabilities.mjs';
 import { readTextFile, listDirectory, saveTextFile } from './text-files.mjs';
+import { editorSettings } from './editor-settings.mjs';
 
 export const EDITOR_URI = 'ui://suian-side-editor/editor.html';
 const failure = (code, message) => Object.assign(new Error(message), { code });
@@ -31,7 +32,7 @@ async function boundContext(workspaceRoot, meta) {
     capabilities: { readText: true, saveText: true } };
 }
 
-export function createMcpServer({ workspaceRoot = process.env.SUIAN_SIDE_EDITOR_WORKSPACE, zcodeAppVersion = process.env.ZCODE_APP_VERSION } = {}) {
+export function createMcpServer({ workspaceRoot = process.env.SUIAN_SIDE_EDITOR_WORKSPACE, dataPath = process.env.ZCODE_PLUGIN_DATA, zcodeAppVersion = process.env.ZCODE_APP_VERSION } = {}) {
   const server = new McpServer({ name: 'suian-side-editor', version: '0.1.0' });
   async function run(extra, action) {
     try {
@@ -79,7 +80,19 @@ export function createMcpServer({ workspaceRoot = process.env.SUIAN_SIDE_EDITOR_
     saving = saving.then(() => run(extra, context => saveTextFile(context, path, text, baseVersion)));
     return saving;
   });
-  const tools = [contextTool, readTool, directoryTool, saveTool];
+  const settingsTool = server.registerTool('get_editor_settings', {
+    description: '读取当前绑定会话的持久化保存方式；新会话继承最新全局默认。',
+    inputSchema: z.object({}).strict(),
+    annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false },
+    _meta: { ui: { resourceUri: EDITOR_URI, surface: 'editor', visibility: ['app'] } }
+  }, (_args, extra) => run(extra, context => editorSettings(dataPath, context)));
+  const updateSettingsTool = server.registerTool('update_editor_settings', {
+    description: '事务保存当前绑定会话与全局默认的保存方式，不更改其他已有会话。',
+    inputSchema: z.object({ saveMode: z.enum(['manual', 'auto']) }).strict(),
+    annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false },
+    _meta: { ui: { resourceUri: EDITOR_URI, surface: 'editor', visibility: ['app'] } }
+  }, ({ saveMode }, extra) => run(extra, context => editorSettings(dataPath, context, saveMode)));
+  const tools = [contextTool, readTool, directoryTool, saveTool, settingsTool, updateSettingsTool];
   const resource = server.registerResource('editor', EDITOR_URI, { title: '文本编辑器', mimeType: MCP_APP_MIME_TYPE }, async () => ({ contents: [{
     uri: EDITOR_URI, mimeType: MCP_APP_MIME_TYPE, text: await readFile(new URL('./ui/dist/editor.html', import.meta.url), 'utf8'),
     _meta: { ui: { prefersBorder: false } }

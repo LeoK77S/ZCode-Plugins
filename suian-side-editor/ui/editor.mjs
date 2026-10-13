@@ -9,21 +9,25 @@ const editor = document.getElementById('editor'), empty = document.getElementByI
 const tabs = document.getElementById('tabs'), breadcrumb = document.getElementById('breadcrumb');
 const save = document.getElementById('save'), statusText = document.getElementById('status-text'), fileInfo = document.getElementById('file-info');
 const closeDialog = document.getElementById('close-dialog'), closeSave = document.getElementById('close-save');
+const modeButton = document.getElementById('save-mode'), conflictBar = document.getElementById('conflict-bar');
+const reloadDialog = document.getElementById('reload-dialog');
 let context, view, current;
+let saveMode = 'manual', settingsReady = false, settingsBusy = false, settingsError;
 const documents = [];
 const lineBreaks = { crlf: '\r\n', cr: '\r', lf: '\n', none: '\n' };
 function showStatus(text, error = false) { statusText.textContent = text; status.classList.toggle('error', error); }
 function isDirty(file) { return file.text !== file.diskText; }
 function showFileStatus() {
-  if (!current) { save.disabled = true; fileInfo.textContent = ''; showStatus('选择文件开始编辑'); return; }
+  conflictBar.hidden = !current?.blocked;
+  if (!current) { save.disabled = true; fileInfo.textContent = ''; showStatus(settingsError ?? '选择文件开始编辑', Boolean(settingsError)); return; }
   save.disabled = current.saving || !isDirty(current);
   fileInfo.textContent = `UTF-8${current.encoding.bom ? ' BOM' : ''} · ${current.encoding.newline.toUpperCase()}`;
-  showStatus(current.error ?? (current.saving ? '正在保存…' : isDirty(current) ? '未保存' : current.saved ? '已保存' : '已读取'), Boolean(current.error));
+  showStatus(current.error ?? settingsError ?? (current.saving ? '正在保存…' : isDirty(current) ? '未保存' : current.saved ? '已保存' : '已读取'), Boolean(current.error || settingsError));
 }
 function theme() { document.documentElement.dataset.theme = host.theme ?? 'light'; }
 async function call(name, args) {
   const result = await host.callTool(name, args);
-  if (result.isError) throw new Error(result.structuredContent?.error ?? result.content?.[0]?.text ?? '文件操作失败');
+  if (result.isError) throw Object.assign(new Error(result.structuredContent?.error ?? result.content?.[0]?.text ?? '文件操作失败'), { code: result.structuredContent?.code });
   if (!result.structuredContent) throw new Error('工具响应缺少数据');
   return result.structuredContent;
 }
@@ -65,6 +69,7 @@ function renderTabs() {
   }
 }
 function activateFile(file) {
+  if (current !== file && current) { cancelAuto(current); autoSave(current); }
   if (current && view) { current.state = view.state; current.scrollTop = view.scrollDOM.scrollTop; current.scrollLeft = view.scrollDOM.scrollLeft; }
   current = file;
   empty.hidden = true; editor.hidden = false;
@@ -93,7 +98,17 @@ function openFile(path, fixed = false) {
       const separator = lineBreaks[data.encoding.newline];
       const file = { ...data, diskText: data.text, mixed: data.encoding.newline === 'mixed',
         insertedSeparator: data.text.match(/\r\n|\r|\n/)?.[0] ?? '\n', fixed, scrollTop: 0, scrollLeft: 0, lineSeparator: new Compartment() };
-      file.state = EditorState.create({ doc: data.text, extensions: [lineNumbers(), drawSelection(), history(), file.lineSeparator.of(separator ? EditorState.lineSeparator.of(separator) : []),
+      file.state = createEditorState(file, separator);
+      const temporary = documents.findIndex(item => !item.fixed);
+      if (temporary !== -1) { cancelAuto(documents[temporary]); documents[temporary].tabContainer.remove(); documents.splice(temporary, 1, file); }
+      else documents.push(file);
+      activateFile(file);
+    } catch (error) { showStatus(error.message, true); }
+  });
+  return opening;
+}
+function createEditorState(file, separator = lineBreaks[file.encoding.newline]) {
+  return EditorState.create({ doc: file.text, extensions: [lineNumbers(), drawSelection(), history(), file.lineSeparator.of(separator ? EditorState.lineSeparator.of(separator) : []),
         keymap.of([{ key: 'Mod-s', run: () => { void saveFile(file); return true; } }, ...defaultKeymap, ...historyKeymap]),
         EditorView.clipboardInputFilter.of((text, state) => text.replace(/\r\n|\r|\n/g, state.lineBreak)),
         EditorView.contentAttributes.of({ 'aria-label': '文件正文', spellcheck: 'false' }),
@@ -101,23 +116,17 @@ function openFile(path, fixed = false) {
           file.state = update.state;
           if (!update.docChanged) return;
           file.text = file.mixed ? changeMixedText(file.text, update.changes, file.insertedSeparator) : update.state.sliceDoc(); file.fixed = true;
-          renderTabs(); showFileStatus();
+          renderTabs(); showFileStatus(); scheduleAuto(file);
         })] });
-      const temporary = documents.findIndex(item => !item.fixed);
-      if (temporary !== -1) { documents[temporary].tabContainer.remove(); documents.splice(temporary, 1, file); }
-      else documents.push(file);
-      activateFile(file);
-    } catch (error) { showStatus(error.message, true); }
-  });
-  return opening;
 }
 async function saveFile(file) {
   if (file.saving) return false;
+  cancelAuto(file);
   const text = file.text;
   file.saving = true; file.error = undefined; renderTabs(); showFileStatus();
   try {
     const result = await call('save_editor_text', { path: file.relativePath, text, baseVersion: file.version });
-    file.version = result.version; file.diskText = result.text; file.encoding = result.encoding; file.saved = true;
+    file.version = result.version; file.diskText = result.text; file.encoding = result.encoding; file.saved = true; file.blocked = false;
     file.mixed = result.encoding.newline === 'mixed';
     file.insertedSeparator = result.text.match(/\r\n|\r|\n/)?.[0] ?? '\n';
     const separator = lineBreaks[result.encoding.newline];
@@ -127,9 +136,96 @@ async function saveFile(file) {
     if (current === file) view.dispatch({ effects });
     else file.state = file.state.update({ effects }).state;
     return !isDirty(file);
-  } catch (error) { file.error = error.message; return false; }
-  finally { file.saving = false; renderTabs(); showFileStatus(); }
+  } catch (error) { blockFile(file, error.message); return false; }
+  finally {
+    file.saving = false; renderTabs(); showFileStatus();
+    if (file.autoAfterSave) { file.autoAfterSave = false; scheduleAuto(file, 0); }
+    else if (!file.autoTimer) scheduleAuto(file);
+  }
 }
+function cancelAuto(file) { clearTimeout(file.autoTimer); file.autoTimer = undefined; file.autoAfterSave = false; }
+function canAutoSave(file) { return settingsReady && !settingsBusy && saveMode === 'auto' && documents.includes(file) && !file.blocked && !file.reloading && isDirty(file); }
+function autoSave(file) {
+  if (!canAutoSave(file)) return;
+  if (file.saving) { file.autoAfterSave = true; return; }
+  void saveFile(file);
+}
+function scheduleAuto(file, delay = 800) {
+  clearTimeout(file.autoTimer); file.autoTimer = undefined;
+  if (canAutoSave(file)) file.autoTimer = setTimeout(() => { file.autoTimer = undefined; autoSave(file); }, delay);
+}
+function renderMode() {
+  modeButton.disabled = settingsBusy; modeButton.textContent = settingsReady ? saveMode === 'auto' ? '自动保存' : '手动保存' : '保存方式未确认';
+  const error = document.getElementById('settings-error'); error.hidden = !settingsError; error.textContent = settingsError ?? '';
+}
+async function loadSettings() {
+  settingsBusy = true; renderMode();
+  try { const data = await call('get_editor_settings', {}); saveMode = data.saveMode; settingsReady = true; settingsError = undefined; }
+  catch (error) { settingsError = error.message; }
+  finally { settingsBusy = false; renderMode(); showFileStatus(); }
+}
+modeButton.addEventListener('click', async () => {
+  if (!settingsReady) { await loadSettings(); return; }
+  settingsBusy = true; for (const file of documents) cancelAuto(file); renderMode();
+  try {
+    const data = await call('update_editor_settings', { saveMode: saveMode === 'manual' ? 'auto' : 'manual' });
+    saveMode = data.saveMode; settingsError = undefined;
+  } catch (error) { settingsError = error.message; }
+  finally { settingsBusy = false; renderMode(); showFileStatus(); for (const file of documents) autoSave(file); }
+});
+function blockFile(file, message) { file.blocked = true; file.error = message; cancelAuto(file); showFileStatus(); }
+function applyRead(file, data) {
+  const scrollTop = current === file ? view.scrollDOM.scrollTop : file.scrollTop;
+  const scrollLeft = current === file ? view.scrollDOM.scrollLeft : file.scrollLeft;
+  Object.assign(file, { text: data.text, diskText: data.text, version: data.version, encoding: data.encoding,
+    mixed: data.encoding.newline === 'mixed', insertedSeparator: data.text.match(/\r\n|\r|\n/)?.[0] ?? '\n', saved: false, error: undefined, blocked: false });
+  file.state = createEditorState(file); file.scrollTop = scrollTop; file.scrollLeft = scrollLeft;
+  if (current === file) {
+    view.setState(file.state);
+    const refreshedState = file.state;
+    // setState 后先让 CodeMirror 重新测量正文，再在同一新文档上恢复滚动快照。
+    view.requestMeasure({ read: () => null, write: () => queueMicrotask(() => {
+      if (current !== file || view.state !== refreshedState) return;
+      view.scrollDOM.scrollTop = scrollTop; view.scrollDOM.scrollLeft = scrollLeft;
+      view.dispatch({ effects: view.scrollSnapshot() });
+    }) });
+  }
+  renderTabs(); showFileStatus();
+}
+// 按实际内容版本检查已打开文件，不依赖 mtime 或宿主私有通知；逐轮避免堆积请求。
+async function checkFiles() {
+  for (const file of [...documents]) {
+    if (file.saving || file.reloading || file.blocked) continue;
+    const version = file.version;
+    try {
+      const data = await call('read_editor_text', { path: file.relativePath });
+      if (!documents.includes(file) || file.saving || file.reloading || file.version !== version) continue;
+      if (data.version === version) continue;
+      if (isDirty(file)) blockFile(file, '磁盘内容已改变，编辑已保留，自动保存已暂停');
+      else applyRead(file, data);
+    } catch (error) { if (documents.includes(file) && file.version === version) blockFile(file, error.message); }
+  }
+  setTimeout(checkFiles, 1000);
+}
+let reloading;
+document.getElementById('keep-edit').addEventListener('click', () => { showFileStatus(); });
+document.getElementById('reload-file').addEventListener('click', () => {
+  reloading = current;
+  document.getElementById('reload-message').textContent = `重新读取 ${current.relativePath} 将放弃当前编辑，并使用磁盘正文。`;
+  reloadDialog.showModal();
+});
+document.getElementById('reload-cancel').addEventListener('click', () => { reloadDialog.close(); reloading = undefined; });
+document.getElementById('reload-confirm').addEventListener('click', async () => {
+  const file = reloading, text = file.text;
+  reloadDialog.close(); reloading = undefined; file.reloading = true; cancelAuto(file);
+  try {
+    const data = await call('read_editor_text', { path: file.relativePath });
+    if (!documents.includes(file)) return;
+    if (file.text !== text) { blockFile(file, '重新读取期间有新的编辑，正文已保留，请再次确认重新读取'); return; }
+    applyRead(file, data);
+  } catch (error) { if (documents.includes(file)) blockFile(file, error.message); }
+  finally { file.reloading = false; showFileStatus(); }
+});
 save.addEventListener('click', () => { void saveFile(current); });
 document.addEventListener('keydown', event => {
   if (event.defaultPrevented || !(event.ctrlKey || event.metaKey) || event.altKey || event.key.toLowerCase() !== 's') return;
@@ -137,6 +233,7 @@ document.addEventListener('keydown', event => {
   if (current && !closeDialog.open) void saveFile(current);
 });
 function removeFile(file) {
+  cancelAuto(file);
   const index = documents.indexOf(file);
   documents.splice(index, 1); file.tabContainer.remove();
   if (current !== file) { renderTabs(); return; }
@@ -210,5 +307,5 @@ try {
   host.subscribe(theme); await host.ready(); theme();
   context = await call('get_editor_context', {});
   document.getElementById('workspace-title').textContent = context.workspacePath.split(/[\\/]/).at(-1);
-  folder.disabled = false; showStatus('选择文件开始编辑');
+  folder.disabled = false; await loadSettings(); setTimeout(checkFiles, 1000);
 } catch (error) { showStatus(error.message, true); }

@@ -13,13 +13,15 @@
   <div class="toolbar">
     <div id="breadcrumb" aria-label="文件路径">文本编辑器</div>
     <div class="actions">
-      <span class="save-mode">手动保存</span>
+      <button id="save-mode" class="save-mode" aria-label="保存方式" disabled title="切换手动或自动保存">正在读取方式…</button>
       <button id="save" class="save-button" disabled title="保存（Ctrl+S）">保存</button>
       <button id="folder" class="icon-button" aria-label="文件列表" aria-expanded="false" disabled title="文件列表">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 7a2 2 0 0 1 2-2h5l2 2h7a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z"/><path d="M3 10h18"/></svg>
       </button>
     </div>
   </div>
+  <div id="conflict-bar" hidden role="alert"><span>当前编辑已保留，自动保存已暂停</span><button id="keep-edit">保留编辑</button><button id="reload-file">重新读取</button></div>
+  <div id="settings-error" hidden role="alert"></div>
 </header>
 <div class="workspace">
   <main id="main"><div id="editor-frame"><div id="empty">从文件列表选择文本</div><div id="editor" hidden></div></div></main>
@@ -35,6 +37,10 @@
   <p id="close-message"></p>
   <p id="close-error" class="dialog-error" role="alert"></p>
   <div class="dialog-actions"><button id="close-cancel">取消</button><button id="close-discard">放弃修改</button><button id="close-save">保存并关闭</button></div>
+</dialog>
+<dialog id="reload-dialog" aria-label="重新读取文件">
+  <h2>重新读取文件</h2><p id="reload-message"></p>
+  <div class="dialog-actions"><button id="reload-cancel">取消重新读取</button><button id="reload-confirm">放弃编辑并重新读取</button></div>
 </dialog>
 <!-- EDITOR_SCRIPT -->
 </body>

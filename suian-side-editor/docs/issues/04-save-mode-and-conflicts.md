@@ -1,10 +1,12 @@
 # SE-04 · 持久化会话保存模式，自动保存并处理外部修改
 
-**状态**：已发布，尚未实施；依赖与实际能力条件未满足前保持阻塞。
+**状态**：已发布；SE-03 本地范围通过后已实施本票代码，SDK／SQLite／stdio 与实际构建浏览器契约通过。独立两轴与本票 Native 尚待执行，未宣称整票或用户验收完成。
 
 **GitHub**：[#44](https://github.com/ONEGAYI/ZCode-Plugins/issues/44)。
 
 **Blocked by**：[#43 · SE-03](https://github.com/ONEGAYI/ZCode-Plugins/issues/43)。
+
+SE-03 依赖已在统一树通过，见 [Native 记录](../se03-native-verification.md)。下列条件保留为正式验收清单；本地验证的范围与结果见 [SE-04 验证](../se04-verification.md)，不以勾选代替后续 Native 验证。
 
 规格：[首版规格](../text-editor-spec.md)。顺序：[票索引](../text-editor-tickets.md)。本地标识不是 GitHub Issue 编号。
 
@@ -34,5 +36,7 @@ suian-side-editor 的状态库、模式工具、自动保存调度、外部文�
 ## 验证与完成证据
 
 MCP/真实状态库测试多会话与新进程读取；页面契约验证定时和模式按钮；Desktop 验证模型或外部编辑器修改后的同步。
+
+当前 SDK 契约 25/25、实际构建浏览器 12 组原有行为与 8 组新增行为通过，模型调用与 Native 操作为零。数据目录按 Host 默认注入约定使用；真实 Native 的数据目录、模式工具授权及自动调用仍由后续限定烟测核实。
 
 可执行行为遵循契约测试先行。首次长命令落盘记录日志和退出码；只汇总脱敏证据。通过依赖票还必须满足该票声明的实际能力条件；调查结束本身不会解除能力阻塞。
