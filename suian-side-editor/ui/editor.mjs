@@ -19,10 +19,13 @@ function showStatus(text, error = false) { statusText.textContent = text; status
 function isDirty(file) { return file.text !== file.diskText; }
 function showFileStatus() {
   conflictBar.hidden = !current?.blocked;
+  const busy = Boolean(current?.saving || current?.reloading);
+  document.getElementById('reload-file').disabled = busy;
+  document.getElementById('reload-confirm').disabled = busy;
   if (!current) { save.disabled = true; fileInfo.textContent = ''; showStatus(settingsError ?? '选择文件开始编辑', Boolean(settingsError)); return; }
-  save.disabled = current.saving || !isDirty(current);
+  save.disabled = current.saving || current.reloading || !isDirty(current);
   fileInfo.textContent = `UTF-8${current.encoding.bom ? ' BOM' : ''} · ${current.encoding.newline.toUpperCase()}`;
-  showStatus(current.error ?? settingsError ?? (current.saving ? '正在保存…' : isDirty(current) ? '未保存' : current.saved ? '已保存' : '已读取'), Boolean(current.error || settingsError));
+  showStatus(current.reloading ? '正在重新读取…' : current.error ?? settingsError ?? (current.saving ? '正在保存…' : isDirty(current) ? '未保存' : current.saved ? '已保存' : '已读取'), Boolean(current.error || settingsError));
 }
 function theme() { document.documentElement.dataset.theme = host.theme ?? 'light'; }
 async function call(name, args) {
@@ -116,11 +119,12 @@ function createEditorState(file, separator = lineBreaks[file.encoding.newline]) 
           file.state = update.state;
           if (!update.docChanged) return;
           file.text = file.mixed ? changeMixedText(file.text, update.changes, file.insertedSeparator) : update.state.sliceDoc(); file.fixed = true;
+          file.lastEditAt = performance.now();
           renderTabs(); showFileStatus(); scheduleAuto(file);
         })] });
 }
 async function saveFile(file) {
-  if (file.saving) return false;
+  if (file.saving || file.reloading) return false;
   cancelAuto(file);
   const text = file.text;
   file.saving = true; file.error = undefined; renderTabs(); showFileStatus();
@@ -151,7 +155,7 @@ function autoSave(file) {
   void saveFile(file);
 }
 function scheduleAuto(file, delay = 800) {
-  clearTimeout(file.autoTimer); file.autoTimer = undefined;
+  clearTimeout(file.autoTimer); file.autoTimer = undefined; file.autoAfterSave = false;
   if (canAutoSave(file)) file.autoTimer = setTimeout(() => { file.autoTimer = undefined; autoSave(file); }, delay);
 }
 function renderMode() {
@@ -162,7 +166,10 @@ async function loadSettings() {
   settingsBusy = true; renderMode();
   try { const data = await call('get_editor_settings', {}); saveMode = data.saveMode; settingsReady = true; settingsError = undefined; }
   catch (error) { settingsError = error.message; }
-  finally { settingsBusy = false; renderMode(); showFileStatus(); }
+  finally {
+    settingsBusy = false; renderMode(); showFileStatus();
+    for (const file of documents) scheduleAuto(file, Math.max(0, 800 - (performance.now() - (file.lastEditAt ?? performance.now()))));
+  }
 }
 modeButton.addEventListener('click', async () => {
   if (!settingsReady) { await loadSettings(); return; }
@@ -210,14 +217,17 @@ async function checkFiles() {
 let reloading;
 document.getElementById('keep-edit').addEventListener('click', () => { showFileStatus(); });
 document.getElementById('reload-file').addEventListener('click', () => {
+  if (current.saving || current.reloading) return;
   reloading = current;
   document.getElementById('reload-message').textContent = `重新读取 ${current.relativePath} 将放弃当前编辑，并使用磁盘正文。`;
   reloadDialog.showModal();
 });
 document.getElementById('reload-cancel').addEventListener('click', () => { reloadDialog.close(); reloading = undefined; });
 document.getElementById('reload-confirm').addEventListener('click', async () => {
-  const file = reloading, text = file.text;
-  reloadDialog.close(); reloading = undefined; file.reloading = true; cancelAuto(file);
+  const file = reloading;
+  if (!file || file.saving || file.reloading) return;
+  const text = file.text;
+  reloadDialog.close(); reloading = undefined; file.reloading = true; cancelAuto(file); showFileStatus();
   try {
     const data = await call('read_editor_text', { path: file.relativePath });
     if (!documents.includes(file)) return;

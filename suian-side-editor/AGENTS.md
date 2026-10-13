@@ -43,6 +43,7 @@ SE-04 的模式持久化、自动触发与外部修改处理已经本地实施�
 | docs/se03-verification.md / docs/se03-evidence.json | 目录／保存 SDK 契约、真实构建浏览器与独立两轴；链接后续限定 Native 证据 |
 | docs/se03-native-verification.md / docs/se03-native-evidence.json | 固定产物的原生目录／读取／编辑／保存、人工审批、磁盘字节与完整 guest 图像；单列失败尝试和能力边界 |
 | docs/se04-verification.md / docs/se04-evidence.json | 模式真实数据库、自动计时与外部修改契约、首次失败轨迹及待 Native 交接；不代表整票验收 |
+| docs/se04-review-fix-verification.md / docs/se04-review-fix-evidence.json | 固定初版后的三项时序问题红绿、新增浏览器契约、历史证据保护与 Native 补充；不代替复核 |
 | docs/design-discussion.md | 已确认交互、问题轮次、宿主能力边界与后续特性范围 |
 | docs/text-editor-spec.md | 首版行为、工程接口边界、能力门槛与验证标准 |
 | docs/text-editor-tickets.md / docs/issues/ | 实施依赖图、原子票草稿和后续待做特性 |
