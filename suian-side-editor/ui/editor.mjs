@@ -3,6 +3,83 @@ import { EditorView, lineNumbers, keymap, drawSelection } from '@codemirror/view
 import { defaultKeymap, history, historyKeymap } from '@codemirror/commands';
 
 const host = window.zcode;
+const commentButton = document.getElementById('comment-selection'), commentDialog = document.getElementById('comment-dialog');
+const commentBody = document.getElementById('comment-body'), commentSubmit = document.getElementById('comment-submit');
+const commentStatus = document.getElementById('comment-status'), commentError = document.getElementById('comment-error');
+let commentDraft, commentBusy = false;
+let comments = [];
+let commentSession = { state: 'unknown', reason: '正在确认主对话状态…' }, commentResource, commentReading = false, commentPending = false;
+let commentRetryTimer;
+const publishedBatches = new Map(), acceptedComments = new Set();
+function applyCommentSession(data) {
+  commentSession = data;
+  for (const accepted of data.acceptedBatches ?? []) {
+    const batch = publishedBatches.get(accepted.batchId);
+    if (!batch || accepted.serialized !== batch.serialized) continue;
+    for (const id of batch.ids) acceptedComments.add(id);
+  }
+  comments = comments.filter(comment => !acceptedComments.has(comment.commentId));
+}
+function commentId() {
+  // 部分公开资源页面没有 secure-context randomUUID；getRandomValues 仍提供随机身份。
+  const bytes = crypto.getRandomValues(new Uint8Array(16)); bytes[6] = bytes[6] & 15 | 64; bytes[8] = bytes[8] & 63 | 128;
+  const hex = Array.from(bytes, byte => byte.toString(16).padStart(2, '0')).join('');
+  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
+}
+function renderComments() {
+  const selected = Boolean(view && !view.state.selection.main.empty);
+  const reason = !host?.updateModelContext ? '当前宿主不支持主对话上下文' : commentSession.state !== 'idle' ? commentSession.reason : commentBusy ? '正在加入主对话…' : '';
+  commentButton.disabled = !selected || Boolean(reason);
+  commentButton.title = reason || (!selected ? '先选择文件正文' : '为当前选区填写评论');
+  commentSubmit.disabled = Boolean(reason) || !commentBody.value.trim(); commentSubmit.title = reason || '将快照加入当前主对话';
+  commentStatus.textContent = `待发送评论 ${comments.length} 条${reason ? ` · ${reason}` : ''}`;
+}
+async function refreshCommentState() {
+  if (disposed || !commentResource) return;
+  if (commentReading) { commentPending = true; return; }
+  commentReading = true; commentPending = false;
+  try { const result = await host.readResource(commentResource); if (!disposed) applyCommentSession(JSON.parse(result.contents[0].text)); }
+  catch (error) { commentSession = { state: 'unknown', reason: `评论状态同步失败：${error.message}` }; }
+  finally {
+    commentReading = false; clearTimeout(commentRetryTimer); renderComments();
+    if (commentPending && !disposed) void refreshCommentState();
+    else if (!disposed && commentSession.state === 'unknown') commentRetryTimer = setTimeout(() => { void refreshCommentState(); }, 1500);
+  }
+}
+async function loadComments() {
+  try {
+    if (!host.updateModelContext) throw new Error('当前宿主不支持主对话上下文');
+    const data = await call('get_editor_comment_state', {}); applyCommentSession(data); commentResource = data.resourceUri;
+    await host.subscribeResource(commentResource);
+    if (disposed) { await host.unsubscribeResource(commentResource); return; }
+    await refreshCommentState();
+  } catch (error) { commentSession = { state: 'unknown', reason: `评论不可用：${error.message}` }; }
+  renderComments();
+}
+commentBody.addEventListener('input', renderComments);
+commentButton.addEventListener('click', () => {
+  if (commentButton.disabled || !current) return;
+  const { from, to } = view.state.selection.main;
+  commentDraft = { commentId: commentId(), sessionId: context.sessionId, workspacePath: context.workspacePath,
+    path: current.sourcePath, title: current.relativePath.split('/').at(-1), startLine: view.state.doc.lineAt(from).number,
+    endLine: view.state.doc.lineAt(to - 1).number, selectedText: view.state.sliceDoc(from, to), unsaved: isDirty(current) };
+  document.getElementById('comment-location').textContent = `${commentDraft.path} · ${commentDraft.startLine}–${commentDraft.endLine} 行${commentDraft.unsaved ? ' · 包含未保存编辑' : ''}`;
+  document.getElementById('comment-selection-text').textContent = commentDraft.selectedText;
+  commentError.textContent = ''; renderComments(); commentDialog.showModal(); commentBody.focus();
+});
+document.getElementById('comment-cancel').addEventListener('click', () => commentDialog.close());
+commentSubmit.addEventListener('click', async () => {
+  if (commentSubmit.disabled || !commentDraft) return;
+  commentBusy = true; renderComments();
+  const next = [...comments, { ...commentDraft, comment: commentBody.value }];
+  const data = { schemaVersion: 1, batchId: commentId(), comments: next };
+  publishedBatches.set(data.batchId, { serialized: JSON.stringify(data), ids: next.map(comment => comment.commentId) });
+  try {
+    await host.updateModelContext({ content: [{ type: 'text', text: `文本编辑器选区评论（${next.length} 条；快照创建后不随正文变化）\n${JSON.stringify(data)}` }], structuredContent: data });
+    comments = next.filter(comment => !acceptedComments.has(comment.commentId)); commentDraft = undefined; commentBody.value = ''; commentError.textContent = ''; commentDialog.close();
+  } catch (error) { commentError.textContent = `加入主对话失败，评论已保留：${error.message}`; }
+  finally { commentBusy = false; renderComments(); }
+});
 const folder = document.getElementById('folder'), files = document.getElementById('files');
 const tree = document.getElementById('tree'), status = document.getElementById('status');
 const editor = document.getElementById('editor'), empty = document.getElementById('empty');
@@ -89,6 +166,7 @@ const lineBreaks = { crlf: '\r\n', cr: '\r', lf: '\n', none: '\n' };
 function showStatus(text, error = false) { statusText.textContent = text; status.classList.toggle('error', error); }
 function isDirty(file) { return file.text !== file.diskText; }
 function showFileStatus() {
+  renderComments();
   conflictBar.hidden = !(current?.blocked || current?.syncError);
   const busy = Boolean(current?.saving || current?.reloading);
   document.getElementById('reload-file').disabled = busy;
@@ -207,6 +285,7 @@ function createEditorState(file, separator = lineBreaks[file.encoding.newline]) 
         } }),
         EditorView.updateListener.of(update => {
           file.state = update.state;
+          if (update.selectionSet) renderComments();
           if (!update.docChanged) return;
           file.text = file.mixed ? changeMixedText(file.text, update.changes, file.insertedSeparator) : update.state.sliceDoc(); file.fixed = true;
           file.lastEditAt = performance.now();
@@ -333,7 +412,7 @@ function stopResource(file) {
   file.subscribed = false;
   void host.unsubscribeResource(file.resourceUri).catch(error => showStatus(`文件退订失败：${error.message}`, true));
 }
-window.addEventListener('pagehide', () => { disposed = true; clearTimeout(recoveryTimer); cancelResourceEvents?.(); for (const file of documents) stopResource(file); });
+window.addEventListener('pagehide', () => { disposed = true; clearTimeout(recoveryTimer); clearTimeout(commentRetryTimer); cancelResourceEvents?.(); for (const file of documents) stopResource(file); if (commentResource) void host.unsubscribeResource(commentResource).catch(() => {}); });
 let reloading;
 document.getElementById('keep-edit').addEventListener('click', () => { showFileStatus(); });
 document.getElementById('reload-file').addEventListener('click', () => {
@@ -451,7 +530,8 @@ try {
   host.subscribe(theme); await host.ready(); theme();
   context = await call('get_editor_context', {});
   if (!host.hostCapabilities?.experimental?.['zcode/resourceSubscribe']) throw new Error('当前宿主不支持资源订阅，外部文件同步不可用');
-  cancelResourceEvents = host.onResourceUpdated(uri => { const file = documents.find(item => item.resourceUri === uri); if (file) void refreshFile(file); });
+  cancelResourceEvents = host.onResourceUpdated(uri => { if (uri === commentResource) void refreshCommentState(); const file = documents.find(item => item.resourceUri === uri); if (file) void refreshFile(file); });
   document.getElementById('workspace-title').textContent = context.workspacePath.split(/[\\/]/).at(-1);
   await loadRecovery(); folder.disabled = !recoveryReady; await loadSettings();
+  void loadComments();
 } catch (error) { showStatus(error.message, true); }
