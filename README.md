@@ -142,7 +142,7 @@ git -C "{{repo_dir}}" sparse-checkout set suian-zcode-title suian-zcode-common
 
 在当前本机工作区浏览已有 UTF-8 文本，使用内部临时／固定页签编辑，再以保存按钮或 Ctrl+S 写回。目录按层展开，保存前检查磁盘内容版本；版本冲突时拒绝覆盖并保留编辑。SDK、实际构建浏览器及人工原生审批下的限定 Native 烟测已通过，范围见 [SE-03 原生验证](./suian-side-editor/docs/se03-native-verification.md)。
 
-SE-04 原 Native 验证因稳定文件反复触发读工具审批而未通过。当前改为首次受审读取后订阅已登记文件的变化，并修正两轴发现的四项恢复与同步时序问题。本地及整合 SDK 33 项、实际构建浏览器 38 项／组通过，原四项在已测触发范围经两轴闭合；新增问题仍待修复／核实，Native 继续暂停，#44 尚未完成，范围见 [四项修正](./suian-side-editor/docs/se04-watch-review-verification.md) 与 [实施总记录](./suian-side-editor/docs/development-verification.md)。
+SE-04 原 Native 验证因稳定文件反复触发读工具审批而未通过。当前改为首次受审读取后订阅已登记文件的变化，后续资源关联和三页切换问题均经实际红测修正。最终整合实际构建浏览器 42 项／组通过，SDK 33 项沿用未变服务端的既有证据；原四项已测触发及第三轮固定源修正经两轴闭合，最终统一等同性和导航待补核。Native 继续暂停，#44 尚未完成，范围见 [第二轮修正](./suian-side-editor/docs/se04-watch-round2-verification.md)、[第三轮修正](./suian-side-editor/docs/se04-watch-round3-verification.md) 与 [实施总记录](./suian-side-editor/docs/development-verification.md)。
 
 本插件尚未加入上面的市场清单，正式缓存包装仍待验。跨重启的正文／页签恢复和评论尚未实现，H3/H4 与完整首版仍未通过；本地验证不代表用户产品验收。
 
