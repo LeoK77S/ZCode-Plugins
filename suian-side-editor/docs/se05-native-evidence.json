@@ -4,6 +4,21 @@
   "sourceHead": "205267649c927b05a47c1673c5aa1454a1fc855d",
   "integratedExecutionHead": "77caa2a5be31ce7acca310f8d9ccf82dc7a6aba7",
   "execution": {
+    "hostInstallation": {
+      "desktopExe": { "productVersion": "3.15.1.8093", "fileVersion": "3.15.1.8093", "symbolicPath": "{{ZCODE_INSTALL}}/ZCode.exe", "currentRunSha256": "d39000efadb1a7ef97ab9bc8a5929c826fb57f8faba8c4b14f6646df7e190b6e" },
+      "asar": { "packageVersion": "3.15.1", "symbolicPath": "{{ZCODE_INSTALL}}/resources/app.asar", "priorEvidenceSha256": "c98b4b2a80e5ea46ce93f934f9580eff11bc487570c87478fa36a3f4bd3d101f", "packageVersionEvidenceReused": true, "hashRecheckedInCurrentNativeRuns": false, "currentReadOnlyMetadataHashMatchesPriorEvidence": true },
+      "cli": { "version": "0.16.9", "symbolicPath": "{{ZCODE_INSTALL}}/resources/glm/zcode.cjs", "currentRunSha256": "b816e38656e70fb585fe2ab1ea010da89cda928dac1ccb5d83255fd18796da6e", "currentRunHashMatchesPriorVersionEvidence": true },
+      "existingVersionEvidence": ["se01-verification.md", "se01-evidence.json", "se02-evidence.json"],
+      "versionMethod": "根新增只读 PE ProductVersion/FileVersion 与安装文件 SHA 核验；ASAR 包版本与实际 CLI --version 沿用既有核验",
+      "readOnlyInstalledMetadata": { "evidence": ".scratch/se05-native-version-metadata/metadata.json", "exeVersionAndHashReadFromSameFile": true, "exeAndCliMatchBothFrozenRuns": true, "asarAndCliCurrentHashesMatchPriorVersionEvidence": true, "processStarted": false, "independentOfOriginalNativeManifests": true },
+      "versionCommandExecutedInThisRound": false,
+      "currentRuns": [".scratch/se05-native-lifecycle-evidence/warm-natural/run.json", ".scratch/se05-native-app-restart-evidence/recovery/run.json"],
+      "sameActualExeAndCliPathsAndHashesInBothRuns": true,
+      "actualPathsLocalOnly": true,
+      "symbolicExecutionEntry": "{{SE05_EXECUTION_SOURCE}}/cli.mjs",
+      "symbolicExecutionUi": "{{SE05_EXECUTION_SOURCE}}/ui/dist/editor.html"
+    },
+    "versionDocumentationReview": { "firstHead": "8d3647c543b98472220f03dc67c511a99b31a3bc", "firstStandardsAxisPassed": true, "firstSpecAxisMissingVersionsP2": true, "relatedFixIndependentRereviewPending": true },
     "isolatedProfileUserScopeTemporaryWrapper": true,
     "actualSourceFilesCompared": 9,
     "sourceAndIntegratedExecutionEquivalent": true,

@@ -6,9 +6,17 @@
 
 实际执行 Source `205267649c927b05a47c1673c5aa1454a1fc855d` 与统一 `77caa2a5be31ce7acca310f8d9ccf82dc7a6aba7` 等同。自有隔离 profile 内以 user scope 安装临时 wrapper，核对实际加载的九份来源文件及 HTML；没有改真实用户 profile，不是 SE-08 正式缓存安装。
 
+运行版本为 Desktop EXE ProductVersion／FileVersion `3.15.1.8093`、ASAR 包 `3.15.1`、内置 CLI `0.16.9`。EXE 版本来自根的新只读 PE 元数据核验；ASAR 包版本与 CLI 版本沿用 [SE-01 版本记录](se01-verification.md#实际-desktop-对象与隔离) 的包版本及实际 CLI `--version` 核验。[SE-01 安装索引](se01-evidence.json) 和 [SE-02 安装索引](se02-evidence.json) 提供对应包哈希；本轮没有重新执行版本命令。
+
+符号 `{{ZCODE_INSTALL}}` 指实际安装目录：EXE 为 `{{ZCODE_INSTALL}}/ZCode.exe`，ASAR 为 `{{ZCODE_INSTALL}}/resources/app.asar`，CLI 为 `{{ZCODE_INSTALL}}/resources/glm/zcode.cjs`。临时 wrapper 实际来源副本以 `{{SE05_EXECUTION_SOURCE}}` 表示，入口为其中的 `cli.mjs`，页面为 `ui/dist/editor.html`。真实位置只在统一树本机 `.scratch/se05-native-lifecycle-evidence/warm-natural/run.json` 与 `.scratch/se05-native-app-restart-evidence/recovery/run.json` 及最终恢复摘要中登记，不将绝对路径入库。
+
+两份本轮 `run.json` 核对同一实际 EXE／CLI 位置及相同哈希：EXE SHA-256 `d39000efadb1a7ef97ab9bc8a5929c826fb57f8faba8c4b14f6646df7e190b6e`，CLI SHA-256 `b816e38656e70fb585fe2ab1ea010da89cda928dac1ccb5d83255fd18796da6e`。根另存本机 `.scratch/se05-native-version-metadata/metadata.json`：直接读取同一 EXE 的版本与哈希，当前 ASAR SHA-256 `c98b4b2a80e5ea46ce93f934f9580eff11bc487570c87478fa36a3f4bd3d101f` 及 CLI 哈希匹配既有版本证据。该补记只读安装文件，没有启动进程；它独立于原 Native manifest，不把补测 ASAR 哈希写成旧运行中已测，也不声称旧 SE-01 索引含 EXE 哈希。
+
 HTML 为 322673 字节，SHA-256 `f14ad28157006b64ef6ff13d4293ede3b81bc476b9298fd0ed445b5fa4d9b600`；完整 11 份许可为 12465 字节，SHA-256 `23ce8b41b422c88e526c88e599317e4f56484732251311f789805f328f4af2c8`。本轮只整理文档，没有改执行文件、重建产物或重跑功能套件。
 
 统一首次完整 SDK 37/37、浏览器 55/55（脚本 20 组、Node 35 项）、build/check/content 均退出 0。根在随后 Native 放行记录中确认最终统一代码两轴通过；集成摘要原有“待两轴”字段保留其提交时点。Source 最后一轮的 SDK 36 项等同性沿用加新资源 1 项执行，与统一首次完整 37 项分别归属。[初版](se05-verification.md) 及三轮修正记录保持原样。
+
+新 Native 文档固定 `8d3647c` 的首轮规范轴通过，规格轴指出缺少上述版本与来源关联这一项 P2；首报告保持原样。本补记仍待缺口的独立窄复核，不能视为文档最终放行。
 
 ## 三种生命周期
 
