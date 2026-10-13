@@ -18,7 +18,12 @@ async function fixture(t, { failPublish = false, holdPublish = false, restoreMis
   const hostCalls = [], calls = [], capsules = [], events = [];
   let connectionError, releasePublish, publishStarted;
   const publishReady = new Promise(resolve => { publishStarted = resolve; });
-  const hostConnector = async options => { if (connectionError) throw new Error(connectionError); return { call: async (channel, method, args) => { hostCalls.push({ options, channel, method, args }); return method === 'readSessionEvents' ? events : state; }, close() {} }; };
+  const hostConnector = async options => { if (connectionError) throw new Error(connectionError); return { call: async (channel, method, args) => {
+    hostCalls.push({ options, channel, method, args }); const query = args[0];
+    if (method === 'getTaskSnapshot') return { ...state, messages: state.messages.slice(-query.messageLimit) };
+    assert.equal(method, 'readSessionEvents'); const delta = events.filter(event => query.afterSeq === undefined || event.seq > query.afterSeq);
+    return query.limit ? delta.slice(-query.limit) : delta;
+  }, close() {} }; };
   const client = await connect(t, { workspaceRoot, dataPath, hostConnector });
   if (restoreMissing) {
     const file = (await client.callTool({ name: 'read_editor_text', arguments: { path: 'alpha.txt' }, _meta: { session_id: 'comment-fixture' } })).structuredContent;
@@ -38,7 +43,7 @@ async function fixture(t, { failPublish = false, holdPublish = false, restoreMis
   } else await page.getByRole('button', { name: '保存方式', exact: true }).getByText('手动保存', { exact: true }).waitFor();
   const content = page.getByRole('textbox', { name: '文件正文', exact: true }); await content.waitFor();
   async function select() { await content.focus(); await page.keyboard.press('Control+Home'); await page.keyboard.press('ArrowDown'); await page.keyboard.press('Home'); await page.keyboard.press('Shift+End'); }
-  async function refresh() { await client.readResource({ uri: calls.find(call => call.name === 'get_editor_comment_state').result.structuredContent.resourceUri }); }
+  async function refresh() { return JSON.parse((await client.readResource({ uri: calls.find(call => call.name === 'get_editor_comment_state').result.structuredContent.resourceUri })).contents[0].text); }
   return { page, content, select, state, events, hostCalls, calls, capsules, resources, workspaceRoot, client, refresh, publishReady, disconnect: message => { connectionError = message; }, releasePublish: () => releasePublish({}) };
 }
 
@@ -145,4 +150,23 @@ test('失败与残缺正文保留，完整批次受理清理，晚到旧回执�
   await f.page.getByText('待发送评论 0 条', { exact: true }).waitFor();
   assert.ok(f.hostCalls.some(call => call.channel === 'zcode-agent' && call.method === 'readSessionEvents'));
   assert.equal(f.capsules.length, 2, '受理观察不会定时重发胶囊');
+});
+
+test('断连期间A受理并退出两种历史尾窗，重连补齐缺口后B胶囊只有B', async t => {
+  const f = await fixture(t);
+  const add = async comment => { await f.select(); await f.page.getByRole('button', { name: '评论选区', exact: true }).click(); await f.page.getByRole('textbox', { name: '评论内容', exact: true }).fill(comment); await f.page.getByRole('button', { name: '加入主对话', exact: true }).click(); await f.page.getByRole('dialog', { name: '选区评论', exact: true }).waitFor({ state: 'hidden' }); };
+  await add('A 已发送'); await f.page.getByText('待发送评论 1 条', { exact: true }).waitFor();
+  const aText = f.capsules[0].content[0].text;
+  f.disconnect('确定性断开观察连接'); assert.equal((await f.refresh()).state, 'unknown');
+  await f.page.waitForFunction(() => document.getElementById('comment-status').textContent.includes('确定性断开'));
+  assert.equal(await f.page.getByRole('button', { name: '评论选区', exact: true }).isDisabled(), true);
+  f.state.messages.push({ role: 'user', content: aText, timestamp: 1 });
+  f.events.push({ eventId: 'accepted-A', sessionId: 'comment-fixture', seq: 1, timestamp: 1, type: 'turn.steerQueued', payload: { input: aText } });
+  for (let i = 0; i < 201; i++) f.events.push({ eventId: `later-${i}`, sessionId: 'comment-fixture', seq: i + 2, timestamp: i + 2, type: 'tool.updated', payload: {} });
+  for (let i = 0; i < 24; i++) f.state.messages.push({ role: i % 2 ? 'assistant' : 'user', content: `普通后续正文 ${i}`, timestamp: i + 2 });
+  assert.ok(!f.events.slice(-200).some(event => event.payload.input === aText)); assert.ok(!f.state.messages.slice(-20).some(message => message.content === aText));
+  f.disconnect(undefined); assert.equal((await f.refresh()).state, 'idle');
+  await add('B 新评论');
+  assert.deepEqual(f.capsules.at(-1).structuredContent.comments.map(comment => comment.comment), ['B 新评论']);
+  await f.refresh(); await f.page.getByText('待发送评论 1 条', { exact: true }).waitFor();
 });

@@ -89,3 +89,33 @@ test('评论状态退订后快照回执迟到不得继续读取start-if-needed�
   await client.unsubscribeResource({ uri }); release.resolve(); await pending;
   assert.deepEqual(lateCalls, ['getTaskSnapshot'], '正在执行的快照无法撤回，但退订后的事件读取不能开始');
 });
+
+test('评论事件游标补齐超尾窗缺口，失败不跳过事件，识别批次保留到资源释放', async t => {
+  const workspaceRoot = await mkdtemp(join(tmpdir(), 'comment-event-cursor-')); t.after(() => rm(workspaceRoot, { recursive: true, force: true }));
+  const sessionId = 'cursor-fixture', events = [{ eventId: 'baseline', sessionId, seq: 7, timestamp: 1, type: 'tool.updated', payload: {} }], messages = [], queries = [];
+  let failEvents = false, invalidSeq = false;
+  const client = await connect(t, { workspaceRoot, hostConnector: async () => ({ call: async (_channel, method, [query]) => {
+    if (method === 'getTaskSnapshot') return { meta: { taskId: sessionId, status: 'completed' }, runtime: {}, messages: messages.slice(-query.messageLimit) };
+    assert.equal(method, 'readSessionEvents'); queries.push(query);
+    if (failEvents) throw new Error('事件读取确定性失败');
+    const delta = events.filter(event => query.afterSeq === undefined || event.seq > query.afterSeq);
+    if (invalidSeq) return [...delta, { eventId: 'invalid', sessionId, seq: 'invalid', type: 'tool.updated', payload: {} }];
+    return query.limit ? delta.slice(-query.limit) : delta;
+  }, close() {} }) });
+  const register = () => client.callTool({ name: 'get_editor_comment_state', arguments: {}, _meta: { session_id: sessionId } });
+  const uri = (await register()).structuredContent.resourceUri;
+  const batch = { schemaVersion: 1, batchId: 'batch-A', comments: [{ commentId: 'comment-A', sessionId, workspacePath: workspaceRoot, path: join(workspaceRoot, 'a.txt'), title: 'a.txt', startLine: 1, endLine: 1, selectedText: 'selected', comment: 'A', unsaved: true }] };
+  const serialized = JSON.stringify(batch), input = `文本编辑器选区评论（1 条）\n${serialized}`;
+  events.push({ eventId: 'A', sessionId, seq: 8, timestamp: 2, type: 'turn.started', payload: { input } });
+  for (let i = 0; i < 201; i++) events.push({ eventId: `later-${i}`, sessionId, seq: i + 9, timestamp: i + 3, type: 'tool.updated', payload: {} });
+  messages.push({ role: 'user', content: input }); for (let i = 0; i < 24; i++) messages.push({ role: 'user', content: `ordinary ${i}` });
+  const read = async () => JSON.parse((await client.readResource({ uri })).contents[0].text);
+  failEvents = true; assert.equal((await read()).state, 'unknown');
+  failEvents = false; invalidSeq = true; assert.equal((await read()).state, 'unknown', '无效序号不能当作成功基线');
+  invalidSeq = false; const recovered = await read();
+  assert.equal(recovered.state, 'idle'); assert.deepEqual(recovered.acceptedBatches, [{ batchId: 'batch-A', serialized }]);
+  assert.equal(queries.at(-1).afterSeq, 7, '失败读取不能推进上次成功基线'); assert.equal(queries.at(-1).limit, undefined, 'afterSeq补齐缺口不使用尾窗');
+  const notifiedThenRead = await read(); assert.deepEqual(notifiedThenRead.acceptedBatches, recovered.acceptedBatches, '下一次无增量读取仍有消费证据'); assert.equal(queries.at(-1).afterSeq, 209);
+  await client.unsubscribeResource({ uri }); await assert.rejects(client.readResource({ uri }), /未登记/);
+  const fresh = (await register()).structuredContent; assert.notEqual(fresh.resourceUri, uri); assert.deepEqual(fresh.acceptedBatches, [], '退订释放旧资源的记忆，新资源只取其首次基线');
+});

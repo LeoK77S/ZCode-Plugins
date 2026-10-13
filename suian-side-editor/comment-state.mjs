@@ -42,14 +42,25 @@ export function installCommentState(server, { hostConnector = connectHost, gatew
         if (!active(entry)) return false;
         if (data?.meta?.taskId && data.meta.taskId !== entry.context.sessionId) throw new Error('网关返回了其他会话，评论状态不可确认');
         // 此公开读取默认 start-if-needed；不是 existing-only，也不是发送 pending 信号。
-        const events = await host.call('zcode-agent', 'readSessionEvents', [{ sessionId: entry.context.sessionId, workspacePath: entry.context.workspacePath, limit: 200 }]);
+        const events = await host.call('zcode-agent', 'readSessionEvents', [{ sessionId: entry.context.sessionId, workspacePath: entry.context.workspacePath,
+          // 首次取得基线；此后补齐成功游标之后的全部缺口，尾窗会漏掉断连期间的受理。
+          ...(entry.eventSeq === undefined ? { limit: 200 } : { afterSeq: entry.eventSeq }) }]);
         if (!active(entry)) return false;
         if (!Array.isArray(events)) throw new Error('主对话事件读取未返回有效数组，评论受理不可确认');
+        let nextSeq = entry.eventSeq ?? 0;
+        for (const event of events) {
+          if (event?.sessionId !== entry.context.sessionId || !Number.isInteger(event.seq) || event.seq < 0) throw new Error('主对话事件归属或序号无效，评论受理不可确认');
+          nextSeq = Math.max(nextSeq, event.seq);
+        }
+        const accepted = new Map(entry.accepted);
+        for (const batch of acceptedBatches(entry.context, Array.isArray(data.messages) ? data.messages : [], events)) accepted.set(batch.serialized, batch);
         const busy = data?.meta?.status === 'running' || Boolean(data?.runtime?.activeTurnKind);
         const state = busy ? 'busy' : data?.meta?.status === 'completed' ? 'idle' : 'unknown';
         snapshot = { state, reason: busy ? busyReason : state === 'unknown' ? '尚未取得可确认的主对话状态，暂时不能添加评论' : '',
           source: 'task-snapshot', status: data?.meta?.status ?? null, activeTurnKind: data?.runtime?.activeTurnKind ?? null,
-          acceptedBatches: acceptedBatches(entry.context, Array.isArray(data.messages) ? data.messages : [], events) };
+          acceptedBatches: [...accepted.values()] };
+        // 读取与解析完成后才提交游标/批次记忆；通知后的再次读取即使无增量也保留证据。
+        entry.eventSeq = nextSeq; entry.accepted = accepted;
       } catch (error) { if (!active(entry)) return false; snapshot = { state: 'unknown', reason: `评论状态不可用：${error.message}`, code: error.reasonCode ?? error.code ?? 'comment_state_unavailable' }; }
       finally { host?.close(); entry.connection = undefined; }
       const changed = JSON.stringify(snapshot) !== JSON.stringify(entry.snapshot); entry.snapshot = snapshot; return changed;
@@ -77,7 +88,7 @@ export function installCommentState(server, { hostConnector = connectHost, gatew
     async register(context) {
       if (closed) throw new McpError(ErrorCode.InvalidRequest, '评论状态连接已关闭');
       let entry = [...entries.values()].find(item => item.context.sessionId === context.sessionId && item.context.workspacePath === context.workspacePath);
-      if (!entry) { const uri = `ui://suian-side-editor/comment-state/${randomUUID()}`; entry = { uri, context, reading: Promise.resolve() }; entries.set(uri, entry); }
+      if (!entry) { const uri = `ui://suian-side-editor/comment-state/${randomUUID()}`; entry = { uri, context, accepted: new Map(), reading: Promise.resolve() }; entries.set(uri, entry); }
       await refresh(entry); lookup(entry.uri); return { ...entry.snapshot, resourceUri: entry.uri };
     },
     async subscribe(uri) { const entry = lookup(uri); await refresh(entry); if (!entries.has(uri)) return; entry.subscribed = true; if (!entry.timer) monitor(entry); return {}; },
