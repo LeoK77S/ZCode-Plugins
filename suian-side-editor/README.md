@@ -1,6 +1,6 @@
 # suian-side-editor
 
-独立侧栏文本编辑器的**本地开发切片**。目录树、临时／固定页签和版本检查手动保存已通过 SDK 与真实构建浏览器验证；[SE-03](docs/se03-verification.md) 的 Native 保存烟测与独立复核仍待进行。SE-01 的 H1/H2 已经人工原生审批实测及两轴复核通过。本插件暂不加入市场清单，GitHub [#43](https://github.com/ONEGAYI/ZCode-Plugins/issues/43) 尚未完成。
+独立侧栏文本编辑器的**本地开发切片**。目录树、临时／固定页签和版本检查手动保存已通过 SDK、真实构建浏览器、限定 Native 烟测及独立两轴复核，见 [SE-03](docs/se03-verification.md)。SE-01 的 H1/H2 已经人工原生审批实测及两轴复核通过。本插件暂不加入市场清单；[#43](https://github.com/ONEGAYI/ZCode-Plugins/issues/43) 本地范围已完成，远端票仍开着，不代表完整首版或用户验收。
 
 ## 当前可验证的行为
 
@@ -38,6 +38,6 @@ UI 源文件是 `ui/editor-template.html`、`ui/editor.css` 与 `ui/editor.mjs`�
 
 实现范围与首次轨迹见 [SE-01 验证记录](docs/se01-verification.md)，实际首开、关闭重开及两个工作区的结果见 [Native 续验](docs/se01-native-verification.md)。脱敏日志摘要见 [JSON 证据](docs/se01-evidence.json)。规格与原子票见 [首版规格](docs/text-editor-spec.md) 和 [SE-01](docs/issues/01-sidebar-context-and-read.md)。
 
-目录、保存与页面结果见 [SE-03 验证记录](docs/se03-verification.md) 和 [JSON 证据](docs/se03-evidence.json)：SDK／stdio／Windows ACL 19/19，浏览器 12 组行为、构建与语法检查通过。混合换行转换后的连续保存和 LF 粘贴 CRLF 文件的两项审查候选已经复现修复，独立复核仍待进行；Native 保存烟测和用户验收仍未发生。
+目录、保存与页面结果见 [SE-03 验证记录](docs/se03-verification.md) 和 [JSON 证据](docs/se03-evidence.json)：SDK／stdio／Windows ACL 19/19，浏览器 12 组行为、构建与语法检查通过。混合换行转换后的连续保存和 LF 粘贴 CRLF 文件的两项 P2 已修复并通过双轴复核。[Native 烟测](docs/se03-native-verification.md) 的 11 次请求为 10 次成功与 1 次预期版本冲突，按钮和 Ctrl+S 均核对磁盘字节；人工批准工具不代表用户产品验收。自动保存、重启恢复及评论接入仍待后续票完成。
 
 读取与保存使用常规 `realpath`、文件句柄和字节版本。保存前核对内容并在本服务接收入口顺序处理，不提供跨任意外部编辑器的原子比较写入或工作区目录被并发替换时的原子路径隔离保证。
