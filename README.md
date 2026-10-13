@@ -74,6 +74,7 @@ https://github.com/ONEGAYI/ZCode-Plugins.git
 随后仅对实际已安装的业务插件执行对应命令：
 zcode plugins update suian-zcode-title@suian-zcode-plugins
 zcode plugins update suian-zcode-app-mcp@suian-zcode-plugins
+zcode plugins update suian-side-editor@suian-zcode-plugins
 不要在插件版本缓存中 git pull。更新后核对各插件的新版本和 rootPath，报告结果。
 ```
 
@@ -84,8 +85,9 @@ zcode plugins update suian-zcode-app-mcp@suian-zcode-plugins
 ```text
 我已更新 ZCode-Plugins 原生插件，请重新配置 suian-zcode-common 和我已安装的业务插件，
 确保新功能可用，保留插件选择、启用或暂停状态、已有模型、授权和个人配置。
-重新查询实际插件清单，以新的 rootPath、dataPath 读取各自 setup 技能并执行升级配置，
-刷新公共与 MCP 的锁定依赖、公共包链接、命名通知入口，并按需安全重载网关。
+重新查询实际插件清单，以新的 rootPath、dataPath 读取所选业务插件的 setup 技能并执行升级配置。
+仅使用 suian-side-editor 时，按其 setup 刷新锁定依赖、公共包链接与 MCP 连接，跳过网关和命名步骤。
+使用 title 或 app-mcp 时，按各自及 common 技能刷新依赖、公共包链接、所需通知入口，并按需安全重载网关。
 保留当前 ZCode；重载前让我暂停移动端远控，由你继续完成配置与本机检查。
 已有 MCP 进程可能仍用旧代码，按技能安排断开重连或择时重开，并核对实际工具清单。
 如为升级临时暂停命名，记录原开关，模型与 Host 核验通过后恢复原状态并复读。

@@ -33,7 +33,7 @@
 
 > **当前范围**：尚未提供选区评论与主对话评论胶囊。宿主缺少关联发送批次的消费通知，评论 #46／47 及完整首版 #48 仍受 H3 门槛阻塞；PPT、远程工作区与新建、重命名、删除文件不在本版范围内。
 
-> **验证边界**：SDK 37 项、浏览器 55 项／组及三种限定原生生命周期验证通过。临时隔离入口的结果不等于正式缓存安装与用户产品验收；详细范围见 [实施总记录](docs/development-verification.md)。
+> **验证边界**：核心实现原 SDK 基线为 37 项；加入市场登记契约后，本轮完整 SDK 回归 39 项通过。浏览器 55 项／组及三种限定原生生命周期验证沿用核心实现的通过记录。临时隔离入口的结果不等于正式缓存安装与用户产品验收；详细范围见 [实施总记录](docs/development-verification.md)。
 
 <!-- 变更链接 -->
-[0.1.0]: https://github.com/ONEGAYI/ZCode-Plugins/commits/daffd78970692281f8ff33505bcd3362b7810336
+[0.1.0]: https://github.com/ONEGAYI/ZCode-Plugins/commits/29eb9b5a7fad5681f488e098e6d26ccce0f41a57
