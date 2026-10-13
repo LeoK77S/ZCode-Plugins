@@ -29,7 +29,7 @@ async function withEditor(action, { saveMode = 'auto', pendingSettings = false }
     const html = (await client.readResource({ uri: EDITOR_URI })).contents[0].text;
     browser = await chromium.launch({ headless: true });
     const page = await browser.newPage({ viewport: { width: 1000, height: 700 } });
-    page.setDefaultTimeout(1800); await page.clock.install();
+    page.setDefaultTimeout(1800); await page.clock.install({ time: new Date('2026-01-01T00:00:00Z') });
     const calls = [], errors = [], requests = [];
     const holds = new Map();
     function hold(name) {
@@ -55,7 +55,7 @@ async function withEditor(action, { saveMode = 'auto', pendingSettings = false }
     const mode = page.getByRole('button', { name: '保存方式', exact: true });
     if (pendingSettings) await settings.ready;
     else await mode.getByText(saveMode === 'auto' ? '自动保存' : '手动保存', { exact: true }).waitFor();
-    await page.clock.pauseAt(await page.evaluate(() => Date.now()));
+    await page.clock.pauseAt(new Date('2026-01-01T01:00:00Z'));
     await page.getByRole('button', { name: '文件列表', exact: true }).click();
     await page.getByRole('treeitem', { name: 'file.txt', exact: true }).click();
     const content = page.getByRole('textbox', { name: '文件正文', exact: true }); await content.waitFor();

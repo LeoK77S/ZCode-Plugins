@@ -9,7 +9,7 @@
   "scripts": {
     "start": "node cli.mjs",
     "test": "node --test tests/*.test.mjs",
-    "test:browser": "node tests/browser-editor.mjs && node tests/browser-save-mode.mjs && node --test tests/browser-autosave-order.mjs tests/browser-stable-file-permission.mjs tests/browser-resource-sync.mjs tests/browser-resource-review.mjs",
+    "test:browser": "node tests/browser-editor.mjs && node tests/browser-save-mode.mjs && node --test tests/browser-autosave-order.mjs tests/browser-stable-file-permission.mjs tests/browser-resource-sync.mjs tests/browser-resource-review.mjs tests/browser-resource-round2.mjs tests/browser-resource-round3.mjs",
     "check": "node --check cli.mjs && node --check server.mjs && node --check text-files.mjs && node --check text-resources.mjs && node --check editor-settings.mjs && node --check build-ui.mjs && node --check ui/editor.mjs",
     "build": "node build-ui.mjs"
   },

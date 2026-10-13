@@ -26,7 +26,7 @@ async function withEditor(action, { openingToolHold = false, openingResourceHold
     const html = (await client.readResource({ uri: EDITOR_URI })).contents[0].text;
     browser = await chromium.launch({ headless: true });
     const page = await browser.newPage({ viewport: { width: 1000, height: 700 } });
-    page.setDefaultTimeout(1800); await page.clock.install();
+    page.setDefaultTimeout(1800); await page.clock.install({ time: new Date('2026-01-01T00:00:00Z') });
     const holds = new Map(), tools = [], errors = [];
     const hold = name => {
       const token = {}; token.ready = new Promise(resolve => { token.arrived = resolve; });
@@ -49,7 +49,7 @@ async function withEditor(action, { openingToolHold = false, openingResourceHold
     const mode = page.getByRole('button', { name: '保存方式', exact: true });
     if (supported) {
       await mode.getByText('手动保存', { exact: true }).waitFor();
-      await page.clock.pauseAt(await page.evaluate(() => Date.now()));
+      await page.clock.pauseAt(new Date('2026-01-01T01:00:00Z'));
       await page.getByRole('button', { name: '文件列表', exact: true }).click();
       await page.getByRole('treeitem', { name: 'first.txt', exact: true })[fixed && !initial ? 'dblclick' : 'click']();
       if (initial) await initial.ready;

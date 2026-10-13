@@ -221,8 +221,8 @@ async function refreshFile(file) {
     const data = JSON.parse(result.contents[0].text);
     if (disposed || !documents.includes(file)) return;
     if (superseded()) { file.resourcePending = true; return; }
+    if (data.error) { failSync(file, `外部同步不可用：${data.error}`); blockFile(file, data.error); return; }
     if (file.subscribed) { file.syncError = undefined; showFileStatus(); }
-    if (data.error) { blockFile(file, data.error); return; }
     if (data.version === version) return;
     if (isDirty(file)) blockFile(file, '磁盘内容已改变，编辑已保留，自动保存已暂停');
     else applyRead(file, data);
@@ -268,6 +268,12 @@ document.getElementById('reload-confirm').addEventListener('click', async () => 
     const data = await call('read_editor_text', { path: file.relativePath });
     if (!documents.includes(file)) return;
     if (file.text !== text) { blockFile(file, '重新读取期间有新的编辑，正文已保留，请再次确认重新读取'); return; }
+    const canonical = documents.find(item => item !== file && item.relativePath === data.relativePath);
+    if (canonical) {
+      canonical.fixed ||= file.fixed;
+      removeFile(file, canonical);
+      return;
+    }
     file.readRevision = (file.readRevision ?? 0) + 1;
     if (file.resourceUri !== data.resourceUri) stopResource(file);
     Object.assign(file, { relativePath: data.relativePath, sourcePath: data.sourcePath, resourceUri: data.resourceUri });
@@ -284,14 +290,14 @@ document.addEventListener('keydown', event => {
   event.preventDefault();
   if (current && !closeDialog.open) void saveFile(current);
 });
-function removeFile(file) {
+function removeFile(file, nextFile) {
   stopResource(file);
   cancelAuto(file);
   const index = documents.indexOf(file);
   documents.splice(index, 1); file.tabContainer.remove();
   if (current !== file) { renderTabs(); return; }
   current = undefined;
-  if (documents.length) activateFile(documents[Math.min(index, documents.length - 1)]);
+  if (documents.length) activateFile(nextFile ?? documents[Math.min(index, documents.length - 1)]);
   else {
     view.destroy(); view = undefined; editor.hidden = true; empty.hidden = false;
     breadcrumb.textContent = context.workspacePath.split(/[\\/]/).at(-1);

@@ -29,7 +29,7 @@ async function withEditor(action, { failFirstSubscribe = false, directory = fals
     const html = (await client.readResource({ uri: EDITOR_URI })).contents[0].text;
     browser = await chromium.launch({ headless: true });
     const page = await browser.newPage({ viewport: { width: 1000, height: 700 } });
-    page.setDefaultTimeout(1800); await page.clock.install();
+    page.setDefaultTimeout(1800); await page.clock.install({ time: new Date('2026-01-01T00:00:00Z') });
     const tools = [], errors = [], holds = new Map();
     const hold = name => { const token = {}; token.ready = new Promise(resolve => { token.arrived = resolve; }); holds.set(name, token); return token; };
     const reply = (name, result) => { const token = holds.get(name); if (!token) return result; holds.delete(name);
@@ -46,7 +46,7 @@ async function withEditor(action, { failFirstSubscribe = false, directory = fals
     page.on('pageerror', error => errors.push(error.message));
     await page.goto('data:text/html,<!doctype html><html><body></body></html>'); await page.setContent(html);
     const mode = page.getByRole('button', { name: '保存方式', exact: true }); await mode.getByText('手动保存', { exact: true }).waitFor();
-    await page.clock.pauseAt(await page.evaluate(() => Date.now()));
+    await page.clock.pauseAt(new Date('2026-01-01T01:00:00Z'));
     await page.getByRole('button', { name: '文件列表', exact: true }).click();
     if (directory) await page.getByRole('treeitem', { name: 'folder', exact: true }).click();
     await page.getByRole('treeitem', { name: 'file.txt', exact: true }).dblclick();
