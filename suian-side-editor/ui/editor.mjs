@@ -19,14 +19,15 @@ const lineBreaks = { crlf: '\r\n', cr: '\r', lf: '\n', none: '\n' };
 function showStatus(text, error = false) { statusText.textContent = text; status.classList.toggle('error', error); }
 function isDirty(file) { return file.text !== file.diskText; }
 function showFileStatus() {
-  conflictBar.hidden = !current?.blocked;
+  conflictBar.hidden = !(current?.blocked || current?.syncError);
   const busy = Boolean(current?.saving || current?.reloading);
   document.getElementById('reload-file').disabled = busy;
   document.getElementById('reload-confirm').disabled = busy;
   if (!current) { save.disabled = true; fileInfo.textContent = ''; showStatus(settingsError ?? '选择文件开始编辑', Boolean(settingsError)); return; }
   save.disabled = current.saving || current.reloading || !isDirty(current);
   fileInfo.textContent = `UTF-8${current.encoding.bom ? ' BOM' : ''} · ${current.encoding.newline.toUpperCase()}`;
-  showStatus(current.reloading ? '正在重新读取…' : current.error ?? settingsError ?? (current.saving ? '正在保存…' : isDirty(current) ? '未保存' : current.saved ? '已保存' : '已读取'), Boolean(current.error || settingsError));
+  const phase = current.saving ? '正在保存…' : isDirty(current) ? '未保存' : current.saved ? '已保存' : '已读取';
+  showStatus(current.reloading ? '正在重新读取…' : current.error ?? settingsError ?? (current.syncError ? `${phase} · ${current.syncError}` : phase), Boolean(current.error || current.syncError || settingsError));
 }
 function theme() { document.documentElement.dataset.theme = host.theme ?? 'light'; }
 async function call(name, args) {
@@ -66,6 +67,9 @@ function renderTabs() {
       file.tab.addEventListener('dblclick', () => { file.fixed = true; renderTabs(); });
     }
     file.tabContainer.className = `tab${file.fixed ? '' : ' temporary'}${file === current ? ' active' : ''}`;
+    file.tab.setAttribute('aria-label', file.relativePath); file.tab.title = file.relativePath;
+    file.tab.querySelector('.tab-title').textContent = file.relativePath.split('/').at(-1);
+    file.close.setAttribute('aria-label', `关闭 ${file.relativePath}`);
     file.tab.setAttribute('aria-selected', String(file === current));
     file.dirtyMark.hidden = !isDirty(file);
     file.close.disabled = Boolean(file.saving);
@@ -132,6 +136,7 @@ async function saveFile(file) {
   file.saving = true; file.error = undefined; renderTabs(); showFileStatus();
   try {
     const result = await call('save_editor_text', { path: file.relativePath, text, baseVersion: file.version });
+    file.readRevision = (file.readRevision ?? 0) + 1;
     file.version = result.version; file.diskText = result.text; file.encoding = result.encoding; file.saved = true; file.blocked = false;
     file.mixed = result.encoding.newline === 'mixed';
     file.insertedSeparator = result.text.match(/\r\n|\r|\n/)?.[0] ?? '\n';
@@ -151,7 +156,7 @@ async function saveFile(file) {
   }
 }
 function cancelAuto(file) { clearTimeout(file.autoTimer); file.autoTimer = undefined; file.autoAfterSave = false; }
-function canAutoSave(file) { return settingsReady && !settingsBusy && saveMode === 'auto' && documents.includes(file) && !file.blocked && !file.reloading && isDirty(file); }
+function canAutoSave(file) { return settingsReady && !settingsBusy && saveMode === 'auto' && documents.includes(file) && file.subscribed && !file.syncError && !file.blocked && !file.reloading && isDirty(file); }
 function autoSave(file) {
   if (!canAutoSave(file)) return;
   if (file.saving) { file.autoAfterSave = true; return; }
@@ -184,6 +189,7 @@ modeButton.addEventListener('click', async () => {
   finally { settingsBusy = false; renderMode(); showFileStatus(); for (const file of documents) autoSave(file); }
 });
 function blockFile(file, message) { file.blocked = true; file.error = message; cancelAuto(file); showFileStatus(); }
+function failSync(file, message) { file.syncError = message; cancelAuto(file); showFileStatus(); }
 function applyRead(file, data) {
   const scrollTop = current === file ? view.scrollDOM.scrollTop : file.scrollTop;
   const scrollLeft = current === file ? view.scrollDOM.scrollLeft : file.scrollLeft;
@@ -208,24 +214,27 @@ async function refreshFile(file) {
   if (file.saving || file.reloading || file.resourceReading) { file.resourcePending = true; return; }
   if (file.blocked) return;
   file.resourcePending = false; file.resourceReading = true;
-  const version = file.version;
+  const version = file.version, revision = file.readRevision, uri = file.resourceUri;
+  const superseded = () => file.saving || file.reloading || file.version !== version || file.readRevision !== revision || file.resourceUri !== uri;
   try {
-    const result = await host.readResource(file.resourceUri);
+    const result = await host.readResource(uri);
     const data = JSON.parse(result.contents[0].text);
     if (disposed || !documents.includes(file)) return;
-    if (file.saving || file.reloading || file.version !== version) { file.resourcePending = true; return; }
-    if (data.error) throw new Error(data.error);
+    if (superseded()) { file.resourcePending = true; return; }
+    if (file.subscribed) { file.syncError = undefined; showFileStatus(); }
+    if (data.error) { blockFile(file, data.error); return; }
     if (data.version === version) return;
     if (isDirty(file)) blockFile(file, '磁盘内容已改变，编辑已保留，自动保存已暂停');
     else applyRead(file, data);
   } catch (error) {
     if (!disposed && documents.includes(file)) {
-      if (file.saving || file.reloading || file.version !== version) file.resourcePending = true;
-      else blockFile(file, error.message);
+      if (superseded()) file.resourcePending = true;
+      else failSync(file, `外部同步读取失败：${error.message}`);
     }
   } finally {
     file.resourceReading = false;
     if (file.resourcePending && !file.saving && !file.reloading && !file.blocked) void refreshFile(file);
+    else if (!file.syncError && !file.autoTimer) scheduleAuto(file, Math.max(0, 800 - (performance.now() - (file.lastEditAt ?? performance.now()))));
   }
 }
 async function subscribeFile(file) {
@@ -233,7 +242,7 @@ async function subscribeFile(file) {
     await host.subscribeResource(file.resourceUri); file.subscribed = true;
     if (disposed || !documents.includes(file)) { stopResource(file); return; }
     await refreshFile(file);
-  } catch (error) { if (documents.includes(file)) blockFile(file, `外部同步订阅失败：${error.message}`); else showStatus(error.message, true); }
+  } catch (error) { if (documents.includes(file)) failSync(file, `外部同步订阅失败：${error.message}`); else showStatus(error.message, true); }
 }
 function stopResource(file) {
   if (!file.subscribed) return;
@@ -259,7 +268,13 @@ document.getElementById('reload-confirm').addEventListener('click', async () => 
     const data = await call('read_editor_text', { path: file.relativePath });
     if (!documents.includes(file)) return;
     if (file.text !== text) { blockFile(file, '重新读取期间有新的编辑，正文已保留，请再次确认重新读取'); return; }
+    file.readRevision = (file.readRevision ?? 0) + 1;
+    if (file.resourceUri !== data.resourceUri) stopResource(file);
+    Object.assign(file, { relativePath: data.relativePath, sourcePath: data.sourcePath, resourceUri: data.resourceUri });
     applyRead(file, data);
+    if (current === file) activateFile(file);
+    if (!file.subscribed) await subscribeFile(file);
+    else await refreshFile(file);
   } catch (error) { if (documents.includes(file)) blockFile(file, error.message); }
   finally { file.reloading = false; showFileStatus(); if (file.resourcePending) void refreshFile(file); }
 });
