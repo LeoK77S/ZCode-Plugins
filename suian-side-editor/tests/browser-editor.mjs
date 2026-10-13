@@ -8,6 +8,7 @@ import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
 import { createMcpServer, EDITOR_URI } from '../server.mjs';
 import { apps } from './fixtures.mjs';
+import { installResourceBridge } from './browser-resource-bridge.mjs';
 
 const require = createRequire(process.env.SUIAN_SIDE_EDITOR_PLAYWRIGHT_MODULE ?? import.meta.url);
 const { chromium } = require('playwright');
@@ -48,7 +49,7 @@ try {
     }
     return result;
   });
-  await page.addInitScript(() => { window.zcode = { ready: async () => {}, subscribe: () => {}, theme: 'dark', callTool: (name, args) => window.editorCall(name, args) }; });
+  await installResourceBridge(page, client);
   await page.goto('about:blank'); await page.setContent(html);
   await page.getByRole('button', { name: '文件列表', exact: true }).click();
   await page.getByRole('treeitem', { name: 'node_modules', exact: true }).waitFor();

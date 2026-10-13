@@ -2,6 +2,17 @@ import { open, realpath, readdir, stat } from 'node:fs/promises';
 import { resolve, relative, isAbsolute, win32, sep, posix } from 'node:path';
 import { createHash } from 'node:crypto';
 
+export function fileFailure(error) {
+  const causes = {
+    ENOENT: ['file_not_found', '文件不存在或已删除'], ENOTDIR: ['file_not_found', '路径中的目录不存在'],
+    EISDIR: ['not_text_file', '目标是目录，不是文本文件'], EACCES: ['permission_denied', '没有访问该文件的权限'],
+    EPERM: ['permission_denied', '系统拒绝访问该文件'],
+    ERR_ENCODING_INVALID_ENCODED_DATA: ['invalid_utf8', '文件不是有效 UTF-8，未使用替换字符解码']
+  };
+  const [code, message] = causes[error.code] ?? [error.code ?? 'file_error', error.message];
+  return { code, error: message };
+}
+
 function describeText(context, path, bytes) {
   const bom = bytes.subarray(0, 3).equals(Buffer.from([0xef, 0xbb, 0xbf]));
   const text = new TextDecoder('utf-8', { fatal: true, ignoreBOM: true }).decode(bom ? bytes.subarray(3) : bytes);
@@ -47,8 +58,10 @@ export async function listDirectory(context, path) {
   return { ...context, relativePath: relativePath || '.', entries };
 }
 
-export async function readTextFile(context, path) {
+export async function readTextFile(context, path, expectedSourcePath) {
   const bound = await resolveWorkspacePath(context, path);
+  if (expectedSourcePath !== undefined && bound.sourcePath !== expectedSourcePath)
+    throw Object.assign(new Error('已登记文件的真实路径已改变，请重新打开'), { code: 'registered_path_changed' });
   const file = await open(bound.sourcePath, 'r');
   try {
     if (!(await file.stat()).isFile())

@@ -8,6 +8,7 @@ import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
 import { createMcpServer, EDITOR_URI } from '../server.mjs';
 import { apps } from './fixtures.mjs';
+import { installResourceBridge } from './browser-resource-bridge.mjs';
 
 const { chromium } = createRequire(process.env.SUIAN_SIDE_EDITOR_PLAYWRIGHT_MODULE ?? import.meta.url)('playwright');
 const root = await mkdtemp(join(tmpdir(), 'side-editor-auto-')), workspaceRoot = join(root, 'workspace'), dataPath = join(root, 'data');
@@ -35,7 +36,10 @@ try {
     return result;
   });
   function hold(name) { holdName = name; ready = new Promise(resolve => { arrived = resolve; }); }
-  await page.addInitScript(() => { window.zcode = { ready: async () => {}, subscribe: () => {}, theme: 'dark', callTool: (name, args) => window.editorCall(name, args) }; });
+  await installResourceBridge(page, client, { read: result => {
+    if (holdName === 'resources/read') { holdName = undefined; return new Promise(resolve => { release = () => resolve(result); arrived(); }); }
+    return result;
+  } });
   await page.goto('about:blank'); await page.setContent(html);
   const mode = page.getByRole('button', { name: '保存方式', exact: true });
   await mode.getByText('手动保存', { exact: true }).waitFor(); assert.equal(await mode.textContent(), '手动保存');
@@ -97,7 +101,7 @@ try {
   await append('after'); await page.clock.runFor(800); await page.getByText('已保存', { exact: true }).waitFor();
   assert.equal(await readFile(join(workspaceRoot, 'first.txt'), 'utf8'), 'external\nafter');
   console.log('脏正文冲突契约通过：暂停该文件自动写回、保留不覆盖、取消/确认重新读取');
-  await mode.click(); hold('read_editor_text'); await writeFile(join(workspaceRoot, 'first.txt'), 'changed-during-read\n');
+  await mode.click(); hold('resources/read'); await writeFile(join(workspaceRoot, 'first.txt'), 'changed-during-read\n');
   await page.clock.runFor(1000); await ready; await append('typed-during-read'); release();
   await page.getByText(/磁盘内容已改变/).waitFor(); assert.ok((await content.textContent()).endsWith('typed-during-read'), '外部读取等待时的新输入不能被干净刷新覆盖');
   await page.getByRole('button', { name: '重新读取', exact: true }).click(); await page.getByRole('button', { name: '放弃编辑并重新读取', exact: true }).click();

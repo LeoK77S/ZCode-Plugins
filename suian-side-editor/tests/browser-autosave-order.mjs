@@ -9,6 +9,7 @@ import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
 import { createMcpServer, EDITOR_URI } from '../server.mjs';
 import { apps } from './fixtures.mjs';
+import { installResourceBridge } from './browser-resource-bridge.mjs';
 
 const { chromium } = createRequire(process.env.SUIAN_SIDE_EDITOR_PLAYWRIGHT_MODULE ?? import.meta.url)('playwright');
 
@@ -49,7 +50,7 @@ async function withEditor(action, { saveMode = 'auto', pendingSettings = false }
       }
       return result;
     });
-    await page.addInitScript(() => { window.zcode = { ready: async () => {}, subscribe: () => {}, theme: 'dark', callTool: (name, args) => window.editorCall(name, args) }; });
+    await installResourceBridge(page, client);
     await page.goto('about:blank'); await page.setContent(html);
     const mode = page.getByRole('button', { name: '保存方式', exact: true });
     if (pendingSettings) await settings.ready;

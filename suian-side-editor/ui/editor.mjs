@@ -14,6 +14,7 @@ const reloadDialog = document.getElementById('reload-dialog');
 let context, view, current;
 let saveMode = 'manual', settingsReady = false, settingsBusy = false, settingsError;
 const documents = [];
+let disposed = false, cancelResourceEvents;
 const lineBreaks = { crlf: '\r\n', cr: '\r', lf: '\n', none: '\n' };
 function showStatus(text, error = false) { statusText.textContent = text; status.classList.toggle('error', error); }
 function isDirty(file) { return file.text !== file.diskText; }
@@ -103,9 +104,10 @@ function openFile(path, fixed = false) {
         insertedSeparator: data.text.match(/\r\n|\r|\n/)?.[0] ?? '\n', fixed, scrollTop: 0, scrollLeft: 0, lineSeparator: new Compartment() };
       file.state = createEditorState(file, separator);
       const temporary = documents.findIndex(item => !item.fixed);
-      if (temporary !== -1) { cancelAuto(documents[temporary]); documents[temporary].tabContainer.remove(); documents.splice(temporary, 1, file); }
+      if (temporary !== -1) { stopResource(documents[temporary]); cancelAuto(documents[temporary]); documents[temporary].tabContainer.remove(); documents.splice(temporary, 1, file); }
       else documents.push(file);
       activateFile(file);
+      await subscribeFile(file);
     } catch (error) { showStatus(error.message, true); }
   });
   return opening;
@@ -143,6 +145,7 @@ async function saveFile(file) {
   } catch (error) { blockFile(file, error.message); return false; }
   finally {
     file.saving = false; renderTabs(); showFileStatus();
+    if (file.resourcePending) void refreshFile(file);
     if (file.autoAfterSave) { file.autoAfterSave = false; scheduleAuto(file, 0); }
     else if (!file.autoTimer) scheduleAuto(file);
   }
@@ -199,21 +202,45 @@ function applyRead(file, data) {
   }
   renderTabs(); showFileStatus();
 }
-// 按实际内容版本检查已打开文件，不依赖 mtime 或宿主私有通知；逐轮避免堆积请求。
-async function checkFiles() {
-  for (const file of [...documents]) {
-    if (file.saving || file.reloading || file.blocked) continue;
-    const version = file.version;
-    try {
-      const data = await call('read_editor_text', { path: file.relativePath });
-      if (!documents.includes(file) || file.saving || file.reloading || file.version !== version) continue;
-      if (data.version === version) continue;
-      if (isDirty(file)) blockFile(file, '磁盘内容已改变，编辑已保留，自动保存已暂停');
-      else applyRead(file, data);
-    } catch (error) { if (documents.includes(file) && file.version === version) blockFile(file, error.message); }
+// 只读取受审工具已登记的资源；保存/重读等待期间的通知留到其回执后核对。
+async function refreshFile(file) {
+  if (disposed || !documents.includes(file)) return;
+  if (file.saving || file.reloading || file.resourceReading) { file.resourcePending = true; return; }
+  if (file.blocked) return;
+  file.resourcePending = false; file.resourceReading = true;
+  const version = file.version;
+  try {
+    const result = await host.readResource(file.resourceUri);
+    const data = JSON.parse(result.contents[0].text);
+    if (disposed || !documents.includes(file)) return;
+    if (file.saving || file.reloading || file.version !== version) { file.resourcePending = true; return; }
+    if (data.error) throw new Error(data.error);
+    if (data.version === version) return;
+    if (isDirty(file)) blockFile(file, '磁盘内容已改变，编辑已保留，自动保存已暂停');
+    else applyRead(file, data);
+  } catch (error) {
+    if (!disposed && documents.includes(file)) {
+      if (file.saving || file.reloading || file.version !== version) file.resourcePending = true;
+      else blockFile(file, error.message);
+    }
+  } finally {
+    file.resourceReading = false;
+    if (file.resourcePending && !file.saving && !file.reloading && !file.blocked) void refreshFile(file);
   }
-  setTimeout(checkFiles, 1000);
 }
+async function subscribeFile(file) {
+  try {
+    await host.subscribeResource(file.resourceUri); file.subscribed = true;
+    if (disposed || !documents.includes(file)) { stopResource(file); return; }
+    await refreshFile(file);
+  } catch (error) { if (documents.includes(file)) blockFile(file, `外部同步订阅失败：${error.message}`); else showStatus(error.message, true); }
+}
+function stopResource(file) {
+  if (!file.subscribed) return;
+  file.subscribed = false;
+  void host.unsubscribeResource(file.resourceUri).catch(error => showStatus(`文件退订失败：${error.message}`, true));
+}
+window.addEventListener('pagehide', () => { disposed = true; cancelResourceEvents?.(); for (const file of documents) stopResource(file); });
 let reloading;
 document.getElementById('keep-edit').addEventListener('click', () => { showFileStatus(); });
 document.getElementById('reload-file').addEventListener('click', () => {
@@ -234,7 +261,7 @@ document.getElementById('reload-confirm').addEventListener('click', async () => 
     if (file.text !== text) { blockFile(file, '重新读取期间有新的编辑，正文已保留，请再次确认重新读取'); return; }
     applyRead(file, data);
   } catch (error) { if (documents.includes(file)) blockFile(file, error.message); }
-  finally { file.reloading = false; showFileStatus(); }
+  finally { file.reloading = false; showFileStatus(); if (file.resourcePending) void refreshFile(file); }
 });
 save.addEventListener('click', () => { void saveFile(current); });
 document.addEventListener('keydown', event => {
@@ -243,6 +270,7 @@ document.addEventListener('keydown', event => {
   if (current && !closeDialog.open) void saveFile(current);
 });
 function removeFile(file) {
+  stopResource(file);
   cancelAuto(file);
   const index = documents.indexOf(file);
   documents.splice(index, 1); file.tabContainer.remove();
@@ -316,6 +344,8 @@ try {
   if (!host) throw new Error('当前页面没有原生 ZCode 桥接');
   host.subscribe(theme); await host.ready(); theme();
   context = await call('get_editor_context', {});
+  if (!host.hostCapabilities?.experimental?.['zcode/resourceSubscribe']) throw new Error('当前宿主不支持资源订阅，外部文件同步不可用');
+  cancelResourceEvents = host.onResourceUpdated(uri => { const file = documents.find(item => item.resourceUri === uri); if (file) void refreshFile(file); });
   document.getElementById('workspace-title').textContent = context.workspacePath.split(/[\\/]/).at(-1);
-  folder.disabled = false; await loadSettings(); setTimeout(checkFiles, 1000);
+  folder.disabled = false; await loadSettings();
 } catch (error) { showStatus(error.message, true); }
