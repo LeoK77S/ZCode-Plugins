@@ -6,7 +6,7 @@
 
 - 独立原生入口为 `editor`，仅在具有会话身份的宿主上下文提供。
 - `.mcp.json` 将宿主 `ZCODE_PROJECT_DIR` 明确绑定到 `cwd` 和专属环境变量 `SUIAN_SIDE_EDITOR_WORKSPACE`。服务端不以 `process.cwd()` 推断归属。
-- `get_editor_context` 只读取宿主请求 meta 的 `session_id`；目录、读取与保存工具只接收工作区相对路径。六个工具仅对满足公共 MCP Apps 能力门槛的客户端注册，visibility 均为 `app`。
+- `get_editor_context` 只读取宿主请求 meta 的 `session_id`；目录、读取与保存工具只接收工作区相对路径。八个工具仅对满足公共 MCP Apps 能力门槛的客户端注册，visibility 均为 `app`。恢复状态工具同样不接受调用方指定身份。
 - 缺失或冲突的归属会阻止文件访问。绝对路径、穿越、Windows 备用数据流及指向工作区外的链接被拒绝。
 - 读取返回规范路径、正文、UTF-8/BOM/换行特征和实际读取字节的 SHA-256 版本。非法 UTF-8、二进制控制字节、目录、缺失文件和权限失败明确报错。
 
@@ -18,7 +18,11 @@
 - 自动模式在停止输入 800 ms、切换内部页签和切入自动模式时尝试保存；切手动取消尚未开始的任务。写回仍走同一内容版本检查入口。
 - 首次打开仍由受审工具验证可信归属并登记只读资源；之后订阅该资源的内容变化，收到 URI 通知后读当前快照。稳定文件不再由页面循环调用读工具。干净正文自动刷新并保留有效阅读位置；脏正文或读取／写入失败保留当前正文并暂停该文件自动保存。保留编辑不授权覆盖；重新读取需确认放弃编辑。
 
-SE-04 的原 Native 重复读审批失败保留。[资源订阅修复](docs/se04-watch-fix-verification.md) 及[三轮修正](docs/se04-watch-round3-verification.md) 已通过统一执行等同性、独立代码复核和 42 项浏览器验证；未改 SDK 复用 33/33。[新 Native 证据](docs/se04-watch-native-verification.md) 与文档门槛两轴复核通过，SE-04 本地限定条件已闭合，当前结果见 [实施总记录](docs/development-verification.md)。新轮视觉未验。模式持久化不等于正文恢复；未保存正文、内部页签与阅读状态仍仅存在于页面内存，当前前沿为 SE-05，评论接入仍受 H3 门槛约束。
+SE-04 的原 Native 重复读审批失败保留。[资源订阅修复](docs/se04-watch-fix-verification.md) 及[三轮修正](docs/se04-watch-round3-verification.md) 已通过统一执行等同性、独立代码复核和 42 项浏览器验证；未改 SDK 复用 33/33。[新 Native 证据](docs/se04-watch-native-verification.md) 与文档门槛两轴复核通过，SE-04 本地限定条件已闭合，当前结果见 [实施总记录](docs/development-verification.md)。新轮视觉未验。
+
+[SE-05](docs/se05-verification.md) 新增会话恢复副本：页签顺序、临时／固定属性、当前页、每文件阅读位置与未保存正文独立持久化。页面显示副本待同步、成功或失败；只有回执到达才确认副本已同步。恢复遇磁盘冲突或读权限失败保留脏正文，干净文件重新读取最新磁盘内容。原生关闭、真正离屏回收与应用重启的 H4 验收尚待进行；评论接入仍受 H3 门槛约束。
+
+[首轮复核修正](docs/se05-review-fix-verification.md) 保留改指后的原身份脏副本、阻止重复恢复与初始化期间未计入副本的编辑。[第二轮修正](docs/se05-round2-verification.md) 与[脏目标分支补齐](docs/se05-round3-verification.md) 将新读取的代际确认与正文替换分开，保留既有脏正文，阻止迟到同版本旧资源错误误阻塞。完整浏览器现为 55 项／组通过；新产物独立复核与 H4 尚待验，不与初版记录混称。
 
 资源 URI 只指向首次受审工具已经登记的文件，不解析成新文件路径。资源请求没有 ZCode 对话 meta，归属来自首次登记；不能声称服务端逐次验证资源读者的 SID。资源为当前进程的只读快照，退订或服务关闭后登记失效，重建必须经工具重新打开。保存与模式写入继续走原受审工具。
 
@@ -38,7 +42,7 @@ npm run check
 
 浏览器烟测使用开发环境提供的 Playwright。可把 `SUIAN_SIDE_EDITOR_PLAYWRIGHT_MODULE` 设为该环境的 `playwright/package.json` 绝对路径，再运行 `npm run test:browser`。测试运行服务端实际返回的构建 HTML 与 SDK 服务，但宿主 meta 是夹具注入，不能替代 Native 验证。
 
-模式数据库为宿主默认注入的 `ZCODE_PLUGIN_DATA` 目录下的 `editor-state.sqlite`。源码直跑时必须显式提供自己的外置测试数据目录；缺失或无效目录不回退到工作区、插件缓存或 common。数据库 schema 版本为 1，仅包含全局默认和按可信工作区／会话隔离的模式。设置错误独立显示，不冒充源文件已保存。Node 24 内置 SQLite，无新增 ORM 或运行依赖。
+状态数据库为宿主默认注入的 `ZCODE_PLUGIN_DATA` 目录下的 `editor-state.sqlite`。源码直跑时必须显式提供自己的外置测试数据目录；缺失或无效目录不回退到工作区、插件缓存或 common。schema 2 在写事务内迁移 schema 1，保留已有全局默认和会话模式，并按可信工作区／会话隔离恢复副本。设置、副本与源文件各自显示回执，互不冒充。Node 24 内置 SQLite，无新增 ORM 或运行依赖。
 
 UI 源文件是 `ui/editor-template.html`、`ui/editor.css` 与 `ui/editor.mjs`。`npm run build` 生成自包含的 `ui/dist/editor.html` 和第三方许可；本次 bundle 的完整版权与许可文本同时嵌入返回 HTML，并保留独立许可文件。生成内容随插件提交，不直接手改，也不从 CDN 加载编辑器。
 

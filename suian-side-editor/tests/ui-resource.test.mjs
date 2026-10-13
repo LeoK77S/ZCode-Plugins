@@ -11,7 +11,7 @@ test('支持的宿主取得本地构建编辑页面；不支持者没有文件�
     const client = await connect(t, { zcodeAppVersion }, { name, version, capabilities });
     const resources = (await client.listResources()).resources;
     assert.equal(resources.some(item => item.uri === 'ui://suian-side-editor/editor.html'), enabled);
-    assert.equal((await client.listTools()).tools.length, enabled ? 6 : 0);
+    assert.equal((await client.listTools()).tools.length, enabled ? 8 : 0);
     if (enabled) {
       const page = (await client.readResource({ uri: 'ui://suian-side-editor/editor.html' })).contents[0];
       assert.equal(page.mimeType, 'text/html;profile=mcp-app');

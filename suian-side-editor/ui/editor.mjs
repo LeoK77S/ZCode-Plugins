@@ -15,6 +15,76 @@ let context, view, current;
 let saveMode = 'manual', settingsReady = false, settingsBusy = false, settingsError;
 const documents = [];
 let disposed = false, cancelResourceEvents;
+let recoveryReady = false, restoring = false, recoveryBusy = false, recoveryRevision = 0, recoveryAck = 0, recoveryTimer, recoveryError;
+const recoveryStatus = document.getElementById('recovery-status'), recoveryRetry = document.getElementById('recovery-retry');
+function renderRecovery() {
+  recoveryStatus.textContent = recoveryError ? `恢复副本失败：${recoveryError}` : !recoveryReady ? '正在读取恢复副本…' : recoveryRevision === recoveryAck ? '恢复副本已同步' : '恢复副本待同步…';
+  recoveryRetry.hidden = !recoveryError;
+}
+function recoveryChanged() {
+  if (!recoveryReady || restoring || disposed) return;
+  recoveryRevision++; recoveryError = undefined; renderRecovery();
+  clearTimeout(recoveryTimer); recoveryTimer = setTimeout(() => { void persistRecovery(); }, 200);
+}
+function recoverySnapshot() {
+  if (current && view) { current.scrollTop = view.scrollDOM.scrollTop; current.scrollLeft = view.scrollDOM.scrollLeft; }
+  return { files: documents.map(file => ({ path: file.relativePath, fixed: file.fixed, scrollTop: file.scrollTop, scrollLeft: file.scrollLeft,
+    ...(isDirty(file) ? { draft: { text: file.text, diskText: file.diskText, baseVersion: file.version, encoding: file.encoding } } : {}) })), currentPath: current?.relativePath ?? null };
+}
+async function persistRecovery() {
+  if (!recoveryReady || recoveryBusy || disposed || recoveryRevision === recoveryAck) return;
+  clearTimeout(recoveryTimer); recoveryBusy = true;
+  const revision = recoveryRevision, state = recoverySnapshot();
+  try { await call('update_editor_state', { state }); recoveryAck = revision; recoveryError = undefined; }
+  catch (error) { recoveryError = error.message; }
+  finally {
+    recoveryBusy = false; renderRecovery();
+    if (recoveryRevision !== revision) { clearTimeout(recoveryTimer); recoveryTimer = setTimeout(() => { void persistRecovery(); }, 200); }
+  }
+}
+async function loadRecovery() {
+  if (restoring) return;
+  restoring = true;
+  document.body.inert = true;
+  recoveryRetry.disabled = true;
+  let normalized = false;
+  try {
+    const { state } = await call('get_editor_state', {});
+    const restored = new Map();
+    for (const saved of state.files) {
+      let data, readError;
+      try { data = await call('read_editor_text', { path: saved.path }); }
+      catch (error) { readError = error.message; }
+      const draft = saved.draft;
+      // 改指后旧脏副本仍属于原身份；不把它绑定到新目标或静默覆盖另一份脏正文。
+      const pathChanged = Boolean(draft && data && data.relativePath !== saved.path);
+      if (pathChanged) { data = undefined; readError = '文件路径已改变，恢复正文已保留，请确认重新读取'; }
+      const path = data?.relativePath ?? saved.path;
+      const existing = documents.find(file => file.relativePath === path);
+      const file = existing ?? { lineSeparator: new Compartment() };
+      if (data) file.readRevision = (file.readRevision ?? 0) + 1;
+      if (!existing || draft || !isDirty(existing)) {
+        Object.assign(file, { ...data, relativePath: path, fixed: file.fixed || saved.fixed, scrollTop: saved.scrollTop, scrollLeft: saved.scrollLeft, pathChanged,
+          text: draft?.text ?? data?.text ?? '', diskText: draft?.diskText ?? data?.text ?? '', version: draft?.baseVersion ?? data?.version,
+          encoding: draft?.encoding ?? data?.encoding ?? { name: 'utf-8', bom: false, newline: 'none' },
+          blocked: Boolean(readError || draft && draft.baseVersion !== data.version), error: readError ?? (draft && draft.baseVersion !== data.version ? '磁盘内容已改变，恢复正文已保留，自动保存已暂停' : undefined) });
+        file.mixed = file.encoding.newline === 'mixed'; file.insertedSeparator = file.text.match(/\r\n|\r|\n/)?.[0] ?? '\n';
+        file.state = createEditorState(file);
+      }
+      file.fixed ||= saved.fixed;
+      if (saved.path === state.currentPath) { file.scrollTop = saved.scrollTop; file.scrollLeft = saved.scrollLeft; }
+      restored.set(saved.path, file); normalized ||= path !== saved.path || Boolean(existing);
+      if (!existing) { documents.push(file); if (data) await subscribeFile(file); }
+    }
+    if (documents.length) activateFile(restored.get(state.currentPath));
+    recoveryReady = true; recoveryError = undefined;
+  } catch (error) { recoveryError = error.message; }
+  finally { restoring = false; document.body.inert = false; recoveryRetry.disabled = false; if (recoveryReady && normalized) recoveryChanged(); renderRecovery(); }
+}
+recoveryRetry.addEventListener('click', async () => {
+  if (recoveryReady) { recoveryError = undefined; renderRecovery(); await persistRecovery(); }
+  else { await loadRecovery(); folder.disabled = !recoveryReady; }
+});
 const lineBreaks = { crlf: '\r\n', cr: '\r', lf: '\n', none: '\n' };
 function showStatus(text, error = false) { statusText.textContent = text; status.classList.toggle('error', error); }
 function isDirty(file) { return file.text !== file.diskText; }
@@ -24,7 +94,7 @@ function showFileStatus() {
   document.getElementById('reload-file').disabled = busy;
   document.getElementById('reload-confirm').disabled = busy;
   if (!current) { save.disabled = true; fileInfo.textContent = ''; showStatus(settingsError ?? '选择文件开始编辑', Boolean(settingsError)); return; }
-  save.disabled = current.saving || current.reloading || !isDirty(current);
+  save.disabled = current.saving || current.reloading || current.pathChanged || !isDirty(current);
   fileInfo.textContent = `UTF-8${current.encoding.bom ? ' BOM' : ''} · ${current.encoding.newline.toUpperCase()}`;
   const phase = current.saving ? '正在保存…' : isDirty(current) ? '未保存' : current.saved ? '已保存' : '已读取';
   showStatus(current.reloading ? '正在重新读取…' : current.error ?? settingsError ?? (current.syncError ? `${phase} · ${current.syncError}` : phase), Boolean(current.error || current.syncError || settingsError));
@@ -64,7 +134,7 @@ function renderTabs() {
       file.close.addEventListener('click', () => closeFile(file));
       file.tabContainer.append(file.tab, file.close);
       file.tab.addEventListener('click', () => activateFile(file));
-      file.tab.addEventListener('dblclick', () => { file.fixed = true; renderTabs(); });
+      file.tab.addEventListener('dblclick', () => { file.fixed = true; renderTabs(); recoveryChanged(); });
     }
     file.tabContainer.className = `tab${file.fixed ? '' : ' temporary'}${file === current ? ' active' : ''}`;
     file.tab.setAttribute('aria-label', file.relativePath); file.tab.title = file.relativePath;
@@ -77,12 +147,22 @@ function renderTabs() {
   }
 }
 function activateFile(file) {
+  const previous = current;
   if (current !== file && current) { cancelAuto(current); autoSave(current); }
   if (current && view) { current.state = view.state; current.scrollTop = view.scrollDOM.scrollTop; current.scrollLeft = view.scrollDOM.scrollLeft; }
   current = file;
   empty.hidden = true; editor.hidden = false;
   if (view) view.setState(file.state); else view = new EditorView({ state: file.state, parent: editor });
   view.scrollDOM.scrollTop = file.scrollTop; view.scrollDOM.scrollLeft = file.scrollLeft;
+  if (!previous || previous !== file) {
+    const activeState = file.state;
+    view.requestMeasure({ read: () => null, write: () => queueMicrotask(() => {
+      if (current !== file || view.state !== activeState) return;
+      view.scrollDOM.scrollTop = file.scrollTop; view.scrollDOM.scrollLeft = file.scrollLeft;
+      view.dispatch({ effects: view.scrollSnapshot() });
+    }) });
+    recoveryChanged();
+  }
   renderTabs();
   breadcrumb.replaceChildren();
   const parts = [context.workspacePath.split(/[\\/]/).at(-1), ...file.relativePath.split('/')];
@@ -121,16 +201,20 @@ function createEditorState(file, separator = lineBreaks[file.encoding.newline]) 
         keymap.of([{ key: 'Mod-s', run: () => { void saveFile(file); return true; } }, ...defaultKeymap, ...historyKeymap]),
         EditorView.clipboardInputFilter.of((text, state) => text.replace(/\r\n|\r|\n/g, state.lineBreak)),
         EditorView.contentAttributes.of({ 'aria-label': '文件正文', spellcheck: 'false' }),
+        EditorState.readOnly.of(!file.version),
+        EditorView.domEventHandlers({ scroll: (_event, editorView) => {
+          if (current === file && !restoring) { file.scrollTop = editorView.scrollDOM.scrollTop; file.scrollLeft = editorView.scrollDOM.scrollLeft; recoveryChanged(); }
+        } }),
         EditorView.updateListener.of(update => {
           file.state = update.state;
           if (!update.docChanged) return;
           file.text = file.mixed ? changeMixedText(file.text, update.changes, file.insertedSeparator) : update.state.sliceDoc(); file.fixed = true;
           file.lastEditAt = performance.now();
-          renderTabs(); showFileStatus(); scheduleAuto(file);
+          renderTabs(); showFileStatus(); scheduleAuto(file); recoveryChanged();
         })] });
 }
 async function saveFile(file) {
-  if (file.saving || file.reloading) return false;
+  if (file.saving || file.reloading || file.pathChanged) return false;
   cancelAuto(file);
   const text = file.text;
   file.saving = true; file.error = undefined; renderTabs(); showFileStatus();
@@ -149,7 +233,7 @@ async function saveFile(file) {
     return !isDirty(file);
   } catch (error) { blockFile(file, error.message); return false; }
   finally {
-    file.saving = false; renderTabs(); showFileStatus();
+    file.saving = false; renderTabs(); showFileStatus(); recoveryChanged();
     if (file.resourcePending) void refreshFile(file);
     if (file.autoAfterSave) { file.autoAfterSave = false; scheduleAuto(file, 0); }
     else if (!file.autoTimer) scheduleAuto(file);
@@ -194,7 +278,7 @@ function applyRead(file, data) {
   const scrollTop = current === file ? view.scrollDOM.scrollTop : file.scrollTop;
   const scrollLeft = current === file ? view.scrollDOM.scrollLeft : file.scrollLeft;
   Object.assign(file, { text: data.text, diskText: data.text, version: data.version, encoding: data.encoding,
-    mixed: data.encoding.newline === 'mixed', insertedSeparator: data.text.match(/\r\n|\r|\n/)?.[0] ?? '\n', saved: false, error: undefined, blocked: false });
+    mixed: data.encoding.newline === 'mixed', insertedSeparator: data.text.match(/\r\n|\r|\n/)?.[0] ?? '\n', saved: false, error: undefined, blocked: false, pathChanged: false });
   file.state = createEditorState(file); file.scrollTop = scrollTop; file.scrollLeft = scrollLeft;
   if (current === file) {
     view.setState(file.state);
@@ -206,7 +290,7 @@ function applyRead(file, data) {
       view.dispatch({ effects: view.scrollSnapshot() });
     }) });
   }
-  renderTabs(); showFileStatus();
+  renderTabs(); showFileStatus(); recoveryChanged();
 }
 // 只读取受审工具已登记的资源；保存/重读等待期间的通知留到其回执后核对。
 async function refreshFile(file) {
@@ -249,7 +333,7 @@ function stopResource(file) {
   file.subscribed = false;
   void host.unsubscribeResource(file.resourceUri).catch(error => showStatus(`文件退订失败：${error.message}`, true));
 }
-window.addEventListener('pagehide', () => { disposed = true; cancelResourceEvents?.(); for (const file of documents) stopResource(file); });
+window.addEventListener('pagehide', () => { disposed = true; clearTimeout(recoveryTimer); cancelResourceEvents?.(); for (const file of documents) stopResource(file); });
 let reloading;
 document.getElementById('keep-edit').addEventListener('click', () => { showFileStatus(); });
 document.getElementById('reload-file').addEventListener('click', () => {
@@ -295,7 +379,7 @@ function removeFile(file, nextFile) {
   cancelAuto(file);
   const index = documents.indexOf(file);
   documents.splice(index, 1); file.tabContainer.remove();
-  if (current !== file) { renderTabs(); return; }
+  if (current !== file) { renderTabs(); recoveryChanged(); return; }
   current = undefined;
   if (documents.length) activateFile(nextFile ?? documents[Math.min(index, documents.length - 1)]);
   else {
@@ -304,6 +388,7 @@ function removeFile(file, nextFile) {
     for (const row of tree.querySelectorAll('.selected')) row.classList.remove('selected');
     showFileStatus();
   }
+  recoveryChanged();
 }
 let closing;
 function closeFile(file) {
@@ -368,5 +453,5 @@ try {
   if (!host.hostCapabilities?.experimental?.['zcode/resourceSubscribe']) throw new Error('当前宿主不支持资源订阅，外部文件同步不可用');
   cancelResourceEvents = host.onResourceUpdated(uri => { const file = documents.find(item => item.resourceUri === uri); if (file) void refreshFile(file); });
   document.getElementById('workspace-title').textContent = context.workspacePath.split(/[\\/]/).at(-1);
-  folder.disabled = false; await loadSettings();
+  await loadRecovery(); folder.disabled = !recoveryReady; await loadSettings();
 } catch (error) { showStatus(error.message, true); }

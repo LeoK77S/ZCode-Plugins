@@ -4,6 +4,14 @@
 
 SE-04 的代码、统一执行等同性、分层 Native 证据与文档两轴复核已完成，本地限定条件通过；浏览器 42 项／组通过，未改 SDK 复用 33/33。旧 Native 重复读审批失败保留，新限定行为见 `docs/se04-watch-native-verification.md`，当前闭合见 `docs/development-verification.md`。新轮视觉未验，不与 SE-03 图像或旧数据根模式链混称。当前前沿为 SE-05，具体依赖解除与派发由根记录；模式数据库写回与源文件写回仍是两个独立回执。
 
+SE-05 已实现 schema 2 的会话恢复副本与独立回执；本地契约及当前范围见 `docs/se05-verification.md`。页签、阅读位置与脏正文在使用过程中持久化，重建重新通过受审工具读取文件和取得资源关联。两轴复核及原生关闭／真正回收／应用重启三类验收由根安排，尚不能声明 H4 或整票通过。
+
+初轮两轴发现的三项 P2 已作实际构建红绿修正，见 `docs/se05-review-fix-verification.md`；新固定产物仍待独立窄复核，初版记录与冻结证据保持原样。
+
+首轮已测问题经窄复核闭合；规格轴新增合流后迟到资源错误问题，最小读取代际修正及实际红绿见 `docs/se05-round2-verification.md`。新固定产物待根复核，原生 H4 仍未验。
+
+同一旧回执问题的脏目标关联分支已补真实红绿，读取代际确认与正文替换分开，见 `docs/se05-round3-verification.md`；此前双干净触发记录保留，新固定产物仍待根的两轴窄复核。
+
 ## 范围与约定
 
 - 首版编辑当前本机工作区内已有的 UTF-8 文本文件。远程工作区和新建、重命名、删除文件另列后续特性；首版不包含 PPT 编辑。
@@ -35,7 +43,7 @@ SE-04 的代码、统一执行等同性、分层 Native 证据与文档两轴复
 | cli.mjs / server.mjs | stdio 服务、app-only 工具与本地 UI 资源；可信工作区和宿主 session meta 验证 |
 | text-files.mjs | 工作区边界、按层目录、UTF-8/BOM/换行特征、字节版本与拒绝旧基线的写回 |
 | text-resources.mjs | 首次可信受审读取登记的只读资源关联、按内容版本通知、退订／连接关闭释放；资源请求无对话 meta |
-| editor-settings.mjs | 插件外置 SQLite schema 1、全局默认／会话模式事务、跨进程初始化及明确失败；不保存正文 |
+| editor-settings.mjs | 插件外置 SQLite schema 2、schema 1 无损迁移、模式事务与会话恢复副本、存储边界校验及独立回执 |
 | ui/editor-template.html / ui/editor.css / ui/editor.mjs | 页面结构和主题、目录树、CodeMirror 页签、手动／自动保存、打开文件版本检测及冲突确认 |
 | build-ui.mjs / ui/dist/ | 唯一本地 UI 构建入口、随插件返回的自包含 HTML 与第三方许可；不手改生成文件 |
 | tests/ | 公开 MCP/stdio 文件边界契约与实际资源浏览器烟测 |
@@ -50,6 +58,10 @@ SE-04 的代码、统一执行等同性、分层 Native 证据与文档两轴复
 | docs/se04-watch-round2-verification.md / docs/se04-watch-round2-evidence.json | 第二轮规范目标页唯一性／脏正文保留、同字节改指保存的公开红绿与固定产物；独立复核及 Native 待验 |
 | docs/se04-watch-round3-verification.md / docs/se04-watch-round3-evidence.json | 第三轮整合时钟驱动失败、三页瞬时激活的提前保存红绿与固定产物；独立复核及 Native 待验 |
 | docs/se04-watch-native-verification.md / docs/se04-watch-native-evidence.json | 固定订阅产物的真实 Native 请求、单次 UI 授权、保存／冲突／退订／故障恢复与分层限制；保留文档提交时点，闭合见实施总记录 |
+| docs/se05-verification.md / docs/se05-evidence.json | 恢复副本/schema 迁移的真实数据库、新进程及实际构建页面契约，首次失败与修正记录；原生 H4 待验 |
+| docs/se05-review-fix-verification.md / docs/se05-review-fix-evidence.json | 首轮两轴三项 P2 的真实 stdio／构建页面红绿、身份合流／重试重入／初始化交互修正与新固定产物；独立复核及 H4 待验 |
+| docs/se05-round2-verification.md / docs/se05-round2-evidence.json | 规格轴新增合流读取代际问题、真实 ACL 迟到资源错误红绿及54组完整浏览器；新固定产物复核及 H4 待验 |
+| docs/se05-round3-verification.md / docs/se05-round3-evidence.json | 同一旧回执问题的脏目标分支红绿、保留正文／读取确认分离与55组完整浏览器；新固定产物复核及 H4 待验 |
 | docs/design-discussion.md | 已确认交互、问题轮次、宿主能力边界与后续特性范围 |
 | docs/text-editor-spec.md | 首版行为、工程接口边界、能力门槛与验证标准 |
 | docs/text-editor-tickets.md / docs/issues/ | 实施依赖图、原子票草稿和后续待做特性 |

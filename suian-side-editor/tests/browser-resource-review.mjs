@@ -50,6 +50,7 @@ async function withEditor(action, { failFirstSubscribe = false, directory = fals
     await page.getByRole('button', { name: '文件列表', exact: true }).click();
     if (directory) await page.getByRole('treeitem', { name: 'folder', exact: true }).click();
     await page.getByRole('treeitem', { name: 'file.txt', exact: true }).dblclick();
+    await page.getByRole('tab', { name: directory ? 'folder/file.txt' : 'file.txt', exact: true }).waitFor();
     await page.waitForFunction(() => getComputedStyle(document.querySelector('[role=tab] .tab-title')).fontStyle === 'normal');
     const content = page.getByRole('textbox', { name: '文件正文', exact: true });
     async function reload() { await page.getByRole('button', { name: '重新读取', exact: true }).click(); await page.getByRole('button', { name: '放弃编辑并重新读取', exact: true }).click(); }
