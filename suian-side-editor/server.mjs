@@ -4,8 +4,9 @@ import { realpath, stat, readFile } from 'node:fs/promises';
 import { isAbsolute } from 'node:path';
 import { createHash } from 'node:crypto';
 import { MCP_APP_MIME_TYPE, supportsZcodeMcpApps } from 'suian-zcode-common/ui-capabilities.mjs';
-import { readTextFile, listDirectory, saveTextFile } from './text-files.mjs';
+import { readTextFile, listDirectory, saveTextFile, fileFailure } from './text-files.mjs';
 import { editorSettings } from './editor-settings.mjs';
+import { installTextResources } from './text-resources.mjs';
 
 export const EDITOR_URI = 'ui://suian-side-editor/editor.html';
 const failure = (code, message) => Object.assign(new Error(message), { code });
@@ -34,21 +35,13 @@ async function boundContext(workspaceRoot, meta) {
 
 export function createMcpServer({ workspaceRoot = process.env.SUIAN_SIDE_EDITOR_WORKSPACE, dataPath = process.env.ZCODE_PLUGIN_DATA, zcodeAppVersion = process.env.ZCODE_APP_VERSION } = {}) {
   const server = new McpServer({ name: 'suian-side-editor', version: '0.1.0' });
+  const textResources = installTextResources(server);
   async function run(extra, action) {
     try {
       const data = await action(await boundContext(workspaceRoot, extra._meta));
       return { structuredContent: data, content: [{ type: 'text', text: JSON.stringify(data) }] };
     } catch (error) {
-      const causes = {
-        ENOENT: ['file_not_found', '文件不存在或已删除'],
-        ENOTDIR: ['file_not_found', '路径中的目录不存在'],
-        EISDIR: ['not_text_file', '目标是目录，不是文本文件'],
-        EACCES: ['permission_denied', '没有访问该文件的权限'],
-        EPERM: ['permission_denied', '系统拒绝访问该文件'],
-        ERR_ENCODING_INVALID_ENCODED_DATA: ['invalid_utf8', '文件不是有效 UTF-8，未使用替换字符解码']
-      };
-      const [code, message] = causes[error.code] ?? [error.code ?? 'file_error', error.message];
-      const data = { code, error: message };
+      const data = fileFailure(error);
       return { isError: true, structuredContent: data, content: [{ type: 'text', text: JSON.stringify(data) }] };
     }
   }
@@ -63,7 +56,7 @@ export function createMcpServer({ workspaceRoot = process.env.SUIAN_SIDE_EDITOR_
     inputSchema: z.object({ path: z.string().min(1) }).strict(),
     annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
     _meta: { ui: { resourceUri: EDITOR_URI, surface: 'editor', visibility: ['app'] } }
-  }, ({ path }, extra) => run(extra, context => readTextFile(context, path)));
+  }, ({ path }, extra) => run(extra, async context => textResources.register(context, await readTextFile(context, path))));
   const directoryTool = server.registerTool('list_editor_directory', {
     description: '按需展开当前工作区的一层目录，不过滤隐藏文件或 node_modules。',
     inputSchema: z.object({ path: z.string().min(1) }).strict(),

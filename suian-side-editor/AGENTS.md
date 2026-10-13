@@ -2,7 +2,7 @@
 
 当前阶段：需求、规格与票粒度已批准，11 张 GitHub Issues 已发布，依据 implement-spec 本地实施。只读切片与 H1/H2 已经人工原生审批实测及两轴复核通过；SE-03 的目录、页签与手动保存通过整合 SDK／浏览器、独立两轴和限定 Native 烟测。H3/H4、SE-08 正式缓存安装与完整首版验收尚未通过，工具审批不等于用户产品验收。
 
-SE-04 的模式持久化、自动触发与外部修改处理已经本地实施，SDK／SQLite／stdio 和实际构建浏览器契约通过，独立两轴及本票 Native 尚待执行。SE-05 正文／页签恢复没有在本票实现；模式数据库写回与源文件写回是两个独立回执。
+SE-04 的模式持久化、自动触发及三项时序修复已通过本地契约和独立代码复核。其 Native 因稳定文件每秒触发工具读取审批而未通过。当前资源订阅修复通过本地 SDK 31/31、浏览器 34 项／组，独立两轴和新 Native 仍待执行。SE-05 未解锁；模式数据库写回与源文件写回是两个独立回执。
 
 ## 范围与约定
 
@@ -34,6 +34,7 @@ SE-04 的模式持久化、自动触发与外部修改处理已经本地实施�
 | package.json / package-lock.json | 独立插件的精确运行依赖、测试和语法检查入口 |
 | cli.mjs / server.mjs | stdio 服务、app-only 工具与本地 UI 资源；可信工作区和宿主 session meta 验证 |
 | text-files.mjs | 工作区边界、按层目录、UTF-8/BOM/换行特征、字节版本与拒绝旧基线的写回 |
+| text-resources.mjs | 首次可信受审读取登记的只读资源关联、按内容版本通知、退订／连接关闭释放；资源请求无对话 meta |
 | editor-settings.mjs | 插件外置 SQLite schema 1、全局默认／会话模式事务、跨进程初始化及明确失败；不保存正文 |
 | ui/editor-template.html / ui/editor.css / ui/editor.mjs | 页面结构和主题、目录树、CodeMirror 页签、手动／自动保存、打开文件版本检测及冲突确认 |
 | build-ui.mjs / ui/dist/ | 唯一本地 UI 构建入口、随插件返回的自包含 HTML 与第三方许可；不手改生成文件 |
@@ -44,6 +45,7 @@ SE-04 的模式持久化、自动触发与外部修改处理已经本地实施�
 | docs/se03-native-verification.md / docs/se03-native-evidence.json | 固定产物的原生目录／读取／编辑／保存、人工审批、磁盘字节与完整 guest 图像；单列失败尝试和能力边界 |
 | docs/se04-verification.md / docs/se04-evidence.json | 模式真实数据库、自动计时与外部修改契约、首次失败轨迹及待 Native 交接；不代表整票验收 |
 | docs/se04-review-fix-verification.md / docs/se04-review-fix-evidence.json | 固定初版后的三项时序问题红绿、新增浏览器契约、历史证据保护与 Native 补充；不代替复核 |
+| docs/se04-watch-fix-verification.md / docs/se04-watch-fix-evidence.json | 原生重复审批问题、公开资源通路的红绿／时序／错误与生命周期边界；新 Native 尚待验 |
 | docs/design-discussion.md | 已确认交互、问题轮次、宿主能力边界与后续特性范围 |
 | docs/text-editor-spec.md | 首版行为、工程接口边界、能力门槛与验证标准 |
 | docs/text-editor-tickets.md / docs/issues/ | 实施依赖图、原子票草稿和后续待做特性 |
