@@ -142,11 +142,11 @@ git -C "{{repo_dir}}" sparse-checkout set suian-zcode-title suian-zcode-common
 
 在当前本机工作区浏览已有 UTF-8 文本，使用内部临时／固定页签编辑，再以保存按钮或 Ctrl+S 写回。目录按层展开，保存前检查磁盘内容版本；版本冲突时拒绝覆盖并保留编辑。SDK、实际构建浏览器及人工原生审批下的限定 Native 烟测已通过，范围见 [SE-03 原生验证](./suian-side-editor/docs/se03-native-verification.md)。
 
-SE-04 已改为首次受审读取后订阅已登记文件的变化，代码、整合等同性、分层 Native 证据和文档两轴复核完成，**本地限定条件已通过**。实际构建浏览器 42 项／组通过，未变 SDK 的 33 项证据沿用；新 Native 核对稳定订阅、保存、冲突和故障恢复，原重复读取审批失败记录保留。当前前沿为 SE-05 的持久恢复；本轮 Native 视觉、H3/H4、正式安装、完整首版及用户产品验收仍未通过，详见 [Native 记录](./suian-side-editor/docs/se04-watch-native-verification.md) 与 [实施总记录](./suian-side-editor/docs/development-verification.md)。
+SE-04 已改为首次受审读取后订阅已登记文件的变化，代码、整合等同性、分层 Native 证据和文档两轴复核完成，**本地限定条件已通过**。实际构建浏览器 42 项／组通过，未变 SDK 的 33 项证据沿用；当次 Native 核对稳定订阅、保存、冲突和故障恢复，原重复读取审批失败及视觉未验记录保留，详见 [Native 记录](./suian-side-editor/docs/se04-watch-native-verification.md) 与 [实施总记录](./suian-side-editor/docs/development-verification.md)。
 
-SE-05 的恢复副本已本地实现：页签、阅读位置与脏正文按会话独立持久化，副本回执与源文件保存分开，重建重新取得文件和资源关联。最终固定来源两轴通过，统一 SDK 37/37、实际构建浏览器 55 项／组通过；最终统一复核及关闭重开、真正回收、应用重启的 H4 仍待验，范围见 [恢复记录](./suian-side-editor/docs/se05-verification.md) 与 [实施总记录](./suian-side-editor/docs/development-verification.md)。
+SE-05 的恢复副本已本地实现：页签、阅读位置与脏正文按会话独立持久化，副本回执与源文件保存分开，重建重新取得文件和资源关联。最终来源与统一代码两轴、统一 SDK 37/37、实际构建浏览器 55 项／组通过；关闭重开、自然回收重建、正常应用重启三类 H4 及源 Native 文档两轴已通过，**#45 本地限定条件已满足**。最终统一文档两轴待根复核，范围见 [原生记录](./suian-side-editor/docs/se05-native-verification.md) 与 [实施总记录](./suian-side-editor/docs/development-verification.md)。
 
-本插件尚未加入上面的市场清单，正式缓存包装仍待验。评论接入仍受 H3 阻塞，H4、完整首版及用户产品验收未通过；本地恢复契约不代替真实原生生命周期结果。
+本插件尚未加入上面的市场清单，正式缓存包装仍待验。评论接入及完整安装验收仍受 H3 阻塞，完整首版及用户产品验收未通过；临时隔离入口不代表正式安装。
 
 ## suian-zcode-common — 公共基础能力
 

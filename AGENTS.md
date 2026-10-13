@@ -37,7 +37,7 @@ ZCode-Plugins/
 │   ├── ui/                 # 原生只读工件侧栏资源
 │   └── skills/             # setup / configuration / sessions / artifacts / glm / debug
 │
-├── suian-side-editor/     # SE-05本地整合37/55及源两轴通过；最终统一复核／H4待验
+├── suian-side-editor/     # SE-05 恢复本地条件及 H4 通过；最终统一文档两轴待复核
 │   ├── AGENTS.md          # 本插件规则与文档入口
 │   ├── CLAUDE.md          # 导入 AGENTS.md
 │   ├── .zcode-plugin/     # 原生侧栏元信息（尚未加入正式市场清单）
