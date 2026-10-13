@@ -1,0 +1,173 @@
+{
+  "date": "2026-10-12",
+  "desktopVersion": "3.15.1.8093",
+  "guiStartCountTotal": 4,
+  "installedHostSha256": "3fc3c5b286d7871e87f257eb09ab8e7165e8705307c2ee6cb66b687cd4c7f4bc",
+  "actualSdk": {
+    "appInfo": {
+      "name": "zcode-alias",
+      "version": "1"
+    },
+    "uiProtocolVersion": "2026-01-26",
+    "theme": "dark",
+    "locale": "zh-CN",
+    "surface": "editor"
+  },
+  "h1": {
+    "firstOpenA3": "passed_with_human_native_tool_approval",
+    "closeReopenA3": "passed_with_human_native_tool_approval",
+    "workspaceB": "passed_after_native_B_open_and_test_remote_rebind"
+  },
+  "h2": {
+    "sameWorkspaceSessions": {
+      "labels": [
+        "A3",
+        "A4"
+      ],
+      "distinctSessions": true,
+      "sameWorkspace": true,
+      "textMatches": true
+    },
+    "twoWorkspaces": {
+      "labels": [
+        "A3",
+        "B2"
+      ],
+      "distinctIdentities": true,
+      "distinctPaths": true,
+      "textAndByteVersionMatch": true
+    },
+    "uiSessionArgumentProvided": false,
+    "uiMetaFields": [
+      "progressToken"
+    ],
+    "serverWireCaptured": false
+  },
+  "permissions": [
+    {
+      "timestamp": "2026-10-12T13:44:09.730Z",
+      "label": "A1",
+      "mode": "build",
+      "rule": "mode.build.sideEffect",
+      "decision": "deny",
+      "reason": "Permission request cancelled",
+      "tool": "mcp__plugin_suian-side-editor_suian-side-editor__get_editor_context"
+    },
+    {
+      "timestamp": "2026-10-12T14:01:58.143Z",
+      "label": "A2",
+      "mode": "build",
+      "rule": "mode.build.sideEffect",
+      "decision": "deny",
+      "reason": "Permission request cancelled",
+      "tool": "mcp__plugin_suian-side-editor_suian-side-editor__get_editor_context"
+    },
+    {
+      "timestamp": "2026-10-12T14:07:29.568Z",
+      "label": "A3",
+      "mode": "build",
+      "rule": "mode.build.sideEffect",
+      "decision": "allow",
+      "reason": "Approved for this project",
+      "tool": "mcp__plugin_suian-side-editor_suian-side-editor__get_editor_context"
+    },
+    {
+      "timestamp": "2026-10-12T14:10:13.213Z",
+      "label": "A3",
+      "mode": "build",
+      "rule": "mode.build.sideEffect",
+      "decision": "allow",
+      "reason": "Approved once",
+      "tool": "mcp__plugin_suian-side-editor_suian-side-editor__read_editor_text"
+    },
+    {
+      "timestamp": "2026-10-12T14:15:07.022Z",
+      "label": "A3",
+      "mode": "build",
+      "rule": "mode.build.sideEffect",
+      "decision": "allow",
+      "reason": "Approved for this project",
+      "tool": "mcp__plugin_suian-side-editor_suian-side-editor__read_editor_text"
+    },
+    {
+      "timestamp": "2026-10-12T14:18:55.889Z",
+      "label": "A4",
+      "mode": "build",
+      "rule": "mode.build.sideEffect",
+      "decision": "allow",
+      "reason": "Approved once",
+      "tool": "mcp__plugin_suian-side-editor_suian-side-editor__get_editor_context"
+    },
+    {
+      "timestamp": "2026-10-12T14:19:36.053Z",
+      "label": "A4",
+      "mode": "build",
+      "rule": "mode.build.sideEffect",
+      "decision": "allow",
+      "reason": "Approved once",
+      "tool": "mcp__plugin_suian-side-editor_suian-side-editor__read_editor_text"
+    },
+    {
+      "timestamp": "2026-10-12T14:43:51.728Z",
+      "label": "B2",
+      "mode": "build",
+      "rule": "mode.build.sideEffect",
+      "decision": "allow",
+      "reason": "Approved once",
+      "tool": "mcp__plugin_suian-side-editor_suian-side-editor__get_editor_context"
+    },
+    {
+      "timestamp": "2026-10-12T14:47:30.567Z",
+      "label": "B2",
+      "mode": "build",
+      "rule": "mode.build.sideEffect",
+      "decision": "allow",
+      "reason": "Approved once",
+      "tool": "mcp__plugin_suian-side-editor_suian-side-editor__read_editor_text"
+    }
+  ],
+  "fixtureA": {
+    "text": "工作区 A · 只读探针\r\n",
+    "newline": "crlf",
+    "bytes": 29
+  },
+  "fixtureB": {
+    "text": "工作区 B · 只读探针\n",
+    "newline": "lf",
+    "bytes": 28
+  },
+  "isolatedZcodeModelEndpointRequests": 0,
+  "isolation": {
+    "originalInstallUntouched": true,
+    "realProfileNotRead": true,
+    "onlyLoopbackTestRelay": true,
+    "onlySyntheticModel": true,
+    "turnSent": false,
+    "toolApprovalClickedByAgent": false
+  },
+  "conditions": {
+    "defaultBuildNeedsNativeApproval": true,
+    "exactAllowedToolsConfigEffect": "unproven",
+    "guardedNativeMenuOnlyDraft": true
+  },
+  "registry": {
+    "rows": 8,
+    "beforeFourthStartAllEqual": true,
+    "afterFourthStartAllEqual": true,
+    "afterNativeCompleteAllEqual": true,
+    "beforeAndFinalRowsIdentical": true,
+    "firstThreeStartsBeforeSnapshotAvailable": false,
+    "standardKeysModifiedByAgent": false
+  },
+  "bFixture": {
+    "B1Fault": "fault.subscribe.sessionNotFound",
+    "B1SdkToolRequestOccurred": false,
+    "remoteContextBeforeRebind": "A",
+    "remoteContextAfterNativeStopStart": "B",
+    "B2PublicAttachmentWorkspace": "B",
+    "coldEmptySessionCrossProcessPersistenceRequiredByH1": false
+  },
+  "issue41Status": "implementation_and_native_h1_h2_verified_issue_not_closed",
+  "userProductAcceptanceClaimed": false,
+  "cleanup": "current_isolated_instance_retained_for_following_tickets_by_coordinator_instruction"
+}

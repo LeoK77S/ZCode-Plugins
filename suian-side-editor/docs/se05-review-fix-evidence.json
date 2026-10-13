@@ -1,0 +1,40 @@
+{
+  "ticket": "SE-05 / #45",
+  "baseline": "7c6c6e59788bc108268dce063f7dfc360212b77f",
+  "reviewFindings": {
+    "standards": ["P2 规范目标恢复合流", "P2 恢复重入及迟到结果复活已关闭页"],
+    "spec": ["P2 规范目标恢复合流", "P2 初始化期间可达编辑未计入副本"],
+    "distinctFindings": 3,
+    "independentRereview": "待根安排"
+  },
+  "red": {
+    "pathVariants": { "cases": 3, "actualCanonicalTabs": 2, "expectedCanonicalTabs": 1 },
+    "retry": { "actualStateRequests": 3, "expectedStateRequests": 2, "actualTabsAfterAckAndLateRead": 1, "expectedTabs": 0 },
+    "initialization": { "actualEditorFocused": true, "expectedEditorFocused": false },
+    "fixedAttributeDuringFirstFix": { "actualFontStyle": "italic", "expectedFontStyle": "normal" },
+    "preparationFailure": "进程内 SQLite 阻塞控制线程，改真实 stdio 后复现目标红灯；原失败保留"
+  },
+  "green": {
+    "newBrowserCases": 5,
+    "browser": { "previousGroups": 48, "totalGroups": 53, "nodeCases": 33, "scriptGroups": 20, "passedGroups": 53 },
+    "sdk": { "equivalentTotal": 37, "unchangedCasesReused": 36, "uiResourceCaseExecuted": 1, "newBackendCases": 0 },
+    "sameBytesPathChange": { "saveButtonDisabled": true, "editorCtrlSRequests": 0, "autoRequestsAfter800ms": 0 },
+    "build": true,
+    "syntax": true,
+    "native": false,
+    "H3": false,
+    "H4": false,
+    "ticketComplete": false,
+    "userAccepted": false
+  },
+  "artifact": {
+    "path": "ui/dist/editor.html",
+    "bytes": 322631,
+    "sha256": "8fb3ac756546f11dc1931407569fafd6f0317303189da35695f20c9c7d5bfdbe",
+    "licenseBytes": 12465,
+    "licenseSha256": "23ce8b41b422c88e526c88e599317e4f56484732251311f789805f328f4af2c8"
+  },
+  "preservedInitialManifest": { "files": 76, "sha256": "e93a2e0b0db1087eaa2138fe73ede093e5d502df10f4d8cacf52e429868fa01d" },
+  "localEvidenceDirectory": ".scratch/se05-review-fix",
+  "limits": ["状态身份为宿主 meta 夹具", "未作 Native 三类 H4 验收", "副本回执不表示源文件已保存", "未推送、合并或发布"]
+}
