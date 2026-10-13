@@ -28,7 +28,7 @@ test('首次允许打开稳定文件后，空闲检查不得继续发出受审�
     const html = (await client.readResource({ uri: EDITOR_URI })).contents[0].text;
     browser = await chromium.launch({ headless: true });
     const page = await browser.newPage({ viewport: { width: 1000, height: 700 } });
-    page.setDefaultTimeout(1800); await page.clock.install();
+    page.setDefaultTimeout(1800); await page.clock.install({ time: new Date('2026-01-01T00:00:00Z') });
     const calls = [], errors = [];
     page.on('pageerror', error => errors.push(error.message));
     await page.exposeFunction('editorCall', async (name, args) => {
@@ -39,7 +39,7 @@ test('首次允许打开稳定文件后，空闲检查不得继续发出受审�
     const resources = await installResourceBridge(page, client);
     await page.goto('about:blank'); await page.setContent(html);
     await page.getByRole('button', { name: '保存方式', exact: true }).getByText('手动保存', { exact: true }).waitFor();
-    await page.clock.pauseAt(await page.evaluate(() => Date.now()));
+    await page.clock.pauseAt(new Date('2026-01-01T01:00:00Z'));
     await page.getByRole('button', { name: '文件列表', exact: true }).click();
     await page.getByRole('treeitem', { name: 'stable.txt', exact: true }).click();
     await page.getByRole('textbox', { name: '文件正文', exact: true }).waitFor();

@@ -26,14 +26,14 @@ async function withEditor(action, { sameBytes = false } = {}) {
     const html = (await client.readResource({ uri: EDITOR_URI })).contents[0].text;
     browser = await chromium.launch({ headless: true });
     const page = await browser.newPage({ viewport: { width: 1000, height: 700 } });
-    page.setDefaultTimeout(1800); await page.clock.install();
+    page.setDefaultTimeout(1800); await page.clock.install({ time: new Date('2026-01-01T00:00:00Z') });
     const tools = [], errors = [];
     await page.exposeFunction('editorCall', async (name, args) => { const result = await client.callTool({ name, arguments: args, _meta: { session_id: 'round2-ui-fixture' } }); tools.push({ name, args, result }); return result; });
     const resources = await installResourceBridge(page, client);
     page.on('pageerror', error => errors.push(error.message));
     await page.goto('data:text/html,<!doctype html><html><body></body></html>'); await page.setContent(html);
     const mode = page.getByRole('button', { name: '保存方式', exact: true }); await mode.getByText('手动保存', { exact: true }).waitFor();
-    await page.clock.pauseAt((await page.evaluate(() => Date.now())) + 100); await page.getByRole('button', { name: '文件列表', exact: true }).click();
+    await page.clock.pauseAt(new Date('2026-01-01T01:00:00Z')); await page.getByRole('button', { name: '文件列表', exact: true }).click();
     await page.getByRole('treeitem', { name: 'folder', exact: true }).click(); await page.locator('[data-path="folder/file.txt"]').dblclick();
     await page.waitForFunction(() => getComputedStyle(document.querySelector('[role=tab] .tab-title')).fontStyle === 'normal');
     const content = page.getByRole('textbox', { name: '文件正文', exact: true });

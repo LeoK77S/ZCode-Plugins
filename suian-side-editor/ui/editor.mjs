@@ -270,10 +270,8 @@ document.getElementById('reload-confirm').addEventListener('click', async () => 
     if (file.text !== text) { blockFile(file, '重新读取期间有新的编辑，正文已保留，请再次确认重新读取'); return; }
     const canonical = documents.find(item => item !== file && item.relativePath === data.relativePath);
     if (canonical) {
-      const wasCurrent = current === file;
       canonical.fixed ||= file.fixed;
-      removeFile(file);
-      if (wasCurrent) activateFile(canonical);
+      removeFile(file, canonical);
       return;
     }
     file.readRevision = (file.readRevision ?? 0) + 1;
@@ -292,14 +290,14 @@ document.addEventListener('keydown', event => {
   event.preventDefault();
   if (current && !closeDialog.open) void saveFile(current);
 });
-function removeFile(file) {
+function removeFile(file, nextFile) {
   stopResource(file);
   cancelAuto(file);
   const index = documents.indexOf(file);
   documents.splice(index, 1); file.tabContainer.remove();
   if (current !== file) { renderTabs(); return; }
   current = undefined;
-  if (documents.length) activateFile(documents[Math.min(index, documents.length - 1)]);
+  if (documents.length) activateFile(nextFile ?? documents[Math.min(index, documents.length - 1)]);
   else {
     view.destroy(); view = undefined; editor.hidden = true; empty.hidden = false;
     breadcrumb.textContent = context.workspacePath.split(/[\\/]/).at(-1);

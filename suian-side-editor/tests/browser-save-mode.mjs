@@ -24,7 +24,7 @@ try {
   const html = (await client.readResource({ uri: EDITOR_URI })).contents[0].text;
   browser = await chromium.launch({ headless: true });
   const page = await browser.newPage({ viewport: { width: 1000, height: 700 } });
-  page.setDefaultTimeout(2500); await page.clock.install();
+  page.setDefaultTimeout(2500); await page.clock.install({ time: new Date('2026-01-01T00:00:00Z') });
   const calls = [], errors = [], requests = [];
   let holdName, release, arrived, ready, failSettings = false;
   page.on('pageerror', error => errors.push(error.message)); page.on('request', request => requests.push(request.url()));
@@ -43,7 +43,7 @@ try {
   await page.goto('about:blank'); await page.setContent(html);
   const mode = page.getByRole('button', { name: '保存方式', exact: true });
   await mode.getByText('手动保存', { exact: true }).waitFor(); assert.equal(await mode.textContent(), '手动保存');
-  await page.clock.pauseAt(await page.evaluate(() => Date.now()));
+  await page.clock.pauseAt(new Date('2026-01-01T01:00:00Z'));
   await page.getByRole('button', { name: '文件列表', exact: true }).click();
   async function open(name, fixed = true) { await page.getByRole('treeitem', { name, exact: true })[fixed ? 'dblclick' : 'click'](); await page.getByRole('tab', { name, exact: true }).waitFor(); }
   const content = page.getByRole('textbox', { name: '文件正文', exact: true });
