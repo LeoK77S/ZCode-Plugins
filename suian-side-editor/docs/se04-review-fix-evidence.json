@@ -1,0 +1,27 @@
+{
+  "date": "2026-10-13",
+  "baseline": "9045197a618abbfa4fabac2e06ba18332ca87a6c",
+  "issue": 44,
+  "candidatesConfirmed": 3,
+  "red": {
+    "idleAndInitialization": { "log": "fix-order-red.log", "exit": 1, "failed": 3, "passed": 1 },
+    "reloadSaveOrders": { "log": "fix-reload-red-2.log", "exit": 1, "failed": 2, "actualUiRollback": true, "actualDiskRollback": true }
+  },
+  "green": {
+    "newContracts": { "log": "fix-order-green-3.log", "exit": 0, "passed": 6, "failed": 0 },
+    "allBrowser": { "log": "fix-browser-final.log", "exit": 0, "existingGroups": 20, "newTests": 6, "pageErrors": 0, "networkRequests": 0 },
+    "syntax": { "log": "fix-check-final.log", "exit": 0 },
+    "build": { "log": "fix-build-2.log", "exit": 0 }
+  },
+  "sdkAndSqlite": "未改，复用904的25/25",
+  "originalFrozenEvidence": { "manifest": "transfer-manifest.json", "files": 61, "unchanged": true },
+  "resource": { "workingBuildBytes": 317169, "sha256": "a54ba28d93f071d03092b224726de661a9dc1be9dd72fea796230f48d34d986f", "note": "Git行尾转换后需重新固定实际返回字节" },
+  "toolsChanged": false,
+  "schemaChanged": false,
+  "nativeOperations": 0,
+  "modelEndpointCalls": 0,
+  "independentRecheck": "pending",
+  "nativeAcceptance": "pending",
+  "userAcceptance": "pending",
+  "ticketComplete": false
+}

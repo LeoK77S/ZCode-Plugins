@@ -1,0 +1,53 @@
+{
+  "date": "2026-10-13",
+  "baseline": "6d44a8661fe40f83f87157c2cd3aae1e2a47dfc9",
+  "reviewIntegrationRange": ["0d20389ee4f395c9eb8265aad5bcdd31fd653418", "c25c8eeeb547ce5498bc90e085b47f393ce7c441"],
+  "scope": "SE-04第二轮两项复核候选的实际红绿与最小UI修正；提交由转移清单标明",
+  "scratchDirectory": ".scratch/se04-watch-round2",
+  "findings": [
+    {"id": "existingCanonicalTarget", "axis": ["standards", "specification"], "triggers": ["twoFixedPages", "targetHasDirtyText"], "actualRed": "规范目标页签2 !== 1，受审工具复用目标URI", "log": "red.log"},
+    {"id": "sameBytesRetargetSave", "axis": ["specification"], "actualRed": "旧资源真实registered_path_changed；同V0源保存成功后状态仅已保存", "log": "save-red.log"}
+  ],
+  "driverFailures": [
+    {"log": "red.log", "test": "sameBytesRetargetSave", "cause": "Playwright pauseAt目标取时后落在过去，尚未进入产品断言"},
+    {"log": "green.log", "cause": "CodeMirror容器textContent不提供DOM行间换行，改为公开.cm-line逐行取文"},
+    {"log": "content-final.log", "cause": "Git blob为LF、Windows检出为CRLF，原始SHA不可当源码差异；逐项留字节SHA与CRLF数后规范化比较通过"}
+  ],
+  "verification": {
+    "firstGreen": {"passed": 3, "failed": 0, "exit": 0, "log": "green-2.log"},
+    "browser": {"originalGroups": 38, "newGroups": 3, "totalGroups": 41, "failed": 0, "exit": 0, "log": "browser-final.log"},
+    "sdk": {"passed": 33, "reused": true, "rerun": false, "sourceCommit": "6d44a8661fe40f83f87157c2cd3aae1e2a47dfc9", "sourceLog": ".scratch/se04-watch-review-fix/sdk-final.log", "executableCodeAndInterfacesUnchanged": true},
+    "syntax": {"exit": 0, "log": "check-final.log"},
+    "build": {"exit": 0, "licenses": 11, "log": "build.log"},
+    "content": {"exit": 0, "localLinks": 57, "log": "content-final-2.log", "sdkSourceEquivalence": "sdk-source-equivalence.json"},
+    "independentReview": {"pending": true},
+    "newNative": {"executed": false, "passed": false},
+    "userAccepted": false
+  },
+  "history": {
+    "checkedBefore": {"log": "history-before.log", "counts": [90, 44], "changed": []},
+    "originalManifestSha256": "a2c54d2d3d8da31e3925fe39266711c42793fc2e0ead3760d0b310d7e61b44ea",
+    "previousManifestSha256": "eea197c99e61bc444e885b0dca421efe080c7b3dc78156361f83eef7a602ade0",
+    "frozenOriginalHtml": {"bytes": 319186, "sha256": "ec926d1c47a70a75363e9ae8ae491db311f1068742c22103b015bda46f9758a3"},
+    "nativeFrozenByRoot": {"files": 278, "passed": false, "notModifiedByThisTask": true}
+  },
+  "artifact": {
+    "htmlBytes": 319367,
+    "htmlSha256": "43e23a9e57ae2d4ae94906b227b7e4c3160b63640320d5e411c61947bda5df80",
+    "licenseBytes": 12465,
+    "licenseSha256": "23ce8b41b422c88e526c88e599317e4f56484732251311f789805f328f4af2c8"
+  },
+  "boundaries": {
+    "resourceRequestHasTrustedSidMeta": false,
+    "snapshotFields": ["text", "encoding", "version"],
+    "containsLocalDirtyEditsOrRecoveryState": false,
+    "toolPollingFallback": false,
+    "referenceCountingOrRetryFrameworkAdded": false,
+    "se44Complete": false,
+    "se45Unlocked": false,
+    "h3": false,
+    "h4": false,
+    "nativeOrPermissionOrModelOperations": 0,
+    "pushedOrPrOrMergedReleaseOrInstalledProduction": false
+  }
+}

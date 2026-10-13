@@ -1,26 +1,27 @@
-给 ZCode 做的插件与公共工具集合。ZCode 是智谱推出的 Agentic Coding 工具（桌面端 + CLI），这个仓库放会话自动命名插件、会话 MCP，以及两者共用的基础能力。
+给 ZCode 做的插件与公共工具集合。ZCode 是智谱推出的 Agentic Coding 工具（桌面端 + CLI），这个仓库放会话自动命名插件、会话 MCP、本机侧栏文本编辑器，以及业务插件共用的基础能力。
 
 ## 原生插件安装
 
-仓库的 [marketplace.json](./marketplace.json) 提供三个原生插件。公共插件是两个业务插件的依赖，自动命名与会话 MCP 可分别选择。
+仓库的 [marketplace.json](./marketplace.json) 提供四个原生插件并登记各自版本。公共插件是三个业务插件的依赖，自动命名、会话 MCP 和文本编辑器可分别选择。
 
 | 插件 | 独立技能 |
 | --- | --- |
 | suian-zcode-common | setup、configuration、debug |
 | suian-zcode-title | setup、configuration、control、debug |
 | suian-zcode-app-mcp | setup、configuration、sessions、artifacts、glm、debug |
+| suian-side-editor | setup |
 
 在 ZCode 桌面端按以下步骤安装：
 
 1. 打开左侧栏的 **插件市场**，点击 **添加** → **插件市场**，填入本仓库的 GitHub 地址：[https://github.com/ONEGAYI/ZCode-Plugins.git](https://github.com/ONEGAYI/ZCode-Plugins.git)。
-2. 添加成功后，在该市场安装 `suian-zcode-common`、`suian-zcode-title` 和 `suian-zcode-app-mcp` 三个插件。
+2. 添加成功后，安装所需的业务插件：`suian-zcode-title`、`suian-zcode-app-mcp` 或 `suian-side-editor`。它们会自动安装公共依赖 `suian-zcode-common`。
 3. 安装完成后，**新开一个对话**，发送下面的提示词：
 
    ```text
-   帮我配置三个 suian-zcode 插件
+   帮我配置已安装的 suian 插件
    ```
 
-安装任一业务插件会自动安装 common；已有显式停用状态仍会保留。市场安装只获取插件代码，Node 依赖、公共网关和模型选择由 Agent 按各插件的 setup 技能完成配置。
+安装任一业务插件会自动安装 common；已有显式停用状态仍会保留。市场安装只获取插件代码，依赖和配置由 Agent 按各插件的 setup 技能完成。只使用文本编辑器时无需初始化远控网关；其 `0.1.0` 提供文本编辑、保存和恢复，选区评论仍待上游接口。
 
 公共代码经一个稳定目录入口共享；业务插件不复制实现。个人配置与状态留在版本缓存外。原生 Hook/MCP 由宿主加载，迁移旧源码安装时只清理对应的旧全局注册，保留其他配置。具体步骤见各插件的 skills/setup/SKILL.md。
 
@@ -73,6 +74,7 @@ https://github.com/ONEGAYI/ZCode-Plugins.git
 随后仅对实际已安装的业务插件执行对应命令：
 zcode plugins update suian-zcode-title@suian-zcode-plugins
 zcode plugins update suian-zcode-app-mcp@suian-zcode-plugins
+zcode plugins update suian-side-editor@suian-zcode-plugins
 不要在插件版本缓存中 git pull。更新后核对各插件的新版本和 rootPath，报告结果。
 ```
 
@@ -83,8 +85,9 @@ zcode plugins update suian-zcode-app-mcp@suian-zcode-plugins
 ```text
 我已更新 ZCode-Plugins 原生插件，请重新配置 suian-zcode-common 和我已安装的业务插件，
 确保新功能可用，保留插件选择、启用或暂停状态、已有模型、授权和个人配置。
-重新查询实际插件清单，以新的 rootPath、dataPath 读取各自 setup 技能并执行升级配置，
-刷新公共与 MCP 的锁定依赖、公共包链接、命名通知入口，并按需安全重载网关。
+重新查询实际插件清单，以新的 rootPath、dataPath 读取所选业务插件的 setup 技能并执行升级配置。
+仅使用 suian-side-editor 时，按其 setup 刷新锁定依赖、公共包链接与 MCP 连接，跳过网关和命名步骤。
+使用 title 或 app-mcp 时，按各自及 common 技能刷新依赖、公共包链接、所需通知入口，并按需安全重载网关。
 保留当前 ZCode；重载前让我暂停移动端远控，由你继续完成配置与本机检查。
 已有 MCP 进程可能仍用旧代码，按技能安排断开重连或择时重开，并核对实际工具清单。
 如为升级临时暂停命名，记录原开关，模型与 Host 核验通过后恢复原状态并复读。
@@ -161,6 +164,16 @@ git -C "{{repo_dir}}" sparse-checkout set suian-zcode-title suian-zcode-common
 通过两个本机只读工具检索会话与聊天历史；六个写工具经公共网关调用原 Host 改名、创建、发信、压缩上下文、归档与复原。另提供 GLM 套餐额度和重置卡查询，以及经用户许可消耗一张卡重置额度。stdio 接入，消息包装来源标识；原 Host 调用不另占官方席位，重置仍需要客户端确认表单。接入与边界见 [suian-zcode-app-mcp](./suian-zcode-app-mcp/)。
 
 工件 demo 提供当前会话的 get/set 增量工具、提交时管理摘要、Stop 历史快照与原生侧栏。提交摘要含有类别保底的部分简表，最多 20 条、整体 9000 字符；工件存储仍不限制数量。侧栏按类型折叠，统一详情含时间和会话实时状态；start_session 自动登记双方关系。原生分叉继承选中断点；缺快照会提示，子会话仍可独立维护。UI 按应用版本和 MCP Apps 能力启用。验证范围及首开连接条件见[开发验证](./suian-zcode-app-mcp/docs/artifact-demo-verification.md)，完整版唯一请求投影继续等待上游。
+
+## suian-side-editor — 侧栏文本编辑器
+
+在当前本机工作区浏览已有 UTF-8 文本，使用内部临时／固定页签编辑，再以保存按钮或 Ctrl+S 写回。目录按层展开，保存前检查磁盘内容版本；版本冲突时拒绝覆盖并保留编辑。SDK、实际构建浏览器及人工原生审批下的限定 Native 烟测已通过，范围见 [SE-03 原生验证](./suian-side-editor/docs/se03-native-verification.md)。
+
+SE-04 已改为首次受审读取后订阅已登记文件的变化，代码、整合等同性、分层 Native 证据和文档两轴复核完成，**本地限定条件已通过**。实际构建浏览器 42 项／组通过，未变 SDK 的 33 项证据沿用；当次 Native 核对稳定订阅、保存、冲突和故障恢复，原重复读取审批失败及视觉未验记录保留，详见 [Native 记录](./suian-side-editor/docs/se04-watch-native-verification.md) 与 [实施总记录](./suian-side-editor/docs/development-verification.md)。
+
+SE-05 的恢复副本已本地实现：页签、阅读位置与脏正文按会话独立持久化，副本回执与源文件保存分开，重建重新取得文件和资源关联。最终来源与统一代码两轴、统一 SDK 37/37、实际构建浏览器 55 项／组通过；关闭重开、自然回收重建、正常应用重启三类 H4、源 Native 文档和最终统一文档两轴已通过，**#45 本地限定条件已满足**。范围见 [原生记录](./suian-side-editor/docs/se05-native-verification.md) 与 [实施总记录](./suian-side-editor/docs/development-verification.md)。
+
+本插件以 `0.1.0` 登记市场，依赖初始化与打开方法见 [编辑器说明](./suian-side-editor/README.md)。当前提供文本编辑、保存和恢复；评论接入及原规格的完整验收仍受 H3 阻塞，用户产品验收未通过，已有临时隔离入口不代表本次正式安装已验证。
 
 ## suian-zcode-common — 公共基础能力
 

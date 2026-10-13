@@ -1,0 +1,32 @@
+{
+  "date": "2026-10-13",
+  "baseline": "2e5e1d08aabf994871129d1285e6ec411a13069a",
+  "issue": 44,
+  "scope": "模式 SQLite、可信模式工具、自动触发、打开文件外部版本检测与冲突",
+  "runtime": "Node.js 24.15.0",
+  "tools": {
+    "get_editor_settings": { "request": {}, "visibility": ["app"], "readOnlyHint": false },
+    "update_editor_settings": { "request": { "saveMode": ["manual", "auto"] }, "visibility": ["app"], "readOnlyHint": false }
+  },
+  "storage": { "root": "ZCODE_PLUGIN_DATA", "file": "editor-state.sqlite", "schema": 1, "busyTimeoutMs": 2000, "synchronous": "FULL", "transaction": "BEGIN IMMEDIATE", "journalModeChanged": false, "storesDraftBody": false },
+  "timers": { "idleSaveMs": 800, "externalNextRoundMs": 1000, "externalOverlaps": false, "externalFiles": "only opened, excluding saving/reloading/blocked" },
+  "checks": {
+    "sdk": { "passed": 25, "failed": 0, "log": "sdk-final.log", "exit": 0 },
+    "browser": { "existingGroups": 12, "newGroups": 8, "pageErrors": 0, "networkRequests": 0, "log": "browser-final.log", "exit": 0 },
+    "settings": { "groups": 6, "coldRounds": 5, "coldProcessesPerRound": 8, "log": "settings-final.log", "exit": 0 },
+    "build": { "log": "build-3.log", "exit": 0 },
+    "syntax": { "log": "check-final.log", "exit": 0 }
+  },
+  "resource": { "uri": "ui://suian-side-editor/editor.html", "workingBuildBytes": 316738, "sha256": "efd941b04d40269d2cae1faf9412fff139ccfd391e27d4396e1fdd5087f139a5", "note": "Git 行尾转换后应重新固定实际返回字节" },
+  "redEvidence": ["settings-red.log", "browser-mode-red.log", "browser-mode-green-2.log", "browser-mode-green-3.log", "settings-cold-1.log", "settings-corrupt-red.log", "settings-cold-diagnostic-3.log"],
+  "firstCommandLifecycle": { "redInterrupted": true, "initialGreenInterrupted": true, "toolInterruptExit": 1, "note": "stdio 夹具改为 finally 清理并消费 stderr 后完整退出，未把首次不完整日志当完整汇总" },
+  "diagnosticRemoved": true,
+  "modelsCalled": 0,
+  "nativeOperations": 0,
+  "independentReview": "pending",
+  "nativeAcceptance": "pending",
+  "userAcceptance": "pending",
+  "ticketComplete": false,
+  "unaffectedCommonAppTests": "复用既有证据，未重跑",
+  "excluded": ["SE-05 正文与页签重启恢复", "评论", "公共框架", "Native 权限修改", "推送", "PR", "关票"]
+}
