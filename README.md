@@ -142,7 +142,9 @@ git -C "{{repo_dir}}" sparse-checkout set suian-zcode-title suian-zcode-common
 
 在当前本机工作区浏览已有 UTF-8 文本，使用内部临时／固定页签编辑，再以保存按钮或 Ctrl+S 写回。目录按层展开，保存前检查磁盘内容版本；版本冲突时拒绝覆盖并保留编辑。SDK、实际构建浏览器及人工原生审批下的限定 Native 烟测已通过，范围见 [SE-03 原生验证](./suian-side-editor/docs/se03-native-verification.md)。
 
-本插件尚未加入上面的市场清单，正式缓存包装仍待验。自动保存、跨重启恢复和评论尚未完成，H3/H4 与完整首版仍未通过；本地限定烟测不代表用户产品验收。
+保存模式持久化、自动触发与外部修改处理已形成 SE-04 本地切片，SDK 25 项和实际构建浏览器 20 组通过。独立规范轴与规格轴确认三项 P2 待修，修复复核及本票 Native 尚待完成，范围见 [实施总记录](./suian-side-editor/docs/development-verification.md)。
+
+本插件尚未加入上面的市场清单，正式缓存包装仍待验。跨重启的正文／页签恢复和评论尚未实现，H3/H4 与完整首版仍未通过；本地验证不代表用户产品验收。
 
 ## suian-zcode-common — 公共基础能力
 
