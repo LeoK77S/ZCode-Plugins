@@ -4,6 +4,8 @@
 
 **当前结论**：模式持久化、自动触发和外部修改处理通过本地契约。独立两轴、本票 Native 及用户验收尚待执行，不能用这些结果解除完整首版的 H3／H4 门槛。
 
+初次实现冻结于 `9045197a618abbfa4fabac2e06ba18332ca87a6c`。规格轴随后提出三项时序问题，均经真实构建契约确认并修复；当前结果和资源哈希见 [独立规格轴修复记录](se04-review-fix-verification.md)。本页及 JSON 中的首次测试数量、日志和资源字节是 904 的历史记录。
+
 ## 最小接口与数据所有权
 
 `createMcpServer` 从启动环境 `ZCODE_PLUGIN_DATA` 取得外置 dataPath；`editor-settings.mjs` 使用该目录下的 `editor-state.sqlite`。缺失、相对路径或未展开模板明确失败，不回退至工作区、插件缓存或 common。Host 默认注入已由固定官方源码与 CLI 静态核对，本票尚未运行 Native 捕获。
@@ -44,7 +46,7 @@ Node 24.15.0。SDK／SQLite／stdio 25/25，包括既有 19 项文件边界和 6
 
 最终日志位于本插件忽略目录 `.scratch/se04/`：`sdk-final.log`／`.exit`、`browser-final.log`／`.exit`、`check-final.log`／`.exit`；构建记录 `build-3.log`／`.exit`，模式独立记录 `settings-final.log`／`.exit`。详细脱敏索引见 [JSON 证据](se04-evidence.json)。common／app-mcp 不变，未重跑其回归。
 
-返回 HTML 工作树构建字节为 316738，SHA-256 `efd941b04d40269d2cae1faf9412fff139ccfd391e27d4396e1fdd5087f139a5`。Git 的行尾转换可能改变检出字节；整合及 Native 必须重新固定实际返回资源，不能把工作树构建哈希当成其他检出目录的字节声明。第三方许可完整嵌入 HTML，构建输入与许可范围未扩展。
+904 初次返回 HTML 工作树构建字节为 316738，SHA-256 `efd941b04d40269d2cae1faf9412fff139ccfd391e27d4396e1fdd5087f139a5`。Git 的行尾转换可能改变检出字节；整合及 Native 必须重新固定实际返回资源，不能把工作树构建哈希当成其他检出目录的字节声明。第三方许可完整嵌入 HTML，构建输入与许可范围未扩展。
 
 ## Native 交接，尚未执行
 

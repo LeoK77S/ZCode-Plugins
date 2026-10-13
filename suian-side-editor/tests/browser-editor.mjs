@@ -13,11 +13,13 @@ const require = createRequire(process.env.SUIAN_SIDE_EDITOR_PLAYWRIGHT_MODULE ??
 const { chromium } = require('playwright');
 const workspaceRoot = await mkdtemp(join(tmpdir(), 'side-editor-ui-'));
 const dataPath = await mkdtemp(join(tmpdir(), 'side-editor-ui-data-'));
+const screenshotDirectory = process.env.SUIAN_SIDE_EDITOR_SCREENSHOT_DIR ?? fileURLToPath(new URL('../.scratch/se03/', import.meta.url));
 const server = createMcpServer({ workspaceRoot, dataPath, zcodeAppVersion: '3.15.1' });
 const client = new Client({ name: 'zcode', version: '0.16.9' }, { capabilities: apps });
 const [ct, st] = InMemoryTransport.createLinkedPair();
 let browser;
 try {
+  await mkdir(screenshotDirectory, { recursive: true });
   await mkdir(join(workspaceRoot, 'node_modules'));
   await writeFile(join(workspaceRoot, 'node_modules', 'inside.txt'), 'nested\n');
   await writeFile(join(workspaceRoot, '.hidden'), 'hidden\n');
@@ -227,10 +229,10 @@ try {
   assert.equal(mainClosed.width, 1100); assert.ok(mainClosed.width > mainOpen.width);
   assert.ok(Math.abs(mainClosed.x + mainClosed.width / 2 - frameClosed.x - frameClosed.width / 2) <= 1);
   await page.getByRole('button', { name: '文件列表', exact: true }).click();
-  await page.screenshot({ path: fileURLToPath(new URL('../.scratch/se03/editor-wide.png', import.meta.url)) });
+  await page.screenshot({ path: join(screenshotDirectory, 'editor-wide.png') });
   await page.setViewportSize({ width: 480, height: 740 });
   assert.equal(await page.evaluate(() => document.documentElement.scrollWidth), 480, '窄栏没有页面水平溢出');
-  await page.screenshot({ path: fileURLToPath(new URL('../.scratch/se03/editor-narrow.png', import.meta.url)) });
+  await page.screenshot({ path: join(screenshotDirectory, 'editor-narrow.png') });
   console.log('布局浏览器契约通过：展开/收起剩余宽度居中、480px 窄栏、实际页面截图');
   console.log('目录浏览器契约通过：按需层级、node_modules、隐藏无扩展名文件');
   assert.ok(calls.every(call => !('session_id' in call.args) && !('sessionId' in call.args) && !('workspacePath' in call.args)));
