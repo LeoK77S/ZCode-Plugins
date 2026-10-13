@@ -37,7 +37,7 @@ ZCode-Plugins/
 │   ├── ui/                 # 原生只读工件侧栏资源
 │   └── skills/             # setup / configuration / sessions / artifacts / glm / debug
 │
-├── suian-side-editor/     # 手动 Native 通过；订阅修正整合42与新 Native行为完成，待文档门槛复核
+├── suian-side-editor/     # SE-04本地限定条件通过，前沿SE-05；Native视觉／H3／H4未验
 │   ├── AGENTS.md          # 本插件规则与文档入口
 │   ├── CLAUDE.md          # 导入 AGENTS.md
 │   ├── .zcode-plugin/     # 原生侧栏元信息（尚未加入正式市场清单）

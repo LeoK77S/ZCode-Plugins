@@ -2,7 +2,7 @@
 
 当前阶段：需求、规格与票粒度已批准，11 张 GitHub Issues 已发布，依据 implement-spec 本地实施。只读切片与 H1/H2 已经人工原生审批实测及两轴复核通过；SE-03 的目录、页签与手动保存通过整合 SDK／浏览器、独立两轴和限定 Native 烟测。H3/H4、SE-08 正式缓存安装与完整首版验收尚未通过，工具审批不等于用户产品验收。
 
-SE-04 的模式、自动触发及订阅修正通过本地契约、统一执行等同性与独立代码复核，浏览器 42 项／组通过，未改 SDK 复用 33/33。旧 Native 的重复读审批失败保留；固定新产物的限定 Native 行为已闭合，记录见 `docs/se04-watch-native-verification.md`，尚待文档及本票门槛两轴复核。新轮视觉未验，不与 SE-03 图像或旧数据根模式链混称。SE-05 未解锁；模式数据库写回与源文件写回是两个独立回执。
+SE-04 的代码、统一执行等同性、分层 Native 证据与文档两轴复核已完成，本地限定条件通过；浏览器 42 项／组通过，未改 SDK 复用 33/33。旧 Native 重复读审批失败保留，新限定行为见 `docs/se04-watch-native-verification.md`，当前闭合见 `docs/development-verification.md`。新轮视觉未验，不与 SE-03 图像或旧数据根模式链混称。当前前沿为 SE-05，具体依赖解除与派发由根记录；模式数据库写回与源文件写回仍是两个独立回执。
 
 ## 范围与约定
 
@@ -49,7 +49,7 @@ SE-04 的模式、自动触发及订阅修正通过本地契约、统一执行�
 | docs/se04-watch-review-verification.md / docs/se04-watch-review-evidence.json | 订阅通路两轴四项 P2 的公开红绿、重绑定／独立同步失败／通知拒绝／同版本旧错误与新固定产物；复核及 Native 待验 |
 | docs/se04-watch-round2-verification.md / docs/se04-watch-round2-evidence.json | 第二轮规范目标页唯一性／脏正文保留、同字节改指保存的公开红绿与固定产物；独立复核及 Native 待验 |
 | docs/se04-watch-round3-verification.md / docs/se04-watch-round3-evidence.json | 第三轮整合时钟驱动失败、三页瞬时激活的提前保存红绿与固定产物；独立复核及 Native 待验 |
-| docs/se04-watch-native-verification.md / docs/se04-watch-native-evidence.json | 固定订阅产物的真实 Native 请求、单次 UI 授权、保存／冲突／退订／故障恢复与分层限制；本票门槛待两轴判定 |
+| docs/se04-watch-native-verification.md / docs/se04-watch-native-evidence.json | 固定订阅产物的真实 Native 请求、单次 UI 授权、保存／冲突／退订／故障恢复与分层限制；保留文档提交时点，闭合见实施总记录 |
 | docs/design-discussion.md | 已确认交互、问题轮次、宿主能力边界与后续特性范围 |
 | docs/text-editor-spec.md | 首版行为、工程接口边界、能力门槛与验证标准 |
 | docs/text-editor-tickets.md / docs/issues/ | 实施依赖图、原子票草稿和后续待做特性 |
