@@ -2,6 +2,8 @@
 
 当前版本 0.1.0 提供本机已有 UTF-8 文本编辑，登记原生市场并提供 `skills/setup/SKILL.md` 的依赖与公共包链接入口。既有 11 张 GitHub Issues 已发布，完整原生并发独立拆为 SE-11（GitHub #57），共 12 票。H1/H2、目录／页签／保存、外部冲突和 H4 三类生命周期均已取得限定验证；当前评论闭环、SE-08 正式缓存安装及用户产品验收尚未通过。2026-10-13 用户已接受发送边界残余风险，允许按已核公开会话状态尽力禁用后推进，见 `docs/adr/0005-temporary-comment-send-guard.md`、当前规格及票索引；旧验证记录保留原时点。
 
+2026-10-14 评论本地代码固定源 `9dcfc6f`／统一 `ec2f32d` 已通过 SDK46、实际构建浏览器63与独立规范轴／规格轴；四项确定 P2 在已测触发闭合。评论缓存闭环的 Native 实测尚未通过，当前只有测试准备，不能宣称最终源已实际装载、票完成或用户验收。版本仍为 0.1.0，评论未发布；当前证据与限制见 [评论验证](docs/comment-guard-verification.md)，旧文档和 JSON 不回写新结论。
+
 SE-04 的代码、统一执行等同性、分层 Native 证据与文档两轴复核已完成，本地限定条件通过；浏览器 42 项／组通过，未改 SDK 复用 33/33。旧 Native 重复读审批失败保留，新限定行为见 `docs/se04-watch-native-verification.md`，当前闭合见 `docs/development-verification.md`。该轮视觉未验，不与 SE-03 图像或旧数据根模式链混称。评论当前范围按 ADR 0005 推进，实际接口、临时限制和评论缓存闭环仍须验证，不能宣称原 H3 完整能力已满足；模式数据库写回与源文件写回仍是两个独立回执。
 
 SE-05 已实现 schema 2 的会话恢复副本与独立回执；最终固定源 `20526764` 和统一 `77caa2a` 的代码两轴、统一完整 SDK 37/37、实际构建浏览器 55 项／组及构建／语法检查已通过。页签、阅读位置与脏正文在使用过程中持久化，重建重新通过受审工具取得文件和资源关联。正常关闭重开、自然回收新 guest、应用正常退出重启均有实际恢复证据，见 `docs/se05-native-verification.md`。本轮 Native 文档最终统一整合及 #45 本地条件见 `docs/development-verification.md`。
@@ -26,6 +28,7 @@ SE-05 已实现 schema 2 的会话恢复副本与独立回执；最终固定源 
 - 设计澄清：`docs/design-discussion.md`。
 - 首版规格与票草稿：`docs/text-editor-spec.md`、`docs/text-editor-tickets.md`。
 - 实施证据与宿主预读：`docs/development-verification.md`、`docs/native-ui-binding-research.md`。
+- 评论代码／夹具通过及 Native 待验的当前边界：[评论验证](docs/comment-guard-verification.md)。
 - 主对话上下文接口与安装包核对：`docs/main-composer-context-research.md`。
 - 已接受的架构决定：`docs/adr/`。
 - 文档组织与开票：`docs/agents/domain.md`、`docs/agents/issue-tracker.md`。
@@ -70,6 +73,7 @@ SE-05 已实现 schema 2 的会话恢复副本与独立回执；最终固定源 
 | docs/text-editor-tickets.md / docs/issues/ | 实施依赖图、原子票草稿和后续待做特性 |
 | docs/issues/11-native-concurrent-comment-feature.md | 独立完整原生并发、公开状态／批次需求、重连晚回执与移除临时禁用验收 |
 | docs/adr/0005-temporary-comment-send-guard.md | 用户接受残余风险的尽力禁用、当前票范围与完整特性边界 |
+| docs/comment-guard-verification.md | 固定评论代码、首次失败与四项红绿／双轴、Git/LF产物和当前Native准备；不代替宿主实测或用户验收 |
 | docs/development-verification.md / docs/native-ui-binding-research.md | 已执行验证与明确区分源码依据、宿主实测的能力记录 |
 | docs/main-composer-context-research.md | 主对话插件附件身份、清理反馈与实际安装包的静态能力边界 |
 | docs/adr/ | 已接受且影响后续实现的架构决定 |
