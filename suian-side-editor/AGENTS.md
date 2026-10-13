@@ -40,11 +40,14 @@ SE-05 已实现 schema 2 的会话恢复副本与独立回执；最终固定源 
 | package.json / package-lock.json | 独立插件的精确运行依赖、测试和语法检查入口 |
 | cli.mjs / server.mjs | stdio 服务、app-only 工具与本地 UI 资源；可信工作区和宿主 session meta 验证 |
 | text-files.mjs | 工作区边界、按层目录、UTF-8/BOM/换行特征、字节版本与拒绝旧基线的写回 |
-| text-resources.mjs | 首次可信受审读取登记的只读资源关联、按内容版本通知、退订／连接关闭释放；资源请求无对话 meta |
+| text-resources.mjs | 首次可信受审读取登记的文本资源、按版本通知与释放；同一 MCP subscribe／unsubscribe 路由按 URI 分派文本和评论资源，资源请求无对话 meta |
+| comment-state.mjs | 首次受审可信登记的评论状态只读资源；复用 common 会话快照与公开事件识别本插件批次，未知状态与退订／连接关闭释放 |
 | editor-settings.mjs | 插件外置 SQLite schema 2、schema 1 无损迁移、模式事务与会话恢复副本、存储边界校验及独立回执 |
 | ui/editor-template.html / ui/editor.css / ui/editor.mjs | 页面结构和主题、目录树、CodeMirror 页签、手动／自动保存、打开文件版本检测及冲突确认 |
 | build-ui.mjs / ui/dist/ | 唯一本地 UI 构建入口、随插件返回的自包含 HTML 与第三方许可；不手改生成文件 |
 | tests/ | 公开 MCP/stdio 文件边界契约与实际资源浏览器烟测 |
+| tests/comment-state.test.mjs | 可信评论状态与文本双资源订阅、独立退订／连接关闭、归属与普通正文隔离、精确本插件批次识别 |
+| tests/browser-comments.mjs | 实际构建选区快照与聚合、全部入口禁用／表单保留、正常／失败／排队受理及迟到回执契约；不代替 Native |
 | README.md / CHANGELOG.md | 当前版本范围、原生安装／打开、本地开发与用户可感知更新 |
 | docs/se01-verification.md / docs/se01-evidence.json | 首次验证轨迹与总证据索引 |
 | docs/se01-native-verification.md / docs/se01-native-evidence.json | 实际 Desktop 首开、关闭重开、会话／工作区归属与原生审批的限定证据 |
