@@ -128,11 +128,12 @@ test('恢复尚未完成时不可编辑提前显示的首页，完成后新正�
   assert.equal(await readFile(join(f.workspaceRoot, 'alpha.txt'), 'utf8'), 'alpha 外部新正文\n'); assert.deepEqual(f.errors, []);
 });
 
-test('规范合流的新受审读取作废同版本迟到权限错误，后续自动保存与外部通知仍可用', { skip: process.platform !== 'win32' }, async t => {
-  const f = await fixture(t), first = await f.saved('folder/file.txt'), second = await f.saved('other/file.txt');
+for (const variant of ['clean','dirty-target']) test(`规范合流的新受审读取-${variant}：作废同版本迟到权限错误并保留目标正文`, { skip: process.platform !== 'win32' }, async t => {
+  const f = await fixture(t), dirty = variant === 'dirty-target';
+  const first = await f.saved(dirty ? 'other/file.txt' : 'folder/file.txt', dirty ? 'other original\n恢复脏正文' : undefined), second = await f.saved(dirty ? 'folder/file.txt' : 'other/file.txt');
   await f.request('update_editor_state', { state: { files: [first,second], currentPath: 'other/file.txt' } });
   await rename(join(f.workspaceRoot, 'folder'), join(f.workspaceRoot, 'retired')); await symlink(join(f.workspaceRoot, 'other'), join(f.workspaceRoot, 'folder'), 'junction');
-  const next = f.hold(entry => entry.name === 'read_editor_text' && entry.args.path === 'other/file.txt', { beforeCall: true });
+  const next = f.hold(entry => entry.name === 'read_editor_text' && entry.args.path === second.path, { beforeCall: true });
   const stale = f.hold(entry => entry.name === 'resources/read' && JSON.parse(entry.result.contents[0].text).code === 'permission_denied');
   const { page } = await f.page(); await next.ready;
   const opened = f.calls.find(call => call.name === 'read_editor_text').result.structuredContent;
@@ -147,11 +148,17 @@ test('规范合流的新受审读取作废同版本迟到权限错误，后续�
   next.release(); await page.getByRole('button', { name: '保存方式', exact: true }).getByText('手动保存', { exact: true }).waitFor();
   const newer = f.calls.filter(call => call.name === 'read_editor_text').at(-1).result.structuredContent;
   assert.equal(newer.version, opened.version, '权限恢复后第二次受审读取的字节版本不变'); assert.equal(newer.resourceUri, opened.resourceUri);
+  const content = page.getByRole('textbox', { name: '文件正文', exact: true });
+  if (dirty) {
+    assert.match(await content.innerText(), /恢复脏正文/, '干净别名的新读取不能替换既有目标的脏正文');
+    await page.getByText('恢复副本已同步', { exact: true }).waitFor();
+    assert.equal((await f.request('get_editor_state')).structuredContent.state.files[0].draft.text, 'other original\n恢复脏正文');
+  }
   stale.release(); await page.getByRole('button', { name: '保存方式', exact: true }).click(); await page.getByRole('button', { name: '保存方式', exact: true }).getByText('自动保存', { exact: true }).waitFor();
-  const content = page.getByRole('textbox', { name: '文件正文', exact: true }); await content.focus(); await page.keyboard.press('Control+End'); await page.keyboard.type('new');
+  await content.focus(); await page.keyboard.press('Control+End'); await page.keyboard.type('new');
   try { await page.getByText('已保存', { exact: true }).waitFor(); }
   catch (error) { assert.fail(`${error.message}\n${JSON.stringify({ status: await page.locator('#status-text').innerText(), conflictVisible: await page.locator('#conflict-bar').isVisible(), saveRequests: f.calls.filter(call => call.name === 'save_editor_text').length, disk: await readFile(path, 'utf8') })}`); }
-  assert.equal(await readFile(path, 'utf8'), 'other original\nnew');
+  assert.equal(await readFile(path, 'utf8'), dirty ? 'other original\n恢复脏正文new' : 'other original\nnew');
   assert.equal(await page.locator('#conflict-bar').isVisible(), false);
   await writeFile(path, 'latest external\n'); await f.client.readResource({ uri: opened.resourceUri }); await content.filter({ hasText: 'latest external' }).waitFor();
   assert.deepEqual(f.errors, []);

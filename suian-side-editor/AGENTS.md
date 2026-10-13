@@ -10,6 +10,8 @@ SE-05 已实现 schema 2 的会话恢复副本与独立回执；本地契约及�
 
 首轮已测问题经窄复核闭合；规格轴新增合流后迟到资源错误问题，最小读取代际修正及实际红绿见 `docs/se05-round2-verification.md`。新固定产物待根复核，原生 H4 仍未验。
 
+同一旧回执问题的脏目标关联分支已补真实红绿，读取代际确认与正文替换分开，见 `docs/se05-round3-verification.md`；此前双干净触发记录保留，新固定产物仍待根的两轴窄复核。
+
 ## 范围与约定
 
 - 首版编辑当前本机工作区内已有的 UTF-8 文本文件。远程工作区和新建、重命名、删除文件另列后续特性；首版不包含 PPT 编辑。
@@ -59,6 +61,7 @@ SE-05 已实现 schema 2 的会话恢复副本与独立回执；本地契约及�
 | docs/se05-verification.md / docs/se05-evidence.json | 恢复副本/schema 迁移的真实数据库、新进程及实际构建页面契约，首次失败与修正记录；原生 H4 待验 |
 | docs/se05-review-fix-verification.md / docs/se05-review-fix-evidence.json | 首轮两轴三项 P2 的真实 stdio／构建页面红绿、身份合流／重试重入／初始化交互修正与新固定产物；独立复核及 H4 待验 |
 | docs/se05-round2-verification.md / docs/se05-round2-evidence.json | 规格轴新增合流读取代际问题、真实 ACL 迟到资源错误红绿及54组完整浏览器；新固定产物复核及 H4 待验 |
+| docs/se05-round3-verification.md / docs/se05-round3-evidence.json | 同一旧回执问题的脏目标分支红绿、保留正文／读取确认分离与55组完整浏览器；新固定产物复核及 H4 待验 |
 | docs/design-discussion.md | 已确认交互、问题轮次、宿主能力边界与后续特性范围 |
 | docs/text-editor-spec.md | 首版行为、工程接口边界、能力门槛与验证标准 |
 | docs/text-editor-tickets.md / docs/issues/ | 实施依赖图、原子票草稿和后续待做特性 |
