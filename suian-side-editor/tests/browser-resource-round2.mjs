@@ -52,8 +52,11 @@ for (const dirty of [false, true]) {
     await withEditor(async ({ page, content, documentText, client, resources, reads, append, reload, retarget, workspaceRoot }) => {
       const oldUri = reads().at(-1).result.structuredContent.resourceUri;
       await page.getByRole('treeitem', { name: 'other', exact: true }).click(); await page.locator('[data-path="other/file.txt"]').dblclick();
-      await page.waitForFunction(() => [...document.querySelectorAll('[role=tab] .tab-title')].every(title => getComputedStyle(title).fontStyle === 'normal'));
-      const targetUri = reads().at(-1).result.structuredContent.resourceUri;
+      await page.waitForFunction(() => {
+        const target = document.querySelector('[role=tab][aria-label="other/file.txt"]');
+        return target?.getAttribute('aria-selected') === 'true' && getComputedStyle(target.querySelector('.tab-title')).fontStyle === 'normal';
+      });
+      const targetUri = reads().find(call => call.args.path === 'other/file.txt').result.structuredContent.resourceUri;
       if (dirty) await append('target-draft');
       await page.getByRole('tab', { name: 'folder/file.txt', exact: true }).click();
       assert.equal(await page.getByRole('tab').count(), 2);
