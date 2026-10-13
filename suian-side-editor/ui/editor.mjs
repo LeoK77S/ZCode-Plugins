@@ -28,7 +28,8 @@ function commentId() {
 }
 function renderComments() {
   const selected = Boolean(view && !view.state.selection.main.empty);
-  const reason = !host?.updateModelContext ? '当前宿主不支持主对话上下文' : commentSession.state !== 'idle' ? commentSession.reason : commentBusy ? '正在加入主对话…' : '';
+  const reason = current && !current.sourcePath ? '未取得文件的可信完整路径，暂时不能添加评论；恢复正文已保留，请确认重新读取文件' :
+    !host?.updateModelContext ? '当前宿主不支持主对话上下文' : commentSession.state !== 'idle' ? commentSession.reason : commentBusy ? '正在加入主对话…' : '';
   commentButton.disabled = !selected || Boolean(reason);
   commentButton.title = reason || (!selected ? '先选择文件正文' : '为当前选区填写评论');
   commentSubmit.disabled = Boolean(reason) || !commentBody.value.trim(); commentSubmit.title = reason || '将快照加入当前主对话';
@@ -51,10 +52,13 @@ async function loadComments() {
     if (!host.updateModelContext) throw new Error('当前宿主不支持主对话上下文');
     const data = await call('get_editor_comment_state', {}); applyCommentSession(data); commentResource = data.resourceUri;
     await host.subscribeResource(commentResource);
-    if (disposed) { await host.unsubscribeResource(commentResource); return; }
+    if (disposed) { await unsubscribeCommentResource(commentResource); return; }
     await refreshCommentState();
   } catch (error) { commentSession = { state: 'unknown', reason: `评论不可用：${error.message}` }; }
   renderComments();
+}
+function unsubscribeCommentResource(uri) {
+  return host.unsubscribeResource(uri).catch(error => console.error(`评论状态退订失败：${error.message}`));
 }
 commentBody.addEventListener('input', renderComments);
 commentButton.addEventListener('click', () => {
@@ -412,7 +416,7 @@ function stopResource(file) {
   file.subscribed = false;
   void host.unsubscribeResource(file.resourceUri).catch(error => showStatus(`文件退订失败：${error.message}`, true));
 }
-window.addEventListener('pagehide', () => { disposed = true; clearTimeout(recoveryTimer); clearTimeout(commentRetryTimer); cancelResourceEvents?.(); for (const file of documents) stopResource(file); if (commentResource) void host.unsubscribeResource(commentResource).catch(() => {}); });
+window.addEventListener('pagehide', () => { disposed = true; clearTimeout(recoveryTimer); clearTimeout(commentRetryTimer); cancelResourceEvents?.(); for (const file of documents) stopResource(file); if (commentResource) void unsubscribeCommentResource(commentResource); });
 let reloading;
 document.getElementById('keep-edit').addEventListener('click', () => { showFileStatus(); });
 document.getElementById('reload-file').addEventListener('click', () => {

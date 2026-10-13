@@ -10,7 +10,7 @@ import { installResourceBridge } from './browser-resource-bridge.mjs';
 
 const require = createRequire(process.env.SUIAN_SIDE_EDITOR_PLAYWRIGHT_MODULE ?? import.meta.url);
 const { chromium } = require('playwright');
-async function fixture(t, { failPublish = false, holdPublish = false } = {}) {
+async function fixture(t, { failPublish = false, holdPublish = false, restoreMissing = false } = {}) {
   const workspaceRoot = await mkdtemp(join(tmpdir(), 'side-comment-')), dataPath = await mkdtemp(join(tmpdir(), 'side-comment-data-'));
   t.after(() => Promise.all([rm(workspaceRoot, { recursive: true, force: true }), rm(dataPath, { recursive: true, force: true })]));
   await writeFile(join(workspaceRoot, 'alpha.txt'), 'first\nsecond\nthird');
@@ -20,6 +20,11 @@ async function fixture(t, { failPublish = false, holdPublish = false } = {}) {
   const publishReady = new Promise(resolve => { publishStarted = resolve; });
   const hostConnector = async options => { if (connectionError) throw new Error(connectionError); return { call: async (channel, method, args) => { hostCalls.push({ options, channel, method, args }); return method === 'readSessionEvents' ? events : state; }, close() {} }; };
   const client = await connect(t, { workspaceRoot, dataPath, hostConnector });
+  if (restoreMissing) {
+    const file = (await client.callTool({ name: 'read_editor_text', arguments: { path: 'alpha.txt' }, _meta: { session_id: 'comment-fixture' } })).structuredContent;
+    await client.callTool({ name: 'update_editor_state', arguments: { state: { files: [{ path: 'alpha.txt', fixed: true, scrollTop: 0, scrollLeft: 0, draft: { text: 'first\n恢复脏正文\nthird', diskText: file.text, baseVersion: file.version, encoding: file.encoding } }], currentPath: 'alpha.txt' } }, _meta: { session_id: 'comment-fixture' } });
+    await rm(join(workspaceRoot, 'alpha.txt'));
+  }
   const browser = await chromium.launch({ headless: true }); t.after(() => browser.close());
   const page = await browser.newPage(); page.setDefaultTimeout(2000);
   await page.exposeFunction('editorCall', async (name, args) => { const entry = { name, args }; calls.push(entry); entry.result = await client.callTool({ name, arguments: args, _meta: { session_id: 'comment-fixture' } }); return entry.result; });
@@ -27,8 +32,10 @@ async function fixture(t, { failPublish = false, holdPublish = false } = {}) {
   const resources = await installResourceBridge(page, client);
   await page.addInitScript(() => { window.zcode.updateModelContext = payload => window.publishComments(payload); });
   await page.goto('about:blank'); await page.setContent((await client.readResource({ uri: EDITOR_URI })).contents[0].text);
-  await page.getByRole('button', { name: '文件列表', exact: true }).click();
-  await page.getByRole('treeitem', { name: 'alpha.txt', exact: true }).click();
+  if (!restoreMissing) {
+    await page.getByRole('button', { name: '文件列表', exact: true }).click();
+    await page.getByRole('treeitem', { name: 'alpha.txt', exact: true }).click();
+  } else await page.getByRole('button', { name: '保存方式', exact: true }).getByText('手动保存', { exact: true }).waitFor();
   const content = page.getByRole('textbox', { name: '文件正文', exact: true }); await content.waitFor();
   async function select() { await content.focus(); await page.keyboard.press('Control+Home'); await page.keyboard.press('ArrowDown'); await page.keyboard.press('Home'); await page.keyboard.press('Shift+End'); }
   async function refresh() { await client.readResource({ uri: calls.find(call => call.name === 'get_editor_comment_state').result.structuredContent.resourceUri }); }
@@ -53,6 +60,27 @@ test('实际选区创建完整未保存快照，单胶囊聚合且继续编辑�
   await f.page.getByText('待发送评论 2 条', { exact: true }).waitFor();
   assert.deepEqual(f.capsules[1].structuredContent.comments[0], comment);
   assert.equal(f.calls.filter(call => call.name === 'save_editor_text').length, 0);
+});
+
+test('评论状态退订被拒绝时留下可观察错误记录', async t => {
+  const f = await fixture(t);
+  const uri = f.calls.find(call => call.name === 'get_editor_comment_state').result.structuredContent.resourceUri;
+  await f.page.evaluate(uri => { const original = window.zcode.unsubscribeResource; window.zcode.unsubscribeResource = target => target === uri ? Promise.reject(new Error('测试评论退订拒绝')) : original(target); }, uri);
+  const diagnostic = f.page.waitForEvent('console', { predicate: message => message.type() === 'error' && message.text().includes('评论状态退订失败') && message.text().includes('测试评论退订拒绝') });
+  await f.page.evaluate(() => window.dispatchEvent(new Event('pagehide'))); await diagnostic;
+});
+
+test('源读取失败的恢复脏正文没有可信完整路径时禁止评论，编辑与副本仍可继续', async t => {
+  const f = await fixture(t, { restoreMissing: true }); await f.select();
+  const button = f.page.getByRole('button', { name: '评论选区', exact: true });
+  assert.equal(await button.isDisabled(), true, '只恢复relativePath不能提供完整可信path');
+  assert.match(await button.getAttribute('title'), /未取得文件的可信完整路径/);
+  assert.equal(f.capsules.length, 0);
+  assert.match(await f.content.innerText(), /恢复脏正文/);
+  await f.content.focus(); await f.page.keyboard.press('Control+End'); await f.page.keyboard.type(' continued');
+  await f.page.getByText('恢复副本已同步', { exact: true }).waitFor();
+  const state = (await f.client.callTool({ name: 'get_editor_state', arguments: {}, _meta: { session_id: 'comment-fixture' } })).structuredContent.state;
+  assert.equal(state.files[0].draft.text, 'first\n恢复脏正文\nthird continued');
 });
 
 test('完整评论保留用户输入空白，空白正文不提交', async t => {
