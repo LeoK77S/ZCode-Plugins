@@ -28,10 +28,15 @@ export function installTextResources(server) {
   }
   function monitor(entry) {
     entry.timer = setTimeout(async () => {
-      const changed = await refresh(entry);
-      if (!entries.has(entry.uri)) return;
-      if (changed) await server.server.sendResourceUpdated({ uri: entry.uri });
-      monitor(entry);
+      try {
+        const changed = await refresh(entry);
+        if (!entries.has(entry.uri)) return;
+        if (changed) await server.server.sendResourceUpdated({ uri: entry.uri });
+        if (entries.has(entry.uri)) monitor(entry);
+      } catch (error) {
+        entry.timer = undefined;
+        console.error(`文件资源通知发送失败，监测已停止（${entry.uri}）：${error.message}`);
+      }
     }, 1000);
     entry.timer.unref();
   }
