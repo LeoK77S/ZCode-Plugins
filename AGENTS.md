@@ -37,7 +37,7 @@ ZCode-Plugins/
 │   ├── ui/                 # 原生只读工件侧栏资源
 │   └── skills/             # setup / configuration / sessions / artifacts / glm / debug
 │
-├── suian-side-editor/     # SE-04本地限定条件通过，前沿SE-05；Native视觉／H3／H4未验
+├── suian-side-editor/     # SE-05本地整合37/55及源两轴通过；最终统一复核／H4待验
 │   ├── AGENTS.md          # 本插件规则与文档入口
 │   ├── CLAUDE.md          # 导入 AGENTS.md
 │   ├── .zcode-plugin/     # 原生侧栏元信息（尚未加入正式市场清单）
@@ -45,7 +45,7 @@ ZCode-Plugins/
 │   ├── cli.mjs / server.mjs # 启动入口与 app-only 上下文、目录、读写工具
 │   ├── text-files.mjs     # 工作区边界、按层目录、UTF-8 读取与版本检查写回
 │   ├── text-resources.mjs # 已登记只读快照、版本通知／退订，后台发送失败报告并停止监测
-│   ├── editor-settings.mjs # 外置 SQLite 全局默认／会话保存模式事务，不保存正文
+│   ├── editor-settings.mjs # 外置 SQLite schema 2、模式与恢复副本事务；回执独立于源保存
 │   ├── build-ui.mjs       # 唯一本地 UI 构建入口
 │   ├── ui/               # CodeMirror 源文件、自包含构建页面与第三方许可
 │   ├── tests/            # 公开契约与浏览器烟测

@@ -144,7 +144,9 @@ git -C "{{repo_dir}}" sparse-checkout set suian-zcode-title suian-zcode-common
 
 SE-04 已改为首次受审读取后订阅已登记文件的变化，代码、整合等同性、分层 Native 证据和文档两轴复核完成，**本地限定条件已通过**。实际构建浏览器 42 项／组通过，未变 SDK 的 33 项证据沿用；新 Native 核对稳定订阅、保存、冲突和故障恢复，原重复读取审批失败记录保留。当前前沿为 SE-05 的持久恢复；本轮 Native 视觉、H3/H4、正式安装、完整首版及用户产品验收仍未通过，详见 [Native 记录](./suian-side-editor/docs/se04-watch-native-verification.md) 与 [实施总记录](./suian-side-editor/docs/development-verification.md)。
 
-本插件尚未加入上面的市场清单，正式缓存包装仍待验。跨重启的正文／页签恢复和评论尚未实现，H3/H4 与完整首版仍未通过；本地验证不代表用户产品验收。
+SE-05 的恢复副本已本地实现：页签、阅读位置与脏正文按会话独立持久化，副本回执与源文件保存分开，重建重新取得文件和资源关联。最终固定来源两轴通过，统一 SDK 37/37、实际构建浏览器 55 项／组通过；最终统一复核及关闭重开、真正回收、应用重启的 H4 仍待验，范围见 [恢复记录](./suian-side-editor/docs/se05-verification.md) 与 [实施总记录](./suian-side-editor/docs/development-verification.md)。
+
+本插件尚未加入上面的市场清单，正式缓存包装仍待验。评论接入仍受 H3 阻塞，H4、完整首版及用户产品验收未通过；本地恢复契约不代替真实原生生命周期结果。
 
 ## suian-zcode-common — 公共基础能力
 
