@@ -9,8 +9,8 @@
   "scripts": {
     "start": "node cli.mjs",
     "test": "node --test tests/*.test.mjs",
-    "test:browser": "node tests/browser-editor.mjs",
-    "check": "node --check cli.mjs && node --check server.mjs && node --check text-files.mjs && node --check build-ui.mjs && node --check ui/editor.mjs",
+    "test:browser": "node tests/browser-editor.mjs && node tests/browser-save-mode.mjs",
+    "check": "node --check cli.mjs && node --check server.mjs && node --check text-files.mjs && node --check editor-settings.mjs && node --check build-ui.mjs && node --check ui/editor.mjs",
     "build": "node build-ui.mjs"
   },
   "dependencies": {

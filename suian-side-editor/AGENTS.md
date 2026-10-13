@@ -2,6 +2,8 @@
 
 当前阶段：需求、规格与票粒度已批准，11 张 GitHub Issues 已发布，依据 implement-spec 本地实施。只读切片与 H1/H2 已经人工原生审批实测及两轴复核通过；SE-03 的目录、页签与手动保存通过整合 SDK／浏览器、独立两轴和限定 Native 烟测。H3/H4、SE-08 正式缓存安装与完整首版验收尚未通过，工具审批不等于用户产品验收。
 
+SE-04 的模式持久化、自动触发与外部修改处理已经本地实施，SDK／SQLite／stdio 和实际构建浏览器契约通过，独立两轴及本票 Native 尚待执行。SE-05 正文／页签恢复没有在本票实现；模式数据库写回与源文件写回是两个独立回执。
+
 ## 范围与约定
 
 - 首版编辑当前本机工作区内已有的 UTF-8 文本文件。远程工作区和新建、重命名、删除文件另列后续特性；首版不包含 PPT 编辑。
@@ -32,13 +34,15 @@
 | package.json / package-lock.json | 独立插件的精确运行依赖、测试和语法检查入口 |
 | cli.mjs / server.mjs | stdio 服务、app-only 工具与本地 UI 资源；可信工作区和宿主 session meta 验证 |
 | text-files.mjs | 工作区边界、按层目录、UTF-8/BOM/换行特征、字节版本与拒绝旧基线的写回 |
-| ui/editor-template.html / ui/editor.css / ui/editor.mjs | 页面结构和主题、目录树、CodeMirror 内部页签与手动保存业务 |
+| editor-settings.mjs | 插件外置 SQLite schema 1、全局默认／会话模式事务、跨进程初始化及明确失败；不保存正文 |
+| ui/editor-template.html / ui/editor.css / ui/editor.mjs | 页面结构和主题、目录树、CodeMirror 页签、手动／自动保存、打开文件版本检测及冲突确认 |
 | build-ui.mjs / ui/dist/ | 唯一本地 UI 构建入口、随插件返回的自包含 HTML 与第三方许可；不手改生成文件 |
 | tests/ | 公开 MCP/stdio 文件边界契约与实际资源浏览器烟测 |
 | README.md / docs/se01-verification.md / docs/se01-evidence.json | 开发使用、首次验证轨迹与总证据索引 |
 | docs/se01-native-verification.md / docs/se01-native-evidence.json | 实际 Desktop 首开、关闭重开、会话／工作区归属与原生审批的限定证据 |
 | docs/se03-verification.md / docs/se03-evidence.json | 目录／保存 SDK 契约、真实构建浏览器与独立两轴；链接后续限定 Native 证据 |
 | docs/se03-native-verification.md / docs/se03-native-evidence.json | 固定产物的原生目录／读取／编辑／保存、人工审批、磁盘字节与完整 guest 图像；单列失败尝试和能力边界 |
+| docs/se04-verification.md / docs/se04-evidence.json | 模式真实数据库、自动计时与外部修改契约、首次失败轨迹及待 Native 交接；不代表整票验收 |
 | docs/design-discussion.md | 已确认交互、问题轮次、宿主能力边界与后续特性范围 |
 | docs/text-editor-spec.md | 首版行为、工程接口边界、能力门槛与验证标准 |
 | docs/text-editor-tickets.md / docs/issues/ | 实施依赖图、原子票草稿和后续待做特性 |

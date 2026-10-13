@@ -12,7 +12,8 @@ import { apps } from './fixtures.mjs';
 const require = createRequire(process.env.SUIAN_SIDE_EDITOR_PLAYWRIGHT_MODULE ?? import.meta.url);
 const { chromium } = require('playwright');
 const workspaceRoot = await mkdtemp(join(tmpdir(), 'side-editor-ui-'));
-const server = createMcpServer({ workspaceRoot, zcodeAppVersion: '3.15.1' });
+const dataPath = await mkdtemp(join(tmpdir(), 'side-editor-ui-data-'));
+const server = createMcpServer({ workspaceRoot, dataPath, zcodeAppVersion: '3.15.1' });
 const client = new Client({ name: 'zcode', version: '0.16.9' }, { capabilities: apps });
 const [ct, st] = InMemoryTransport.createLinkedPair();
 let browser;
@@ -243,5 +244,5 @@ try {
   console.log('归属浏览器契约通过：页面不自填会话/工作区，缺失可信 meta 禁止文件操作');
   assert.deepEqual(errors, []); assert.deepEqual(requests, []);
 } finally {
-  await browser?.close(); await client.close(); await server.close(); await rm(workspaceRoot, { recursive: true });
+  await browser?.close(); await client.close(); await server.close(); await rm(workspaceRoot, { recursive: true }); await rm(dataPath, { recursive: true });
 }
