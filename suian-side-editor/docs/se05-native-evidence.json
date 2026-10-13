@@ -1,0 +1,134 @@
+{
+  "ticket": "SE-05 / #45",
+  "date": "2026-10-13",
+  "sourceHead": "205267649c927b05a47c1673c5aa1454a1fc855d",
+  "integratedExecutionHead": "77caa2a5be31ce7acca310f8d9ccf82dc7a6aba7",
+  "execution": {
+    "hostInstallation": {
+      "desktopExe": { "productVersion": "3.15.1.8093", "fileVersion": "3.15.1.8093", "symbolicPath": "{{ZCODE_INSTALL}}/ZCode.exe", "currentRunSha256": "d39000efadb1a7ef97ab9bc8a5929c826fb57f8faba8c4b14f6646df7e190b6e" },
+      "asar": { "packageVersion": "3.15.1", "symbolicPath": "{{ZCODE_INSTALL}}/resources/app.asar", "priorEvidenceSha256": "c98b4b2a80e5ea46ce93f934f9580eff11bc487570c87478fa36a3f4bd3d101f", "packageVersionEvidenceReused": true, "hashRecheckedInCurrentNativeRuns": false, "currentReadOnlyMetadataHashMatchesPriorEvidence": true },
+      "cli": { "version": "0.16.9", "symbolicPath": "{{ZCODE_INSTALL}}/resources/glm/zcode.cjs", "currentRunSha256": "b816e38656e70fb585fe2ab1ea010da89cda928dac1ccb5d83255fd18796da6e", "currentRunHashMatchesPriorVersionEvidence": true },
+      "existingVersionEvidence": ["se01-verification.md", "se01-evidence.json", "se02-evidence.json"],
+      "versionMethod": "根新增只读 PE ProductVersion/FileVersion 与安装文件 SHA 核验；ASAR 包版本与实际 CLI --version 沿用既有核验",
+      "readOnlyInstalledMetadata": { "evidence": ".scratch/se05-native-version-metadata/metadata.json", "exeVersionAndHashReadFromSameFile": true, "exeAndCliMatchBothFrozenRuns": true, "asarAndCliCurrentHashesMatchPriorVersionEvidence": true, "processStarted": false, "independentOfOriginalNativeManifests": true },
+      "versionCommandExecutedInThisRound": false,
+      "currentRuns": [".scratch/se05-native-lifecycle-evidence/warm-natural/run.json", ".scratch/se05-native-app-restart-evidence/recovery/run.json"],
+      "sameActualExeAndCliPathsAndHashesInBothRuns": true,
+      "actualPathsLocalOnly": true,
+      "symbolicExecutionEntry": "{{SE05_EXECUTION_SOURCE}}/cli.mjs",
+      "symbolicExecutionUi": "{{SE05_EXECUTION_SOURCE}}/ui/dist/editor.html"
+    },
+    "versionDocumentationReview": { "firstHead": "8d3647c543b98472220f03dc67c511a99b31a3bc", "firstStandardsAxisPassed": true, "firstSpecAxisMissingVersionsP2": true, "relatedFixIndependentRereviewPending": true },
+    "isolatedProfileUserScopeTemporaryWrapper": true,
+    "actualSourceFilesCompared": 9,
+    "sourceAndIntegratedExecutionEquivalent": true,
+    "realUserProfileChanged": false,
+    "formalCacheInstallationPassed": false,
+    "htmlBytes": 322673,
+    "htmlSha256": "f14ad28157006b64ef6ff13d4293ede3b81bc476b9298fd0ed445b5fa4d9b600",
+    "licenseBytes": 12465,
+    "licenseSha256": "23ce8b41b422c88e526c88e599317e4f56484732251311f789805f328f4af2c8",
+    "licensePackages": 11
+  },
+  "existingCodeVerification": {
+    "sourceFinalSdk": { "unchangedCasesReused": 36, "newResourceCaseExecuted": 1 },
+    "unifiedFirstFullSdkPassed": 37,
+    "unifiedBrowser": { "totalPassed": 55, "scriptGroups": 20, "nodeCases": 35 },
+    "unifiedCodeTwoAxesPassedAtNativeRelease": true,
+    "historicalIntegrationSummaryPendingFieldPreserved": true,
+    "functionSuitesRepeatedByDocumentWriter": false
+  },
+  "lifecycle": {
+    "warmReopen": { "passed": true, "sameGuestRetained": true, "tabsCurrentTextAndScrollMatch": true, "latestPrecloseWriteAck": true, "guestDestructionClaimed": false },
+    "naturalRecycle": { "passed": true, "oldTargetDestroyed": true, "oldWebviewRemoved": true, "newGuestInitializeAck": true, "stateAndThreeFileReadAcks": true, "fullRecoveredStateEqual": true, "privateRecycleUsed": false, "timerOrCloseCycleReset": false },
+    "applicationRestart": {
+      "passed": true,
+      "normalChildExit": { "code": 0, "signal": null, "forceTerminationUsed": false },
+      "freshOldOwnedProcessesRemaining": 0,
+      "newApplicationAndGuest": true,
+      "sameIsolatedProfile": true,
+      "initializeAck": true,
+      "trustedContextMatchesPreviousSessionIdentityAndCanonicalPath": true,
+      "publicHostScopeAndNativeExactTaskKeyMatch": true,
+      "ownershipInferredOnlyFromFilesystemResolve": false,
+      "fullThreeFileStateEqualsPreviousLatestWrite17": true,
+      "threeFileReadAndSettingsAcks": true,
+      "perFileDomTextAndScrollMatch": true,
+      "latestWrites14To16Acknowledged": true,
+      "latestDurableWriteId": 16,
+      "publicPendingAtFinal": 0,
+      "eightHkcuEntriesExactlySame": true
+    }
+  },
+  "restoredState": {
+    "files": [
+      { "anonymousFile": "A", "fixed": true, "dirtyDraft": true, "scrollTop": 680, "scrollLeft": 431.3333435058594 },
+      { "anonymousFile": "B", "fixed": true, "dirtyDraft": false, "scrollTop": 520, "scrollLeft": 350 },
+      { "anonymousFile": "C", "fixed": false, "dirtyDraft": false, "scrollTop": 410, "scrollLeft": 270 }
+    ],
+    "currentFile": "C",
+    "dirtyBodyPreserved": true,
+    "recoveryWriteAckIndependentOfSourceSave": true,
+    "threeDiskSourceFilesBytesAndShaUnchanged": true,
+    "teardownLifetimeExtensionUsed": false
+  },
+  "actualTools": {
+    "method": "tools/call",
+    "initializeAndResourcesCountedSeparately": true,
+    "warmAndNatural": { "calls": 31, "success": 28, "localTimeout": 3 },
+    "applicationRestart": { "calls": 10, "success": 10, "timeout": 0, "serverErrorReply": 0 },
+    "hostToStdioRawWireClaimed": false
+  },
+  "permissions": { "normalUiSingleAllowUsed": true, "approvalClickCountInferredFromToolCount": false, "permissionPolicyChanged": false, "privateApprovalEndpointUsed": false },
+  "model": {
+    "warmAndNatural": { "freshFrozenBaseline": 9, "requestsAdded": 0, "finalTotal": 9 },
+    "applicationRestart": { "baselineDerivedFromPreviousActualRawTotal": true, "baseline": 9, "baselineSha256": "ddcaa20516784be577bd3b61ac76fca806e940f1a03fe691b1504b99625863fb", "requestsAdded": 0, "finalTotal": 9, "oldSe02BaselineReused": false }
+  },
+  "focus": { "beforeOpen": "Main Composer", "afterNormalOpenAndApprovals": "Main BODY", "guestEditorFocused": false, "composerContinuouslyActiveClaimed": false },
+  "layout": { "ordinaryMainViewportPngCaptured": true, "guestWidthCssPixelsApprox": 415, "devicePixelRatio": 1.5, "threeToolbarButtonsWithinViewportAndHit": true, "viewportOrStyleChanged": false, "earlierPlaywrightPngDifferenceCauseKnown": false, "privatePngIncludedInRepository": false },
+  "preservedFailures": [
+    { "kind": "initial_app_connection_unavailable", "stage": "before guest creation", "lifecyclePassClaimed": false },
+    { "kind": "ambiguous_native_task_selector", "stage": "before surface" },
+    { "kind": "initial_state_and_settings_local_timeouts", "requestIds": [2, 3], "classification": "审批观测适配器准备延误；无服务错误 ACK，不归因于用户未点击" },
+    { "kind": "missed_short_observer_local_timeout", "requestIds": [24], "classification": "短观测未覆盖新请求；截图相邻因果机制未证实" },
+    { "kind": "guest_screenshot_top_level_restriction" },
+    { "kind": "natural_public_snapshot_rpc_timeout", "followup": "同一次离屏周期的纯被动 Target/DOM 观察成功" },
+    { "kind": "snapshot_dto_path_string_assertion", "classification": "DTO 保存路径与公开 Host/scope 字符串契约不同；正常精确任务键及可信回执证明归属，不用 resolve 推断" }
+  ],
+  "evidence": {
+    "rootIgnoredDirectoriesAreLocalOnly": true,
+    "manifestRelativeEntryByteAndShaFormatReusable": true,
+    "rawArtifactsDistributedWithRepository": false,
+    "rootByteAndShaTransfersVerified": true,
+    "groups": [
+      { "manifest": ".scratch/se05-native-lifecycle-evidence/warm-natural/manifest.json", "files": 171, "bytes": 46836665, "sha256": "b36c7bfed91e4bf114d6b6dd18f0532561d905d5546ec8ef876b1b8b7942f39c" },
+      { "manifest": ".scratch/se05-native-lifecycle-evidence/followup/manifest.json", "files": 33, "bytes": 507862, "sha256": "f1a46bd81490ec2cd347b380bb7c071de36a2629436be6386c0dedb47de6a1d4" },
+      { "manifest": ".scratch/se05-native-lifecycle-evidence/layout-final/manifest.json", "files": 5, "bytes": 2557940, "sha256": "f1fc75e92bd1e0df378e7bc101f60eb5a4bdbb16a84407d42add41fbcd9dc3b9" },
+      { "manifest": ".scratch/se05-native-app-restart-evidence/normal-close/manifest.json", "files": 13, "bytes": 2445808, "sha256": "c29584c85e7a885fdb72392b8dfd4ee9cca2ef8614e33ec1095249ba2b0469a5" },
+      { "manifest": ".scratch/se05-native-app-restart-evidence/recovery/final-manifest.json", "files": 89, "bytes": 12688048, "sha256": "3869285f5e378f8467ef0c6cf630c1c4e25583d71d40f24df5ad828e63a60021", "includesPrior85Unchanged": true, "newAddendumFiles": 4 }
+    ],
+    "initialConnectionFailureGroups": [
+      { "manifest": ".scratch/se05-native-stage1-incomplete-evidence/stage1/manifest.json", "files": 142, "sha256": "0ff1259a185d2f7c2061e633d485f6ab45183829036f0dc36a7375da3a500886" },
+      { "manifest": ".scratch/se05-native-stage1-incomplete-evidence/connection-followup/manifest.json", "files": 3, "sha256": "3276ff3b48e0cc29300e3ca22484e5f116f5989342be02063a34cd526cb1a9d6" }
+    ],
+    "initialFailureFirstCommandLogsPreservedSeparately": true,
+    "connectionResearchDirectory": ".scratch/se05-connection-research",
+    "rootProcessAndControllerRecordsPreserved": true,
+    "previous85ManifestSha256": "47f6e5b50f451dcff49b8d7bc3200ec0e430be6a9ecaf5e49768ea8cfc4c6ebc",
+    "finalObservationGate": ".scratch/se05-native-observation-final-gate.json",
+    "finalRestartSummary": ".scratch/se05-native-app-restart-evidence/recovery/app-restart-final-summary.json"
+  },
+  "statusAtDocumentCommit": {
+    "H4ObservationPassed": true,
+    "nativeDocumentationIndependentReviewsPassed": false,
+    "nativeDocumentationFinalIntegrationPassed": false,
+    "issue45FinalLocalConditionsPassed": false,
+    "H3Passed": false,
+    "comments46And47Blocked": true,
+    "formalPackagingAndFullAcceptance48Blocked": true,
+    "completeFirstVersion": false,
+    "userAccepted": false,
+    "remoteIssuesChanged": false,
+    "nativeOrModelActionsByDocumentWriter": false
+  }
+}
