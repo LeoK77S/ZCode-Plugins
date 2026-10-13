@@ -57,3 +57,35 @@ test('MCP连接关闭同时停止评论与文本订阅，不再读取Host', asyn
   await client.subscribeResource({ uri: comment.resourceUri }); await client.subscribeResource({ uri: text.resourceUri });
   await client.close(); const atClose = calls; await new Promise(resolve => setTimeout(resolve, 1100)); assert.equal(calls, atClose);
 });
+
+for (const lifecycle of ['unsubscribe', 'close']) test(`评论状态${lifecycle}后握手迟到与已排队刷新不得读取Host`, async t => {
+  const workspaceRoot = await mkdtemp(join(tmpdir(), 'comment-late-host-')); t.after(() => rm(workspaceRoot, { recursive: true, force: true }));
+  const arrived = Promise.withResolvers(), release = Promise.withResolvers(), lateClosed = Promise.withResolvers();
+  const calls = []; let delayed = false, lateConnections = 0;
+  const client = await connect(t, { workspaceRoot, hostConnector: async () => {
+    const late = delayed;
+    if (late) { lateConnections++; arrived.resolve(); await release.promise; }
+    return { call: async (_channel, method) => { if (late) calls.push(method); return method === 'readSessionEvents' ? [] : { meta: { status: 'completed' }, runtime: {}, messages: [] }; }, close: () => { if (late) lateClosed.resolve(); } };
+  } });
+  const uri = (await client.callTool({ name: 'get_editor_comment_state', arguments: {}, _meta: { session_id: 'late' } })).structuredContent.resourceUri;
+  delayed = true;
+  const pending = Promise.allSettled([client.readResource({ uri }), client.readResource({ uri })]);
+  await arrived.promise;
+  if (lifecycle === 'unsubscribe') await client.unsubscribeResource({ uri }); else await client.close();
+  release.resolve(); await lateClosed.promise; await pending; await new Promise(resolve => setImmediate(resolve));
+  assert.deepEqual(calls, [], '失效资源的迟到连接必须立即关闭，不读取会话或启动事件读取服务');
+  assert.equal(lateConnections, 1, '已排队刷新不得在资源失效后重新握手');
+});
+
+test('评论状态退订后快照回执迟到不得继续读取start-if-needed事件', async t => {
+  const workspaceRoot = await mkdtemp(join(tmpdir(), 'comment-late-snapshot-')); t.after(() => rm(workspaceRoot, { recursive: true, force: true }));
+  const arrived = Promise.withResolvers(), release = Promise.withResolvers(); let delayed = false; const lateCalls = [];
+  const client = await connect(t, { workspaceRoot, hostConnector: async () => ({ call: async (_channel, method) => {
+    if (delayed) { lateCalls.push(method); if (method === 'getTaskSnapshot') { arrived.resolve(); await release.promise; } }
+    return method === 'readSessionEvents' ? [] : { meta: { status: 'completed' }, runtime: {}, messages: [] };
+  }, close() {} }) });
+  const uri = (await client.callTool({ name: 'get_editor_comment_state', arguments: {}, _meta: { session_id: 'late' } })).structuredContent.resourceUri;
+  delayed = true; const pending = client.readResource({ uri }); await arrived.promise;
+  await client.unsubscribeResource({ uri }); release.resolve(); await pending;
+  assert.deepEqual(lateCalls, ['getTaskSnapshot'], '正在执行的快照无法撤回，但退订后的事件读取不能开始');
+});

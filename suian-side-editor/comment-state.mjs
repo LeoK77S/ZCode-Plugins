@@ -22,6 +22,8 @@ function acceptedBatches(context, messages, events) {
 // 只服务本插件评论业务。资源归属来自一次受审工具，不从 URI/页面参数猜身份。
 export function installCommentState(server, { hostConnector = connectHost, gatewayConfigPath } = {}) {
   const entries = new Map();
+  let closed = false;
+  const active = entry => !closed && entries.get(entry.uri) === entry;
   function lookup(uri) {
     const entry = entries.get(uri);
     if (!entry) throw new McpError(ErrorCode.InvalidParams, '评论状态资源未登记，请重新打开编辑器');
@@ -29,22 +31,26 @@ export function installCommentState(server, { hostConnector = connectHost, gatew
   }
   function refresh(entry) {
     entry.reading = entry.reading.then(async () => {
+      if (!active(entry)) return false;
       let host, snapshot;
       try {
         host = await hostConnector({ workspacePath: entry.context.workspacePath, sessionId: entry.context.sessionId,
           ...(gatewayConfigPath ? { gatewayConfigPath } : {}), timeoutMs: 6000, handshakeTimeoutMs: 3000 });
+        if (!active(entry)) return false;
         entry.connection = host;
         const data = await host.call('zcode-task', 'getTaskSnapshot', [{ taskId: entry.context.sessionId, workspacePath: entry.context.workspacePath, messageLimit: 20, byteBudget: 200000 }]);
+        if (!active(entry)) return false;
         if (data?.meta?.taskId && data.meta.taskId !== entry.context.sessionId) throw new Error('网关返回了其他会话，评论状态不可确认');
         // 此公开读取默认 start-if-needed；不是 existing-only，也不是发送 pending 信号。
         const events = await host.call('zcode-agent', 'readSessionEvents', [{ sessionId: entry.context.sessionId, workspacePath: entry.context.workspacePath, limit: 200 }]);
+        if (!active(entry)) return false;
         if (!Array.isArray(events)) throw new Error('主对话事件读取未返回有效数组，评论受理不可确认');
         const busy = data?.meta?.status === 'running' || Boolean(data?.runtime?.activeTurnKind);
         const state = busy ? 'busy' : data?.meta?.status === 'completed' ? 'idle' : 'unknown';
         snapshot = { state, reason: busy ? busyReason : state === 'unknown' ? '尚未取得可确认的主对话状态，暂时不能添加评论' : '',
           source: 'task-snapshot', status: data?.meta?.status ?? null, activeTurnKind: data?.runtime?.activeTurnKind ?? null,
           acceptedBatches: acceptedBatches(entry.context, Array.isArray(data.messages) ? data.messages : [], events) };
-      } catch (error) { snapshot = { state: 'unknown', reason: `评论状态不可用：${error.message}`, code: error.reasonCode ?? error.code ?? 'comment_state_unavailable' }; }
+      } catch (error) { if (!active(entry)) return false; snapshot = { state: 'unknown', reason: `评论状态不可用：${error.message}`, code: error.reasonCode ?? error.code ?? 'comment_state_unavailable' }; }
       finally { host?.close(); entry.connection = undefined; }
       const changed = JSON.stringify(snapshot) !== JSON.stringify(entry.snapshot); entry.snapshot = snapshot; return changed;
     });
@@ -69,12 +75,13 @@ export function installCommentState(server, { hostConnector = connectHost, gatew
   return {
     has: uri => entries.has(uri),
     async register(context) {
+      if (closed) throw new McpError(ErrorCode.InvalidRequest, '评论状态连接已关闭');
       let entry = [...entries.values()].find(item => item.context.sessionId === context.sessionId && item.context.workspacePath === context.workspacePath);
       if (!entry) { const uri = `ui://suian-side-editor/comment-state/${randomUUID()}`; entry = { uri, context, reading: Promise.resolve() }; entries.set(uri, entry); }
-      await refresh(entry); return { ...entry.snapshot, resourceUri: entry.uri };
+      await refresh(entry); lookup(entry.uri); return { ...entry.snapshot, resourceUri: entry.uri };
     },
     async subscribe(uri) { const entry = lookup(uri); await refresh(entry); if (!entries.has(uri)) return; entry.subscribed = true; if (!entry.timer) monitor(entry); return {}; },
-    unsubscribe(uri) { const entry = lookup(uri); entry.subscribed = false; clearTimeout(entry.timer); entry.connection?.close(); entries.delete(uri); return {}; },
-    close() { for (const entry of entries.values()) { entry.subscribed = false; clearTimeout(entry.timer); entry.connection?.close(); } entries.clear(); }
+    unsubscribe(uri) { const entry = lookup(uri); entries.delete(uri); entry.subscribed = false; clearTimeout(entry.timer); entry.connection?.close(); return {}; },
+    close() { closed = true; for (const entry of entries.values()) { entry.subscribed = false; clearTimeout(entry.timer); entry.connection?.close(); } entries.clear(); }
   };
 }
