@@ -1,0 +1,10 @@
+{
+  "name": "suian-side-editor",
+  "version": "0.1.0",
+  "description": "本机 UTF-8 文本侧栏编辑器：目录与页签、手动／自动保存、冲突提示和会话恢复",
+  "license": "MIT",
+  "dependencies": ["suian-zcode-common"],
+  "ui": {
+    "surfaces": [{ "id": "editor", "title": { "zh-CN": "文本编辑器", "en": "Text editor" }, "server": "suian-side-editor", "resourceUri": "ui://suian-side-editor/editor.html", "availability": "session" }]
+  }
+}

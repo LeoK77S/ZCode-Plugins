@@ -2,6 +2,22 @@
 
 本文件记录 suian-zcode-app-mcp 的用户可感知变化，版本独立于 common 和自动命名插件。
 
+## [0.4.1] - 2026-10-13
+
+修复会话写调用在并发执行时的单飞拒绝，并与侧栏编辑器共享原生 UI 能力判断。
+
+### Bug 修复
+
+**并发会话写调用**
+
+- 保留每个写操作自己的授权与确认状态，允许独立写调用并发完成。
+- 远控客户端的单飞边界不再被误用为所有会话写操作的限制。
+
+### 其他改进
+
+- 工件侧栏改为复用 common `0.1.1` 的 MCP Apps 能力判断，保持原有资源与工具行为。
+- 市场、插件清单、包元信息和锁文件根版本同步为 `0.4.1`；运行时继续读取包版本。
+
 ## [0.4.0] - 2026-10-12
 
 用户提交时自动注入最近工件简表，并为其他类别保留展示空间。注入裁剪不改变完整工件数据。
@@ -75,6 +91,7 @@
 仓库尚未建立版本标签，以下版本链接使用对应源码提交。
 
 <!-- 变更链接 -->
+[0.4.1]: https://github.com/ONEGAYI/ZCode-Plugins/compare/67d75b25cf932db9530883711e6226f77d867ca0...29eb9b5a7fad5681f488e098e6d26ccce0f41a57
 [0.4.0]: https://github.com/ONEGAYI/ZCode-Plugins/compare/e049c3c3ab5a3571c9839e600eed62ba99d24b9b...10379eb75289a62f6b3137aadf56bf58fb8376e0
 [0.3.0]: https://github.com/ONEGAYI/ZCode-Plugins/compare/f5571930dcf55edde0a2f6306967393444090359...e049c3c3ab5a3571c9839e600eed62ba99d24b9b
 [0.2.0]: https://github.com/ONEGAYI/ZCode-Plugins/compare/2cc69ea78b464f2e8d987779e4463c5d442cb3e5...f5571930dcf55edde0a2f6306967393444090359

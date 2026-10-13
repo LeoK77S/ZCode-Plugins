@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>文本编辑器</title>
+<!-- EDITOR_LICENSES -->
+<!-- EDITOR_STYLE -->
+</head>
+<body>
+<header>
+  <nav id="tabs" role="tablist" aria-label="打开的文件"></nav>
+  <div class="toolbar">
+    <div id="breadcrumb" aria-label="文件路径">文本编辑器</div>
+    <div class="actions">
+      <button id="save-mode" class="save-mode" aria-label="保存方式" disabled title="切换手动或自动保存">正在读取方式…</button>
+      <button id="save" class="save-button" disabled title="保存（Ctrl+S）">保存</button>
+      <button id="folder" class="icon-button" aria-label="文件列表" aria-expanded="false" disabled title="文件列表">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 7a2 2 0 0 1 2-2h5l2 2h7a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z"/><path d="M3 10h18"/></svg>
+      </button>
+    </div>
+  </div>
+  <div id="conflict-bar" hidden role="alert"><span>当前编辑已保留，自动保存已暂停</span><button id="keep-edit">保留编辑</button><button id="reload-file">重新读取</button></div>
+  <div id="settings-error" hidden role="alert"></div>
+</header>
+<div class="workspace">
+  <main id="main"><div id="editor-frame"><div id="empty">从文件列表选择文本</div><div id="editor" hidden></div></div></main>
+  <aside id="files" aria-label="工作区文件" hidden>
+    <div id="workspace-title"></div>
+    <div id="tree" role="tree" aria-label="文件目录"></div>
+  </aside>
+</div>
+<footer id="status" role="status" aria-live="polite"><span id="status-text">正在确认宿主归属…</span><span id="recovery-status">正在读取恢复副本…</span><button id="recovery-retry" hidden>重试恢复副本</button><span id="file-info"></span></footer>
+<template id="file-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9Z"/><path d="M14 3v6h6"/></svg></template>
+<dialog id="close-dialog" aria-label="未保存更改">
+  <h2>未保存更改</h2>
+  <p id="close-message"></p>
+  <p id="close-error" class="dialog-error" role="alert"></p>
+  <div class="dialog-actions"><button id="close-cancel">取消</button><button id="close-discard">放弃修改</button><button id="close-save">保存并关闭</button></div>
+</dialog>
+<dialog id="reload-dialog" aria-label="重新读取文件">
+  <h2>重新读取文件</h2><p id="reload-message"></p>
+  <div class="dialog-actions"><button id="reload-cancel">取消重新读取</button><button id="reload-confirm">放弃编辑并重新读取</button></div>
+</dialog>
+<!-- EDITOR_SCRIPT -->
+</body>
+</html>

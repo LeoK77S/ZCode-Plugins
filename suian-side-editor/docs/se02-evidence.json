@@ -1,0 +1,1040 @@
+{
+  "dateLocal": "2026-10-13",
+  "utcTestDate": "2026-10-12",
+  "capturedAt": "2026-10-12T16:11:58.732Z",
+  "baseline": "6744d83a83195e24dbac2074903f9cfbedc9fb23",
+  "desktopVersion": "3.15.1.8093",
+  "cliVersion": "0.16.9",
+  "asarSha256": "c98b4b2a80e5ea46ce93f934f9580eff11bc487570c87478fa36a3f4bd3d101f",
+  "cliSha256": "b816e38656e70fb585fe2ab1ea010da89cda928dac1ccb5d83255fd18796da6e",
+  "aliasSha256": "eca82ae2c11aecb8574b0ba65c8d275942cea7ee707b56f4ec6d6d2f5283a1d3",
+  "H3Passed": false,
+  "issue42Closed": false,
+  "userProductAcceptanceClaimed": false,
+  "productionCodeChanged": false,
+  "commentsTicketsBlocked": [
+    "SE-06",
+    "SE-07",
+    "SE-08"
+  ],
+  "initialInfrastructure": {
+    "oldRecordedProcessesAbsent": true,
+    "oldControllerSessionUnavailable": true,
+    "exitCause": "unknown",
+    "firstAttachFailure": "gateway_unreachable",
+    "firstInstallApiCalled": false
+  },
+  "fifthStart": {
+    "owner": "root coordinator TTY",
+    "newGuiCountTotal": 5,
+    "directWorkspace": "B",
+    "existingSyntheticProfile": true,
+    "whiteListedEnvironment": true,
+    "rootLoadedLauncherBeforeLaterConfigGuardMove": true,
+    "registry": {
+      "rows": 8,
+      "locale": "zh-CN",
+      "beforeAfterAndFinalRowsIdentical": true,
+      "installedHashesUnchanged": true
+    }
+  },
+  "diagnosticPlugin": {
+    "temporaryLocalMarketplace": true,
+    "onlyInIsolatedProfile": true,
+    "requestedInstallScope": "workspace",
+    "actualInstallScope": "user",
+    "toolCount": 0,
+    "resourceSmokePassed": true,
+    "productionCommentBindingImplemented": false
+  },
+  "firstSendFailure": {
+    "label": "empty-create A",
+    "nativeError": "fault.command.executionFailed",
+    "coreError": "FOREIGN KEY constraint failed",
+    "scope": "v4.command.execute",
+    "modelEndpointRequests": 0,
+    "inputAndCapsuleRetained": true,
+    "notModelExecutionFailure": true
+  },
+  "fixtureCorrection": {
+    "path": "Native new-task draft select B then one synthetic preparation prompt",
+    "preparedTaskFromExplicitNativeTaskItemAndPublicSnapshot": true,
+    "oldFailureEvidenceRetained": true
+  },
+  "submissions": {
+    "A": {
+      "requestTime": "2026-10-12T15:52:48.420Z",
+      "fullCurrentUserInputMatches": true,
+      "fullPersistedUserInputMatches": true,
+      "containsA": true,
+      "containsB": false,
+      "capsulesAfter": 0
+    },
+    "B": {
+      "requestTime": "2026-10-12T15:58:25.081Z",
+      "fullCurrentUserInputMatches": true,
+      "fullPersistedUserInputMatches": true,
+      "containsA": false,
+      "containsB": true,
+      "capsulesAfter": 0
+    }
+  },
+  "queued": {
+    "nativeClickTime": "2026-10-12T15:58:05.994Z",
+    "observedAt": "2026-10-12T15:58:24.754Z",
+    "modelCountAtQueue": 4,
+    "modelCompletionHeld": true,
+    "nativeQueueItemObserved": true,
+    "activeTurnStillRegular": true,
+    "legacyPendingCommandsUsedAsQueueTruth": false,
+    "BActualModelStartedAfterRelease": true
+  },
+  "replacementAndDeletion": {
+    "sameSurfacePrimaryChipCount": 1,
+    "BReplacesAInTooltip": true,
+    "rendererInternalIdCaptured": false,
+    "nativeDeletionTime": "2026-10-12T16:03:43.343Z",
+    "afterPrimaryChipCount": 0,
+    "contextConsumptionNotificationObserved": false,
+    "updateFacadeReturnType": "undefined",
+    "deletionIsDiagnosticOnly": true
+  },
+  "models": {
+    "totalAtCapture": 5,
+    "mainTurns": 4,
+    "titleGeneration": 1,
+    "preparationMainTurns": 2,
+    "commentMainTurns": 2,
+    "onlyLoopbackSyntheticProvider": true,
+    "oldH1H2FrozenModelCountUnchanged": true
+  },
+  "notVerified": [
+    "A pending admission -> add B -> old ACK clears only A",
+    "A/B both retained for pending-admission failure",
+    "correlated batch consumption cache/idempotent reconnect frames"
+  ],
+  "namedGaps": [
+    "fixed_surface_context_id_without_revision",
+    "no_correlated_context_consumption_receipt",
+    "no_verified_public_admission_hold_release"
+  ],
+  "modelCompletionHoldUsedAsAdmissionGate": false,
+  "commonSubscriptionExpanded": false,
+  "privateHostOrDOMPatched": false,
+  "agentClickedToolPermission": false,
+  "currentInstance": "retained by root coordinator; no stop or archive",
+  "notes": [
+    "Raw ignored artifacts contain synthetic session IDs, machine paths and prompts; do not publish them.",
+    "The diagnostic source is a throwaway fixture, not SE06 comment implementation.",
+    "Historical A in model messages is separate from current submitted userInput.",
+    "Frozen source logs cover one captured instant. Current retained process outputs may continue changing."
+  ],
+  "logs": [
+    {
+      "file": ".scratch/se02-frozen/controller.log",
+      "bytes": 215,
+      "sha256": "578257d89459dde0e9dbea5c96b7e84911ba5212a28f90e34110d34edd0ed72b",
+      "exit": "active source; frozen snapshot; process exit unavailable",
+      "sourceLabel": "controller.log"
+    },
+    {
+      "file": ".scratch/se02-frozen/desktop.log",
+      "bytes": 284505,
+      "sha256": "e60fc105316cd59fc8c13874e1aa84a6acc04ab6951309fe70bac04e59bdf0ad",
+      "exit": "active source; frozen snapshot; process exit unavailable",
+      "sourceLabel": "desktop.log"
+    },
+    {
+      "file": ".scratch/se02-frozen/model-requests.jsonl",
+      "bytes": 320137,
+      "sha256": "77db4bb236e57d86c4e38e84e6e1662988457494357742e4e74dd7cf62bfa443",
+      "exit": "active source; frozen snapshot; process exit unavailable",
+      "sourceLabel": "model-requests.jsonl"
+    },
+    {
+      "file": ".scratch/se02-frozen/model-counter.json",
+      "bytes": 58,
+      "sha256": "31088bf5d3a421dfca3b58ecc860b7c1871b72ebbe378250ea202a0aabfab5de",
+      "exit": "active source; frozen snapshot; process exit unavailable",
+      "sourceLabel": "model-counter.json"
+    },
+    {
+      "file": ".scratch/se02-frozen/cli-2026-10-12.jsonl",
+      "bytes": 623906,
+      "sha256": "c2d25742a02e66cce1cdeddb43e5ab0d2a147eb72c9af9895420daee9f3d953a",
+      "exit": "active source; frozen snapshot; process exit unavailable",
+      "sourceLabel": "cli-2026-10-12.jsonl"
+    },
+    {
+      "file": ".scratch/se02-frozen/cli-2026-10-13.jsonl",
+      "bytes": 4562,
+      "sha256": "27e46f3ef81fcbc7067921c566707e6ae702569a573435ae53dad1a32c134595",
+      "exit": "active source; frozen snapshot; process exit unavailable",
+      "sourceLabel": "cli-2026-10-13.jsonl"
+    },
+    {
+      "file": ".scratch/se02-alias-api-check.log",
+      "bytes": 3777,
+      "sha256": "e391c7581ea11fc9e0f84530887e7ed7a910e61e5f781f4d35baca6337e3e3d4",
+      "exit": "0"
+    },
+    {
+      "file": ".scratch/se02-capsule-count-A.json",
+      "bytes": 57,
+      "sha256": "07da50d96b9cfe0310e54e6206d08323a6cdee12efb2056e3dfe5edfb9d42c79",
+      "exit": "data/prototype capture; not a production executable result"
+    },
+    {
+      "file": ".scratch/se02-capsule-count-A.log",
+      "bytes": 19,
+      "sha256": "d744162a569016623086710796aa1d000acc28b750388b2c754a406ff50a35a5",
+      "exit": "0"
+    },
+    {
+      "file": ".scratch/se02-capsule-count.mjs",
+      "bytes": 438,
+      "sha256": "5f15cd716c7d11d1406faba96f61e070a1edad39287de7d5838078c7de7186f5",
+      "exit": "data/prototype capture; not a production executable result"
+    },
+    {
+      "file": ".scratch/se02-common-ci.log",
+      "bytes": 28,
+      "sha256": "c72c6841b204d6c84c436b06253e27e0a6cf96fd0a49b737e975c28c979bf497",
+      "exit": "0"
+    },
+    {
+      "file": ".scratch/se02-desktop-run.mjs",
+      "bytes": 7766,
+      "sha256": "742467a3eba06f5316326b5e7ae278d727a58af1914509c200967a0f490fab68",
+      "exit": "data/prototype capture; not a production executable result"
+    },
+    {
+      "file": ".scratch/se02-desktop-session.json",
+      "bytes": 285,
+      "sha256": "5413edcc15d051d48520405a61c749d1a0d79ebc8e90eeb820266cb13f6bb433",
+      "exit": "data/prototype capture; not a production executable result"
+    },
+    {
+      "file": ".scratch/se02-editor-ci.log",
+      "bytes": 96,
+      "sha256": "c7c6ccd73a3e42121cdb4ee558a33d81d8efec71f9f86f250580951485428b09",
+      "exit": "0"
+    },
+    {
+      "file": ".scratch/se02-error-log-reader.mjs",
+      "bytes": 884,
+      "sha256": "d2c5eac832681a6a5aad90b34f7e8c25f9a2fc81efa34ce3f09132f4009a4a11",
+      "exit": "data/prototype capture; not a production executable result"
+    },
+    {
+      "file": ".scratch/se02-final-after-delete-observe.log",
+      "bytes": 298,
+      "sha256": "9ed6732ddbfe98f36c8cacb303113178940b0230435a75d00921114075f3a1ac",
+      "exit": "0"
+    },
+    {
+      "file": ".scratch/se02-final-page-events.json",
+      "bytes": 7098,
+      "sha256": "a3533b0ef4151c4278fc0fb4bbece70a4863d85f47ddd92df66381bc2e0619d6",
+      "exit": "data/prototype capture; not a production executable result"
+    },
+    {
+      "file": ".scratch/se02-final-page-observe.log",
+      "bytes": 298,
+      "sha256": "9ed6732ddbfe98f36c8cacb303113178940b0230435a75d00921114075f3a1ac",
+      "exit": "0"
+    },
+    {
+      "file": ".scratch/se02-final-page-observe.mjs",
+      "bytes": 613,
+      "sha256": "a880ab4d72c639a246a8806df0353284b0a10a565ec54de7fa449c1f3f8d593c",
+      "exit": "data/prototype capture; not a production executable result"
+    },
+    {
+      "file": ".scratch/se02-gateway-config.json",
+      "bytes": 101,
+      "sha256": "0a0e5bf33d04b346647c9a3e8096ddb9d2ebb3347c360103fa1aefbcf9d7894b",
+      "exit": "data/prototype capture; not a production executable result"
+    },
+    {
+      "file": ".scratch/se02-host.mjs",
+      "bytes": 2359,
+      "sha256": "56c87879fea3d5e09cce2b734fce7ca6b2796a3848a1313cd91616c764dba005",
+      "exit": "data/prototype capture; not a production executable result"
+    },
+    {
+      "file": ".scratch/se02-launch-plan.json",
+      "bytes": 770,
+      "sha256": "86ec721095052e2a8313e0b0d7daa1db2ffaf11253410d1285f82f1c57973b86",
+      "exit": "data/prototype capture; not a production executable result"
+    },
+    {
+      "file": ".scratch/se02-launch-plan.log",
+      "bytes": 708,
+      "sha256": "1ce718c36257f27158cd93d7cba6f3bf5efbb044615de58ac33b6da01a0dbf02",
+      "exit": "0"
+    },
+    {
+      "file": ".scratch/se02-launch-syntax.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "exit": "0"
+    },
+    {
+      "file": ".scratch/se02-lifecycle-check.log",
+      "bytes": 226,
+      "sha256": "59c6e4a6459cd38708bca50927900427c123db79c6bb0d7facd5e0a5cc4590c9",
+      "exit": "0"
+    },
+    {
+      "file": ".scratch/se02-log-lifecycle.mjs",
+      "bytes": 1240,
+      "sha256": "51c1150b375ae970d0cbdb57bf0115e9c0abe8d502edaa5aa12dda86af24a013",
+      "exit": "data/prototype capture; not a production executable result"
+    },
+    {
+      "file": ".scratch/se02-market-add-result.json",
+      "bytes": 302,
+      "sha256": "226934ccbbc862236868c379ea6a9ea35d6516043fb4ce9528cba672bce6205b",
+      "exit": "data/prototype capture; not a production executable result"
+    },
+    {
+      "file": ".scratch/se02-model-A-observe.log",
+      "bytes": 94,
+      "sha256": "600c04ad48c6052ecdf06e6e88af48a8a3c925e439e84625eba6f18ebdcc127e",
+      "exit": "2"
+    },
+    {
+      "file": ".scratch/se02-model-classification.log",
+      "bytes": 1671,
+      "sha256": "96b53972fb5340ceb3b884395360dee867b558d26d3bc702986f8b6ef4cd39f7",
+      "exit": "0"
+    },
+    {
+      "file": ".scratch/se02-model-completion-hold.log",
+      "bytes": 23,
+      "sha256": "3db9fde709d53a64ea5613cf7618daa3dbb3e37f1c5504fb61160f9442d92f04",
+      "exit": "0"
+    },
+    {
+      "file": ".scratch/se02-model-completion-release.log",
+      "bytes": 32,
+      "sha256": "f4e1ad2f93bbde9978840103c1f6e8b13b9e6277d4be93cba3dc1b2c3ad94aa2",
+      "exit": "0"
+    },
+    {
+      "file": ".scratch/se02-model-counter-before.json",
+      "bytes": 3560,
+      "sha256": "f3d5745045ca9294eb677ec84af8e6e0555f29b066006374c9cf18cc5e70609b",
+      "exit": "data/prototype capture; not a production executable result"
+    },
+    {
+      "file": ".scratch/se02-native-after-send-A.log",
+      "bytes": 5302,
+      "sha256": "b83da71289e6089ecf3cda90553f2ecb030a1ef0533508c9f7a70d34b03f0b0b",
+      "exit": "0"
+    },
+    {
+      "file": ".scratch/se02-native-bind-B.mjs",
+      "bytes": 758,
+      "sha256": "4ea4f5bc9ccf5a95a9fedffb321325432b41eb189eaf6ed2f72e9adf6fb1721f",
+      "exit": "data/prototype capture; not a production executable result"
+    },
+    {
+      "file": ".scratch/se02-native-capsule-A.log",
+      "bytes": 4936,
+      "sha256": "7f1079368e095078a3df89120b18a4636fd45288d6589ad0713937618c947a85",
+      "exit": "0"
+    },
+    {
+      "file": ".scratch/se02-native-current-task.mjs",
+      "bytes": 1491,
+      "sha256": "8326923313aeb49bce570ae29eab1d58a52aedc383d8954052354ebd8653a663",
+      "exit": "data/prototype capture; not a production executable result"
+    },
+    {
+      "file": ".scratch/se02-native-details-A-corrected.log",
+      "bytes": 2203,
+      "sha256": "fb8596dde097238347ed76e841e7ed951c0f079fcc4319478159dc8501594560",
+      "exit": "0"
+    },
+    {
+      "file": ".scratch/se02-native-details-A-empty.txt",
+      "bytes": 1198,
+      "sha256": "8d39ce93963e4260c3a7898aec642e4de1d86b2e5d17494ed68e3e02a4e594cd",
+      "exit": "data/prototype capture; not a production executable result"
+    },
+    {
+      "file": ".scratch/se02-native-details-A.log",
+      "bytes": 2573,
+      "sha256": "d68a92fa1a410fc3f4bff8074c382cee7fdd6b07da9d7ee522d3ffb31647c0eb",
+      "exit": "1"
+    },
+    {
+      "file": ".scratch/se02-native-details-A.txt",
+      "bytes": 1198,
+      "sha256": "8d39ce93963e4260c3a7898aec642e4de1d86b2e5d17494ed68e3e02a4e594cd",
+      "exit": "data/prototype capture; not a production executable result"
+    },
+    {
+      "file": ".scratch/se02-native-details.mjs",
+      "bytes": 941,
+      "sha256": "c10b1b8b928b178e7c819c7d2e3ccffd1c6a72b56416d907957c60476b26034c",
+      "exit": "data/prototype capture; not a production executable result"
+    },
+    {
+      "file": ".scratch/se02-native-draft-bind-B.log",
+      "bytes": 2329,
+      "sha256": "8e8da16360aa5208cc568b8d4491ddd6f665d09e5492e765a7bdc928ee400fa3",
+      "exit": "0"
+    },
+    {
+      "file": ".scratch/se02-native-error.mjs",
+      "bytes": 322,
+      "sha256": "be369fa95aaa679292ac5e631eadf5141c4901841b168b088a78e53e3bf66b17",
+      "exit": "data/prototype capture; not a production executable result"
+    },
+    {
+      "file": ".scratch/se02-native-events-after-A.json",
+      "bytes": 1916,
+      "sha256": "3a18947829eba0b217f91fe32fcd68db5421fa3a548bdeceea7d37fe65e61a4e",
+      "exit": "data/prototype capture; not a production executable result"
+    },
+    {
+      "file": ".scratch/se02-native-fixture-prepare-result.log",
+      "bytes": 6393,
+      "sha256": "4b852e265d5abe46300b5c506f9b53f94ef57f0cab74bac4a5b8f92b154aa92d",
+      "exit": "0"
+    },
+    {
+      "file": ".scratch/se02-native-fixture-prepare-send.log",
+      "bytes": 842,
+      "sha256": "a39f86a641b8725f37d597c33d729de480535c63c5aac02d0dd988cc64197461",
+      "exit": "0"
+    },
+    {
+      "file": ".scratch/se02-native-main.mjs",
+      "bytes": 1963,
+      "sha256": "9e08a94b5cbfc84a164a717e4772b249a94fd27d34bcaca7f31f826942163cc9",
+      "exit": "data/prototype capture; not a production executable result"
+    },
+    {
+      "file": ".scratch/se02-native-new-draft.log",
+      "bytes": 766,
+      "sha256": "28647881506025ce9655237ef6eb748aa18e9574c513c55385c94ee0f1098c62",
+      "exit": "0"
+    },
+    {
+      "file": ".scratch/se02-native-new-draft.mjs",
+      "bytes": 602,
+      "sha256": "12d6c7d92b886ed57a876e618798595e90ef52965825653c4d4f0833bee313ba",
+      "exit": "data/prototype capture; not a production executable result"
+    },
+    {
+      "file": ".scratch/se02-native-new-draft.txt",
+      "bytes": 694,
+      "sha256": "79dcdeb46e7e0c9fe3b7df4f9f8ab40296bf244a2f3c1d79f0b7b968b34015ba",
+      "exit": "data/prototype capture; not a production executable result"
+    },
+    {
+      "file": ".scratch/se02-native-plugin-cdp.mjs",
+      "bytes": 2691,
+      "sha256": "987723078f95e153731954b01f96c10799b82a7c47771ad49278bf97326f5235",
+      "exit": "data/prototype capture; not a production executable result"
+    },
+    {
+      "file": ".scratch/se02-native-prepared-probe-open.log",
+      "bytes": 5814,
+      "sha256": "4e5a1e302298af2fee76d65f2c010076ab517881b3237ea8efe5b52011aade51",
+      "exit": "0"
+    },
+    {
+      "file": ".scratch/se02-native-probe-open.log",
+      "bytes": 4868,
+      "sha256": "3719a5e4047e47e0222fc3cc81000fca82e1ecb012d82dfdecb793b188316ea7",
+      "exit": "0"
+    },
+    {
+      "file": ".scratch/se02-native-probe-ready.log",
+      "bytes": 324,
+      "sha256": "f4a6a2de52a9fd219100dfc71571ecaa7da90dbd8bf5bef36b19652fd4c74e35",
+      "exit": "0"
+    },
+    {
+      "file": ".scratch/se02-native-publish-A-persisted.log",
+      "bytes": 197,
+      "sha256": "d4475941e339c55d62e49ebbfd81dac44bc61242148df82b859b692f4e9ad603",
+      "exit": "0"
+    },
+    {
+      "file": ".scratch/se02-native-publish-A-retry.log",
+      "bytes": 197,
+      "sha256": "704cefddabc3caf73bb0a5b860ab7cb47037d9f3729a1bf2883fc7c9587d5980",
+      "exit": "0"
+    },
+    {
+      "file": ".scratch/se02-native-publish-A.log",
+      "bytes": 255,
+      "sha256": "d13e700e6ec667439362bf3b03894b386356b1b66f3c047d71e1bac15ff524af",
+      "exit": "0"
+    },
+    {
+      "file": ".scratch/se02-native-publish-B.log",
+      "bytes": 197,
+      "sha256": "59b9c6bcd9bbe423a9d90325239641e234ae1b545a9c624e2a7971bf6afa17b2",
+      "exit": "0"
+    },
+    {
+      "file": ".scratch/se02-native-publish.mjs",
+      "bytes": 2342,
+      "sha256": "e80affe34551b15231f04d087854a75d8a6068a4561dcea2d4fe73d4c9dde83f",
+      "exit": "data/prototype capture; not a production executable result"
+    },
+    {
+      "file": ".scratch/se02-native-queue-prepare.log",
+      "bytes": 157,
+      "sha256": "a631a2eeab5575664ad7da2a1735db904b4d4cfcb4bbafc9c3fa1d5ed180ee76",
+      "exit": "0"
+    },
+    {
+      "file": ".scratch/se02-native-queue-prepare.mjs",
+      "bytes": 516,
+      "sha256": "d33153c07302708f933f44fca0eb48e5315d9bd8d20da4f807c63f77e18b3b75",
+      "exit": "data/prototype capture; not a production executable result"
+    },
+    {
+      "file": ".scratch/se02-native-queue-send-B.log",
+      "bytes": 1046,
+      "sha256": "7f07cab739f7e628e98f86c91c12b0dc44c4358f9598c8e4f5eeed9051c06783",
+      "exit": "0"
+    },
+    {
+      "file": ".scratch/se02-native-replace-delete.mjs",
+      "bytes": 1228,
+      "sha256": "401f8ab3bf952f2fc816fcb2e1277b649a2bf75bbe2fd9cc20cb8fb368eb2e7b",
+      "exit": "data/prototype capture; not a production executable result"
+    },
+    {
+      "file": ".scratch/se02-native-replacement-A.log",
+      "bytes": 197,
+      "sha256": "982364e1bd2ec312797900bd6f8ba2f815f0f19e9864287bbdd00b612795ca82",
+      "exit": "0"
+    },
+    {
+      "file": ".scratch/se02-native-replacement-B.log",
+      "bytes": 197,
+      "sha256": "96ea59259997e61dac29cd276653f80a1298494a293acf5d071b4fc8aaa5c41f",
+      "exit": "0"
+    },
+    {
+      "file": ".scratch/se02-native-replacement-delete-corrected.log",
+      "bytes": 103,
+      "sha256": "9f1427dd4f54d8083f5b0431b926a06d49faf800feda89ac62cc8a11e0f592bc",
+      "exit": "0"
+    },
+    {
+      "file": ".scratch/se02-native-replacement-delete.log",
+      "bytes": 1838,
+      "sha256": "85051bade9ce16d380f5b1a094005ba29b9eb0715474a671ed1c8057d35b6036",
+      "exit": "1"
+    },
+    {
+      "file": ".scratch/se02-native-running-fixture-send.log",
+      "bytes": 973,
+      "sha256": "75d043eb5cb9e8edcf4e8fe3a8adccd15c211be60b76885aa1c0ed4f031e776d",
+      "exit": "0"
+    },
+    {
+      "file": ".scratch/se02-native-send-A-error.log",
+      "bytes": 743,
+      "sha256": "cab8005095fcb4bbac7889bc04da69cc01f631582240479fff6ba8d0dbfe2908",
+      "exit": "0"
+    },
+    {
+      "file": ".scratch/se02-native-send-A-error.txt",
+      "bytes": 673,
+      "sha256": "d8e7711dcb9d901ad955bad8539bb9dff5754b444aaa2270bfa4a19b0b99fbe2",
+      "exit": "data/prototype capture; not a production executable result"
+    },
+    {
+      "file": ".scratch/se02-native-send-A-persisted-trigger.json",
+      "bytes": 57,
+      "sha256": "2e865e125bdb9961b7d39a459af1e163284b420998291f10726ef682c18bc21f",
+      "exit": "data/prototype capture; not a production executable result"
+    },
+    {
+      "file": ".scratch/se02-native-send-A-persisted.log",
+      "bytes": 862,
+      "sha256": "8553b023aa01289ca80582ef5bf26d8ba7eccef3c58db64297f3d133867d480b",
+      "exit": "0"
+    },
+    {
+      "file": ".scratch/se02-native-send-A-trigger-empty.json",
+      "bytes": 47,
+      "sha256": "408d3fc3882290d9311e8d2c7cd9e3040d5b9bad5c66226737c514bf2cdddce0",
+      "exit": "data/prototype capture; not a production executable result"
+    },
+    {
+      "file": ".scratch/se02-native-send-A-trigger.json",
+      "bytes": 47,
+      "sha256": "408d3fc3882290d9311e8d2c7cd9e3040d5b9bad5c66226737c514bf2cdddce0",
+      "exit": "data/prototype capture; not a production executable result"
+    },
+    {
+      "file": ".scratch/se02-native-send-A.log",
+      "bytes": 1320,
+      "sha256": "12bfbaa262f8a69759bf7189851ff1dc5f95c4a05dcfbe5fecebcf41274ce5ab",
+      "exit": "0"
+    },
+    {
+      "file": ".scratch/se02-native-send-B-trigger.json",
+      "bytes": 47,
+      "sha256": "4c28c0a955f1c9316227e2f54485105ddd9da0c23f6ce4a3b77f2f7fbc525b5c",
+      "exit": "data/prototype capture; not a production executable result"
+    },
+    {
+      "file": ".scratch/se02-native-send-FixturePrepare-trigger.json",
+      "bytes": 60,
+      "sha256": "1a61b5211cb47e5ffe32e8ea1efb78ce94e1493465b99ca2a8418910ce86b620",
+      "exit": "data/prototype capture; not a production executable result"
+    },
+    {
+      "file": ".scratch/se02-native-send-FixtureRunning-trigger.json",
+      "bytes": 60,
+      "sha256": "88e21e7a27423a8254f3532e09d0c0b0a6db12ff743ea5754e4b3b5cb192516d",
+      "exit": "data/prototype capture; not a production executable result"
+    },
+    {
+      "file": ".scratch/se02-native-send.mjs",
+      "bytes": 790,
+      "sha256": "5412eba43104ea91654aaf2142b218af889bd6e79f817b7ecd7483f088c5af3c",
+      "exit": "data/prototype capture; not a production executable result"
+    },
+    {
+      "file": ".scratch/se02-native-start-inspect.log",
+      "bytes": 4631,
+      "sha256": "6fb1b183449b6a8a39effb77ef892194b5a9f22c988603a81d57a079b8d8c3cf",
+      "exit": "0"
+    },
+    {
+      "file": ".scratch/se02-native-task-select.log",
+      "bytes": 4654,
+      "sha256": "0b79f6173a2808d8662004d84ec0d8dc76a80c121639a59234107c15c8ad91ab",
+      "exit": "0"
+    },
+    {
+      "file": ".scratch/se02-native-update-A-empty.json",
+      "bytes": 2090,
+      "sha256": "644276c631e04cf59c58d0b3f475dabf14f237e48ddb06945a3a82e4cc18a35c",
+      "exit": "data/prototype capture; not a production executable result"
+    },
+    {
+      "file": ".scratch/se02-native-update-A-persisted.json",
+      "bytes": 1916,
+      "sha256": "3a18947829eba0b217f91fe32fcd68db5421fa3a548bdeceea7d37fe65e61a4e",
+      "exit": "data/prototype capture; not a production executable result"
+    },
+    {
+      "file": ".scratch/se02-native-update-A.json",
+      "bytes": 5370,
+      "sha256": "c1871979c2b481466c3a1f930c99bac563c28f8b86ff821f995bd7d4c5490cdf",
+      "exit": "data/prototype capture; not a production executable result"
+    },
+    {
+      "file": ".scratch/se02-native-update-B-queued.json",
+      "bytes": 3644,
+      "sha256": "8b2a21107b5d89a3b07a2f7f03efa12bf062f102c553b7700cfc4aab51e0f81a",
+      "exit": "data/prototype capture; not a production executable result"
+    },
+    {
+      "file": ".scratch/se02-native-update-B.json",
+      "bytes": 7098,
+      "sha256": "a3533b0ef4151c4278fc0fb4bbece70a4863d85f47ddd92df66381bc2e0619d6",
+      "exit": "data/prototype capture; not a production executable result"
+    },
+    {
+      "file": ".scratch/se02-native-workspace-menu.log",
+      "bytes": 923,
+      "sha256": "16d84e0bfe6888414327874c66584c5b5bb4c6753f85959dc3402416744704d7",
+      "exit": "0"
+    },
+    {
+      "file": ".scratch/se02-native-workspace-menu.mjs",
+      "bytes": 486,
+      "sha256": "35419f16bd1526c7723cc156df9f1a0db052c708957592c576136bccac81f532",
+      "exit": "data/prototype capture; not a production executable result"
+    },
+    {
+      "file": ".scratch/se02-observe-submission.mjs",
+      "bytes": 2074,
+      "sha256": "02254ff46c231660020f87fa1e7cc6e3012f6665184fc3157d49881352b36e9c",
+      "exit": "data/prototype capture; not a production executable result"
+    },
+    {
+      "file": ".scratch/se02-payload-A+B.json",
+      "bytes": 2545,
+      "sha256": "164b275b494ca092b15be09c60847f5bc317805d21aaf77a40c34210a47cf24b",
+      "exit": "data/prototype capture; not a production executable result"
+    },
+    {
+      "file": ".scratch/se02-payload-A-empty.json",
+      "bytes": 1393,
+      "sha256": "880548f73a6e0e61eb012c71d9f38f202751c6628e559298878012540dc251f2",
+      "exit": "data/prototype capture; not a production executable result"
+    },
+    {
+      "file": ".scratch/se02-payload-A.json",
+      "bytes": 1393,
+      "sha256": "58f9ece1b4960b84ee8644077dffa15e55dc14a2f354ddf8613518546daa5406",
+      "exit": "data/prototype capture; not a production executable result"
+    },
+    {
+      "file": ".scratch/se02-payload-B.json",
+      "bytes": 1395,
+      "sha256": "48361955d5eba4aa0ad31ccd08dc1fc7b2ea1039724221540ee7ad5bb73db5c8",
+      "exit": "data/prototype capture; not a production executable result"
+    },
+    {
+      "file": ".scratch/se02-payload-prepare.log",
+      "bytes": 186,
+      "sha256": "758bb0e3dda62fc54185089b01edfa5b5e20021b4d70a23af8c031984f9b4df5",
+      "exit": "0"
+    },
+    {
+      "file": ".scratch/se02-payload-prepared-task.log",
+      "bytes": 186,
+      "sha256": "758bb0e3dda62fc54185089b01edfa5b5e20021b4d70a23af8c031984f9b4df5",
+      "exit": "0"
+    },
+    {
+      "file": ".scratch/se02-payload-structured-only.json",
+      "bytes": 656,
+      "sha256": "a5333cb17dec704b11924cf6b2a941ce5fadb7f9f88c51da42c84da40663159b",
+      "exit": "data/prototype capture; not a production executable result"
+    },
+    {
+      "file": ".scratch/se02-payload.mjs",
+      "bytes": 1348,
+      "sha256": "d42fa921448c328a7afc145f32c04a5c9719aab42bcc0546af8c92101100d0c6",
+      "exit": "data/prototype capture; not a production executable result"
+    },
+    {
+      "file": ".scratch/se02-plugin-install-live.log",
+      "bytes": 944,
+      "sha256": "8be4a5b729cb5c4a455ab5a4affaa562c438b36858b382512a77731ad304761a",
+      "exit": "0"
+    },
+    {
+      "file": ".scratch/se02-plugin-install-result.json",
+      "bytes": 484,
+      "sha256": "cc0abca0ac94c420876c33099cb8cac26b65aaba1b4d4deae2204de9fa5d4194",
+      "exit": "data/prototype capture; not a production executable result"
+    },
+    {
+      "file": ".scratch/se02-plugin-install.log",
+      "bytes": 974,
+      "sha256": "12ee71ea137b7898a7abe7892fec6b8d603412fc05776ebe98ad2673afab5156",
+      "exit": "1"
+    },
+    {
+      "file": ".scratch/se02-plugin-list-live.log",
+      "bytes": 29294,
+      "sha256": "1c4d977d02c29e5ccbbe368bb6368a08876bc737964ef2dcffe2c7854974242c",
+      "exit": "0"
+    },
+    {
+      "file": ".scratch/se02-plugin-surfaces.json",
+      "bytes": 29157,
+      "sha256": "4656c7220ea27192006c1daf3634a900a05b46ee0057a24cadbec2c893a632f7",
+      "exit": "data/prototype capture; not a production executable result"
+    },
+    {
+      "file": ".scratch/se02-preflight.log",
+      "bytes": 96,
+      "sha256": "c7bff251a3faa365251b1e4dc553dfd519fb11243eeb92cb280e4b224444a17a",
+      "exit": "0"
+    },
+    {
+      "file": ".scratch/se02-preflight.ps1",
+      "bytes": 2822,
+      "sha256": "3ccc73419213d8ad85015d7b523720776a6ba3c263ddd11e4e0662a273d6c63d",
+      "exit": "data/prototype capture; not a production executable result"
+    },
+    {
+      "file": ".scratch/se02-prepared-task-bind-corrected.log",
+      "bytes": 288,
+      "sha256": "dfd9ddaabfdb1ced5b361f4629faec30344da9681769be358e480936aba10c7f",
+      "exit": "0"
+    },
+    {
+      "file": ".scratch/se02-prepared-task-bind.log",
+      "bytes": 457,
+      "sha256": "0ed16c86a13a937729c93ab5a785bc68c6ac60802522a3100ce71399d12ad8a8",
+      "exit": "1"
+    },
+    {
+      "file": ".scratch/se02-prepared-task-snapshot.json",
+      "bytes": 4792,
+      "sha256": "ae0d4128a29804b2a5fbd845ba8fd4bb753c887bbdc3488891ec8d7b30d370a7",
+      "exit": "data/prototype capture; not a production executable result"
+    },
+    {
+      "file": ".scratch/se02-previous-cli-tail.log",
+      "bytes": 33116,
+      "sha256": "34633f35fb9e5d2138210797cfa15d7c088d956b2152c7513d7982f362af1046",
+      "exit": "not recorded"
+    },
+    {
+      "file": ".scratch/se02-previous-controller-tail.log",
+      "bytes": 503,
+      "sha256": "95df939d1dc631aa7025d0beb1519badb7d592945cef188983de6469a4ed91a6",
+      "exit": "not recorded"
+    },
+    {
+      "file": ".scratch/se02-previous-desktop-tail.log",
+      "bytes": 13873,
+      "sha256": "7f64894fb52303a9ec7db1edb0a1fb3490414aa1e450438243c325da414858b7",
+      "exit": "not recorded"
+    },
+    {
+      "file": ".scratch/se02-previous-lifecycle-summary.json",
+      "bytes": 336,
+      "sha256": "6ecde1ab9ec67ba737da5c841bdbe452686debaaaa4b32ce4de559ea729bec6f",
+      "exit": "data/prototype capture; not a production executable result"
+    },
+    {
+      "file": ".scratch/se02-proof-cached-A.log",
+      "bytes": 108,
+      "sha256": "d0c05434ebb5b26ea344919438487f3c1cbeb9d938915f2742c3fe4b7d670966",
+      "exit": "0"
+    },
+    {
+      "file": ".scratch/se02-proof-cached-A.mjs",
+      "bytes": 741,
+      "sha256": "0e71e8048c36b6406942d650a066b6d37b38c6233914a4a839ebfdbd4d5ed498",
+      "exit": "data/prototype capture; not a production executable result"
+    },
+    {
+      "file": ".scratch/se02-read-asar.mjs",
+      "bytes": 1419,
+      "sha256": "44f4975000f02664f350cd8ced792f0d8b1052208835985b218461b713ef2716",
+      "exit": "data/prototype capture; not a production executable result"
+    },
+    {
+      "file": ".scratch/se02-registry-after-fifth-gui.json",
+      "bytes": 2527,
+      "sha256": "66027179a26330be9860639cf82b2147c5e7fd3eadea32acb35633de6a893045",
+      "exit": "data/prototype capture; not a production executable result"
+    },
+    {
+      "file": ".scratch/se02-registry-after-fifth.log",
+      "bytes": 96,
+      "sha256": "c7bff251a3faa365251b1e4dc553dfd519fb11243eeb92cb280e4b224444a17a",
+      "exit": "0"
+    },
+    {
+      "file": ".scratch/se02-registry-after-native.json",
+      "bytes": 2527,
+      "sha256": "ee7df5528b117cc242873cdb128d6417e9e45e3285b172fe0ff6d1f009f1e8db",
+      "exit": "data/prototype capture; not a production executable result"
+    },
+    {
+      "file": ".scratch/se02-registry-after-native.log",
+      "bytes": 96,
+      "sha256": "c7bff251a3faa365251b1e4dc553dfd519fb11243eeb92cb280e4b224444a17a",
+      "exit": "0"
+    },
+    {
+      "file": ".scratch/se02-registry-before-fifth-gui.json",
+      "bytes": 3541,
+      "sha256": "239c7a9b91157026d155ffef9b7af8a662a360e1b0e8398dbc2619ba93c20c4a",
+      "exit": "data/prototype capture; not a production executable result"
+    },
+    {
+      "file": ".scratch/se02-registry-compare.log",
+      "bytes": 40,
+      "sha256": "e8789eae9074138976e915f1489d09f9b3c2d4d67656c0d37b338376620c7d9b",
+      "exit": "0"
+    },
+    {
+      "file": ".scratch/se02-replacement-B-tooltip.txt",
+      "bytes": 1632,
+      "sha256": "78fbf2f153c55376a177c8433947d48d6b4f3f8af0dde13eddba849ef4783534",
+      "exit": "data/prototype capture; not a production executable result"
+    },
+    {
+      "file": ".scratch/se02-replacement-deletion-summary.json",
+      "bytes": 126,
+      "sha256": "091dcdaff429b3a787e56980bcb87faa5457e1cf7b0ae7693e2a50148271153d",
+      "exit": "data/prototype capture; not a production executable result"
+    },
+    {
+      "file": ".scratch/se02-resource-smoke.log",
+      "bytes": 78,
+      "sha256": "841002d4ad9bb2b4cb3a1d5cb4897893a62f660323df21800c570723e9fd58c8",
+      "exit": "0"
+    },
+    {
+      "file": ".scratch/se02-resource-smoke.mjs",
+      "bytes": 1149,
+      "sha256": "10fe3279f4ed119460b2a780efc34d523dea0583a4f70886609ae197ce69b180",
+      "exit": "data/prototype capture; not a production executable result"
+    },
+    {
+      "file": ".scratch/se02-retained-processes-check.json",
+      "bytes": 527,
+      "sha256": "fb550ca2d4481fb7d18c9594a1c2693953a50b5e272454f6d59cc0b7d3650b42",
+      "exit": "data/prototype capture; not a production executable result"
+    },
+    {
+      "file": ".scratch/se02-retained-processes.json",
+      "bytes": 1184,
+      "sha256": "04e7bc03bb6ca4cecaa9f519bffcbc9eaf77cdca7599351531f187c9e8cfdcf3",
+      "exit": "data/prototype capture; not a production executable result"
+    },
+    {
+      "file": ".scratch/se02-root-preflight-before-launch.log",
+      "bytes": 96,
+      "sha256": "c7bff251a3faa365251b1e4dc553dfd519fb11243eeb92cb280e4b224444a17a",
+      "exit": "0"
+    },
+    {
+      "file": ".scratch/se02-running-B-queued.json",
+      "bytes": 10643,
+      "sha256": "bc9e76f3888a9c991691151f1ef05fcabefb7fa97a4ff128a9e7d44aa73d242d",
+      "exit": "data/prototype capture; not a production executable result"
+    },
+    {
+      "file": ".scratch/se02-running-B-queued.log",
+      "bytes": 1059,
+      "sha256": "0f596ea67161a5690b2ae1478a08c62bdee35723a14636ee05c9b32be3802068",
+      "exit": "0"
+    },
+    {
+      "file": ".scratch/se02-running-before-B.json",
+      "bytes": 9168,
+      "sha256": "fae33cbe47ff0927fbc4de72f5384ca7508c1e764fe29c8172fa1a163e73b687",
+      "exit": "data/prototype capture; not a production executable result"
+    },
+    {
+      "file": ".scratch/se02-running-before-B.log",
+      "bytes": 924,
+      "sha256": "65f63acc6ebda331800213476bd3e9714675772caef24354d6f43754a54ed56b",
+      "exit": "0"
+    },
+    {
+      "file": ".scratch/se02-running-state.mjs",
+      "bytes": 1164,
+      "sha256": "65e22653559f32667808df2a004937b7f2419f9ed866da880817289ca689a507",
+      "exit": "data/prototype capture; not a production executable result"
+    },
+    {
+      "file": ".scratch/se02-send-A-cli-matching.log",
+      "bytes": 28234,
+      "sha256": "3cb1eed4c05b5db4b918d8e76b3024c7295a58d033b4059d390a972ec25b31d6",
+      "exit": "not recorded"
+    },
+    {
+      "file": ".scratch/se02-send-A-desktop-matching.log",
+      "bytes": 3558,
+      "sha256": "e56a6b2c0a8a90a4794d971006d051effa1edf8ae862607dd7867be7cba36033",
+      "exit": "not recorded"
+    },
+    {
+      "file": ".scratch/se02-send-A-diagnosis.log",
+      "bytes": 12912,
+      "sha256": "c090fc651c995c7575316b3f2452aac677550c5588e33363c26c96e8f3aa794d",
+      "exit": "0"
+    },
+    {
+      "file": ".scratch/se02-send-A-error-stage.log",
+      "bytes": 17015,
+      "sha256": "6737c73e5f9cbc6c6923ae898313d20743b500ce1bb625268d327b703c1fdd7e",
+      "exit": "0"
+    },
+    {
+      "file": ".scratch/se02-snapshot-after-A.json",
+      "bytes": 6948,
+      "sha256": "31d03faaef37edd06f4480931d892cd110d8b3e2d44f920a79e38f2c40820ebf",
+      "exit": "data/prototype capture; not a production executable result"
+    },
+    {
+      "file": ".scratch/se02-snapshot-after-B.json",
+      "bytes": 9662,
+      "sha256": "fafd106272de42ad687e1d9bdeae11115d51343a87579ee5360d716296aa9234",
+      "exit": "data/prototype capture; not a production executable result"
+    },
+    {
+      "file": ".scratch/se02-submission-A-observe.log",
+      "bytes": 811,
+      "sha256": "3394195e37226b7084a2a6fb7648c399b9214d54229fec6c4c59431a42b545b6",
+      "exit": "0"
+    },
+    {
+      "file": ".scratch/se02-submission-A-summary.json",
+      "bytes": 1301,
+      "sha256": "90e8bc35a0029a25bcfd1c0239ec7a0d7f7f3be77372bd0c64eeff2fc290d692",
+      "exit": "data/prototype capture; not a production executable result"
+    },
+    {
+      "file": ".scratch/se02-submission-B-observe.log",
+      "bytes": 1363,
+      "sha256": "6afcf6f6c6d893078533f53a24165bf8bbc9e06dc1313b6e5d11004552c4b31c",
+      "exit": "0"
+    },
+    {
+      "file": ".scratch/se02-submission-B-summary.json",
+      "bytes": 2301,
+      "sha256": "fb1bf54e07c9b72782188c529cc70a3e698da63ded7ad41527e48f7fc52b8a44",
+      "exit": "data/prototype capture; not a production executable result"
+    },
+    {
+      "file": ".scratch/se02-task-create.log",
+      "bytes": 1164,
+      "sha256": "1d17723f0eee67c54cc109893e191ee3d289e8e72befb70a6e80f0cef318b04c",
+      "exit": "0"
+    },
+    {
+      "file": ".scratch/se02-task-empty-create.json",
+      "bytes": 1145,
+      "sha256": "42602cc37e6e824a66ec0c18bc2416290766647256773e09c6641fdfb2056f4e",
+      "exit": "data/prototype capture; not a production executable result"
+    },
+    {
+      "file": ".scratch/se02-task.json",
+      "bytes": 287,
+      "sha256": "0927107a0d076d5f3a6c7b9818ecf34839f4e992de7a01a87d76a492ae9f47f0",
+      "exit": "data/prototype capture; not a production executable result"
+    },
+    {
+      "file": ".scratch/composer-market/marketplace.json",
+      "bytes": 141,
+      "sha256": "7c5f97718eb104d9b421152c274ae03bcd64ab5977024c77c2db746d6698787c",
+      "exit": "throwaway diagnostic source; not production code"
+    },
+    {
+      "file": ".scratch/composer-market/probe/.mcp.json",
+      "bytes": 206,
+      "sha256": "4277e723c8152054b37a0ff242312febded94fe20d044aa8618e483523bbc5dd",
+      "exit": "throwaway diagnostic source; not production code"
+    },
+    {
+      "file": ".scratch/composer-market/probe/.zcode-plugin/plugin.json",
+      "bytes": 320,
+      "sha256": "794ca69fa6a156a4118ae9715a6be062b440b70f995f1949855da78f5a8e7187",
+      "exit": "throwaway diagnostic source; not production code"
+    },
+    {
+      "file": ".scratch/composer-market/probe/server.mjs",
+      "bytes": 729,
+      "sha256": "85181277f45eb764a8d153eb9b086f0ec2ff07c429c957216993efe9c7059bf6",
+      "exit": "throwaway diagnostic source; not production code"
+    },
+    {
+      "file": ".scratch/composer-market/probe/probe.html",
+      "bytes": 1652,
+      "sha256": "b45d15969641515b4fef15a568f6b2e379b36e077056f1383bffe8873fe5068c",
+      "exit": "throwaway diagnostic source; not production code"
+    }
+  ]
+}

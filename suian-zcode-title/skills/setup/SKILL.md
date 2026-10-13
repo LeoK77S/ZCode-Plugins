@@ -16,7 +16,7 @@ node "{{plugin_root}}/install.mjs" "{{state_dir}}" --native-plugin --config "{{d
 node "{{plugin_root}}/install.mjs" "{{state_dir}}" --native-plugin --config "{{data_path}}/config.json"
 ```
 
-首次缺配置时建立 enabled:false 的外置配置；已有选择、暂停状态和自定义字段保留。Hook 与技能由宿主管理，安装器只配置通知资产，不重复写全局注册。
+仅配置文件不存在时新建 enabled:false 的外置配置，等待首次模型选择与核验后启用。已有配置保留原开关、模型选择和自定义字段；省略 enabled 时继续默认启用，不能因原生安装或重复安装而暂停。Hook 与技能由宿主管理，安装器只配置通知资产，不重复写全局注册。
 
 迁移旧安装时，先按公共 setup 备份，再记录旧命名开关：旧配置未写 enabled 时默认启用，不能因原生首次配置默认 false 而丢失这一状态。切换注册前临时暂停旧、新命名，等旧 worker 收尾后按 paths.md 转存配置与状态；这次暂停单独记为待恢复项。
 

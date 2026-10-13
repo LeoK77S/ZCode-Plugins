@@ -20,15 +20,20 @@ test('原生工件 UI 同时要求 ZCode >=3.15.1 与 MCP Apps MIME；旧版和�
   for (const [version, capabilities, enabled] of [
     ['3.15.1', apps, true], ['3.15.1.8093', apps, true], ['3.16.0', apps, true],
     ['3.15.0', apps, false], ['3.14.5', apps, false], ['0.16.9', apps, false], ['unknown', apps, false],
-    ['3.15.1-beta.1', apps, false], ['3.15.1', {}, false],
-    ['3.15.1', { extensions: { 'io.modelcontextprotocol/ui': { mimeTypes: ['text/html'] } } }, false]
+    ['3.15.1-beta.1', apps, false], ['3.15.1+build.8093', apps, true], ['4.0.0', apps, true],
+    ['3.15.1', {}, false],
+    ['3.15.1', { extensions: { 'io.modelcontextprotocol/ui': { mimeTypes: ['text/html'] } } }, false],
+    ['3.15.1', { extensions: { 'io.modelcontextprotocol/ui': { mimeTypes: mime } } }, false]
   ]) {
     const client = await connect(t, f, version, capabilities);
     const tools = (await client.listTools()).tools;
+    assert.equal(tools.length, 12);
     const get = tools.find(tool => tool.name === 'get_artifacts'), set = tools.find(tool => tool.name === 'set_artifacts');
     assert.ok(get); assert.ok(set);
     assert.equal(get._meta?.ui?.resourceUri, enabled ? uri : undefined, version + JSON.stringify(capabilities));
     assert.equal(get._meta?.ui?.surface, enabled ? 'artifacts' : undefined);
+    assert.deepEqual(get._meta?.ui?.visibility, enabled ? ['model', 'app'] : undefined);
+    assert.deepEqual(set._meta?.ui?.visibility, enabled ? ['model'] : undefined);
     assert.equal((await client.listResources()).resources.some(resource => resource.uri === uri), enabled);
     if (enabled) {
       const page = (await client.readResource({ uri })).contents[0];
@@ -45,10 +50,15 @@ test('3.15.1 Desktop 仍报 CLI 0.16.9 时使用宿主传入的应用版本；�
   for (const [appVersion, clientVersion, name, enabled] of [
     ['3.15.1', '0.16.9', 'zcode', true], ['3.15.1.8093', '0.16.9', 'zcode', true],
     ['3.15.0', '3.15.1', 'zcode', false], ['unknown', '3.15.1', 'zcode', false],
+    ['', '3.15.1', 'zcode', false], [undefined, '0.16.9', 'zcode', false],
     ['3.15.1', '3.15.1', 'other-client', false]
   ]) {
     const client = await connect(t, { ...f, zcodeAppVersion: appVersion }, clientVersion, apps, name);
-    assert.equal((await client.listTools()).tools.find(t => t.name === 'get_artifacts')._meta?.ui?.resourceUri, enabled ? uri : undefined);
+    const tools = (await client.listTools()).tools;
+    assert.equal(tools.length, 12);
+    assert.equal(tools.find(tool => tool.name === 'get_artifacts')._meta?.ui?.resourceUri, enabled ? uri : undefined);
+    assert.deepEqual(tools.find(tool => tool.name === 'set_artifacts')._meta?.ui?.visibility, enabled ? ['model'] : undefined);
+    assert.equal((await client.listResources()).resources.some(resource => resource.uri === uri), enabled);
     await client.close();
   }
 });

@@ -85,13 +85,13 @@ export async function removeStopHook({pluginRoot,configFile,shell=defaultShell})
 
 export async function installPlugin({pluginRoot,dataDir,configPath,checkOnly=false,nativePlugin=false,legacyRoot,shell=defaultShell}) {
   const activeConfigPath=configPath??(nativePlugin?join(dirname(dataDir),"config.json"):join(pluginRoot,"config.local.json"));
-  let config={};
+  let config=nativePlugin?{enabled:false}:{};
   try {config=JSON.parse(await shell.readText(activeConfigPath));}
   catch(error) {if(error.code!=="ENOENT"||(!nativePlugin&&configPath))throw error;}
   const dependencies=await checkRuntime({sqliteBin:config.sqliteBin??process.env.SQLITE_BIN??"sqlite3",run:shell.run});
   if(checkOnly)return{ok:true,action:"checked",dependencies};
   if(nativePlugin) {
-    config={enabled:false,...config,registration:"native",dataDir:config.dataDir??dataDir};
+    config={...config,registration:"native",dataDir:config.dataDir??dataDir};
     await shell.mkdir(dirname(activeConfigPath));
     await shell.writeText(activeConfigPath,JSON.stringify(config,null,2)+"\n");
   }

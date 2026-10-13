@@ -192,6 +192,40 @@ test('v4 手机与多个本地客户端分别握手后共用 Host 桥，后加�
   }
 });
 
+test('被本地校验拒绝的 v4 握手不阻塞排队中其他客户端的 initialize', { timeout: 5000 }, async t => {
+  const { connectHost } = await import('../gateway-client.mjs');
+  const gate = Promise.withResolvers(), holding = Promise.withResolvers();
+  t.after(() => gate.resolve());
+  let forwarded = 0;
+  const f = await fixture(t, 'matched', { v4Host: true, beforeInitializeAck: async () => {
+    if (++forwarded === 1) { holding.resolve(); await gate.promise; }
+  } });
+  const dir = await mkdtemp(join(tmpdir(), 'zcode-v4-queue-'));
+  t.after(() => rm(dir, { recursive: true }));
+  const gatewayConfigPath = join(dir, 'config.json');
+  await writeFile(gatewayConfigPath, JSON.stringify({ version: 1, port: Number(new URL(f.gateway.url).port), control_token: 'fixture-rpc-token' }));
+  const holder = await connectHost({ workspacePath: workspace, gatewayConfigPath });
+  t.after(() => holder.close());
+  await holder.call('zcode-agent', 'helloConversationV4');
+  const holderInit = holder.call('zcode-agent', 'initializeConversationV4', [{ kind: 'clientHello', protocolVersion: 3, clientId: 'holder', clientKind: 'web', appVersion: 'fixture' }]);
+  await holding.promise;
+  const bad = await connectHost({ workspacePath: workspace, gatewayConfigPath });
+  t.after(() => bad.close());
+  const badInit = bad.call('zcode-agent', 'initializeConversationV4', [{ clientId: 'bad' }]);
+  const good = await connectHost({ workspacePath: workspace, gatewayConfigPath });
+  t.after(() => good.close());
+  await good.call('zcode-agent', 'helloConversationV4');
+  const goodInit = good.call('zcode-agent', 'initializeConversationV4', [{ kind: 'clientHello', protocolVersion: 3, clientId: 'good', clientKind: 'web', appVersion: 'fixture' }]);
+  await new Promise(resolve => setTimeout(resolve, 30));
+  gate.resolve();
+  await holderInit;
+  await assert.rejects(badInit, /fault.connection.helloRequired/);
+  await Promise.race([goodInit, new Promise((_, reject) => setTimeout(() => reject(new Error('被拒握手后的排队 initialize 未被转发')), 1500))]);
+  const ack = await good.call('zcode-agent', 'sendConversationCommandV4', [{ workspacePath: workspace,
+    envelope: { clientId: 'good', commandId: 'cmd-after-rejected', sessionId: 'sess_fixture', type: 'sendText', issuedAt: 1, payload: { text: '原样正文' } } }]);
+  assert.equal(ack.status, 'accepted');
+});
+
 test('手机和两个本地客户端的相同 RPC 编号被隔离，复用一个本地 Host 桥且不新增上游 terminal', { timeout: 3000 }, async t => {
   const f = await fixture(t);
   const phoneReplies = [], phoneReady = Promise.withResolvers();

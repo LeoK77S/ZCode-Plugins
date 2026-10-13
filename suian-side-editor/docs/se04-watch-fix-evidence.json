@@ -1,0 +1,69 @@
+{
+  "date": "2026-10-13",
+  "baseline": "e94f1ef35bdf9eed7400a356e0ccfccef0f77bc2",
+  "scope": "SE-04 原生重复读审批的本地资源订阅修复，固定提交由转移清单标明",
+  "nativeOriginal": {
+    "source": "dc718839ee6ad0e1a00ef8c4c785d1a517a3bff1",
+    "htmlSha256": "a54ba28d93f071d03092b224726de661a9dc1be9dd72fea796230f48d34d986f",
+    "passed": false,
+    "symptom": "ID7首次读成功；ID8至12稳定文件检查各获允许一次后重复审批；ID13被拒后暂停",
+    "ownedFilesUnchanged": 6,
+    "evidenceFrozenByRoot": true,
+    "evidenceFrozenFiles": 278
+  },
+  "publicResourceBoundary": {
+    "sdkVersion": "1.32.1",
+    "targetDesktop": "3.15.1.8093",
+    "targetCli": "0.16.9",
+    "officialSource": "aac4755666d09fdcd70272fcf063c077a639015f",
+    "trustedRegistration": "首次成功的受审工具提供工作区、会话与规范文件",
+    "resourceRequestHasTrustedConversationMeta": false,
+    "snapshotFields": ["text", "encoding", "version"],
+    "errorFields": ["code", "error"],
+    "containsLocalDirtyEditsOrRecoveryState": false,
+    "arbitraryUriPathAccess": false,
+    "writesRemainTools": true,
+    "toolPollingFallback": false
+  },
+  "verification": {
+    "sdk": {"passed": 31, "failed": 0, "exit": 0, "log": "sdk-boundary-final.log"},
+    "browser": {"originalGroups": 26, "newStableFile": 1, "newResourceGroups": 7, "totalGroups": 34, "failed": 0, "exit": 0, "log": "browser-minimal-fields-final.log"},
+    "build": {"exit": 0, "log": "watch-build-3.log", "licenses": 11},
+    "syntax": {"exit": 0, "log": "check-boundary-final.log"},
+    "commonAndAppMcpUnchanged": {"reusedPassed": [95, 109], "rerun": false},
+    "newNative": {"executed": false, "passed": false},
+    "independentReview": {"pending": true},
+    "userAccepted": false
+  },
+  "redHistory": [
+    {"log": "red.log", "signal": "stable read tool count 2 !== 1", "exit": 1},
+    {"log": "resource-bridge-idle-red.log", "signal": "完整公开资源桥下仍 2 !== 1", "exit": 1},
+    {"log": "resource-registration-red.log", "signal": "subscribe handler 尚不存在", "exit": 1},
+    {"log": "resource-gap-red.log", "signal": "订阅间隙快照仍 first，预期 between-open-and-subscribe", "exit": 1},
+    {"log": "resource-read-notification-red.log", "signal": "读取刷新吞掉通知 []，预期 [uri]", "exit": 1},
+    {"log": "resource-ui-red-1.log", "signal": "重读等待期间新通知丢失；另有夹具等待和生命周期绑定错误", "exit": 1},
+    {"log": "resource-minimal-fields-red.log", "signal": "原11字段含工具context，预期仅text/encoding/version", "exit": 1},
+    {"log": "registered-path-before-read-red.log", "signal": "在既有规范目标检查前先解码了新目标，返回invalid_utf8，预期registered_path_changed", "exit": 1}
+  ],
+  "lifecycle": {
+    "internalCloseAndTemporaryReplaceUnsubscribe": "真实公开桥与服务契约通过",
+    "pagehide": "仅合成标准生命周期回调请求；不是Native销毁",
+    "pageGotoBindingDelivery": "首次旧上下文异步绑定不送达，日志保留，未归为产品失败",
+    "hostInstanceDispose": "静态公共链已核实，当前修复仍待Native"
+  },
+  "artifact": {
+    "htmlBytes": 318324,
+    "htmlSha256": "067f355262a0990069bb2df20318cdead989ff8f620e5127667fedd2ae52ed5e",
+    "licenseBytes": 12465,
+    "licenseSha256": "23ce8b41b422c88e526c88e599317e4f56484732251311f789805f328f4af2c8",
+    "firstBuildWithExternalDependencyJunction": "0份许可，不交付；独立npm ci与公共链接后恢复11份许可"
+  },
+  "boundaries": {
+    "se44Complete": false,
+    "se45Unlocked": false,
+    "h3": false,
+    "h4": false,
+    "nativeOrPermissionOrModelOperations": 0,
+    "pushedOrPrOrMergedReleaseOrInstalledProduction": false
+  }
+}

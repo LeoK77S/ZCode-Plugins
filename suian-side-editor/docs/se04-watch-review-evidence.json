@@ -1,0 +1,54 @@
+{
+  "date": "2026-10-13",
+  "baseline": "784b3c5341f81aa1dc349acdf99e2efaaaf24704",
+  "reviewIntegrationEnd": "62490ff",
+  "scope": "SE-04 资源通路两轴四项P2的公开红绿与最小修正；提交由转移清单标明",
+  "scratchDirectory": ".scratch/se04-watch-review-fix",
+  "findings": [
+    {"id": "rebind", "axis": ["standards", "specification"], "triggers": ["firstSubscribeFailure", "registeredDirectoryRetarget"], "actualRed": ["subscribe 1 !== 2", "canonical tab 0 !== 1"], "logs": ["rebinding-subscribe-red.log", "rebinding-acl-red.log"]},
+    {"id": "sourceSaveMasksSyncFailure", "axis": ["standards"], "actualRed": "状态仅已保存，预期保留外部同步订阅失败", "log": "rebinding-save-red.log"},
+    {"id": "backgroundSendRejection", "axis": ["standards"], "actualRed": "公开transport.send拒绝成为未处理拒绝，含连接关闭交错", "log": "send-failure-red-2.log"},
+    {"id": "sameVersionOldError", "axis": ["specification"], "actualRed": "真实ACL错误在成功V0重读之后迟到，不再核对当前资源 false !== true", "log": "rebinding-acl-red.log"}
+  ],
+  "driverFailures": [
+    {"log": "rebinding-save-red.log", "cause": "目录项中文正则与实际错误不同；同文件的保存项为actual red"},
+    {"log": "send-failure-red.log", "cause": "夹具缺Desktop版本导致文件工具未启用；不属于产品发送拒绝"},
+    {"log": "history-before.log", "cause": "冻结脚本许可文件名写错；修正后于首次新构建前完成"}
+  ],
+  "verification": {
+    "firstGreen": {"passed": 6, "exit": 0, "log": "four-fixes-green-1.log"},
+    "sdk": {"passed": 33, "failed": 0, "exit": 0, "log": "sdk-final.log"},
+    "browser": {"originalGroups": 34, "newGroups": 4, "totalGroups": 38, "failed": 0, "exit": 0, "log": "browser-final.log"},
+    "syntax": {"exit": 0, "log": "check-final.log"},
+    "build": {"exit": 0, "licenses": 11, "log": "build-final.log"},
+    "independentReview": {"pending": true},
+    "newNative": {"executed": false, "passed": false},
+    "userAccepted": false
+  },
+  "history": {
+    "originalManifestSha256": "a2c54d2d3d8da31e3925fe39266711c42793fc2e0ead3760d0b310d7e61b44ea",
+    "originalFiles": 90,
+    "checkedBefore": {"changed": [], "log": "history-before-2.log"},
+    "frozenOriginalHtml": {"bytes": 318324, "sha256": "067f355262a0990069bb2df20318cdead989ff8f620e5127667fedd2ae52ed5e"},
+    "nativeFrozenByRoot": {"files": 278, "passed": false, "notModifiedByThisTask": true}
+  },
+  "artifact": {
+    "htmlBytes": 319186,
+    "htmlSha256": "ec926d1c47a70a75363e9ae8ae491db311f1068742c22103b015bda46f9758a3",
+    "licenseBytes": 12465,
+    "licenseSha256": "23ce8b41b422c88e526c88e599317e4f56484732251311f789805f328f4af2c8"
+  },
+  "boundaries": {
+    "resourceRequestHasTrustedSidMeta": false,
+    "snapshotFields": ["text", "encoding", "version"],
+    "containsLocalDirtyEditsOrRecoveryState": false,
+    "toolPollingFallback": false,
+    "notificationFailureReport": "stderr明确报告并停止该资源监测，不新增页面通知事件或通用重试",
+    "se44Complete": false,
+    "se45Unlocked": false,
+    "h3": false,
+    "h4": false,
+    "nativeOrPermissionOrModelOperations": 0,
+    "pushedOrPrOrMergedReleaseOrInstalledProduction": false
+  }
+}

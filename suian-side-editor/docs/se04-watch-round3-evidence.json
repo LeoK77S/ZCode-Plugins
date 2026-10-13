@@ -1,0 +1,56 @@
+{
+  "date": "2026-10-13",
+  "baseline": "427453e900969fd6ce0d1fe2779754b371255670",
+  "scope": "SE-04第三轮已确认时钟驱动竞态与规范轴三页提前保存的公开红绿；提交由转移清单标明",
+  "scratchDirectory": ".scratch/se04-watch-round3",
+  "driverFailure": {
+    "source": "root integration-se04-watch-round2/browser.log",
+    "rootIntegrationPassed": 40,
+    "rootIntegrationTotal": 41,
+    "location": "tests/browser-resource-review.mjs:49",
+    "cause": "采样Date.now与pauseAt的两个RPC之间时钟推进，目标落在过去；产品断言前失败",
+    "fix": "六个同类夹具导航前安装已知起点，初始化后暂停到已知较晚测试时间，不重试"
+  },
+  "finding": {
+    "axis": "standards",
+    "id": "transientNeighborAutosave",
+    "actualRed": "A重读复用B时瞬时激活C，C编辑后100ms的保存调用1 !== 0",
+    "log": "red.log",
+    "fix": "removeFile直接选择实际目标，避免中间页触发切页自动写回",
+    "preserves": ["targetDirtyText", "targetSubscription", "remaining800msTimer"]
+  },
+  "verification": {
+    "firstGreen": {"passed": 1, "failed": 0, "exit": 0, "log": "green.log"},
+    "browser": {"originalGroups": 41, "newGroups": 1, "totalGroups": 42, "failed": 0, "exit": 0, "log": "browser-final.log"},
+    "sdk": {"passed": 33, "reused": true, "rerun": false, "sourceLog": ".scratch/se04-watch-review-fix/sdk-final.log", "executableCodeAndInterfacesUnchanged": true},
+    "syntax": {"exit": 0, "log": "check-final.log"},
+    "build": {"exit": 0, "licenses": 11, "log": "build.log"},
+    "independentReview": {"pending": true},
+    "newNative": {"executed": false, "passed": false},
+    "userAccepted": false
+  },
+  "history": {
+    "checkedBefore": {"log": "history-before.log", "counts": [90, 44, 37], "changed": []},
+    "manifestSha256": ["a2c54d2d3d8da31e3925fe39266711c42793fc2e0ead3760d0b310d7e61b44ea", "eea197c99e61bc444e885b0dca421efe080c7b3dc78156361f83eef7a602ade0", "24b6301fb7aea212d677deff9cb72b189c0fe1a162cebda00eca3180e66067fe"],
+    "frozenOriginalHtml": {"bytes": 319367, "sha256": "43e23a9e57ae2d4ae94906b227b7e4c3160b63640320d5e411c61947bda5df80"},
+    "nativeFrozenByRoot": {"files": 278, "passed": false, "notModifiedByThisTask": true}
+  },
+  "artifact": {
+    "htmlBytes": 319353,
+    "htmlSha256": "890d5a0a32fbd5287ebf5868bc7f2b21b724449bfe5c014fb540e4e688fd2b67",
+    "licenseBytes": 12465,
+    "licenseSha256": "23ce8b41b422c88e526c88e599317e4f56484732251311f789805f328f4af2c8"
+  },
+  "boundaries": {
+    "resourceRequestHasTrustedSidMeta": false,
+    "containsLocalDirtyEditsOrRecoveryState": false,
+    "toolPollingFallback": false,
+    "referenceCountingOrRetryFrameworkAdded": false,
+    "se44Complete": false,
+    "se45Unlocked": false,
+    "h3": false,
+    "h4": false,
+    "nativeOrPermissionOrModelOperations": 0,
+    "pushedOrPrOrMergedReleaseOrInstalledProduction": false
+  }
+}
