@@ -1,6 +1,6 @@
 # suian-side-editor 开票索引
 
-日期：2026-10-12，实施状态更新至 2026-10-13。用户已批准规格、粒度与发布，11 张 GitHub Issues 已创建且均未关闭；SE-00／01／03 已完成本地验证及两轴复核，SE-03 的限定 Native 烟测也已通过。SE-02 调查已完成，H3 未满足；当前前沿为 SE-04，其原 Native 因重复读审批未通过。资源第二／三轮修正通过实际红绿及整合 42 项浏览器验证，第三轮固定源修正已过两轴窄复核，最终统一等同性／导航及新 Native 待验。
+日期：2026-10-12，实施状态更新至 2026-10-13。用户已批准规格、粒度与发布，11 张 GitHub Issues 已创建且均未关闭；SE-00／01／03 已完成本地验证及两轴复核，SE-03 的限定 Native 烟测也已通过。SE-02 调查已完成，H3 未满足；当前前沿为 SE-04。订阅最终修正、统一执行等同性及导航已过两轴，整合浏览器 42 项／组通过；[新 Native 行为](se04-watch-native-verification.md) 已闭合，文档与本票门槛两轴待审，SE-05 不提前解锁。
 
 实施启动：用户已要求在规格工作树按 implement-spec 执行。统一集成分支为 codex/side-editor-plan，实际基线已核对到 dev 的 b48e8a4；该提交与规划起点 403f877 的文件树一致。单票使用独立子工作树，合并由专门代理串行验证；本轮实施不包括后续 SE-09／10。
 
@@ -16,8 +16,8 @@
 | [SE-01](issues/01-sidebar-context-and-read.md) | [#41](https://github.com/ONEGAYI/ZCode-Plugins/issues/41) | 从独立侧栏冷启动，可信绑定当前工作区并读取文本 | #40 | 本地实现、H1/H2 实测与两轴复核通过 |
 | [SE-02](issues/02-main-composer-capability.md) | [#42](https://github.com/ONEGAYI/ZCode-Plugins/issues/42) | 验证主对话评论接入能保持原生的并发清理语义 | #41 | 调查与两轴复核完成；H3 未满足，能力门槛未放行 |
 | [SE-03](issues/03-tree-tabs-and-manual-save.md) | [#43](https://github.com/ONEGAYI/ZCode-Plugins/issues/43) | 浏览目录、打开临时或固定文件页并手动编辑保存 | #41 | 本地代码、整合、限定 Native 烟测与两轴复核通过 |
-| [SE-04](issues/04-save-mode-and-conflicts.md) | [#44](https://github.com/ONEGAYI/ZCode-Plugins/issues/44) | 持久化会话保存模式，自动保存并处理外部修改 | #43 | 第二／三轮修正及整合42通过，第三轮源两轴通过；最终统一等同性／导航待补核，Native暂停，未完成 |
-| [SE-05](issues/05-durable-editor-recovery.md) | [#45](https://github.com/ONEGAYI/ZCode-Plugins/issues/45) | 恢复打开页、未保存正文、焦点页面与阅读位置 | #44 | 未解锁，等待 #44 Native 实际条件；H4 未通过 |
+| [SE-04](issues/04-save-mode-and-conflicts.md) | [#44](https://github.com/ONEGAYI/ZCode-Plugins/issues/44) | 持久化会话保存模式，自动保存并处理外部修改 | #43 | 代码／统一两轴及整合42通过；新 Native 行为完成，本记录及门槛待两轴，未提前放行 |
+| [SE-05](issues/05-durable-editor-recovery.md) | [#45](https://github.com/ONEGAYI/ZCode-Plugins/issues/45) | 恢复打开页、未保存正文、焦点页面与阅读位置 | #44 | 未解锁，等待 #44 新 Native 分层证据门槛复核；H4 未通过 |
 | [SE-06](issues/06-selection-comment-context.md) | [#46](https://github.com/ONEGAYI/ZCode-Plugins/issues/46) | 将完整的选区评论快照加入当前主对话胶囊 | #42、#43 | H3 未满足，保持阻塞 |
 | [SE-07](issues/07-send-cleanup-and-concurrent-comments.md) | [#47](https://github.com/ONEGAYI/ZCode-Plugins/issues/47) | 自动清理已受理评论，保留发送期间新增评论 | #46 | H3 未满足，保持阻塞 |
 | [SE-08](issues/08-package-and-end-to-end-acceptance.md) | [#48](https://github.com/ONEGAYI/ZCode-Plugins/issues/48) | 完成独立插件安装包与首版端到端验收 | #45、#47 | H3/H4 及依赖未满足，保持阻塞 |
