@@ -5,7 +5,7 @@ import { isAbsolute } from 'node:path';
 import { createHash } from 'node:crypto';
 import { MCP_APP_MIME_TYPE, supportsZcodeMcpApps } from 'suian-zcode-common/ui-capabilities.mjs';
 import { readTextFile, listDirectory, saveTextFile, fileFailure } from './text-files.mjs';
-import { editorSettings } from './editor-settings.mjs';
+import { editorSettings, editorRecovery, recoveryState } from './editor-settings.mjs';
 import { installTextResources } from './text-resources.mjs';
 
 export const EDITOR_URI = 'ui://suian-side-editor/editor.html';
@@ -85,7 +85,17 @@ export function createMcpServer({ workspaceRoot = process.env.SUIAN_SIDE_EDITOR_
     annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false },
     _meta: { ui: { resourceUri: EDITOR_URI, surface: 'editor', visibility: ['app'] } }
   }, ({ saveMode }, extra) => run(extra, context => editorSettings(dataPath, context, saveMode)));
-  const tools = [contextTool, readTool, directoryTool, saveTool, settingsTool, updateSettingsTool];
+  const stateTool = server.registerTool('get_editor_state', {
+    description: '读取当前可信工作区与会话的恢复副本；首次使用时初始化或迁移自有状态库。', inputSchema: z.object({}).strict(),
+    annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false },
+    _meta: { ui: { resourceUri: EDITOR_URI, surface: 'editor', visibility: ['app'] } }
+  }, (_args, extra) => run(extra, context => editorRecovery(dataPath, context)));
+  const updateStateTool = server.registerTool('update_editor_state', {
+    description: '持久化当前可信会话的恢复副本；不写源文件或改变保存方式。', inputSchema: z.object({ state: recoveryState }).strict(),
+    annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false },
+    _meta: { ui: { resourceUri: EDITOR_URI, surface: 'editor', visibility: ['app'] } }
+  }, ({ state }, extra) => run(extra, context => editorRecovery(dataPath, context, state)));
+  const tools = [contextTool, readTool, directoryTool, saveTool, settingsTool, updateSettingsTool, stateTool, updateStateTool];
   const resource = server.registerResource('editor', EDITOR_URI, { title: '文本编辑器', mimeType: MCP_APP_MIME_TYPE }, async () => ({ contents: [{
     uri: EDITOR_URI, mimeType: MCP_APP_MIME_TYPE, text: await readFile(new URL('./ui/dist/editor.html', import.meta.url), 'utf8'),
     _meta: { ui: { prefersBorder: false } }

@@ -1,0 +1,52 @@
+{
+  "ticket": "SE-05 / #45",
+  "baseline": "adb7e93ab178380cc4c9c433f6b4ea20f6d490fc",
+  "scope": "本插件 schema 2 恢复副本、可信 app-only 操作与页面恢复",
+  "runtime": { "node": "24.15.0", "mcpSdk": "1.32.1", "zod": "4.6.5" },
+  "results": {
+    "sdk": { "baseline": 33, "recoveryAdded": 4, "total": 37, "passed": 37 },
+    "browser": { "baselineGroups": 42, "recoveryAdded": 6, "totalGroups": 48, "passedGroups": 48, "nodeTestCases": 28, "scriptGroups": 20 },
+    "build": { "passed": true, "licensePackages": 11 },
+    "syntax": { "passed": true },
+    "independentReview": "待根安排",
+    "nativePanelReopen": false,
+    "nativeActualRecycle": false,
+    "nativeApplicationRestart": false,
+    "H3": false,
+    "H4": false,
+    "ticketComplete": false,
+    "userAccepted": false
+  },
+  "artifact": {
+    "path": "ui/dist/editor.html",
+    "bytes": 322031,
+    "sha256": "3b6eaf086edd34588a6fc925d19d5991481f9ad9995aba6c61dcd689e730718b",
+    "licenseBytes": 12465,
+    "licenseSha256": "23ce8b41b422c88e526c88e599317e4f56484732251311f789805f328f4af2c8"
+  },
+  "firstFailuresPreserved": [
+    "恢复工具未实现的数据库契约红灯",
+    "页面种子编码字段不完整，严格输入边界拒绝；修正种子后旧页面未恢复页签红灯",
+    "损坏恢复记录被返回，补存储边界校验后通过",
+    "滚动测试开始前 CodeMirror 初始测量未完成；明确核对实际阅读位置后通过",
+    "ACL 测试匹配非实际错误文案；修正文案后通过",
+    "首次末轮全量浏览器 setup 提前读取未创建页签的样式；等待具名页签后完整48组通过"
+  ],
+  "localEvidence": {
+    "directory": ".scratch/se05-local",
+    "finalSdkLog": "sdk-final.log",
+    "finalBrowserLog": "browser-corrected.log",
+    "finalBuildLog": "build-final.log",
+    "finalSyntaxLog": "check-final.log",
+    "redDatabaseLog": "recovery-red.log",
+    "redUiLog": "ui-red2.log",
+    "redCorruptRowLog": "corrupt-row-red.log",
+    "failedBrowserLog": "browser-final.log"
+  },
+  "limits": [
+    "MCP 宿主归属由夹具提供，不能代替 Native",
+    "浏览器页面关闭重建不等于实际宿主5分钟离屏回收",
+    "副本回执前的200ms合并区间不保证已持久化；源文件回执独立",
+    "未操作 Desktop、profile、Host、控制器与模型，未远端推送或发布"
+  ]
+}
