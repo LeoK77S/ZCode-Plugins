@@ -1,4 +1,4 @@
-给 ZCode 做的插件与公共工具集合。ZCode 是智谱推出的 Agentic Coding 工具（桌面端 + CLI），这个仓库放会话自动命名插件、会话 MCP，以及两者共用的基础能力。
+给 ZCode 做的插件与公共工具集合。ZCode 是智谱推出的 Agentic Coding 工具（桌面端 + CLI），这个仓库放会话自动命名插件、会话 MCP、开发中的侧栏文本编辑器，以及业务插件共用的基础能力。
 
 ## 原生插件安装
 
@@ -137,6 +137,12 @@ git -C "{{repo_dir}}" sparse-checkout set suian-zcode-title suian-zcode-common
 通过两个本机只读工具检索会话与聊天历史；六个写工具经公共网关调用原 Host 改名、创建、发信、压缩上下文、归档与复原。另提供 GLM 套餐额度和重置卡查询，以及经用户许可消耗一张卡重置额度。stdio 接入，消息包装来源标识；原 Host 调用不另占官方席位，重置仍需要客户端确认表单。接入与边界见 [suian-zcode-app-mcp](./suian-zcode-app-mcp/)。
 
 工件 demo 提供当前会话的 get/set 增量工具、提交时管理摘要、Stop 历史快照与原生侧栏。开发分支增加按类型折叠的列表与统一详情，详情含时间和会话实时状态；start_session 自动登记双方关系，统计摘要模式不限制工件数量。原生分叉继承选中断点；缺快照会提示，子会话仍可独立维护。UI 按应用版本和 MCP Apps 能力启用。验证范围及首开连接条件见[开发验证](./suian-zcode-app-mcp/docs/artifact-demo-verification.md)，完整版唯一请求投影继续等待上游。
+
+## suian-side-editor — 侧栏文本编辑器（开发中）
+
+在当前本机工作区浏览已有 UTF-8 文本，使用内部临时／固定页签编辑，再以保存按钮或 Ctrl+S 写回。目录按层展开，保存前检查磁盘内容版本；版本冲突时拒绝覆盖并保留编辑。SDK、实际构建浏览器及人工原生审批下的限定 Native 烟测已通过，范围见 [SE-03 原生验证](./suian-side-editor/docs/se03-native-verification.md)。
+
+本插件尚未加入上面的市场清单，正式缓存包装仍待验。自动保存、跨重启恢复和评论尚未完成，H3/H4 与完整首版仍未通过；本地限定烟测不代表用户产品验收。
 
 ## suian-zcode-common — 公共基础能力
 
