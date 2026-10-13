@@ -1,16 +1,12 @@
 # suian-side-editor — 独立侧栏文本编辑器
 
-当前阶段：需求、规格与票粒度已批准，11 张 GitHub Issues 已发布，依据 implement-spec 本地实施。只读切片与 H1/H2 已经人工原生审批实测及两轴复核通过；SE-03 的目录、页签与手动保存通过整合 SDK／浏览器、独立两轴和限定 Native 烟测。H3/H4、SE-08 正式缓存安装与完整首版验收尚未通过，工具审批不等于用户产品验收。
+当前阶段：需求、规格与票粒度已批准，11 张 GitHub Issues 已发布，依据 implement-spec 本地实施。只读切片与 H1/H2 已经人工原生审批实测及两轴复核通过；SE-03 的目录、页签与手动保存通过整合 SDK／浏览器、独立两轴和限定 Native 烟测。SE-05 的 H4 三类生命周期实测已通过，文档两轴与最终本地条件仍待判定；H3、SE-08 正式缓存安装与完整首版验收尚未通过，工具审批不等于用户产品验收。
 
 SE-04 的代码、统一执行等同性、分层 Native 证据与文档两轴复核已完成，本地限定条件通过；浏览器 42 项／组通过，未改 SDK 复用 33/33。旧 Native 重复读审批失败保留，新限定行为见 `docs/se04-watch-native-verification.md`，当前闭合见 `docs/development-verification.md`。新轮视觉未验，不与 SE-03 图像或旧数据根模式链混称。当前前沿为 SE-05，具体依赖解除与派发由根记录；模式数据库写回与源文件写回仍是两个独立回执。
 
-SE-05 已实现 schema 2 的会话恢复副本与独立回执；本地契约及当前范围见 `docs/se05-verification.md`。页签、阅读位置与脏正文在使用过程中持久化，重建重新通过受审工具读取文件和取得资源关联。两轴复核及原生关闭／真正回收／应用重启三类验收由根安排，尚不能声明 H4 或整票通过。
+SE-05 已实现 schema 2 的会话恢复副本与独立回执；最终代码两轴及统一 SDK37／浏览器55 已通过。固定 Source205／统一77 的正常关闭重开、自然回收新 guest、应用正常退出重启均有实际恢复证据，见 `docs/se05-native-verification.md`。本轮 Native 文档两轴与最终统一整合由根安排，#45 最终本地条件仍待判定。
 
-初轮两轴发现的三项 P2 已作实际构建红绿修正，见 `docs/se05-review-fix-verification.md`；新固定产物仍待独立窄复核，初版记录与冻结证据保持原样。
-
-首轮已测问题经窄复核闭合；规格轴新增合流后迟到资源错误问题，最小读取代际修正及实际红绿见 `docs/se05-round2-verification.md`。新固定产物待根复核，原生 H4 仍未验。
-
-同一旧回执问题的脏目标关联分支已补真实红绿，读取代际确认与正文替换分开，见 `docs/se05-round3-verification.md`；此前双干净触发记录保留，新固定产物仍待根的两轴窄复核。
+初版及三轮代码红绿记录保持原提交时点，分别见 `docs/se05-verification.md`、`docs/se05-review-fix-verification.md`、`docs/se05-round2-verification.md`、`docs/se05-round3-verification.md`。其中历史“待复核／H4 未验”不代表当前实测状态；不改写旧失败与冻结证据。评论 #46／47 和安装与完整验收 #48 仍受 H3 阻塞。
 
 ## 范围与约定
 
@@ -62,6 +58,7 @@ SE-05 已实现 schema 2 的会话恢复副本与独立回执；本地契约及�
 | docs/se05-review-fix-verification.md / docs/se05-review-fix-evidence.json | 首轮两轴三项 P2 的真实 stdio／构建页面红绿、身份合流／重试重入／初始化交互修正与新固定产物；独立复核及 H4 待验 |
 | docs/se05-round2-verification.md / docs/se05-round2-evidence.json | 规格轴新增合流读取代际问题、真实 ACL 迟到资源错误红绿及54组完整浏览器；新固定产物复核及 H4 待验 |
 | docs/se05-round3-verification.md / docs/se05-round3-evidence.json | 同一旧回执问题的脏目标分支红绿、保留正文／读取确认分离与55组完整浏览器；新固定产物复核及 H4 待验 |
+| docs/se05-native-verification.md / docs/se05-native-evidence.json | 固定恢复产物的三类真实生命周期、独立副本回执／源字节／焦点、首次失败与根冻结索引；H4 实测通过，文档两轴及最终本地门槛待判定 |
 | docs/design-discussion.md | 已确认交互、问题轮次、宿主能力边界与后续特性范围 |
 | docs/text-editor-spec.md | 首版行为、工程接口边界、能力门槛与验证标准 |
 | docs/text-editor-tickets.md / docs/issues/ | 实施依赖图、原子票草稿和后续待做特性 |
