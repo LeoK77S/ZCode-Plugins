@@ -43,26 +43,42 @@ async function persistRecovery() {
   }
 }
 async function loadRecovery() {
+  if (restoring) return;
   restoring = true;
+  document.body.inert = true;
+  recoveryRetry.disabled = true;
+  let normalized = false;
   try {
     const { state } = await call('get_editor_state', {});
+    const restored = new Map();
     for (const saved of state.files) {
       let data, readError;
       try { data = await call('read_editor_text', { path: saved.path }); }
       catch (error) { readError = error.message; }
       const draft = saved.draft;
-      const file = { ...data, relativePath: data?.relativePath ?? saved.path, fixed: saved.fixed, scrollTop: saved.scrollTop, scrollLeft: saved.scrollLeft, lineSeparator: new Compartment(),
-        text: draft?.text ?? data?.text ?? '', diskText: draft?.diskText ?? data?.text ?? '', version: draft?.baseVersion ?? data?.version,
-        encoding: draft?.encoding ?? data?.encoding ?? { name: 'utf-8', bom: false, newline: 'none' } };
-      file.mixed = file.encoding.newline === 'mixed'; file.insertedSeparator = file.text.match(/\r\n|\r|\n/)?.[0] ?? '\n';
-      if (readError || draft && draft.baseVersion !== data.version) { file.blocked = true; file.error = readError ?? '磁盘内容已改变，恢复正文已保留，自动保存已暂停'; }
-      file.state = createEditorState(file); documents.push(file);
-      if (data) await subscribeFile(file);
+      // 改指后旧脏副本仍属于原身份；不把它绑定到新目标或静默覆盖另一份脏正文。
+      const pathChanged = Boolean(draft && data && data.relativePath !== saved.path);
+      if (pathChanged) { data = undefined; readError = '文件路径已改变，恢复正文已保留，请确认重新读取'; }
+      const path = data?.relativePath ?? saved.path;
+      const existing = documents.find(file => file.relativePath === path);
+      const file = existing ?? { lineSeparator: new Compartment() };
+      if (!existing || draft || !isDirty(existing)) {
+        Object.assign(file, { ...data, relativePath: path, fixed: file.fixed || saved.fixed, scrollTop: saved.scrollTop, scrollLeft: saved.scrollLeft, pathChanged,
+          text: draft?.text ?? data?.text ?? '', diskText: draft?.diskText ?? data?.text ?? '', version: draft?.baseVersion ?? data?.version,
+          encoding: draft?.encoding ?? data?.encoding ?? { name: 'utf-8', bom: false, newline: 'none' },
+          blocked: Boolean(readError || draft && draft.baseVersion !== data.version), error: readError ?? (draft && draft.baseVersion !== data.version ? '磁盘内容已改变，恢复正文已保留，自动保存已暂停' : undefined) });
+        file.mixed = file.encoding.newline === 'mixed'; file.insertedSeparator = file.text.match(/\r\n|\r|\n/)?.[0] ?? '\n';
+        file.state = createEditorState(file);
+      }
+      file.fixed ||= saved.fixed;
+      if (saved.path === state.currentPath) { file.scrollTop = saved.scrollTop; file.scrollLeft = saved.scrollLeft; }
+      restored.set(saved.path, file); normalized ||= path !== saved.path || Boolean(existing);
+      if (!existing) { documents.push(file); if (data) await subscribeFile(file); }
     }
-    if (documents.length) activateFile(documents[state.files.findIndex(file => file.path === state.currentPath)]);
+    if (documents.length) activateFile(restored.get(state.currentPath));
     recoveryReady = true; recoveryError = undefined;
   } catch (error) { recoveryError = error.message; }
-  finally { restoring = false; renderRecovery(); }
+  finally { restoring = false; document.body.inert = false; recoveryRetry.disabled = false; if (recoveryReady && normalized) recoveryChanged(); renderRecovery(); }
 }
 recoveryRetry.addEventListener('click', async () => {
   if (recoveryReady) { recoveryError = undefined; renderRecovery(); await persistRecovery(); }
@@ -77,7 +93,7 @@ function showFileStatus() {
   document.getElementById('reload-file').disabled = busy;
   document.getElementById('reload-confirm').disabled = busy;
   if (!current) { save.disabled = true; fileInfo.textContent = ''; showStatus(settingsError ?? '选择文件开始编辑', Boolean(settingsError)); return; }
-  save.disabled = current.saving || current.reloading || !isDirty(current);
+  save.disabled = current.saving || current.reloading || current.pathChanged || !isDirty(current);
   fileInfo.textContent = `UTF-8${current.encoding.bom ? ' BOM' : ''} · ${current.encoding.newline.toUpperCase()}`;
   const phase = current.saving ? '正在保存…' : isDirty(current) ? '未保存' : current.saved ? '已保存' : '已读取';
   showStatus(current.reloading ? '正在重新读取…' : current.error ?? settingsError ?? (current.syncError ? `${phase} · ${current.syncError}` : phase), Boolean(current.error || current.syncError || settingsError));
@@ -197,7 +213,7 @@ function createEditorState(file, separator = lineBreaks[file.encoding.newline]) 
         })] });
 }
 async function saveFile(file) {
-  if (file.saving || file.reloading) return false;
+  if (file.saving || file.reloading || file.pathChanged) return false;
   cancelAuto(file);
   const text = file.text;
   file.saving = true; file.error = undefined; renderTabs(); showFileStatus();
@@ -261,7 +277,7 @@ function applyRead(file, data) {
   const scrollTop = current === file ? view.scrollDOM.scrollTop : file.scrollTop;
   const scrollLeft = current === file ? view.scrollDOM.scrollLeft : file.scrollLeft;
   Object.assign(file, { text: data.text, diskText: data.text, version: data.version, encoding: data.encoding,
-    mixed: data.encoding.newline === 'mixed', insertedSeparator: data.text.match(/\r\n|\r|\n/)?.[0] ?? '\n', saved: false, error: undefined, blocked: false });
+    mixed: data.encoding.newline === 'mixed', insertedSeparator: data.text.match(/\r\n|\r|\n/)?.[0] ?? '\n', saved: false, error: undefined, blocked: false, pathChanged: false });
   file.state = createEditorState(file); file.scrollTop = scrollTop; file.scrollLeft = scrollLeft;
   if (current === file) {
     view.setState(file.state);

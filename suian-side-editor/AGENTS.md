@@ -6,6 +6,8 @@ SE-04 的代码、统一执行等同性、分层 Native 证据与文档两轴复
 
 SE-05 已实现 schema 2 的会话恢复副本与独立回执；本地契约及当前范围见 `docs/se05-verification.md`。页签、阅读位置与脏正文在使用过程中持久化，重建重新通过受审工具读取文件和取得资源关联。两轴复核及原生关闭／真正回收／应用重启三类验收由根安排，尚不能声明 H4 或整票通过。
 
+初轮两轴发现的三项 P2 已作实际构建红绿修正，见 `docs/se05-review-fix-verification.md`；新固定产物仍待独立窄复核，初版记录与冻结证据保持原样。
+
 ## 范围与约定
 
 - 首版编辑当前本机工作区内已有的 UTF-8 文本文件。远程工作区和新建、重命名、删除文件另列后续特性；首版不包含 PPT 编辑。
@@ -53,6 +55,7 @@ SE-05 已实现 schema 2 的会话恢复副本与独立回执；本地契约及�
 | docs/se04-watch-round3-verification.md / docs/se04-watch-round3-evidence.json | 第三轮整合时钟驱动失败、三页瞬时激活的提前保存红绿与固定产物；独立复核及 Native 待验 |
 | docs/se04-watch-native-verification.md / docs/se04-watch-native-evidence.json | 固定订阅产物的真实 Native 请求、单次 UI 授权、保存／冲突／退订／故障恢复与分层限制；保留文档提交时点，闭合见实施总记录 |
 | docs/se05-verification.md / docs/se05-evidence.json | 恢复副本/schema 迁移的真实数据库、新进程及实际构建页面契约，首次失败与修正记录；原生 H4 待验 |
+| docs/se05-review-fix-verification.md / docs/se05-review-fix-evidence.json | 首轮两轴三项 P2 的真实 stdio／构建页面红绿、身份合流／重试重入／初始化交互修正与新固定产物；独立复核及 H4 待验 |
 | docs/design-discussion.md | 已确认交互、问题轮次、宿主能力边界与后续特性范围 |
 | docs/text-editor-spec.md | 首版行为、工程接口边界、能力门槛与验证标准 |
 | docs/text-editor-tickets.md / docs/issues/ | 实施依赖图、原子票草稿和后续待做特性 |
