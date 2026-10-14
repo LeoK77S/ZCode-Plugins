@@ -40,6 +40,18 @@ Install 复用唯一当前用户登录任务，以隐藏 VBS → PowerShell → 
 
 新进程加载新的公共模块；既有 MCP 仍可能是旧版，按 MCP setup 安排断开重连或择时重开并核验。只改文档或不涉及常驻代码的配置时可说明无需重载。
 
+## 依赖完整性检查（Stop 钩子 depcheck）
+
+common 0.2.0 起自带原生 Stop 钩子（hooks/hooks.json → depcheck-hook.mjs），每轮对话结束自动扫描已安装 suian 系列插件的最新缓存：npm 生产依赖目录、各业务端 node_modules/suian-zcode-common 链接、公共稳定入口 runtime（含 common 升级后未重跑 link 的过期链接）。检查实现只用 Node 内置模块与包内相对导入，不经 node_modules 解析，依赖全丢时钩子仍可运行并报警。
+
+发现缺失时弹 Windows Toast（同一数据目录 2 小时冷却），按钮点击复制修复提示词并打开 ZCode；用户把提示词粘贴给任意会话，即可按本技能执行 npm ci 与 link.mjs 修复。修复后手动复查：
+
+```powershell
+node "{{common_root}}/depcheck-hook.mjs" --scan-only
+```
+
+Toast 身份（协议 suian-zcode-common://fix、AppID SUIAN.SuianZcodeCommon.Toast、开始菜单快捷方式"ZCode 公共基础插件"）由钩子在首次报警前自动幂等注册；setup.ps1 -Action Remove 不清理该身份，明确移除时调用 notification-install.mjs 的 removeToastAssets。
+
 ## 旧源码安装迁移
 
 先确定旧根、原启用状态和所选业务插件。把用户设置、旧命名配置与状态、网关配置备份到缓存外的私有目录；含凭据的备份不回显或入库。命名的临时暂停与恢复按其 setup 执行。

@@ -62,9 +62,12 @@ ZCode-Plugins/
 │   ├── tests/            # 公开契约与浏览器烟测
 │   └── docs/             # 规格、票、架构决定与分层验证证据
 │
-├── suian-zcode-common/    # 公共网关、远控/授权/通知/投影模块、Windows 配置与 Agent skill
+├── suian-zcode-common/    # 公共网关、远控/授权/通知/投影模块、依赖完整性 Stop 钩子、Windows 配置与 Agent skill
 │   ├── .zcode-plugin/      # 必需公共插件元信息
 │   ├── link.mjs            # 稳定公共入口与业务端 Node 包链接
+│   ├── depcheck.mjs        # suian 系列插件依赖完整性扫描（纯内置模块，可独立运行）
+│   ├── depcheck-hook.mjs   # Stop 钩子入口：扫描→缺失时 Toast 提醒（--scan-only 手动复查）
+│   ├── toast-action.mjs    # Toast 按钮协议入口：重扫→复制修复提示词→打开 ZCode
 │   ├── vendor/             # 固定协议／投影及官方V4 decoder；保留来源和独立许可
 │   └── skills/             # setup / configuration / debug
 │

@@ -1,0 +1,16 @@
+{
+  "hooks": {
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"${ZCODE_PLUGIN_ROOT}/depcheck-hook.mjs\"",
+            "async": true,
+            "timeoutMs": 30000
+          }
+        ]
+      }
+    ]
+  }
+}
