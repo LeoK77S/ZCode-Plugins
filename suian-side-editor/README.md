@@ -2,7 +2,7 @@
 
 **0.1.0 提供本机已有 UTF-8 文本的独立侧栏编辑器**：目录树、临时／固定页签、手动／自动保存、外部冲突处理和会话恢复。通过原生市场登记安装，版本变化见 [更新记录](CHANGELOG.md)；实际验证范围见 [实施总记录](docs/development-verification.md)。
 
-当前开发变更新增选区评论和主对话聚合胶囊，使用用户已接受残余风险的临时保护方案；尚未完成 Native 验证。主对话处理中尽力禁用新增评论，完整并发保证仍待 [#57](https://github.com/ONEGAYI/ZCode-Plugins/issues/57)。PPT、远程工作区及新建、重命名、删除文件留到后续。正式缓存安装与用户产品验收尚未完成，不将已通过的本地编辑验证称为完整首版验收。
+尚未发布的本地开发变更已实现选区评论和主对话聚合胶囊，使用用户已接受残余风险的临时保护方案；SDK46、实际构建浏览器63及独立两轴复核通过，Native 评论实测尚未通过，详见 [评论验证](docs/comment-guard-verification.md)。主对话处理中尽力禁用新增评论，完整并发保证仍待 [#57](https://github.com/ONEGAYI/ZCode-Plugins/issues/57)。PPT、远程工作区及新建、重命名、删除文件留到后续。正式缓存安装与用户产品验收尚未完成，不将已通过的本地编辑验证称为完整首版验收。
 
 ## 当前可验证的行为
 
@@ -22,7 +22,7 @@
 
 SE-04 的原 Native 重复读审批失败保留。[资源订阅修复](docs/se04-watch-fix-verification.md) 及[三轮修正](docs/se04-watch-round3-verification.md) 已通过统一执行等同性、独立代码复核和 42 项浏览器验证；未改 SDK 复用 33/33。[新 Native 证据](docs/se04-watch-native-verification.md) 与文档门槛两轴复核通过，SE-04 本地限定条件已闭合，当前结果见 [实施总记录](docs/development-verification.md)。新轮视觉未验。
 
-[SE-05](docs/se05-verification.md) 新增会话恢复副本：页签顺序、临时／固定属性、当前页、每文件阅读位置与未保存正文独立持久化。页面显示副本待同步、成功或失败；只有回执到达才确认副本已同步。恢复遇磁盘冲突或读权限失败保留脏正文，干净文件重新读取最新磁盘内容。[三类原生生命周期](docs/se05-native-verification.md) 的 H4 实测及源 Native 文档两轴已通过，#45 本地限定条件已满足；统一整合范围见 [实施总记录](docs/development-verification.md)，评论接入继续受 H3 门槛约束。
+[SE-05](docs/se05-verification.md) 新增会话恢复副本：页签顺序、临时／固定属性、当前页、每文件阅读位置与未保存正文独立持久化。页面显示副本待同步、成功或失败；只有回执到达才确认副本已同步。恢复遇磁盘冲突或读权限失败保留脏正文，干净文件重新读取最新磁盘内容。[三类原生生命周期](docs/se05-native-verification.md) 的 H4 实测及源 Native 文档两轴已通过，#45 本地限定条件已满足；统一整合范围见 [实施总记录](docs/development-verification.md)。当前评论按 [ADR 0005](docs/adr/0005-temporary-comment-send-guard.md) 的尽力禁用范围推进，原 H3 完整保证仍待 SE-11。
 
 [首轮复核修正](docs/se05-review-fix-verification.md) 保留改指后的原身份脏副本、阻止重复恢复与初始化期间未计入副本的编辑。[第二轮修正](docs/se05-round2-verification.md) 与[脏目标分支补齐](docs/se05-round3-verification.md) 将新读取的代际确认与正文替换分开，保留既有脏正文，阻止迟到同版本旧资源错误误阻塞。最终来源与统一代码两轴、统一完整 SDK 37/37、实际构建浏览器 55 项／组及构建／语法检查通过，当前范围见 [实施总记录](docs/development-verification.md)。旧页保留其提交时点，不与当前原生结果混称。
 
