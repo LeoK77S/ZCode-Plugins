@@ -11,14 +11,15 @@ test('支持的宿主取得本地构建编辑页面；不支持者没有文件�
     const client = await connect(t, { zcodeAppVersion }, { name, version, capabilities });
     const resources = (await client.listResources()).resources;
     assert.equal(resources.some(item => item.uri === 'ui://suian-side-editor/editor.html'), enabled);
-    assert.equal((await client.listTools()).tools.length, enabled ? 8 : 0);
+    assert.equal((await client.listTools()).tools.length, enabled ? 9 : 0);
     if (enabled) {
       const page = (await client.readResource({ uri: 'ui://suian-side-editor/editor.html' })).contents[0];
       assert.equal(page.mimeType, 'text/html;profile=mcp-app');
       assert.match(page.text, /get_editor_context/); assert.match(page.text, /read_editor_text/);
       assert.match(page.text, /list_editor_directory/); assert.match(page.text, /save_editor_text/);
       assert.doesNotMatch(page.text, /EDITOR_SCRIPT|EDITOR_STYLE/);
-      assert.doesNotMatch(page.text, /fetch\(|https:\/\/.*\.js|sendMessage|updateModelContext|session_id/);
+      assert.match(page.text, /updateModelContext/); assert.match(page.text, /get_editor_comment_state/);
+      assert.doesNotMatch(page.text, /fetch\(|https:\/\/.*\.js|sendMessage|session_id/);
     }
   }
 });
