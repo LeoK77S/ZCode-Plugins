@@ -4,7 +4,7 @@ import { mkdtemp, writeFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { connect } from './fixtures.mjs';
-import { commentHost, v4Snapshot, userRow, queueItem, wires } from './comment-host-fixture.mjs';
+import { commentHost, channelCommentHost, v4Snapshot, userRow, queueItem } from './comment-host-fixture.mjs';
 
 test('评论状态通过公开V4读取ACK前自有快照，严格旧事件失败不妨碍完整受理', async t => {
   const workspaceRoot = await mkdtemp(join(tmpdir(), 'comment-v4-')); t.after(() => rm(workspaceRoot, { recursive: true, force: true }));
@@ -58,11 +58,12 @@ test('公开V4官方分片完整组装，ACK前超过128片仍按自有队列完
   assert.ok(!calls.some(call => call.method === 'readSessionEvents'));
 });
 
-test('公开V4分片校验失败和历史分页中途失败不留下半份受理证明', async t => {
+test('公开V4坏分片不留证据，完整快照证明独立于随后失败的半份历史', async t => {
   const workspaceRoot = await mkdtemp(join(tmpdir(), 'comment-v4-fault-')); t.after(() => rm(workspaceRoot, { recursive: true, force: true }));
   const sessionId = 'fault-fixture', batch = { schemaVersion: 1, batchId: 'fault-batch', comments: [{ sessionId, workspacePath: workspaceRoot, comment: '大正文'.repeat(5000) }] };
   const serialized = JSON.stringify(batch), input = `文本编辑器选区评论（1 条）\n${serialized}`;
-  let corrupt = true, failOlder = false; const rows = Array.from({ length: 201 }, (_, i) => userRow(i === 200 ? input : `ordinary ${i}`, i + 1));
+  const historyOnly = input.replace('fault-batch', 'history-only-batch');
+  let corrupt = true, failOlder = false; const rows = Array.from({ length: 201 }, (_, i) => userRow(i === 200 ? input : i === 1 ? historyOnly : `ordinary ${i}`, i + 1));
   const client = await connect(t, { workspaceRoot, hostConnector: async options => commentHost({ options, rows: () => rows, maxPhysicalFrameBytes: 2500,
     beforeAck(listener, frames) { frames.forEach(frame => listener(corrupt ? { ...frame, checksum: { ...frame.checksum, value: '00000000' } } : frame)); },
     page(query, snapshot) {
@@ -71,26 +72,68 @@ test('公开V4分片校验失败和历史分页中途失败不留下半份受理
       return { rows: selected.slice(-200), atSeq: snapshot.seq, atRevision: snapshot.revision, atLogEpoch: snapshot.logEpoch, hasMore: selected.length > 200 };
     } }) });
   const registration = (await client.callTool({ name: 'get_editor_comment_state', arguments: {}, _meta: { session_id: sessionId } })).structuredContent;
-  assert.equal(registration.state, 'unknown'); assert.match(registration.reason, /公开帧校验失败/);
+  assert.equal(registration.state, 'unknown'); assert.match(registration.reason, /公开帧校验失败/); assert.deepEqual(registration.acceptedBatches, []);
   const read = async () => JSON.parse((await client.readResource({ uri: registration.resourceUri })).contents[0].text);
   corrupt = false; failOlder = true; const partial = await read(); assert.equal(partial.state, 'unknown'); assert.match(partial.reason, /更早历史页读取失败/);
-  rows.splice(0); failOlder = false; assert.deepEqual((await read()).acceptedBatches, [], '失败的半份历史不得写入资源批次记忆');
+  assert.deepEqual(partial.acceptedBatches, [{ batchId: batch.batchId, serialized }], '完整权威快照中的A已经独立受理，半份历史的另一个批次不提交');
+  rows.splice(0); failOlder = false; assert.deepEqual((await read()).acceptedBatches, partial.acceptedBatches, '只保留曾经完整校验的独立快照证明');
 });
 
-test('评论资源退订时释放正在等待ACK的监听，迟到ACK仍退订自身而不再读历史', async t => {
+for (const lifecycle of ['unsubscribe', 'close']) test(`评论资源${lifecycle}时真实ChannelClient须保留载体直到迟到ACK退订`, async t => {
   const workspaceRoot = await mkdtemp(join(tmpdir(), 'comment-v4-late-ack-')); t.after(() => rm(workspaceRoot, { recursive: true, force: true }));
-  const arrived = Promise.withResolvers(), release = Promise.withResolvers(), unsubscribed = Promise.withResolvers();
-  let delayed = false, disposed = 0; const calls = [];
+  const arrived = Promise.withResolvers(), release = Promise.withResolvers(), closed = Promise.withResolvers();
+  let delayed = false, disposed = 0, remoteSubscribed = false, unsubscribes = 0; const calls = [];
   const client = await connect(t, { workspaceRoot, hostConnector: async options => {
     const late = delayed;
-    return commentHost({ options, onCall: ({ method }) => { if (late) { calls.push(method); if (method === 'unsubscribeConversationV4') unsubscribed.resolve(); } },
-      onDispose: () => { if (late) disposed++; }, beforeAck: late ? async (listener, frames) => { frames.forEach(listener); arrived.resolve(); await release.promise; } : undefined });
+    return channelCommentHost({ options, onCall: ({ method }) => { if (late) { calls.push(method); if (method === 'unsubscribeConversationV4') { remoteSubscribed = false; unsubscribes++; } } },
+      onClose: () => { if (late) closed.resolve(); }, onDispose: () => { if (late) disposed++; },
+      beforeAck: late ? async (listener, frames) => { remoteSubscribed = true; frames.forEach(listener); arrived.resolve(); await release.promise; } : undefined });
   } });
   const uri = (await client.callTool({ name: 'get_editor_comment_state', arguments: {}, _meta: { session_id: 'late-ack' } })).structuredContent.resourceUri;
-  delayed = true; const pending = client.readResource({ uri }); await arrived.promise;
-  await client.unsubscribeResource({ uri }); await pending; assert.equal(disposed, 1);
-  release.resolve(); await unsubscribed.promise;
+  delayed = true; const pending = client.readResource({ uri }).then(data => ({ data }), error => ({ error })); await arrived.promise;
+  if (lifecycle === 'unsubscribe') await client.unsubscribeResource({ uri }); else await client.close();
+  await new Promise(resolve => setImmediate(resolve)); release.resolve(); await closed.promise; const outcome = await pending;
+  if (outcome.error) { assert.equal(lifecycle, 'close'); assert.match(outcome.error.message, /closed/i); }
+  assert.equal(disposed, 1); assert.equal(unsubscribes, 1, '真实dispose拒绝在途RPC之前必须完成自有ACK与退订'); assert.equal(remoteSubscribed, false);
   assert.ok(!calls.includes('conversationRowsRangeV4'), '已释放资源的迟到订阅不得触发后续历史读取');
+});
+
+for (const failure of ['watermark', 'page-error']) test(`独立完整快照中的受理批次不因历史${failure}丢失`, async t => {
+  const workspaceRoot = await mkdtemp(join(tmpdir(), 'comment-snapshot-proof-')); t.after(() => rm(workspaceRoot, { recursive: true, force: true }));
+  const sessionId = 'snapshot-proof', batch = { schemaVersion: 1, batchId: 'known-batch', comments: [{ sessionId, workspacePath: workspaceRoot, comment: 'A' }] }, serialized = JSON.stringify(batch);
+  let queue = [], broken = false; const client = await connect(t, { workspaceRoot, hostConnector: async options => commentHost({ options, queue: () => queue, page(_query, snapshot) {
+    if (broken) { broken = false; queue = []; if (failure === 'page-error') throw new Error('确定性历史读取失败'); return { rows: [], atSeq: snapshot.seq + 1, atRevision: snapshot.revision + 1, atLogEpoch: snapshot.logEpoch, hasMore: false }; }
+    return { rows: [], atSeq: snapshot.seq, atRevision: snapshot.revision, atLogEpoch: snapshot.logEpoch, hasMore: false };
+  } }) });
+  const uri = (await client.callTool({ name: 'get_editor_comment_state', arguments: {}, _meta: { session_id: sessionId } })).structuredContent.resourceUri;
+  queue = [queueItem(`文本编辑器选区评论（1 条）\n${serialized}`)]; broken = true;
+  const read = async () => JSON.parse((await client.readResource({ uri })).contents[0].text);
+  const unknown = await read(); assert.equal(unknown.state, 'unknown'); assert.deepEqual(unknown.acceptedBatches, [{ batchId: batch.batchId, serialized }], '完整权威快照是独立受理证明，unknown仍须传递');
+  const recovered = await read(); assert.equal(recovered.state, 'idle'); assert.deepEqual(recovered.acceptedBatches, unknown.acceptedBatches);
+});
+
+for (const reasonCode of ['gateway_timeout', 'gateway_connection_closed']) test(`等待自有ACK时${reasonCode}必须报告无法确认退订并结束载体`, async t => {
+  const workspaceRoot = await mkdtemp(join(tmpdir(), 'comment-v4-carrier-fault-')); t.after(() => rm(workspaceRoot, { recursive: true, force: true }));
+  const arrived = Promise.withResolvers(), release = Promise.withResolvers(), closed = Promise.withResolvers();
+  const diagnostics = []; t.mock.method(console, 'error', message => diagnostics.push(message));
+  let delayed = false, carrier, remoteSubscribed = false, unsubscribes = 0;
+  const client = await connect(t, { workspaceRoot, hostConnector: async options => {
+    assert.equal(options.timeoutMs, 6000, '载体沿用公共连接已有的整体RPC时限');
+    const late = delayed, host = channelCommentHost({ options, onCall: ({ method }) => { if (late && method === 'unsubscribeConversationV4') { remoteSubscribed = false; unsubscribes++; } },
+      onClose: () => { if (late) closed.resolve(); }, beforeAck: late ? async (listener, frames) => { remoteSubscribed = true; frames.forEach(listener); arrived.resolve(); await release.promise; } : undefined });
+    if (late) carrier = host; return host;
+  } });
+  const uri = (await client.callTool({ name: 'get_editor_comment_state', arguments: {}, _meta: { session_id: 'carrier-fault' } })).structuredContent.resourceUri;
+  delayed = true; const pending = client.readResource({ uri }).then(data => ({ data }), error => ({ error })); await arrived.promise;
+  await client.unsubscribeResource({ uri });
+  carrier.fail(Object.assign(new Error(reasonCode === 'gateway_timeout' ? '既有整体RPC时限已到' : '连接真实断开'), { reasonCode }));
+  await closed.promise; await pending;
+  assert.ok(diagnostics.some(message => message.includes('订阅未确认') && message.includes('无法取得退订标识') && message.includes(reasonCode === 'gateway_timeout' ? '时限已到' : '断开')));
+  assert.equal(unsubscribes, 0); assert.equal(remoteSubscribed, true, '没有ACK就不能声称已清理Host订阅');
+  assert.ok(carrier.requests.some(header => header[0] === 103), '失败后仍释放自身原事件监听');
+  release.resolve(); await new Promise(resolve => setImmediate(resolve));
+  await assert.rejects(carrier.call('zcode-agent', 'unsubscribeConversationV4', [{ subscriptionId: 'guessed' }]), /disposed|时限|断开/);
+  console.log(JSON.stringify({ reasonCode, closed: true, unsubscribes, remoteSubscriptionConfirmedReleased: false, diagnostic: diagnostics[0] }));
 });
 
 test('可信登记的评论状态与文本可同时订阅，独立退订和会话隔离', async t => {

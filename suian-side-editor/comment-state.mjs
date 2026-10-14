@@ -17,6 +17,9 @@ function acceptedBatches(context, bodies) {
   }
   return [...batches.values()];
 }
+function rememberBatches(entry, bodies) {
+  for (const batch of acceptedBatches(entry.context, bodies)) entry.accepted.set(batch.serialized, batch);
+}
 
 // 每次只取得一份新快照，不维护第二份 V4 队列或增量投影。
 async function readConversation(host, entry, active) {
@@ -29,7 +32,7 @@ async function readConversation(host, entry, active) {
     ...(hello.capabilities?.workflowRunDeltas === true ? { capabilities: { workflowRunDeltas: true } } : {}) }]);
   if (!active(entry)) return;
   const assembler = new TopicWireFrameAssembler(conversationTopicFrameSchema), waiting = Promise.withResolvers(), early = [];
-  let subscriptionId, listener, finished = false, earlyBytes = 0, earlyError, failed = false;
+  let subscriptionId, subscribing, listener, finished = false, earlyBytes = 0, earlyError, failed = false;
   const cancel = () => waiting.resolve({ error: new Error('评论状态资源已释放') }); entry.cancelRead = cancel;
   const timer = setTimeout(() => waiting.resolve({ error: new Error('主对话公开快照读取超时') }), 5000);
   const accept = wire => { try {
@@ -55,10 +58,7 @@ async function readConversation(host, entry, active) {
   };
   try {
     listener = host.listen('zcode-agent', 'onDynamicConversationFrame', { workspacePath })(accept);
-    const subscribing = host.call('zcode-agent', 'subscribeConversationV4', [{ workspacePath, sessionId, visibility: 'background' }]).then(async result => {
-      if (finished && typeof result?.ack?.subscriptionId === 'string') await release(result.ack.subscriptionId);
-      return result;
-    });
+    subscribing = host.call('zcode-agent', 'subscribeConversationV4', [{ workspacePath, sessionId, visibility: 'background' }]);
     const result = await Promise.race([subscribing, waiting.promise]);
     if (result.error) throw result.error;
     subscriptionId = result.ack?.subscriptionId;
@@ -68,10 +68,24 @@ async function readConversation(host, entry, active) {
     for (const wire of early.splice(0)) accept(wire);
     const outcome = await waiting.promise;
     if (outcome.error) throw outcome.error;
+    if (!active(entry)) return;
     if (outcome.snapshot.sessionId !== sessionId || outcome.snapshot.logEpoch !== result.ack.logEpoch) throw new Error('主对话公开快照归属或日志世代不一致');
+    // 一份已完整校验的自有快照是独立证据，不随随后历史分页或退订失败撤销。
+    rememberBatches(entry, [...outcome.snapshot.queue.items.filter(item => item.kind === 'sendText').map(item => item.text),
+      ...outcome.snapshot.rows.window.filter(row => row.kind === 'userInput').map(row => row.text)]);
     return outcome.snapshot;
   } catch (error) { failed = true; throw error; }
-  finally { finished = true; clearTimeout(timer); entry.cancelRead = undefined; listener?.dispose(); assembler.clear(); if (subscriptionId) await release(subscriptionId); }
+  finally {
+    finished = true; clearTimeout(timer); listener?.dispose(); assembler.clear();
+    try {
+      // ChannelClient.close 会拒绝尚未返回的 ACK；取消资源先停止观察，在既有 RPC 时限内取回自有 ID。
+      if (!subscriptionId && subscribing) {
+        try { subscriptionId = (await subscribing)?.ack?.subscriptionId; }
+        catch (error) { console.error(`主对话公开快照订阅未确认，无法取得退订标识：${error.message}`); }
+      }
+      if (typeof subscriptionId === 'string' && subscriptionId) await release(subscriptionId);
+    } finally { entry.cancelRead = undefined; }
+  }
 }
 
 async function conversationBodies(host, entry, active) {
@@ -127,7 +141,7 @@ export function installCommentState(server, { hostConnector = connectHost, gatew
           acceptedBatches: [...accepted.values()] };
         // 读取与解析全部完成后才提交批次记忆；通知后的再次读取仍保留证据。
         entry.accepted = accepted;
-      } catch (error) { if (!active(entry)) return false; snapshot = { state: 'unknown', reason: `评论状态不可用：${error.message}`, code: error.reasonCode ?? error.code ?? 'comment_state_unavailable' }; }
+      } catch (error) { if (!active(entry)) return false; snapshot = { state: 'unknown', reason: `评论状态不可用：${error.message}`, code: error.reasonCode ?? error.code ?? 'comment_state_unavailable', acceptedBatches: [...entry.accepted.values()] }; }
       finally { host?.close(); entry.connection = undefined; }
       const changed = JSON.stringify(snapshot) !== JSON.stringify(entry.snapshot); entry.snapshot = snapshot; return changed;
     });
@@ -158,7 +172,7 @@ export function installCommentState(server, { hostConnector = connectHost, gatew
       await refresh(entry); lookup(entry.uri); return { ...entry.snapshot, resourceUri: entry.uri };
     },
     async subscribe(uri) { const entry = lookup(uri); await refresh(entry); if (!entries.has(uri)) return; entry.subscribed = true; if (!entry.timer) monitor(entry); return {}; },
-    unsubscribe(uri) { const entry = lookup(uri); entries.delete(uri); entry.subscribed = false; clearTimeout(entry.timer); entry.cancelRead?.(); entry.connection?.close(); return {}; },
-    close() { closed = true; for (const entry of entries.values()) { entry.subscribed = false; clearTimeout(entry.timer); entry.cancelRead?.(); entry.connection?.close(); } entries.clear(); }
+    unsubscribe(uri) { const entry = lookup(uri); entries.delete(uri); entry.subscribed = false; clearTimeout(entry.timer); if (entry.cancelRead) entry.cancelRead(); else entry.connection?.close(); return {}; },
+    close() { closed = true; for (const entry of entries.values()) { entry.subscribed = false; clearTimeout(entry.timer); if (entry.cancelRead) entry.cancelRead(); else entry.connection?.close(); } entries.clear(); }
   };
 }

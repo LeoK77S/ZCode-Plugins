@@ -11,7 +11,7 @@ import { commentHost } from './comment-host-fixture.mjs';
 
 const require = createRequire(process.env.SUIAN_SIDE_EDITOR_PLAYWRIGHT_MODULE ?? import.meta.url);
 const { chromium } = require('playwright');
-async function fixture(t, { failPublish = false, holdPublish = false, restoreMissing = false } = {}) {
+async function fixture(t, { failPublish = false, holdPublish = false, restoreMissing = false, historyFailure } = {}) {
   const workspaceRoot = await mkdtemp(join(tmpdir(), 'side-comment-')), dataPath = await mkdtemp(join(tmpdir(), 'side-comment-data-'));
   t.after(() => Promise.all([rm(workspaceRoot, { recursive: true, force: true }), rm(dataPath, { recursive: true, force: true })]));
   await writeFile(join(workspaceRoot, 'alpha.txt'), 'first\nsecond\nthird');
@@ -19,7 +19,16 @@ async function fixture(t, { failPublish = false, holdPublish = false, restoreMis
   const hostCalls = [], calls = [], capsules = [], events = [];
   let connectionError, releasePublish, publishStarted;
   const publishReady = new Promise(resolve => { publishStarted = resolve; });
-  const hostConnector = async options => { if (connectionError) throw new Error(connectionError); return commentHost({ options, state, events, onCall: call => hostCalls.push(call) }); };
+  let observedQueue = false;
+  const hostConnector = async options => { if (connectionError) throw new Error(connectionError); return commentHost({ options, state, events, onCall: call => hostCalls.push(call),
+    ...(historyFailure ? { page(_query, snapshot) {
+      if (snapshot.queue.items.length) {
+        observedQueue = true; events.splice(0);
+        if (historyFailure === 'page-error') throw new Error('完整队列快照后的确定性历史页失败');
+        return { rows: [], atSeq: snapshot.seq + 1, atRevision: snapshot.revision + 1, atLogEpoch: snapshot.logEpoch, hasMore: false };
+      }
+      return { rows: [], atSeq: snapshot.seq, atRevision: snapshot.revision, atLogEpoch: snapshot.logEpoch, hasMore: false };
+    } } : {}) }); };
   const client = await connect(t, { workspaceRoot, dataPath, hostConnector });
   if (restoreMissing) {
     const file = (await client.callTool({ name: 'read_editor_text', arguments: { path: 'alpha.txt' }, _meta: { session_id: 'comment-fixture' } })).structuredContent;
@@ -40,7 +49,7 @@ async function fixture(t, { failPublish = false, holdPublish = false, restoreMis
   const content = page.getByRole('textbox', { name: '文件正文', exact: true }); await content.waitFor();
   async function select() { await content.focus(); await page.keyboard.press('Control+Home'); await page.keyboard.press('ArrowDown'); await page.keyboard.press('Home'); await page.keyboard.press('Shift+End'); }
   async function refresh() { return JSON.parse((await client.readResource({ uri: calls.find(call => call.name === 'get_editor_comment_state').result.structuredContent.resourceUri })).contents[0].text); }
-  return { page, content, select, state, events, hostCalls, calls, capsules, resources, workspaceRoot, client, refresh, publishReady, disconnect: message => { connectionError = message; }, releasePublish: () => releasePublish({}) };
+  return { page, content, select, state, events, hostCalls, calls, capsules, resources, workspaceRoot, client, refresh, publishReady, observedQueue: () => observedQueue, disconnect: message => { connectionError = message; }, releasePublish: () => releasePublish({}) };
 }
 
 test('实际选区创建完整未保存快照，单胶囊聚合且继续编辑不改写评论', async t => {
@@ -167,4 +176,14 @@ test('断连期间A受理并退出60行快照与200行历史页，重连完整�
   await add('B 新评论');
   assert.deepEqual(f.capsules.at(-1).structuredContent.comments.map(comment => comment.comment), ['B 新评论']);
   await f.refresh(); await f.page.getByText('待发送评论 1 条', { exact: true }).waitFor();
+});
+
+for (const historyFailure of ['watermark', 'page-error']) test(`已完整观测队列A后历史${historyFailure}，恢复后B胶囊不得带回A`, async t => {
+  const f = await fixture(t, { historyFailure });
+  const add = async comment => { await f.select(); await f.page.getByRole('button', { name: '评论选区', exact: true }).click(); await f.page.getByRole('textbox', { name: '评论内容', exact: true }).fill(comment); await f.page.getByRole('button', { name: '加入主对话', exact: true }).click(); await f.page.getByRole('dialog', { name: '选区评论', exact: true }).waitFor({ state: 'hidden' }); };
+  await add('A 已排队'); const a = f.capsules[0];
+  f.events.push({ eventId: 'owned-A', sessionId: 'comment-fixture', seq: 1, type: 'turn.steerQueued', payload: { input: a.content[0].text } });
+  const broken = await f.refresh(); assert.equal(broken.state, 'unknown'); assert.equal(f.observedQueue(), true, '已完整编码发送队列A，之后页读取才失败');
+  const recovered = await f.refresh(); assert.equal(recovered.state, 'idle');
+  await add('B 新评论'); assert.deepEqual(f.capsules.at(-1).structuredContent.comments.map(comment => comment.comment), ['B 新评论']);
 });
