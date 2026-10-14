@@ -259,3 +259,15 @@ H4 三项实际恢复观察与已绿代码契约共同满足本票行为条件�
 Native run-1 首次 Builtin／model 必填配置准备缺陷已在自有配置按 schema 修正，但公开 getView 仍报告六项缺字段、refresh 404，需要正常冷重启。测试窗口未出现在 computerhelper 的可操作窗口清单，用户协助初始化，当前等待用户自然关闭该窗口。以上只说明准备未闭合，不作为产品已通过或已失败的结论，也不声称最终源已实际装载。
 
 #47 的代码闭环夹具通过不等于 Native 完成，票保持开启。版本仍0.1.0，评论本地未发布；完整 #57、原 H3 完整保证、正式缓存安装、完整首版及用户验收尚未完成。本次仅追加当前记录和必要导航，未修改产品／版本／市场、旧冻结证据或其他人的 Native 私有准备；未操作窗口、profile、controller、模型或远端。
+
+## 0.2.0／common 0.1.2 发布准备（2026-10-14）
+
+**本次版本和说明按最终评论代码f6准备，原#47缺口与最终Native未验明确保留**。side-editor从0.1.0升为0.2.0，common从0.1.1升为0.1.2；app-mcp 0.4.1、title 0.1.1不升。市场／插件／side package／lock根两处／MCP自报常量同步。common package原无version字段，不新增；没有改API或创建版本抽象。
+
+本轮仅跑已有版本／自报契约`tests/native-entry.test.mjs`与公共市场／缓存升级契约`tests/plugin-link.test.mjs`，各3/3、退出0，语法检查退出0。业务完整SDK55、实际构建浏览器65、common98为固定f6／V4来源首完整证据复用，app120／title67沿用未变执行树与既有完整记录；不写成版本变更后新跑全套。HTML和vendor按Git/LF保持f6等同，不重构建或重跑浏览器。
+
+当前采用自有V4临时快照与同水位当前分支分页，旧legacy严格decoder路线已替换。两项可修P2已闭合：完整自有快照的已观测证明不因历史失败撤销；真实ChannelClient取消语义下等待自有ACK与退订后再关闭，超时／断连报告无法确认释放。原未观察受理后取消仍首红，A可能随B复活，属于原#47未满足能力，不因#57另票或发送边界风险授权而获得豁免。
+
+旧schema的Native失败保留。公开V4 A普通/B排队全文JSON和API审批通过属接口probe，离线schema与脚本准备不等于可见guest。最终f6新缓存／guest尚未执行，#42／46／47／48保持open，无关闭声明；完整#57、完整首版和用户验收未完成。详情及旧ec2历史分层见[评论记录](comment-guard-verification.md)。新增SQLite研究未选型，本轮未将其接入生产。
+
+发布准备日志和退出码位于统一树`.scratch/comment-release/`，先前fetch首443 reset和重试退出0由Root保留。origin/dev仍4f37e025，origin/master仍261bcded；dev未前移，master仅含上一正式集成merge，保留分支历史不rebase。用户已授权feature→dev→master，本次专门集成者只提交版本／文档；远端PR、鲜度复查、CI与expected SHA合并由Root执行，不能把本地准备称为已经推送或正式合入。

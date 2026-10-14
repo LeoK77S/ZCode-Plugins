@@ -46,7 +46,7 @@ ZCode-Plugins/
 │   ├── ui/                 # 原生只读工件侧栏资源
 │   └── skills/             # setup / configuration / sessions / artifacts / glm / debug
 │
-├── suian-side-editor/     # 本机文本编辑器 0.1.0；评论本地代码通过、Native待验，完整原生并发独立保留
+├── suian-side-editor/     # 本机文本编辑器 0.2.0；选区评论尽力保护，原#47缺口与Native待验
 │   ├── AGENTS.md          # 本插件规则与文档入口
 │   ├── CLAUDE.md          # 导入 AGENTS.md
 │   ├── .zcode-plugin/     # 原生侧栏元信息与市场版本
@@ -55,6 +55,7 @@ ZCode-Plugins/
 │   ├── cli.mjs / server.mjs # 启动入口与 app-only 上下文、目录、读写工具
 │   ├── text-files.mjs     # 工作区边界、按层目录、UTF-8 读取与版本检查写回
 │   ├── text-resources.mjs # 已登记只读快照、版本通知／退订，后台发送失败报告并停止监测
+│   ├── comment-state.mjs # 可信评论状态、V4临时快照与当前分支历史分页、已观测批次证明
 │   ├── editor-settings.mjs # 外置 SQLite schema 2、模式与恢复副本事务；回执独立于源保存
 │   ├── build-ui.mjs       # 唯一本地 UI 构建入口
 │   ├── ui/               # CodeMirror 源文件、自包含构建页面与第三方许可
@@ -64,6 +65,7 @@ ZCode-Plugins/
 ├── suian-zcode-common/    # 公共网关、远控/授权/通知/投影模块、Windows 配置与 Agent skill
 │   ├── .zcode-plugin/      # 必需公共插件元信息
 │   ├── link.mjs            # 稳定公共入口与业务端 Node 包链接
+│   ├── vendor/             # 固定协议／投影及官方V4 decoder；保留来源和独立许可
 │   └── skills/             # setup / configuration / debug
 │
 └── sources/                # 上游源码 submodule 引用（只读，见 sources/README.md）

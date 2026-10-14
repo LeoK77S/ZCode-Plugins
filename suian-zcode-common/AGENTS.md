@@ -1,6 +1,6 @@
 # suian-zcode-common — 公共基础能力
 
-两个插件共用本目录的网关、远控协议、DPAPI、通知和消息投影。公共层不导入任何插件；调用方保留业务规则、通知文案、协议身份与配置数据。
+业务插件共用本目录的网关、远控协议、DPAPI、通知和消息投影。0.1.2 新增向后兼容的 Channel 监听入口与固定官方 V4 decoder；公共层不导入任何插件，调用方保留业务规则、通知文案、协议身份与配置数据。
 
 ## 约定
 
@@ -27,7 +27,7 @@
 | .zcode-plugin/plugin.json / link.mjs | 原生公共插件元信息、稳定公共入口和业务端 Node 包链接 |
 | skills/ | setup / configuration / debug，paths.md 统一位置与数据归属 |
 | rpc-broker.mjs | 单一 Host 桥、RPC 编号与 v4 握手身份映射、手机虚拟桥与本地客户端分流 |
-| gateway-client.mjs | 插件默认 connectHost/probeHost，本地配置与鉴权、RPC 附着和明确失败 |
+| gateway-client.mjs | 插件默认 connectHost/probeHost，本地配置与鉴权、RPC call／listen 附着、原事件参数与释放语义及明确失败 |
 | setup.ps1 / run.ps1 / run.vbs | 用户任务、变量、公共 skill；无窗口监督启动、安全重载与恢复 |
 | remote.mjs | 官方 relay 鉴权、workspace bridge、Channel RPC 与分层探活 |
 | auth-store.mjs | 调用方数据目录内的当前用户 DPAPI 授权存取 |
@@ -39,8 +39,11 @@
 | prerequisites.mjs | 两插件共用的安装检查：Node 版本、公共依赖；仅命名调用方要求 sqlite3 CLI 只读 JSON 能力 |
 | ui-capabilities.mjs | ZCode 应用版本与 MCP Apps MIME 判定；不注册业务资源或工具 |
 | vendor/ | 固定消息投影和远控协议库，见 NOTICE.md |
+| vendor/conversation-wire.js / vendor/conversation-wire.sources.json | 固定官方 V4 topic 帧组装／编码及快照／历史页 schema；49源blob、ref和构建SHA，不代表安装版本逐字节一致 |
+| vendor/LICENSE-ZCode / vendor/NOTICE-ZCode-current.md / vendor/LICENSE-zod | 官方Apache-2.0完整许可／NOTICE与构建内Zod MIT许可，禁止改成自有MIT归属 |
 | SKILL.md / README.md | 源码兼容路由与公共模块接口，完整操作流程在对应 skills/ 技能 |
 | tests/ | 回环网关、隔离 Windows 配置、远控、DPAPI、通知与 UI 能力判定契约 |
+| tests/gateway-rpc.test.mjs / tests/plugin-link.test.mjs | 真实回环call／listen客户端隔离和释放、市场版本一致及独立缓存公共升级契约 |
 | experiments/ | 仅发合成 auth_init 的研究探针，不自动执行 |
 | package.json / package-lock.json | 固定 Node/ws 版本与测试入口 |
 | docs/ | 脱敏验证证据；历史与本次验证分开 |

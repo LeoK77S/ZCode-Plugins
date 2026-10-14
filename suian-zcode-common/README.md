@@ -2,7 +2,9 @@
 
 **业务插件共用的基础能力**：网关、远控协议与探活、DPAPI、Toast、消息投影和原生 UI 能力判定。命名插件保留命名规则，MCP 与侧栏编辑器保留各自业务和数据。公共层不依赖任何插件。
 
-当前版本 `0.1.1` 提取共享的 MCP Apps 能力判定，供工件侧栏和文本编辑器复用；既有判断行为保持兼容。仅使用文本编辑器时，初始化依赖和公共包链接即可，无需启动远控网关。
+当前版本 `0.1.2` 保留共享 MCP Apps 能力判定，新增向后兼容的 Channel 监听入口与固定官方 V4 逻辑帧 decoder。既有 call/probe/close 和客户端隔离保持；仅使用文本编辑功能时无需启动远控网关，评论另需已有连接。
+
+`connectHost` 的 `listen(channel,event,args)` 保留官方直接对象参数及事件监听／dispose 语义，不新增网关协议。`vendor/conversation-wire.js` 由固定上游 `aac4755666d09fdcd70272fcf063c077a639015f` 的49个必要blob编译，提供完整组装、编码及会话快照／历史页schema；来源见 [清单](vendor/conversation-wire.sources.json)。Apache-2.0／完整NOTICE和Zod MIT许可保留，见 [第三方声明](vendor/NOTICE.md)。当前分支分页、受理证明和评论规则属于侧栏插件，不在公共层扩展常驻状态框架。
 
 只有网关是常驻独立进程，其他模块由调用方导入，按需执行。共享代码不等于合并运行数据或给只读 MCP 增加通知。
 

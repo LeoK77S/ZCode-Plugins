@@ -1,10 +1,10 @@
 # suian-side-editor — 独立侧栏文本编辑器
 
-当前版本 0.1.0 提供本机已有 UTF-8 文本编辑，登记原生市场并提供 `skills/setup/SKILL.md` 的依赖与公共包链接入口。既有 11 张 GitHub Issues 已发布，完整原生并发独立拆为 SE-11（GitHub #57），共 12 票。H1/H2、目录／页签／保存、外部冲突和 H4 三类生命周期均已取得限定验证；当前评论闭环、SE-08 正式缓存安装及用户产品验收尚未通过。2026-10-13 用户已接受发送边界残余风险，允许按已核公开会话状态尽力禁用后推进，见 `docs/adr/0005-temporary-comment-send-guard.md`、当前规格及票索引；旧验证记录保留原时点。
+当前版本 0.2.0 提供本机 UTF-8 文本编辑、保存、恢复与选区评论，登记原生市场并提供 `skills/setup/SKILL.md` 的依赖与公共包链接入口。共12张票；#42／46／47／48及完整并发#57保持open。H1/H2、目录／页签／保存、外部冲突和H4已有文本功能限定验证；评论原#47缺口、最终缓存／可见guest、完整首版及用户验收未通过。用户已接受的是发送边界尽力禁用风险，见`docs/adr/0005-temporary-comment-send-guard.md`，不等于豁免未观察受理后取消导致的A+B复活。
 
-2026-10-14 评论本地代码固定源 `9dcfc6f`／统一 `ec2f32d` 已通过 SDK46、实际构建浏览器63与独立规范轴／规格轴；四项确定 P2 在已测触发闭合。评论缓存闭环的 Native 实测尚未通过，当前只有测试准备，不能宣称最终源已实际装载、票完成或用户验收。版本仍为 0.1.0，评论未发布；当前证据与限制见 [评论验证](docs/comment-guard-verification.md)，旧文档和 JSON 不回写新结论。
+2026-10-14 最终评论代码源`e77520d`／统一`f6b4257`复用SDK55、实际构建浏览器65及common98限定证据，两项可修P2（已观测证明保留、真实ChannelClient订阅释放）闭合。旧严格schema的Native失败保留，公开V4 A普通/B排队全文JSON与API审批通过仅属接口probe；最终f6新缓存／可见guest尚未执行。当前边界见[评论验证](docs/comment-guard-verification.md)顶部新记录；旧正文、JSON与首次失败不回写。
 
-SE-04 的代码、统一执行等同性、分层 Native 证据与文档两轴复核已完成，本地限定条件通过；浏览器 42 项／组通过，未改 SDK 复用 33/33。旧 Native 重复读审批失败保留，新限定行为见 `docs/se04-watch-native-verification.md`，当前闭合见 `docs/development-verification.md`。该轮视觉未验，不与 SE-03 图像或旧数据根模式链混称。评论当前范围按 ADR 0005 推进，实际接口、临时限制和评论缓存闭环仍须验证，不能宣称原 H3 完整能力已满足；模式数据库写回与源文件写回仍是两个独立回执。
+SE-04 的代码、统一执行等同性、分层 Native 证据与文档两轴复核已完成，本地限定条件通过；浏览器42项／组通过，未改SDK复用33/33。旧Native重复读审批失败保留，见`docs/se04-watch-native-verification.md`；不与评论接口probe或最终guest验收混称。评论原H3完整保证未满足；模式数据库写回与源文件写回仍是两个独立回执。
 
 SE-05 已实现 schema 2 的会话恢复副本与独立回执；最终固定源 `20526764` 和统一 `77caa2a` 的代码两轴、统一完整 SDK 37/37、实际构建浏览器 55 项／组及构建／语法检查已通过。页签、阅读位置与脏正文在使用过程中持久化，重建重新通过受审工具取得文件和资源关联。正常关闭重开、自然回收新 guest、应用正常退出重启均有实际恢复证据，见 `docs/se05-native-verification.md`。本轮 Native 文档最终统一整合及 #45 本地条件见 `docs/development-verification.md`。
 
@@ -19,7 +19,7 @@ SE-05 已实现 schema 2 的会话恢复副本与独立回执；最终固定源 
 - `../sources/` 只读，不修改宿主源码或安装研究快照依赖。公开接口事实、集成验证和用户验收分别记录。
 - 状态持久化与原文件保存分开；运行数据归本插件，用户文件正文、会话标识和个人路径不写入入库证据。
 - 澄清阶段只记录已确定决定；待决问题明确标记，不将推荐方案记为已接受。
-- 实施可执行行为时遵循契约测试先行，测试首次运行保存日志和退出码。当前仅文档变更采用内容与格式检查。
+- 实施可执行行为时遵循契约测试先行，测试首次运行保存日志和退出码。纯文档采用内容与格式检查，版本元信息采用已有一致性／自报契约，不创建镜像测试。
 - 用户已要求使用规格工作树实施。该工作树作为统一集成分支，各实现者在自己的独立工作树完成单票并提交，由专门合并者集成；不切换用户主工作树。开发基线为 dev，正式分支为 master；本轮不自动授权推送、PR 或正式集成。
 
 ## 文档入口
@@ -44,12 +44,13 @@ SE-05 已实现 schema 2 的会话恢复副本与独立回执；最终固定源 
 | cli.mjs / server.mjs | stdio 服务、app-only 工具与本地 UI 资源；可信工作区和宿主 session meta 验证 |
 | text-files.mjs | 工作区边界、按层目录、UTF-8/BOM/换行特征、字节版本与拒绝旧基线的写回 |
 | text-resources.mjs | 首次可信受审读取登记的文本资源、按版本通知与释放；同一 MCP subscribe／unsubscribe 路由按 URI 分派文本和评论资源，资源请求无对话 meta |
-| comment-state.mjs | 首次受审可信登记的评论状态只读资源；复用 common 会话快照与公开事件识别本插件批次，未知状态与退订／连接关闭释放 |
+| comment-state.mjs | 可信评论状态资源；common快照状态代理、V4自有临时订阅／官方组装／当前分支分页；已观测批次证明、unknown与有界退订，不用legacy事件路线 |
 | editor-settings.mjs | 插件外置 SQLite schema 2、schema 1 无损迁移、模式事务与会话恢复副本、存储边界校验及独立回执 |
 | ui/editor-template.html / ui/editor.css / ui/editor.mjs | 页面结构和主题、目录树、CodeMirror 页签、手动／自动保存、打开文件版本检测及冲突确认 |
 | build-ui.mjs / ui/dist/ | 唯一本地 UI 构建入口、随插件返回的自包含 HTML 与第三方许可；不手改生成文件 |
 | tests/ | 公开 MCP/stdio 文件边界契约与实际资源浏览器烟测 |
-| tests/comment-state.test.mjs | 可信评论状态与文本双资源订阅、独立退订／连接关闭、归属与普通正文隔离、精确本插件批次识别 |
+| tests/comment-state.test.mjs | 可信双资源、V4分片／完整历史／独立受理证明、真实ChannelClient取消和晚ACK，精确本插件批次及普通正文隔离 |
+| tests/comment-host-fixture.mjs | V4 Host测试边界、官方encoder与真实ChannelClient pending／事件释放夹具，不连接Native |
 | tests/browser-comments.mjs | 实际构建选区快照与聚合、全部入口禁用／表单保留、正常／失败／排队受理及迟到回执契约；不代替 Native |
 | README.md / CHANGELOG.md | 当前版本范围、原生安装／打开、本地开发与用户可感知更新 |
 | docs/se01-verification.md / docs/se01-evidence.json | 首次验证轨迹与总证据索引 |

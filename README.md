@@ -21,7 +21,7 @@
    帮我配置已安装的 suian 插件
    ```
 
-安装任一业务插件会自动安装 common；已有显式停用状态仍会保留。市场安装只获取插件代码，依赖和配置由 Agent 按各插件的 setup 技能完成。只使用文本编辑器时无需初始化远控网关；其 `0.1.0` 提供文本编辑、保存和恢复。选区评论已在本地开发分支实现并通过代码契约与两轴复核，尚未发布，Native 评论实测待验。
+安装任一业务插件会自动安装 common；已有显式停用状态仍会保留。市场安装只获取插件代码，依赖和配置由 Agent 按各插件的 setup 技能完成。只使用文本编辑器时无需初始化远控网关；`0.2.0` 在编辑、保存和恢复之外增加选区评论。评论另需既有网关与 Desktop 远控连接，采用发送状态尽力保护，原 #47 缓存缺口及最终可见 guest 验收仍未通过。
 
 公共代码经一个稳定目录入口共享；业务插件不复制实现。个人配置与状态留在版本缓存外。原生 Hook/MCP 由宿主加载，迁移旧源码安装时只清理对应的旧全局注册，保留其他配置。具体步骤见各插件的 skills/setup/SKILL.md。
 
@@ -173,11 +173,13 @@ SE-04 已改为首次受审读取后订阅已登记文件的变化，代码、�
 
 SE-05 的恢复副本已本地实现：页签、阅读位置与脏正文按会话独立持久化，副本回执与源文件保存分开，重建重新取得文件和资源关联。最终来源与统一代码两轴、统一 SDK 37/37、实际构建浏览器 55 项／组通过；关闭重开、自然回收重建、正常应用重启三类 H4、源 Native 文档和最终统一文档两轴已通过，**#45 本地限定条件已满足**。范围见 [原生记录](./suian-side-editor/docs/se05-native-verification.md) 与 [实施总记录](./suian-side-editor/docs/development-verification.md)。
 
-本插件以 `0.1.0` 登记市场，依赖初始化与打开方法见 [编辑器说明](./suian-side-editor/README.md)。当前提供文本编辑、保存和恢复；未发布的评论实现采用用户已接受残余风险的尽力禁用方案，本地验证与 Native 待验边界见 [评论记录](./suian-side-editor/docs/comment-guard-verification.md)。原 H3 完整保证与完整首版验收仍未通过，已有临时隔离入口不代表正式缓存安装或用户产品验收。
+本次侧栏编辑器版本为 `0.2.0`，新增选区评论与主对话胶囊；依赖初始化与打开方法见 [编辑器说明](./suian-side-editor/README.md)。最终 f6 代码的 SDK55／浏览器65与两项可修 P2 复核通过，但未观察受理后取消队列仍可能 A+B 复活，属于原 #47 未满足条件。公开 V4 API probe 不等于最终新缓存／可见 guest 验收；完整首版和用户验收未通过，详见 [评论记录](./suian-side-editor/docs/comment-guard-verification.md)。
 
 ## suian-zcode-common — 公共基础能力
 
 统一维护网关、远控协议与探活、DPAPI 授权存取、Toast 通知和消息投影。公共层包含可导入的模块，只有网关是常驻后台进程；命名规则和 MCP 工具契约留在各插件。网关的 Windows 启动、环境变量与恢复只维护一份。操作拆成[安装升级](./suian-zcode-common/skills/setup/SKILL.md)、[连接配置](./suian-zcode-common/skills/configuration/SKILL.md)与[排障](./suian-zcode-common/skills/debug/SKILL.md)，原 SKILL.md 保留为源码兼容路由。
+
+common `0.1.2` 仅新增向后兼容的 Channel 监听入口和固定官方 V4 逻辑帧 decoder，既有调用接口保持。官方代码按 Apache-2.0 保留完整许可与 NOTICE，内含 Zod 的 MIT 许可另存；来源与职责见 [公共模块说明](./suian-zcode-common/README.md)。app-mcp `0.4.1`、title `0.1.1` 本轮不升版。
 
 **可以在 ZCode 当前会话里完成安装或升级**。重载网关时，只需暂时关闭 ZCode 内的移动端远控，让 Agent 继续配置。首次接入或修改启动地址时，Agent 也会先完成配置和本机检查，最后再提示你择时重启生效；已经连接正确网关且地址未变时，重新开启远控即可。
 
