@@ -1,6 +1,6 @@
 # SE-05 · 恢复打开页、未保存正文、焦点页面与阅读位置
 
-**状态**：已发布；本地限定条件已满足。最终来源及统一代码两轴、统一完整 SDK 37/37、实际构建浏览器 55 项／组及构建／语法检查通过；H4 三类实际生命周期及源 Native 文档两轴通过，见 [原生记录](../se05-native-verification.md)。最终统一文档两轴待根复核，当前结论见 [整合记录](../development-verification.md)；各 [恢复验证](../se05-verification.md) 与修正记录保留提交时点。远端仍 open，不代表用户验收或完整首版。
+**状态**：已完成；实现提交 7c6c6e5，功能随 0.1.0 正式发布，Issue #45 已于 2026-10-15 关闭。统一完整 SDK 37/37、实际构建浏览器 55 项／组及构建／语法检查通过；H4 三类实际生命周期及源 Native 文档两轴通过，见 [原生记录](../se05-native-verification.md)，当前结论见 [整合记录](../development-verification.md)；各 [恢复验证](../se05-verification.md) 与修正记录保留提交时点。
 
 **GitHub**：[#45](https://github.com/ONEGAYI/ZCode-Plugins/issues/45)。
 
