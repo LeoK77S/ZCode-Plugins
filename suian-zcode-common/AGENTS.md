@@ -1,6 +1,6 @@
 # suian-zcode-common — 公共基础能力
 
-业务插件共用本目录的网关、远控协议、DPAPI、通知和消息投影。0.1.2 新增向后兼容的 Channel 监听入口与固定官方 V4 decoder；公共层不导入任何插件，调用方保留业务规则、通知文案、协议身份与配置数据。
+业务插件共用本目录的网关、远控协议、DPAPI、通知和消息投影。0.1.2 新增向后兼容的 Channel 监听入口与固定官方 V4 decoder；0.2.0 新增 Stop 依赖完整性钩子（depcheck）：按安装清单校验各 suian 插件缓存的 npm 依赖与公共包 junction，缺失时 Toast 提醒并提供复制修复提示词的按钮。公共层不导入任何插件，调用方保留业务规则、通知文案、协议身份与配置数据。
 
 ## 约定
 
@@ -33,6 +33,10 @@
 | auth-store.mjs | 调用方数据目录内的当前用户 DPAPI 授权存取 |
 | title-policy.mjs | 当前用户跨插件的会话锁定策略：MCP 写入，命名插件读取 |
 | notifications.mjs / cooldown.mjs | Toast 显示、XML、两小时冷却、跨进程显示互斥 |
+| depcheck.mjs | suian 系列插件依赖完整性扫描：安装清单、npm 生产依赖与两级公共包链接判定 |
+| depcheck-hook.mjs / hooks/hooks.json | Stop 钩子入口与原生注册（async 不阻塞）；--scan-only 手动复查 |
+| depcheck-prompt.mjs | Toast 摘要与修复提示词模板（缺失清单、缓存根、setup 修复步骤） |
+| toast-action.mjs | Toast 按钮协议入口：重扫后复制修复提示词并打开默认工作区 |
 | notification-action.mjs | 复制调用方提示词、打开固定默认工作区 |
 | notification-install.mjs | 按调用方身份安装/移除协议桥、快捷方式与 AUMID |
 | windows.mjs | 公共 PowerShell 执行与安装用文件/系统边界 |
@@ -42,7 +46,7 @@
 | vendor/conversation-wire.js / vendor/conversation-wire.sources.json | 固定官方 V4 topic 帧组装／编码及快照／历史页 schema；49源blob、ref和构建SHA，不代表安装版本逐字节一致 |
 | vendor/LICENSE-ZCode / vendor/NOTICE-ZCode-current.md / vendor/LICENSE-zod | 官方Apache-2.0完整许可／NOTICE与构建内Zod MIT许可，禁止改成自有MIT归属 |
 | SKILL.md / README.md | 源码兼容路由与公共模块接口，完整操作流程在对应 skills/ 技能 |
-| tests/ | 回环网关、隔离 Windows 配置、远控、DPAPI、通知与 UI 能力判定契约 |
+| tests/ | 回环网关、隔离 Windows 配置、远控、DPAPI、通知、依赖完整性判定与不自举契约 |
 | tests/gateway-rpc.test.mjs / tests/plugin-link.test.mjs | 真实回环call／listen客户端隔离和释放、市场版本一致及独立缓存公共升级契约 |
 | experiments/ | 仅发合成 auth_init 的研究探针，不自动执行 |
 | package.json / package-lock.json | 固定 Node/ws 版本与测试入口 |

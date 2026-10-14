@@ -8,4 +8,6 @@
 
 网关数据继续保存在 `~/.zcode/tools/suian-zcode-gateway`，标题锁定策略继续保存在 `~/.zcode/tools/suian-zcode-common/session-titles`。不要搬进版本缓存，不把 control_token 放入参数、环境变量、日志或聊天。
 
+depcheck（依赖完整性 Stop 钩子）的数据在宿主插件数据目录的 `state` 子目录（原生模式即 `~/.zcode/cli/plugins/data/suian-zcode-common@suian-zcode-plugins/state`；无宿主数据目录时回退 `~/.zcode/suian-zcode-common`）：`depcheck-last.json` 最近一次扫描结果、`hook.log.jsonl` / `toast-action-log.jsonl` 运行日志、`toast-launch.vbs` / `toast-appid.txt` / `toast-cooldown.json` / `toast.lock` 通知身份与冷却状态。诊断用 `SUIAN_DEPCHECK_HOME` 环境变量可覆盖扫描根，仅限测试与人工排查。
+
 源码安装也要在 npm ci 后运行 link.mjs；npm 清理 node_modules 会移除业务端链接，需重新建立。目录链接不会复制模块。

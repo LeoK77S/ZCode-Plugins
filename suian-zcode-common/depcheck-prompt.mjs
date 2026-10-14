@@ -32,12 +32,16 @@ const fullMessages = {
   runtime_stale: '公共稳定入口仍指向旧版本缓存（common 升级后未重跑 link.mjs）',
 };
 
-const versionOf = (result, plugin) => result.plugins.find(entry => entry.name === plugin)?.version;
+// version 来自外部清单，仅接受字符串，其余形态（对象/数字等）一律视为缺失
+const versionOf = (result, plugin) => {
+  const version = result.plugins.find(entry => entry.name === plugin)?.version;
+  return typeof version === 'string' && version ? version : null;
+};
 
 export function summarizeIssues(result) {
   const items = result.issues.map(issue => {
     const version = versionOf(result, issue.plugin);
-    return `${issue.plugin}${version ? ` ${version}` : ''}${shortMessages[issue.code] ?? issue.code}`;
+    return `${issue.plugin}${version ? ` ${version}` : ''}：${shortMessages[issue.code] ?? issue.code}`;
   });
   const head = items.slice(0, 3).join('；');
   return items.length > 3 ? `${head} 等 ${items.length} 项` : head;
@@ -58,7 +62,7 @@ export function buildFixPrompt(result) {
   });
   const commonRoot = result.plugins.find(entry => entry.name === COMMON_PACKAGE)?.installPath;
   const roots = result.plugins
-    .map(entry => `- ${entry.name}${entry.version ? ` ${entry.version}` : ''}：${entry.installPath ?? '(未知)'}`)
+    .map(entry => `- ${entry.name}${versionOf(result, entry.name) ? ` ${versionOf(result, entry.name)}` : ''}：${entry.installPath ?? '(未知)'}`)
     .join('\n');
   return [
     '我的 ZCode suian 系列插件依赖不完整，请帮我修复。以下缺失清单来自 suian-zcode-common 的依赖检查（Stop 钩子 depcheck）：',

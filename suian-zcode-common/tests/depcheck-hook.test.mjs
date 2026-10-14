@@ -1,14 +1,15 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { rm, readFile } from 'node:fs/promises';
+import { rm, readFile, writeFile, mkdir, readdir } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { spawnSync } from 'node:child_process';
-import { runDepcheckHook, resolveDataDir } from '../depcheck-hook.mjs';
+import { runDepcheckHook, resolveDataDir, ensureToastIdentity } from '../depcheck-hook.mjs';
 import { runAction, parseActionUri } from '../toast-action.mjs';
 import { scanSuianPlugins } from '../depcheck.mjs';
-import { buildFixPrompt } from '../depcheck-prompt.mjs';
+import { buildFixPrompt, summarizeIssues } from '../depcheck-prompt.mjs';
+import { buildVbsContent } from '../notification-install.mjs';
 import { buildWorld } from './depcheck-fixture.mjs';
 
 const pluginRoot = fileURLToPath(new URL('..', import.meta.url));
@@ -82,8 +83,7 @@ test('发现缺失时先确保 Toast 身份再以修复引导文案通知', asyn
   assert.equal(result.shown, true);
   assert.deepEqual(calls.identity, [{ dataDir }]);
   assert.equal(calls.notify.length, 1);
-  assert.match(calls.notify[0].message, /suian-side-editor 0\.2\.0/);
-  assert.match(calls.notify[0].message, /缺公共包链接/);
+  assert.match(calls.notify[0].message, /suian-side-editor 0\.2\.0：缺公共包链接/);
   assert.match(calls.notify[0].message, /点击按钮复制修复提示词/);
   const persisted = JSON.parse(await readFile(join(dataDir, 'depcheck-last.json'), 'utf8'));
   assert.equal(persisted.issues[0].code, 'common_link_missing');
@@ -205,4 +205,120 @@ test('修复提示词模板：缺失明细与缓存根一一对应', async t => 
   assert.match(prompt, /suian-zcode-app-mcp 0\.4\.2：.*npm 生产依赖未安装（zod）/);
   assert.match(prompt, /公共稳定入口 runtime 链接缺失/);
   for (const def of world.defs) assert.match(prompt, new RegExp(def.name));
+});
+
+test('摘要与提示词对异常 version 值安全（类型白名单与分隔符）', () => {
+  const result = {
+    issues: [{ plugin: 'suian-side-editor', code: 'common_link_missing', detail: 'node_modules/suian-zcode-common 不存在' }],
+    plugins: [
+      { name: 'suian-side-editor', version: { bad: 1 }, installPath: 'C:\\cache\\suian-side-editor' },
+      { name: 'suian-zcode-common', version: null, installPath: 'C:\\cache\\suian-zcode-common' },
+    ],
+  };
+  assert.equal(summarizeIssues(result), 'suian-side-editor：缺公共包链接');
+  const prompt = buildFixPrompt(result);
+  assert.doesNotMatch(prompt, /object Object/);
+  assert.match(prompt, /suian-side-editor：缺少 node_modules\/suian-zcode-common 公共包链接/);
+});
+
+test('Toast 身份：vbs 内容随插件版本漂移时必须重装（跨版本陈旧回归）', async t => {
+  const world = await buildWorld(t);
+  const dataDir = join(world.root, 'data');
+  await mkdir(dataDir, { recursive: true });
+  // 模拟旧版本安装残留：vbs 指向旧插件根
+  const staleVbs = buildVbsContent({ nodeExe: process.execPath, toastActionPath: join(world.root, 'old-root', 'toast-action.mjs'), dataDir, protocol: 'suian-zcode-common' });
+  await writeFile(join(dataDir, 'toast-launch.vbs'), staleVbs);
+  await writeFile(join(dataDir, 'toast-appid.txt'), 'SUIAN.SuianZcodeCommon.Toast');
+  const installs = [];
+  const shell = { run: async () => '' };
+  const result = await ensureToastIdentity({ dataDir, pluginRoot: join(world.root, 'new-root'), install: async arg => { installs.push(arg); }, shell });
+  assert.equal(result.action, 'installed');
+  assert.equal(installs.length, 1, 'vbs 指向旧根时必须重装');
+  assert.equal(installs[0].pluginRoot, join(world.root, 'new-root'));
+});
+
+test('Toast 身份：vbs 与注册表键均正常时走缓存短路，不重装', async t => {
+  const world = await buildWorld(t);
+  const dataDir = join(world.root, 'data');
+  const pluginRoot = join(world.root, 'new-root');
+  await mkdir(dataDir, { recursive: true });
+  await writeFile(join(dataDir, 'toast-launch.vbs'), buildVbsContent({ nodeExe: process.execPath, toastActionPath: join(pluginRoot, 'toast-action.mjs'), dataDir, protocol: 'suian-zcode-common' }));
+  await writeFile(join(dataDir, 'toast-appid.txt'), 'SUIAN.SuianZcodeCommon.Toast');
+  const installs = [];
+  let registryQueried = false;
+  const shell = { run: async (cmd, args) => { registryQueried = cmd === 'reg.exe' && args[0] === 'query'; return ''; } };
+  const result = await ensureToastIdentity({ dataDir, pluginRoot, install: async arg => { installs.push(arg); }, shell });
+  assert.equal(result.action, 'cached');
+  assert.equal(installs.length, 0);
+  assert.equal(registryQueried, true, '缓存命中必须校验注册表协议键存在');
+});
+
+test('Toast 身份：注册表协议键被外部删除时自愈重装', async t => {
+  const world = await buildWorld(t);
+  const dataDir = join(world.root, 'data');
+  const pluginRoot = join(world.root, 'new-root');
+  await mkdir(dataDir, { recursive: true });
+  await writeFile(join(dataDir, 'toast-launch.vbs'), buildVbsContent({ nodeExe: process.execPath, toastActionPath: join(pluginRoot, 'toast-action.mjs'), dataDir, protocol: 'suian-zcode-common' }));
+  await writeFile(join(dataDir, 'toast-appid.txt'), 'SUIAN.SuianZcodeCommon.Toast');
+  const installs = [];
+  const shell = { run: async () => { throw new Error('exit 1: 系统找不到指定的注册表项'); } };
+  const result = await ensureToastIdentity({ dataDir, pluginRoot, install: async arg => { installs.push(arg); }, shell });
+  assert.equal(result.action, 'installed');
+  assert.equal(installs.length, 1);
+});
+
+test('Toast 身份：vbs 尚未安装（首次运行）时直接安装', async t => {
+  const world = await buildWorld(t);
+  const dataDir = join(world.root, 'data');
+  const installs = [];
+  let registryQueried = false;
+  const shell = { run: async cmd => { registryQueried = true; return ''; } };
+  const result = await ensureToastIdentity({ dataDir, pluginRoot: join(world.root, 'new-root'), install: async arg => { installs.push(arg); }, shell });
+  assert.equal(result.action, 'installed');
+  assert.equal(installs.length, 1);
+  assert.equal(registryQueried, false, 'vbs 缺失时无需查询注册表');
+});
+
+test('不自举静态契约：depcheck 全链路只用 Node 内置模块与包内相对导入', async () => {
+  const chain = ['depcheck.mjs', 'depcheck-hook.mjs', 'depcheck-prompt.mjs', 'toast-action.mjs', 'notifications.mjs', 'cooldown.mjs', 'notification-install.mjs', 'notification-action.mjs', 'windows.mjs'];
+  for (const file of chain) {
+    const source = await readFile(join(pluginRoot, file), 'utf8');
+    const specifiers = [...source.matchAll(/from\s+['"]([^'"]+)['"]/g)].map(match => match[1]);
+    assert.ok(specifiers.length > 0 || file === 'depcheck-prompt.mjs', `${file} 应有可检查的导入`);
+    for (const specifier of specifiers) {
+      assert.ok(
+        specifier.startsWith('node:') || specifier.startsWith('./') || specifier.startsWith('../'),
+        `${file} 引入了非内置且非相对的依赖：${specifier}`,
+      );
+    }
+  }
+});
+
+test('--scan-only 手动复查入口：输出 JSON 结果且不读 stdin、不落盘', async t => {
+  const world = await buildWorld(t);
+  await rm(join(world.installPaths['suian-side-editor'], 'node_modules', 'suian-zcode-common'));
+  const dataDir = join(world.root, 'scan-data');
+  const stopped = spawnSync(`node "${join(pluginRoot, 'depcheck-hook.mjs')}" --scan-only --data-dir "${dataDir}"`, {
+    shell: true, windowsHide: true, encoding: 'utf8', input: '',
+    env: { ...process.env, ZCODE_PLUGIN_DATA: dataDir, SUIAN_DEPCHECK_HOME: world.homeDir, OIL_ZCODE_TITLE_DATA: undefined },
+  });
+  assert.equal(stopped.status, 0, stopped.stderr);
+  const parsed = JSON.parse(stopped.stdout);
+  assert.equal(parsed.ok, false);
+  assert.deepEqual(parsed.issues.map(i => i.code), ['common_link_missing']);
+  const entries = await readdir(dataDir).catch(() => []);
+  assert.deepEqual(entries, [], '--scan-only 不应写任何数据文件');
+});
+
+test('toast-action 环境变量回退与 hook 一致（ZCODE_PLUGIN_DATA 挂 state 子目录）', async t => {
+  const world = await buildWorld(t);
+  const pluginData = join(world.root, 'plugin-data');
+  const stopped = spawnSync(`node "${join(pluginRoot, 'toast-action.mjs')}" "suian-zcode-common://unknown"`, {
+    shell: true, windowsHide: true, encoding: 'utf8',
+    env: { ...process.env, ZCODE_PLUGIN_DATA: pluginData },
+  });
+  assert.equal(stopped.status, 1);
+  const log = await readFile(join(pluginData, 'state', 'toast-action-log.jsonl'), 'utf8');
+  const entry = JSON.parse(log.trim());
+  assert.equal(entry.reason, 'unknown_action');
 });

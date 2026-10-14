@@ -2,10 +2,11 @@
 // Toast 按钮协议入口：suian-zcode-common://fix → 现场重扫依赖 → 复制修复提示词并打开 ZCode。
 // 注意相对导入 notification-action.mjs——本入口不得经 node_modules 解析（依赖缺失场景仍需可用）。
 import { appendFile, mkdir } from 'node:fs/promises';
-import { dirname, join } from 'node:path';
+import { join } from 'node:path';
 import { homedir } from 'node:os';
-import { fileURLToPath, pathToFileURL } from 'node:url';
+import { pathToFileURL } from 'node:url';
 import { copyPromptAndOpenWorkspace } from './notification-action.mjs';
+import { resolveDataDir } from './depcheck-hook.mjs';
 import { scanSuianPlugins } from './depcheck.mjs';
 import { buildFixPrompt } from './depcheck-prompt.mjs';
 
@@ -27,8 +28,7 @@ export async function runAction({ uri, dataDir, homeDir = homedir(), setClipboar
 
 const isMain = process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href;
 if (isMain) {
-  const pluginRoot = dirname(fileURLToPath(import.meta.url));
-  const dataDir = process.argv[3] ?? process.env.ZCODE_PLUGIN_DATA ?? join(homedir(), '.zcode', 'suian-zcode-common');
+  const dataDir = process.argv[3] ?? resolveDataDir();
   const logAction = async entry => {
     try {
       await mkdir(dataDir, { recursive: true });

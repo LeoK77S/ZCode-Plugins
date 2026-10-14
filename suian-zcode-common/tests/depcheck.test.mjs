@@ -134,6 +134,54 @@ test('清单损坏时静默跳过本轮（skipped=bad_manifest 且 ok）', async
   assert.equal(result.skipped, 'bad_manifest');
 });
 
+test('清单为合法 JSON 但非对象（null/数组）按 bad_manifest 静默跳过', async t => {
+  const world = await buildWorld(t);
+  for (const content of ['null', '["suian"]', '42']) {
+    await writeFile(world.pluginsFile, content, 'utf8');
+    const result = await scanSuianPlugins({ pluginsFile: world.pluginsFile });
+    assert.equal(result.skipped, 'bad_manifest', `内容 ${content} 应判 bad_manifest`);
+    assert.equal(result.ok, true);
+    assert.deepEqual(result.issues, []);
+  }
+});
+
+test('清单 plugins 字段类型异常按 bad_manifest 静默跳过', async t => {
+  const world = await buildWorld(t);
+  await writeFile(world.pluginsFile, JSON.stringify({ version: 1, plugins: { suian: {} } }), 'utf8');
+  const result = await scanSuianPlugins({ pluginsFile: world.pluginsFile });
+  assert.equal(result.skipped, 'bad_manifest');
+});
+
+test('插件文件残缺（package.json 缺失）报 plugin_files_missing', async t => {
+  const world = await buildWorld(t);
+  await rm(join(world.installPaths['suian-zcode-title'], 'package.json'));
+  const result = await scanSuianPlugins({ homeDir: world.homeDir });
+  assert.deepEqual(issueKeys(result), ['suian-zcode-title:plugin_files_missing']);
+});
+
+test('runtime 稳定入口被真实目录占据报 runtime_not_symlink', async t => {
+  const world = await buildWorld(t);
+  await rm(world.runtimeRoot);
+  await mkdir(world.runtimeRoot, { recursive: true });
+  const result = await scanSuianPlugins({ homeDir: world.homeDir });
+  assert.deepEqual(issueKeys(result), ['suian-zcode-common:runtime_not_symlink']);
+});
+
+test('唯一消费者缓存目录缺失时仍依据清单依赖驱动 runtime 检查（复合故障不漏报）', async t => {
+  const world = await buildWorld(t);
+  // title/app-mcp/side-editor 三个消费者全部移除缓存目录，只留清单条目
+  for (const name of ['suian-zcode-title', 'suian-zcode-app-mcp', 'suian-side-editor']) {
+    await rm(world.installPaths[name], { recursive: true, force: true });
+  }
+  await rm(world.runtimeRoot);
+  const result = await scanSuianPlugins({ homeDir: world.homeDir });
+  const keys = issueKeys(result);
+  assert.ok(keys.includes('suian-zcode-title:cache_missing'));
+  assert.ok(keys.includes('suian-zcode-app-mcp:cache_missing'));
+  assert.ok(keys.includes('suian-side-editor:cache_missing'));
+  assert.ok(keys.includes('suian-zcode-common:runtime_missing'), '清单层依赖声明应继续驱动 runtime 检查');
+});
+
 test('业务插件在册但 common 未安装报 common_not_installed', async t => {
   const world = await buildWorld(t);
   const manifest = JSON.parse(await readFile(world.pluginsFile, 'utf8'));

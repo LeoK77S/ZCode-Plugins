@@ -12,7 +12,8 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import { scanSuianPlugins } from './depcheck.mjs';
 import { buildToastMessage } from './depcheck-prompt.mjs';
 import { notifyOnce } from './notifications.mjs';
-import { installToastAssets } from './notification-install.mjs';
+import { installToastAssets, buildVbsContent } from './notification-install.mjs';
+import { fileShell } from './windows.mjs';
 
 export const TOAST_IDENTITY = {
   protocol: 'suian-zcode-common',
@@ -30,13 +31,19 @@ export function resolveDataDir(env = process.env) {
   return join(homedir(), '.zcode', 'suian-zcode-common');
 }
 
-// Toast 身份归调用方：common 首次报警前确保自己的协议/AppID/快捷方式已注册（幂等，成功后由 appid 缓存短路）。
-export async function ensureToastIdentity({ dataDir, install = installToastAssets }) {
-  try {
-    const cached = (await readFile(join(dataDir, 'toast-appid.txt'), 'utf8')).trim();
-    if (cached === TOAST_IDENTITY.appId) return { action: 'cached' };
-  } catch (error) {
-    if (error.code !== 'ENOENT') throw error;
+// Toast 身份归调用方：common 首次报警前确保自己的协议/AppID/快捷方式已注册。
+// 幂等判据是 vbs 内容与注册表协议键双重校验——仅凭 appid 缓存会在 common 升级后
+// 指向旧版本缓存路径（按钮运行旧逻辑），或身份被外部清理后静默失声。
+export async function ensureToastIdentity({ dataDir, pluginRoot, install = installToastAssets, shell = fileShell }) {
+  const desiredVbs = buildVbsContent({ nodeExe: process.execPath, toastActionPath: join(pluginRoot, 'toast-action.mjs'), dataDir, protocol: TOAST_IDENTITY.protocol });
+  let vbsMatches = false;
+  try { vbsMatches = (await readFile(join(dataDir, 'toast-launch.vbs'), 'utf8')) === desiredVbs; }
+  catch (error) { if (error.code !== 'ENOENT') throw error; }
+  if (vbsMatches) {
+    try {
+      await shell.run('reg.exe', ['query', `HKCU\\Software\\Classes\\${TOAST_IDENTITY.protocol}`, '/ve']);
+      return { action: 'cached' };
+    } catch { /* 协议键缺失（被外部清理），落到重装自愈 */ }
   }
   await install({ pluginRoot, dataDir, ...TOAST_IDENTITY });
   return { action: 'installed' };
@@ -62,7 +69,7 @@ const defaultNotify = ({ dataDir, message }) => notifyOnce({
 // SUIAN_DEPCHECK_HOME 仅供测试与人工诊断覆盖扫描根；生产路径走宿主真实用户目录。
 const defaultScan = () => scanSuianPlugins({ homeDir: process.env.SUIAN_DEPCHECK_HOME || undefined });
 
-export async function runDepcheckHook({ payload, dataDir, scan = defaultScan, ensureIdentity = ensureToastIdentity, notify = defaultNotify, persist = persistLastResult }) {
+export async function runDepcheckHook({ payload, dataDir, scan = defaultScan, ensureIdentity = ({ dataDir: dir }) => ensureToastIdentity({ dataDir: dir, pluginRoot }), notify = defaultNotify, persist = persistLastResult }) {
   if (!payload || typeof payload !== 'object') return { action: 'ignored_invalid' };
   if (payload.stop_hook_active === true) return { action: 'skipped_stale' };
   const result = await scan();

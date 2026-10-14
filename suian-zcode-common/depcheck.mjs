@@ -99,6 +99,12 @@ export async function scanSuianPlugins({ pluginsFile, homeDir = homedir(), tools
     result.skipped = manifestRead.status === 'missing' ? 'no_manifest' : 'bad_manifest';
     return result;
   }
+  const manifest = manifestRead.value;
+  // 合法 JSON 但形态异常（null/数组/标量、plugins 非数组）同样视为清单损坏，静默跳过而非按空世界判 clean
+  if (!manifest || typeof manifest !== 'object' || Array.isArray(manifest) || (manifest.plugins !== undefined && !Array.isArray(manifest.plugins))) {
+    result.skipped = 'bad_manifest';
+    return result;
+  }
   const entries = pickSuianEntries(manifestRead.value);
   const commonEntry = entries.find(entry => entry?.name === COMMON_PACKAGE) ?? null;
   const consumers = entries.filter(entry => entry !== commonEntry);
@@ -110,6 +116,8 @@ export async function scanSuianPlugins({ pluginsFile, homeDir = homedir(), tools
     result.plugins.push(record);
     if (!installPath || !(await maybeLstat(installPath))?.isDirectory()) {
       result.issues.push({ plugin: name, code: 'cache_missing', detail: `缓存目录不存在：${installPath ?? '(清单未提供)'}` });
+      // 缓存目录缺失也保留清单层依赖判定，复合故障下 runtime/common 检查不被短路
+      record.dependsOnCommon = asArray(entry.dependencies).includes(COMMON_PACKAGE);
       continue;
     }
     const pluginRead = await readJsonAt(join(installPath, '.zcode-plugin', 'plugin.json'));
