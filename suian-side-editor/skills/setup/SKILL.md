@@ -5,7 +5,7 @@ description: 初始化或升级 suian-side-editor 的锁定依赖与公共包链
 
 # 文本编辑器安装与升级
 
-适用于用户已选择的 suian-side-editor。要求 Node.js 24+、ZCode 应用版本至少 3.15.1，以及具有 MCP Apps 能力和可信会话归属的本机工作区。当前提供已有 UTF-8 文本编辑；选区评论尚未提供，完整首版验收仍受宿主接口限制。
+适用于用户已选择的suian-side-editor 0.2.0。要求Node.js 24+、ZCode应用版本至少3.15.1，以及MCP Apps能力和可信会话归属。文本编辑可独立使用；选区评论另需既有网关与公开V4连接，采用尽力禁用。原#47缓存缺口、最终缓存／guest、完整首版与用户验收未通过，详见[当前边界](../../docs/comment-guard-verification.md)。
 
 ## 确认实际安装位置
 
@@ -27,7 +27,9 @@ node "{{common_root}}/link.mjs" --plugin-root "{{editor_root}}"
 
 Node 版本须满足要求，每条命令成功后再执行下一条。记录安装结果，失败保留错误，不宣称完成。`npm ci` 会清理该插件的 node_modules，因此每次安装或升级后都须重新执行链接命令。common 的稳定入口默认位于当前用户 `~/.zcode/tools/suian-zcode-common/runtime`；不假设两个独立插件缓存是同级目录。已有非链接公共包入口由 link.mjs 报错，不覆盖。
 
-本编辑器只使用 common 的公共模块，不需要启动、注册或重启远控网关。上述步骤不执行 common 的 Windows Install/Restart，也不增加全局 MCP 或全局技能。构建好的 `ui/dist/editor.html` 与第三方许可随插件提供；原生安装无需构建，也不在 sources 中安装依赖。
+文本编辑只需 common 公共模块和包链接，不需要启动、注册或重启远控网关。选区评论另需用户已有的公共网关配置及 Desktop 移动端远控连接可达；没有配置或连接时，评论入口显示不可用原因，编辑和保存继续可用。评论状态通过一次受审登记的只读资源同步，`running` 仅作保守代理，可能覆盖模型回复，仍有发送边界残余风险。
+
+上述 setup 步骤不执行 common 的 Windows Install/Restart，不替用户安装或重启网关，也不增加全局 MCP 或全局技能。构建好的 `ui/dist/editor.html` 与第三方许可随插件提供；原生安装无需构建，也不在 sources 中安装依赖。
 
 ## 核对生效范围
 
