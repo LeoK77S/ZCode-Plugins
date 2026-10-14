@@ -6,7 +6,7 @@ import { readTextFile, fileFailure } from './text-files.mjs';
 const diskSnapshot = data => ({ text: data.text, encoding: data.encoding, version: data.version });
 
 // 资源请求没有 ZCode 对话 meta；只查首次受审工具已经登记的关联，不从 URI 解析文件路径。
-export function installTextResources(server) {
+export function installTextResources(server, commentState) {
   const entries = new Map();
   function lookup(uri) {
     const entry = entries.get(uri);
@@ -48,14 +48,16 @@ export function installTextResources(server) {
       return { contents: [{ uri: uri.href, mimeType: 'application/json', text: JSON.stringify(entry.snapshot) }] };
     });
   server.server.setRequestHandler(SubscribeRequestSchema, async request => {
+    if (commentState?.has(request.params.uri)) return commentState.subscribe(request.params.uri);
     const entry = lookup(request.params.uri); await refresh(entry);
     if (entries.has(entry.uri) && !entry.timer) monitor(entry);
     return {};
   });
   server.server.setRequestHandler(UnsubscribeRequestSchema, async request => {
+    if (commentState?.has(request.params.uri)) return commentState.unsubscribe(request.params.uri);
     const entry = lookup(request.params.uri); clearTimeout(entry.timer); entries.delete(entry.uri); return {};
   });
-  server.server.onclose = () => { for (const entry of entries.values()) clearTimeout(entry.timer); entries.clear(); };
+  server.server.onclose = () => { for (const entry of entries.values()) clearTimeout(entry.timer); entries.clear(); commentState?.close(); };
   return {
     register(context, data) {
       const existing = [...entries.values()].find(entry => entry.context.sessionId === context.sessionId && entry.sourcePath === data.sourcePath);
