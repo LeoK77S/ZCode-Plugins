@@ -30,6 +30,8 @@ Agent 需要维护当前任务相关的 PR、关联会话和关键文件。demo 
 
 会话创建关系由 start_session 自动记录为 session_link，读取时按当前会话生成 session_direction：outgoing 为当前会话发起，incoming 为当前会话的发起者；已记录的关系继承至第三方会话时为 related。未记录来源的手动关联没有方向，使用通用图标。Agent 不能手填时间或来源关系；后续普通 upsert 保留已有关系，替换为其它类型时移除关系。
 
+session 条目读取时附带 session_title：以条目 ref（会话 ID）在任务索引实时反查的当前列表名称。任务索引是会话列表名称的权威源（renameTask 先写索引，CLI 会话库是可能滞后的同步副本），会话改名后重新读取即得新名；反查结果不写回存储、不推高 revision。同 task_id 跨工作区多行时取 updated_at 最新一行。反查不到（未入索引、已删除或标题为空）或索引库不可用（缺库、繁忙）时省略该字段并向 stderr 记一行降级诊断（仅库故障时），label 仍为登记时的标注；UserPromptSubmit 简表与原生侧栏的名称显示优先使用 session_title，无该字段时回退 label。
+
 | kind | ref | purpose 的用途 |
 | --- | --- | --- |
 | pr | PR 的 HTTP(S) URL | 说明后续创建、评审或接续查看的用途 |

@@ -26,7 +26,7 @@ export function artifactSummary({ revision, items, stats, inheritance }) {
   const shown = ordered.filter(item => selected.has(item));
   const essential = new Set(groups.filter(group => group.length).map(group => group[0]));
   function render(cap = Infinity) {
-    const rows = shown.map(item => `| ${item.kind} | ${[item.label, item.purpose, item.ref].map(value => cell(value, cap)).join(' | ')} |`).join('\n');
+    const rows = shown.map(item => `| ${item.kind} | ${[item.session_title ?? item.label, item.purpose, item.ref].map(value => cell(value, cap)).join(' | ')} |`).join('\n');
     return summary + TABLE_HEADER + rows + `\n简表显示 ${shown.length}/${items.length} 条，省略 ${items.length - shown.length} 条，可能已过时；完整列表或详情请调用 get_artifacts。`
       + (cap === Infinity ? '' : '\n部分字段已截短（…），不要使用截短引用查询详情；先读取完整列表。');
   }

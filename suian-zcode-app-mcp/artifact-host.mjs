@@ -1,6 +1,6 @@
 import { DatabaseSync } from 'node:sqlite';
 
-function readHost(path, read) {
+export function readHost(path, read) {
   const db = new DatabaseSync(path, { readOnly: true, timeout: 5000 });
   try { db.exec('PRAGMA query_only=ON'); return read(db); }
   finally { db.close(); }

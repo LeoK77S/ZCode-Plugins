@@ -99,6 +99,14 @@ test('恰好 9000 码点完整保留，多一个码点才截短；转义展开�
   assert.equal(rows(escaped).length, 1); assert.match(escaped, /字段已截短/);
 });
 
+test('会话条目简表名称列优先显示实时反查的列表名称，无反查结果回退登记标注', () => {
+  const renamed = { ...entry('session', 1, 1), session_title: '新列表名' };
+  const missing = entry('session', 2, 2);
+  const selected = rows(summary([renamed, missing]));
+  assert.equal(selected[0].label, 'session 2');
+  assert.equal(selected[1].label, '新列表名');
+});
+
 test('空集合只提供零统计，不增加空简表；选择和裁剪不修改输入顺序或内容', () => {
   const empty = summary([]);
   assert.match(empty, /共 0 条/); assert.doesNotMatch(empty, /\| 类型/);

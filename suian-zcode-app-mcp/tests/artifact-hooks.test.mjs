@@ -8,18 +8,23 @@ import { DatabaseSync } from 'node:sqlite';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
 import { createMcpServer } from '../server.mjs';
+import { loadConfig } from '../config.mjs';
+import { homedir } from 'node:os';
 import { fixture } from './fixtures.mjs';
 
 const references = items => items.map(({ kind, ref, label, purpose }) => ({ kind, ref, label, purpose }));
 
 const root = fileURLToPath(new URL('../', import.meta.url));
+// spawnSync 默认继承宿主 env；清掉三个库路径变量，避免外部环境压过测试写入 config.json 的 fixture 路径
+const hookEnv = { ...process.env };
+for (const name of ['ZCODE_APP_MCP_INDEX_DB', 'ZCODE_APP_MCP_SESSION_DB', 'ZCODE_APP_MCP_ARTIFACT_DB']) delete hookEnv[name];
 function hook(f, event, sessionId = 'sess_parent', turnId = 'turn_A') {
   const config = join(dirname(f.sessionDbPath), 'config.json');
-  writeFileSync(config, JSON.stringify({ sessionDbPath: f.sessionDbPath, artifactDbPath: f.artifactDbPath }));
+  writeFileSync(config, JSON.stringify({ sessionDbPath: f.sessionDbPath, artifactDbPath: f.artifactDbPath, indexDbPath: f.indexDbPath }));
   const registration = JSON.parse(readFileSync(join(root, 'hooks/hooks.json'), 'utf8')).hooks[event][0].hooks[0];
   assert.notEqual(registration.async, true, `${event} 必须同步`);
   const command = registration.command.replaceAll('${ZCODE_PLUGIN_ROOT}', root).replaceAll('${ZCODE_PLUGIN_DATA}', dirname(config));
-  const run = spawnSync(command, { shell: true, windowsHide: true, encoding: 'utf8', input: JSON.stringify({ hookEventName: event, sessionId, turnId }) });
+  const run = spawnSync(command, { shell: true, windowsHide: true, encoding: 'utf8', env: hookEnv, input: JSON.stringify({ hookEventName: event, sessionId, turnId }) });
   assert.equal(run.status, 0, run.stderr);
   return JSON.parse(run.stdout);
 }
@@ -100,6 +105,31 @@ test('UserPromptSubmit 注入当次统计与工件简表，下一次提交重新
   assert.match(second, /revision 2.*共 0 条/);
   assert.equal(second.includes(item.ref), false);
   assert.match(first.additionalContext, /revision 1.*共 1 条/);
+});
+
+test('生产 config 未显式配置时回落本机默认索引库，hook 的名称反查依赖该回落', async () => {
+  const saved = { index: process.env.ZCODE_APP_MCP_INDEX_DB, session: process.env.ZCODE_APP_MCP_SESSION_DB };
+  delete process.env.ZCODE_APP_MCP_INDEX_DB; delete process.env.ZCODE_APP_MCP_SESSION_DB;
+  try {
+    const config = await loadConfig({});
+    assert.equal(config.indexDbPath, join(homedir(), '.zcode', 'v2', 'tasks-index.sqlite'));
+    assert.equal(config.sessionDbPath, join(homedir(), '.zcode', 'cli', 'db', 'db.sqlite'));
+  } finally {
+    for (const [key, value] of Object.entries(saved)) if (value !== undefined) process.env[key === 'index' ? 'ZCODE_APP_MCP_INDEX_DB' : 'ZCODE_APP_MCP_SESSION_DB'] = value;
+  }
+});
+
+test('UserPromptSubmit 简表按任务索引显示会话实时名称，登记标注只保留在存储', async t => {
+  const f = fixture(t); f.session({ id: 'sess_parent' });
+  f.task({ id: 'sess_child', title: '新列表名' });
+  const call = await connect(t, f);
+  const item = { kind: 'session', ref: 'sess_child', label: '登记标注', purpose: '跟进' };
+  await call('set_artifacts', { expected_revision: 0, upsert: [item] });
+  const text = hook(f, 'UserPromptSubmit').hookSpecificOutput.additionalContext;
+  assert.ok(text.includes('新列表名'));
+  assert.equal(text.includes('登记标注'), false);
+  const stored = (await call('get_artifacts')).structuredContent.items[0];
+  assert.equal(stored.label, '登记标注'); assert.equal(stored.session_title, '新列表名');
 });
 
 test('正式 UserPromptSubmit 使用真实工件时间做 20 条类别保底选择，完整列表仍保留全部 45 条', async t => {
@@ -186,7 +216,7 @@ test('首次 set 也先准确继承；未完成或其它轮的消息不充当 St
   f.message({ id: 'unfinished', session: 'sess_parent', role: 'assistant', sequence: 5,
     info: { semantics: { kind: 'assistant_response' }, anchor: { turnId: 'turn_incomplete' } } });
   const bad = spawnSync(process.execPath, [join(root, 'artifact-hook.mjs'), '--config', join(dirname(f.sessionDbPath), 'config.json')], {
-    windowsHide: true, encoding: 'utf8', input: JSON.stringify({ hook_event_name: 'Stop', session_id: 'sess_parent', turnId: 'turn_incomplete' })
+    windowsHide: true, encoding: 'utf8', env: hookEnv, input: JSON.stringify({ hook_event_name: 'Stop', session_id: 'sess_parent', turnId: 'turn_incomplete' })
   });
   assert.equal(bad.status, 1); assert.equal(JSON.parse(bad.stderr).code, 'checkpoint_unavailable');
   const db = new DatabaseSync(f.artifactDbPath, { readOnly: true });

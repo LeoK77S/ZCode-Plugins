@@ -18,7 +18,7 @@ export function registerArtifactTools(server, config, { controller }) {
     }
   }
   const getTool = server.registerTool('get_artifacts', {
-    description: '读取当前会话最新工件版本、完整条目与分类统计；提交时摘要可能已过时。省略 ref 返回列表，可用 offset/limit 分页（offset 默认 0、limit 默认 50，单页最多 200 条，按 next_offset 续读；省略两者返回完整列表）。填写精确 ref 返回单条详情、超链接、创建/更新时间与会话方向，不能混用分页参数。时间由服务记录，旧条目没有记录时详情返回 null。会话详情每次查询原 Host 实时状态与查询时间；查询可能恢复会话并同步索引，失败在 session.error 明确返回，不使用旧状态。',
+    description: '读取当前会话最新工件版本、完整条目与分类统计；提交时摘要可能已过时。省略 ref 返回列表，可用 offset/limit 分页（offset 默认 0、limit 默认 50，单页最多 200 条，按 next_offset 续读；省略两者返回完整列表）。填写精确 ref 返回单条详情、超链接、创建/更新时间与会话方向，不能混用分页参数。时间由服务记录，旧条目没有记录时详情返回 null。session 条目附带 session_title：读取时按任务索引（会话列表名称权威源）实时反查的当前名称，会话改名后重新读取即得新名；反查不到（未入索引、标题为空）或索引不可用时省略该字段，label 始终是登记时的标注。会话详情每次查询原 Host 实时状态与查询时间；查询可能恢复会话并同步索引，失败在 session.error 明确返回，不使用旧状态。',
     inputSchema: z.object({ ref: text.optional(), offset: z.number().int().nonnegative().optional(), limit: z.number().int().min(1).max(200).optional() }).strict()
       .refine(args => args.ref === undefined || args.offset === undefined && args.limit === undefined, '详情 ref 不能与列表分页参数混用'),
     annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: true }

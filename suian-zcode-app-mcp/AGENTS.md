@@ -41,7 +41,7 @@
 | skills/ | setup / configuration / sessions / artifacts / glm / debug，paths.md 统一路径与配置说明 |
 | server.mjs | MCP 工具注册、参数校验与结构化响应 |
 | caller.mjs | 每次请求的发起会话定位：MCP 元数据优先，trace_id 与工具名只读匹配本地调用记录 |
-| artifacts.mjs | 插件 SQLite 的当前状态、CAS、服务记录时间、双向创建关系、不可变快照和幂等分叉初始化；每次读取不缓存 |
+| artifacts.mjs | 插件 SQLite 的当前状态、CAS、服务记录时间、双向创建关系、不可变快照和幂等分叉初始化；每次读取不缓存，session 条目附带按任务索引实时反查的会话列表名称（session_title），不写回存储 |
 | artifact-host.mjs | 只读宿主消息的原始 Stop 断点与隐藏 forkOrigin，不用时间或父最新状态猜测 |
 | artifact-tools.mjs / artifact-ui.mjs | 当前调用者唯一定位、get 列表/详情与 set 注册，以及调用公共 UI 能力判定后启用的页面资源 |
 | artifact-hook.mjs / hooks/hooks.json | 同步 SessionStart 初始化、UserPromptSubmit 简略摘要和 Stop 断点快照 |

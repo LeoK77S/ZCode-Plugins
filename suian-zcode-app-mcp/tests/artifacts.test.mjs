@@ -35,6 +35,49 @@ test('会话工件每次详情查询原 Host，失败保留引用详情并明确
   assert.equal(queries.length, 3);
 });
 
+test('会话工件读取时按任务索引实时反查列表名称，改名后刷新即得新名且不动存储', async t => {
+  const f = fixture(t);
+  f.task({ id: 'sess_child', title: '旧列表名' });
+  const call = await connect(t, f, { controller: { getSessionStatus: async args => ({ source: 'original_host', session_id: args.session_id, title: '实时名称', status: 'completed', queried_at: 1 }) } });
+  const item = { kind: 'session', ref: 'sess_child', label: '旧列表名', purpose: '跟进' };
+  await call('set_artifacts', { expected_revision: 0, upsert: [item] });
+  assert.equal((await call('get_artifacts')).structuredContent.items[0].session_title, '旧列表名');
+  f.index.prepare("UPDATE tasks SET title='新列表名' WHERE task_id='sess_child'").run();
+  const after = (await call('get_artifacts')).structuredContent;
+  assert.equal(after.items[0].session_title, '新列表名');
+  assert.equal(after.items[0].label, '旧列表名');
+  assert.equal(after.revision, 1);
+  const detail = (await call('get_artifacts', { ref: item.ref })).structuredContent;
+  assert.equal(detail.item.session_title, '新列表名');
+  const noop = await call('set_artifacts', { expected_revision: 1, upsert: [item] });
+  assert.equal(noop.structuredContent.changed, false);
+});
+
+test('名称反查边界：未入索引或已删除省略字段，索引不可用降级读取，跨工作区取最新行', async t => {
+  const f = fixture(t);
+  f.task({ id: 'sess_a', title: '在册会话' });
+  f.task({ id: 'sess_del', title: '已删除', deleted: 1 });
+  f.task({ id: 'sess_empty', title: '' });
+  f.task({ id: 'sess_dup', title: '旧工作区名', workspace: 'D:\\w1', key: 'D:\\w1', updated: 10 });
+  f.task({ id: 'sess_dup', title: '新工作区名', workspace: 'D:\\w2', key: 'D:\\w2', updated: 20 });
+  const items = ['sess_a', 'sess_del', 'sess_empty', 'sess_dup', 'sess_missing'].map(ref => ({ kind: 'session', ref, label: '标注 ' + ref, purpose: '跟进' }))
+    .concat([{ kind: 'file', ref: 'D:/fixture/a.md', label: '文件', purpose: '交付' }]);
+  const call = await connect(t, f);
+  await call('set_artifacts', { expected_revision: 0, upsert: items });
+  const titles = new Map((await call('get_artifacts')).structuredContent.items.map(item => [item.ref, item.session_title]));
+  assert.equal(titles.get('sess_a'), '在册会话');
+  assert.equal(titles.get('sess_del'), undefined);
+  assert.equal(titles.get('sess_empty'), undefined);
+  assert.equal(titles.get('sess_dup'), '新工作区名');
+  assert.equal(titles.get('sess_missing'), undefined);
+  assert.equal(titles.get('D:/fixture/a.md'), undefined);
+  const broken = await connect(t, { ...f, indexDbPath: join(dirname(f.indexDbPath), 'missing-index.sqlite') });
+  const degraded = (await broken('get_artifacts')).structuredContent;
+  assert.equal(degraded.isError, undefined);
+  assert.equal(degraded.items.find(item => item.ref === 'sess_a').session_title, undefined);
+  assert.equal(degraded.items.find(item => item.ref === 'sess_a').label, '标注 sess_a');
+});
+
 test('start_session 在首发前自动登记双方关系；后续人工维护保留方向和创建时间', async t => {
   const f = fixture(t); f.session({ id: 'sess_alpha', title: '父会话' });
   const call = await connect(t, { ...f, now: () => 1000 }, { controller: { startSession: async args => {

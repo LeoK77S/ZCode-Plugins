@@ -44,6 +44,7 @@ const paths = {
   link: '<path d="m10 13 4-4M8 16l-1 1a4 4 0 0 1-6-6l4-4a4 4 0 0 1 6 0M16 8l1-1a4 4 0 0 1 6 6l-4 4a4 4 0 0 1-6 0"/>'
 };
 let selectedRef, detailRequest = 0;
+const display = item => item.session_title ?? item.label;
 function element(tag, className, text) {
   const node = document.createElement(tag); node.className = className; node.textContent = text; return node;
 }
@@ -78,8 +79,8 @@ function render(state) {
     const items = state.items.filter(item => item.kind === kind);
     entries.append(...items.map(item => {
       const row = document.createElement('li'), button = element('button', 'entry', '');
-      button.type = 'button'; button.setAttribute('aria-label', '查看详情：' + item.label); button.title = item.label;
-      button.append(icon(kind, item.session_direction), element('span', 'entry-label', item.label));
+      button.type = 'button'; button.setAttribute('aria-label', '查看详情：' + display(item)); button.title = display(item);
+      button.append(icon(kind, item.session_direction), element('span', 'entry-label', display(item)));
       if (kind === 'session' && item.session_direction && item.session_direction !== 'related')
         button.append(element('span', 'direction', directions[item.session_direction]));
       button.addEventListener('click', () => showDetail(item.ref)); row.append(button); return row;
@@ -95,7 +96,7 @@ function field(list, name, value, className = '') {
 }
 function renderDetail(detail) {
   const item = detail.item, title = element('div', 'detail-title', '');
-  title.append(icon(item.kind, item.session_direction), element('h2', '', item.label));
+  title.append(icon(item.kind, item.session_direction), element('h2', '', display(item)));
   const list = document.createElement('dl');
   field(list, '类型', names[item.kind] + (item.session_direction ? ' · ' + directions[item.session_direction] : ''));
   field(list, '用途', item.purpose);
