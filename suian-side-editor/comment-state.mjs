@@ -2,11 +2,10 @@ import { randomUUID } from 'node:crypto';
 import { ResourceTemplate } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { McpError, ErrorCode } from '@modelcontextprotocol/sdk/types.js';
 import { connectHost } from 'suian-zcode-common/gateway-client.mjs';
+import { TopicWireFrameAssembler, conversationTopicFrameSchema, v4ConversationRowsRangeResultSchema, PROTOCOL_V4_LIMITS, measureTopicNotificationEnvelopeBytes } from 'suian-zcode-common/vendor/conversation-wire.js';
 
 const busyReason = '主对话正在处理输入，为避免新增评论被本次发送清理，暂时不能添加评论；处理结束后恢复。这是尽力保护，禁用窗口可能覆盖模型回复，发送边界仍有残余风险。';
-function acceptedBatches(context, messages, events) {
-  const bodies = messages.filter(message => message.role === 'user' && typeof message.content === 'string' && !message.bodyRefs?.some(ref => ref.field === 'content')).map(message => message.content);
-  for (const event of events) if (event.sessionId === context.sessionId && ['turn.steerQueued', 'turn.started'].includes(event.type) && typeof event.payload?.input === 'string') bodies.push(event.payload.input);
+function acceptedBatches(context, bodies) {
   const batches = new Map();
   for (const body of bodies) for (const match of body.matchAll(/文本编辑器选区评论（[^\r\n]*）\r?\n(\{[^\r\n]+\})/g)) {
     try {
@@ -17,6 +16,81 @@ function acceptedBatches(context, messages, events) {
     } catch { /* 普通用户正文和不完整 JSON 都不是受理证据。 */ }
   }
   return [...batches.values()];
+}
+
+// 每次只取得一份新快照，不维护第二份 V4 队列或增量投影。
+async function readConversation(host, entry, active) {
+  const { workspacePath, sessionId } = entry.context, topic = `conversation/${sessionId}`;
+  const hello = await host.call('zcode-agent', 'helloConversationV4', []);
+  if (!active(entry)) return;
+  if (hello?.protocolVersion !== 3) throw new Error('主对话公开帧协议版本不兼容');
+  await host.call('zcode-agent', 'initializeConversationV4', [{ kind: 'clientHello', protocolVersion: hello.protocolVersion,
+    clientId: randomUUID(), clientKind: 'web', appVersion: 'suian-side-editor',
+    ...(hello.capabilities?.workflowRunDeltas === true ? { capabilities: { workflowRunDeltas: true } } : {}) }]);
+  if (!active(entry)) return;
+  const assembler = new TopicWireFrameAssembler(conversationTopicFrameSchema), waiting = Promise.withResolvers(), early = [];
+  let subscriptionId, listener, finished = false, earlyBytes = 0, earlyError, failed = false;
+  const cancel = () => waiting.resolve({ error: new Error('评论状态资源已释放') }); entry.cancelRead = cancel;
+  const timer = setTimeout(() => waiting.resolve({ error: new Error('主对话公开快照读取超时') }), 5000);
+  const accept = wire => { try {
+    if (finished || !active(entry) || wire?.topic !== topic) return;
+    if (!subscriptionId) {
+      earlyBytes += measureTopicNotificationEnvelopeBytes(wire).maxBytes;
+      if (early.length >= PROTOCOL_V4_LIMITS.logicalFrameAssemblyMaxFragments || earlyBytes > PROTOCOL_V4_LIMITS.logicalFrameAssemblyMaxStagedBytes) earlyError = new Error('主对话ACK前快照缓存超过公开协议预算');
+      else early.push(wire);
+      return;
+    }
+    if (wire.subscriptionId !== subscriptionId) return;
+    for (const event of assembler.accept(wire)) {
+      if (event.kind === 'fault') waiting.resolve({ error: new Error(`主对话公开帧校验失败：${event.fault.reasonCode}`) });
+      else if (event.frame.payload.kind === 'snapshot') {
+        if (event.frame.fromSeq !== 0 || event.frame.toSeq !== event.frame.payload.snapshot.seq) waiting.resolve({ error: new Error('主对话公开快照帧水位无效') });
+        else waiting.resolve({ snapshot: event.frame.payload.snapshot });
+      }
+    }
+  } catch (error) { waiting.resolve({ error }); } };
+  const release = async id => {
+    try { await host.call('zcode-agent', 'unsubscribeConversationV4', [{ workspacePath, subscriptionId: id, runtimePolicy: 'existing-only' }]); }
+    catch (error) { console.error(`主对话公开快照退订失败：${error.message}`); if (active(entry) && !failed) throw error; }
+  };
+  try {
+    listener = host.listen('zcode-agent', 'onDynamicConversationFrame', { workspacePath })(accept);
+    const subscribing = host.call('zcode-agent', 'subscribeConversationV4', [{ workspacePath, sessionId, visibility: 'background' }]).then(async result => {
+      if (finished && typeof result?.ack?.subscriptionId === 'string') await release(result.ack.subscriptionId);
+      return result;
+    });
+    const result = await Promise.race([subscribing, waiting.promise]);
+    if (result.error) throw result.error;
+    subscriptionId = result.ack?.subscriptionId;
+    if (typeof subscriptionId !== 'string' || !subscriptionId || result.ack.mode !== 'snapshot') throw new Error('主对话公开快照订阅回执无效');
+    if (!active(entry)) return;
+    if (earlyError) throw earlyError;
+    for (const wire of early.splice(0)) accept(wire);
+    const outcome = await waiting.promise;
+    if (outcome.error) throw outcome.error;
+    if (outcome.snapshot.sessionId !== sessionId || outcome.snapshot.logEpoch !== result.ack.logEpoch) throw new Error('主对话公开快照归属或日志世代不一致');
+    return outcome.snapshot;
+  } catch (error) { failed = true; throw error; }
+  finally { finished = true; clearTimeout(timer); entry.cancelRead = undefined; listener?.dispose(); assembler.clear(); if (subscriptionId) await release(subscriptionId); }
+}
+
+async function conversationBodies(host, entry, active) {
+  const snapshot = await readConversation(host, entry, active);
+  if (!active(entry)) return;
+  const bodies = snapshot.queue.items.filter(item => item.kind === 'sendText').map(item => item.text);
+  // 快照只携带尾窗；完整当前分支按公开游标逐页读取，不能按固定尾窗反证受理。
+  let beforeRowId;
+  do {
+    const page = v4ConversationRowsRangeResultSchema.parse(await host.call('zcode-agent', 'conversationRowsRangeV4', [{ workspacePath: entry.context.workspacePath,
+      sessionId: entry.context.sessionId, limit: 200, ...(beforeRowId === undefined ? {} : { beforeRowId }) }]));
+    if (!active(entry)) return;
+    if (page.atSeq !== snapshot.seq || page.atRevision !== snapshot.revision || page.atLogEpoch !== snapshot.logEpoch) throw new Error('主对话历史与公开快照水位不一致，评论受理暂不可确认');
+    if (page.rows.some((row, index) => !Number.isInteger(row.rowId) || row.rowId < 1 || (beforeRowId !== undefined && row.rowId >= beforeRowId) || (index > 0 && row.rowId <= page.rows[index - 1].rowId))) throw new Error('主对话历史行游标无效');
+    bodies.push(...page.rows.filter(row => row.kind === 'userInput').map(row => row.text));
+    if (!page.hasMore) return bodies;
+    if (!page.rows.length) throw new Error('主对话历史空页仍声明有更多记录');
+    beforeRowId = page.rows[0].rowId;
+  } while (active(entry));
 }
 
 // 只服务本插件评论业务。资源归属来自一次受审工具，不从 URI/页面参数猜身份。
@@ -41,26 +115,18 @@ export function installCommentState(server, { hostConnector = connectHost, gatew
         const data = await host.call('zcode-task', 'getTaskSnapshot', [{ taskId: entry.context.sessionId, workspacePath: entry.context.workspacePath, messageLimit: 20, byteBudget: 200000 }]);
         if (!active(entry)) return false;
         if (data?.meta?.taskId && data.meta.taskId !== entry.context.sessionId) throw new Error('网关返回了其他会话，评论状态不可确认');
-        // 此公开读取默认 start-if-needed；不是 existing-only，也不是发送 pending 信号。
-        const events = await host.call('zcode-agent', 'readSessionEvents', [{ sessionId: entry.context.sessionId, workspacePath: entry.context.workspacePath,
-          // 首次取得基线；此后补齐成功游标之后的全部缺口，尾窗会漏掉断连期间的受理。
-          ...(entry.eventSeq === undefined ? { limit: 200 } : { afterSeq: entry.eventSeq }) }]);
+        // subscribe 可能启动/恢复该可信会话 runtime；不是发送 pending 或原子受理信号。
+        const bodies = await conversationBodies(host, entry, active);
         if (!active(entry)) return false;
-        if (!Array.isArray(events)) throw new Error('主对话事件读取未返回有效数组，评论受理不可确认');
-        let nextSeq = entry.eventSeq ?? 0;
-        for (const event of events) {
-          if (event?.sessionId !== entry.context.sessionId || !Number.isInteger(event.seq) || event.seq < 0) throw new Error('主对话事件归属或序号无效，评论受理不可确认');
-          nextSeq = Math.max(nextSeq, event.seq);
-        }
         const accepted = new Map(entry.accepted);
-        for (const batch of acceptedBatches(entry.context, Array.isArray(data.messages) ? data.messages : [], events)) accepted.set(batch.serialized, batch);
+        for (const batch of acceptedBatches(entry.context, bodies)) accepted.set(batch.serialized, batch);
         const busy = data?.meta?.status === 'running' || Boolean(data?.runtime?.activeTurnKind);
         const state = busy ? 'busy' : data?.meta?.status === 'completed' ? 'idle' : 'unknown';
         snapshot = { state, reason: busy ? busyReason : state === 'unknown' ? '尚未取得可确认的主对话状态，暂时不能添加评论' : '',
           source: 'task-snapshot', status: data?.meta?.status ?? null, activeTurnKind: data?.runtime?.activeTurnKind ?? null,
           acceptedBatches: [...accepted.values()] };
-        // 读取与解析完成后才提交游标/批次记忆；通知后的再次读取即使无增量也保留证据。
-        entry.eventSeq = nextSeq; entry.accepted = accepted;
+        // 读取与解析全部完成后才提交批次记忆；通知后的再次读取仍保留证据。
+        entry.accepted = accepted;
       } catch (error) { if (!active(entry)) return false; snapshot = { state: 'unknown', reason: `评论状态不可用：${error.message}`, code: error.reasonCode ?? error.code ?? 'comment_state_unavailable' }; }
       finally { host?.close(); entry.connection = undefined; }
       const changed = JSON.stringify(snapshot) !== JSON.stringify(entry.snapshot); entry.snapshot = snapshot; return changed;
@@ -92,7 +158,7 @@ export function installCommentState(server, { hostConnector = connectHost, gatew
       await refresh(entry); lookup(entry.uri); return { ...entry.snapshot, resourceUri: entry.uri };
     },
     async subscribe(uri) { const entry = lookup(uri); await refresh(entry); if (!entries.has(uri)) return; entry.subscribed = true; if (!entry.timer) monitor(entry); return {}; },
-    unsubscribe(uri) { const entry = lookup(uri); entries.delete(uri); entry.subscribed = false; clearTimeout(entry.timer); entry.connection?.close(); return {}; },
-    close() { closed = true; for (const entry of entries.values()) { entry.subscribed = false; clearTimeout(entry.timer); entry.connection?.close(); } entries.clear(); }
+    unsubscribe(uri) { const entry = lookup(uri); entries.delete(uri); entry.subscribed = false; clearTimeout(entry.timer); entry.cancelRead?.(); entry.connection?.close(); return {}; },
+    close() { closed = true; for (const entry of entries.values()) { entry.subscribed = false; clearTimeout(entry.timer); entry.cancelRead?.(); entry.connection?.close(); } entries.clear(); }
   };
 }
