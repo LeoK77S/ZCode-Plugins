@@ -435,6 +435,35 @@ test('公共 connectHost 从网关配置附着并调用原 Host，无需远控�
   assert.equal(f.relay.clients.size, 1);
 });
 
+test('公共连接监听保留直接对象参数，独立投递事件并在dispose或close取消原监听', { timeout: 3000 }, async t => {
+  const { connectHost } = await import('../gateway-client.mjs');
+  const f = await fixture(t), dir = await mkdtemp(join(tmpdir(), 'zcode-rpc-listen-'));
+  t.after(() => rm(dir, { recursive: true }));
+  const gatewayConfigPath = join(dir, 'config.json');
+  await writeFile(gatewayConfigPath, JSON.stringify({ version: 1, port: Number(new URL(f.gateway.url).port), control_token: 'fixture-rpc-token' }));
+  const hosts = [], listeners = [], values = [[], []];
+  for (const [index, owner] of ['left', 'right'].entries()) {
+    const host = await connectHost({ workspacePath: workspace, gatewayConfigPath, timeoutMs: 2000 }); hosts.push(host); t.after(() => host.close());
+    assert.equal(typeof host.listen, 'function', '公共连接尚未提供已核实的Channel事件监听入口');
+    listeners.push(host.listen('fixture', 'onFrames', { workspacePath: workspace, owner })(frame => values[index].push(frame)));
+  }
+  await until(() => f.requests.filter(([header]) => header[0] === 102).length === 2);
+  const subscriptions = f.requests.filter(([header]) => header[0] === 102);
+  assert.deepEqual(subscriptions.map(([header, args]) => [header.slice(2), args]), [
+    [['fixture', 'onFrames'], { workspacePath: workspace, owner: 'left' }],
+    [['fixture', 'onFrames'], { workspacePath: workspace, owner: 'right' }]
+  ], 'listen参数必须直接为对象，不能套用call的参数数组');
+  const leftId = subscriptions[0][0][1], rightId = subscriptions[1][0][1];
+  f.respond([204, leftId], { owner: 'left', value: 1 }); f.respond([204, rightId], { owner: 'right', value: 1 });
+  await until(() => values.every(frames => frames.length === 1));
+  assert.deepEqual(values, [[{ owner: 'left', value: 1 }], [{ owner: 'right', value: 1 }]]);
+  listeners[0].dispose(); await until(() => f.requests.some(([header]) => header[0] === 103 && header[1] === leftId));
+  f.respond([204, leftId], { owner: 'left', value: 2 }); f.respond([204, rightId], { owner: 'right', value: 2 });
+  await until(() => values[1].length === 2); assert.equal(values[0].length, 1, '取消后的迟到事件不投递');
+  hosts[1].close(); await until(() => f.requests.some(([header]) => header[0] === 103 && header[1] === rightId));
+  assert.equal(f.bridgeOpens.length, 1, '共用原物理桥，监听仍各归原客户端');
+});
+
 test('本地客户端使用不同本地工作区，订阅事件与关闭取消各归原客户端，长消息分片保持正文', { timeout: 3000 }, async t => {
   const f = await fixture(t);
   const peers = [], received = [[], []];

@@ -52,6 +52,7 @@ export async function connectHost({ workspacePath, sessionId, gatewayConfigPath 
     return {
       bootstrap: attached.bootstrap, workspacePath: attached.workspace_path,
       call: (channel, method, args = []) => Promise.race([client.getChannel(channel).call(method, args), fault.promise]),
+      listen: (channel, event, args) => client.getChannel(channel).listen(event, args),
       probe: async () => {
         const current = await (await fetch(healthUrl, { signal: AbortSignal.timeout(handshakeTimeoutMs) })).json();
         return { ok: current.desktop_connected && (mode === 'local-only' ? current.desktop_ready : current.upstream_connected), stage: 'gateway', mode, paired: current.paired, upstreamPaired: current.upstream_paired, localClients: current.local_clients };

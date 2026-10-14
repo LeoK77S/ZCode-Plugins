@@ -1,0 +1,230 @@
+{
+  "sourceRepository": "https://github.com/zai-org/ZCode",
+  "ref": "aac4755666d09fdcd70272fcf063c077a639015f",
+  "entryExports": [
+    "TopicWireFrameAssembler",
+    "PROTOCOL_V4_LIMITS",
+    "conversationTopicFrameSchema",
+    "v4ConversationRowsRangeResultSchema",
+    "encodeTopicWireFrames",
+    "measureTopicNotificationEnvelopeBytes"
+  ],
+  "build": {
+    "esbuild": "0.28.2",
+    "target": "node24",
+    "format": "esm",
+    "sourceModified": false
+  },
+  "dependencies": [
+    {
+      "name": "zod",
+      "version": "4.6.5",
+      "license": "MIT",
+      "licenseFile": "LICENSE-zod"
+    }
+  ],
+  "licenses": [
+    "LICENSE-ZCode",
+    "NOTICE-ZCode-current.md"
+  ],
+  "inputs": {
+    "packages/shared/src/attachment-source.ts": {
+      "bytes": 287,
+      "sha256": "1ab5985a30d2be53e9e3af364e04c8a902ce4a6dc3b9bcc18e8d81c227d37069"
+    },
+    "packages/shared/src/bash-output-display.ts": {
+      "bytes": 356,
+      "sha256": "3dc88eb1f016259e220be9f02f07c344de51b4fed081a9cd59a40a5cd525cc0a"
+    },
+    "packages/shared/src/bots.ts": {
+      "bytes": 28902,
+      "sha256": "c9ae67d700e4f744118348e3cb4517968393d9f86fa7d0e8cbf5c957b3ba315d"
+    },
+    "packages/shared/src/channel-mention.ts": {
+      "bytes": 4671,
+      "sha256": "0266aa4b95b1d8d86ac41be66a7ae9e3f9be0a945c11dedba358c5892ab94ebf"
+    },
+    "packages/shared/src/conversationSelection.ts": {
+      "bytes": 1444,
+      "sha256": "b76e80d143f71afea20dcddee9414324c4964f1d1ef36e836a39a810a6960e75"
+    },
+    "packages/shared/src/execution-output-preview.ts": {
+      "bytes": 568,
+      "sha256": "49baa10419388ea695d87458f2c0fa614bdd7cfeb57543cc7f0437403b753282"
+    },
+    "packages/shared/src/highspeed.ts": {
+      "bytes": 9245,
+      "sha256": "29ba3aa286c36751c89cae4a445fb52a0ab9251c5a086ddde2491e11d85b54b2"
+    },
+    "packages/shared/src/localTtft.ts": {
+      "bytes": 6819,
+      "sha256": "b6f6963535fddb455bf6adcf1c82e08dd609fb2f8bf7b6398c16cd164b3b3597"
+    },
+    "packages/shared/src/mcp-apps/contract.ts": {
+      "bytes": 13446,
+      "sha256": "1bf5fcbea477863d04a5abec601f2d31a598555916916af7e120418daef2329d"
+    },
+    "packages/shared/src/mcp-apps/instance.ts": {
+      "bytes": 401,
+      "sha256": "3488a275435494df1bfd3e271086353712e11971f64aa74f54695aef02ea2612"
+    },
+    "packages/shared/src/mcp-apps/resourceMime.ts": {
+      "bytes": 2302,
+      "sha256": "b21b1ac738deb13ec89ce7ffd88cadb57101f4687ed20b044ff2d7ab2547ce5d"
+    },
+    "packages/shared/src/mcp-apps/schemas.ts": {
+      "bytes": 3544,
+      "sha256": "4966c53d26ff0cfdb7f0d43eaa5bf7e13a3fb2ecba772cc0b0032da2a00f37aa"
+    },
+    "packages/shared/src/model-execution.ts": {
+      "bytes": 2922,
+      "sha256": "c9990f7599ab3825f73633826ddf6a0296a87e4de5380848a9cf27bf3f8b8d44"
+    },
+    "packages/shared/src/model-provider-types.ts": {
+      "bytes": 3104,
+      "sha256": "7136b3e33dc7274e747e14f6c66cb4acf908dc6f2d8cf2b28adfc569bee218e8"
+    },
+    "packages/shared/src/model-selection.ts": {
+      "bytes": 2457,
+      "sha256": "653a4671723d4a3302e84ba13f29d4d55a17e5e8082b44d54ba1f9087dbd3e44"
+    },
+    "packages/shared/src/official-mcp-tool-error.ts": {
+      "bytes": 2851,
+      "sha256": "74f966961b89565e035b50b93523cd643c9fe4f61cca4fab70e8c8759ef3fcc8"
+    },
+    "packages/shared/src/usage-quota.ts": {
+      "bytes": 2388,
+      "sha256": "d1d24da014972689fedbcb22fd97151ab46ed5462b60f7998e880546eba3fd5d"
+    },
+    "packages/shared/src/usage-stats.ts": {
+      "bytes": 16210,
+      "sha256": "bf0ee2afd42bd9f9dd1e3a44babcd3fc664ad9c572e8d7dfb6e466db2c857c6b"
+    },
+    "packages/shared/src/zcode-agent-policy.ts": {
+      "bytes": 1679,
+      "sha256": "a6ca9b6deaa62ee1930848bb71e08304bb702c7f0da52ace69240d29903b7800"
+    },
+    "packages/shared/src/zcode-media-policy.ts": {
+      "bytes": 451,
+      "sha256": "47ccb08304cf2a24f4795dc6ded2ef5712d1ee1bad5c8bffb4d6081dc86dcde1"
+    },
+    "packages/shared/src/zcode-protocol-legacy-types.ts": {
+      "bytes": 18529,
+      "sha256": "65ccbf8b925bd4cc3c4dbb9429c7c4d47c1e33a377602e690beec77c77dd4a17"
+    },
+    "packages/shared/src/zcode-protocol-v4/attachment-ref.ts": {
+      "bytes": 579,
+      "sha256": "aac64e061641380dbfa3df523a9c84eac5c485e6bec770723480e005a7107c52"
+    },
+    "packages/shared/src/zcode-protocol-v4/core.ts": {
+      "bytes": 3859,
+      "sha256": "97750a7bab0a7580c1d27c8e0155981786fdbfa07373d46c77829f25eb407a39"
+    },
+    "packages/shared/src/zcode-protocol-v4/create-workflow-display.ts": {
+      "bytes": 10358,
+      "sha256": "36b7a25a38bc75708cd4c0017728ce81506a572fa7d1a317ba343d0e32ff246a"
+    },
+    "packages/shared/src/zcode-protocol-v4/cuaPermission.ts": {
+      "bytes": 1395,
+      "sha256": "b9e3f0aaad5b356f2add8461fe4b3b1813fc3ea7991499df593606429a062d99"
+    },
+    "packages/shared/src/zcode-protocol-v4/delta.ts": {
+      "bytes": 9993,
+      "sha256": "f61d3c1f800455c7ed747d463a93ef31a97fd05a429b14a97220cb9c8f18734f"
+    },
+    "packages/shared/src/zcode-protocol-v4/input-intent.ts": {
+      "bytes": 3723,
+      "sha256": "6ee238b780411c6d0364e042d547d98c5efe740ebc84580020e6336016431243"
+    },
+    "packages/shared/src/zcode-protocol-v4/rows.ts": {
+      "bytes": 18883,
+      "sha256": "22841e26950621a2c3261b1900c56e1a8e81708b5fd7f5b4c70a088d80ed3d5e"
+    },
+    "packages/shared/src/zcode-protocol-v4/session-config.ts": {
+      "bytes": 1789,
+      "sha256": "9a261de2b2c5bfc7d6cf8dd10598a9dc681bc54dbe1b46e753cf9909fd9b51a0"
+    },
+    "packages/shared/src/zcode-protocol-v4/sessions-index-workflow-activity.ts": {
+      "bytes": 12441,
+      "sha256": "77a1a21c55f0721bccad6c9649230c313f164205a8ffbe3b76859573aa64e4b1"
+    },
+    "packages/shared/src/zcode-protocol-v4/sessions-index.ts": {
+      "bytes": 3857,
+      "sha256": "494b2007dd8fc3c1f35098bc5778a8fa3d2f66d9183be340b3e21a5c59a86aa7"
+    },
+    "packages/shared/src/zcode-protocol-v4/shared-context-import.ts": {
+      "bytes": 1463,
+      "sha256": "fcd422a4cb073af2ed2d4e74862e8360f14a7a94f58a736d7a3e09110f88f5de"
+    },
+    "packages/shared/src/zcode-protocol-v4/shared-context-ref.ts": {
+      "bytes": 256,
+      "sha256": "660f6beb529f853660994f22a56149761cb7c775abb3ea047b3fdd5518294c76"
+    },
+    "packages/shared/src/zcode-protocol-v4/snapshot.ts": {
+      "bytes": 20770,
+      "sha256": "679eea52a1b1f13ddd853de3d1ccf475a1b178f42905724a1c746089e7971017"
+    },
+    "packages/shared/src/zcode-protocol-v4/submission.ts": {
+      "bytes": 296,
+      "sha256": "aba9b3d2140065615398429fe1404806b453ae5d854dce05e7c3b4271b0b3c57"
+    },
+    "packages/shared/src/zcode-protocol-v4/toolDisplay.ts": {
+      "bytes": 11904,
+      "sha256": "190018493c8dbd4641afd7ebb6109c3c01315328961abce6eb3fad900fe509d6"
+    },
+    "packages/shared/src/zcode-protocol-v4/transport.ts": {
+      "bytes": 49163,
+      "sha256": "0cf319adb00db23360771c367cd853b49f3c69a939b242fb7f326c6cd71c16aa"
+    },
+    "packages/shared/src/zcode-protocol-v4/wire-assembler.ts": {
+      "bytes": 20238,
+      "sha256": "2ec210289bce920de3ebdb2dec324764ecd1b3d2620d185ea484f2ba7a2c6be1"
+    },
+    "packages/shared/src/zcode-protocol-v4/wire-binary.ts": {
+      "bytes": 2542,
+      "sha256": "28f287c5764d3d7afa56b6291e3cc67f4234ccb5749f365a66cc7260ddcfbfee"
+    },
+    "packages/shared/src/zcode-protocol-v4/wire-codec.ts": {
+      "bytes": 8428,
+      "sha256": "ac2494a3acc795c809c94ee9393f50271a9c2a0fd33813459e5ab93842ceef75"
+    },
+    "packages/shared/src/zcode-protocol-v4/wire-fault.ts": {
+      "bytes": 2738,
+      "sha256": "b4e83c916358d395b725c603292ab99cc5e800eb6abbe5cea3f6c1df5f72aa6a"
+    },
+    "packages/shared/src/zcode-protocol-v4/wire.ts": {
+      "bytes": 5800,
+      "sha256": "b7dbb4556fdf10a3e9cc1dfe81ffe5a74d7dc05904db71efe18ecc7e96ee489a"
+    },
+    "packages/shared/src/zcode-protocol-v4/workflow-artifacts.ts": {
+      "bytes": 18031,
+      "sha256": "9f7c6d7ab87ba54b36923b1dd6553d0dc5e83c1f27633ff507ec2b3d7d276d31"
+    },
+    "packages/shared/src/zcode-protocol-v4/workflow-observation-display.ts": {
+      "bytes": 9740,
+      "sha256": "4b21c1e4cbd10ca616c6a590cf1a44dab773a4458a2ec3e8bafee43dbc3466f5"
+    },
+    "packages/shared/src/zcode-protocol-v4/workflow-row-meta.ts": {
+      "bytes": 10777,
+      "sha256": "d6511510d4dfdffa762998c2cf518e52e5579b99fd39dd3116aff42c3b8c4bea"
+    },
+    "packages/shared/src/zcode-protocol-v4/workflow-runs.ts": {
+      "bytes": 37015,
+      "sha256": "f4cdba0b631468efaeba11f8f1a9dec03d7ff7896d00f145f68ea88812d7f9b5"
+    },
+    "packages/shared/src/zcode-protocol-v4/workspace-config.ts": {
+      "bytes": 4283,
+      "sha256": "18052d64bbdfe4d575f8997b0ed7b5dbefb4d6a73bdd2483f876ff5b67d200a7"
+    },
+    "packages/shared/src/zcode-protocol-v4/workspace-hook-review.ts": {
+      "bytes": 7026,
+      "sha256": "ff8b264a361862e5575145e635c0fa108a2ac7d82091764713e0a40b17a36ce7"
+    },
+    "packages/shared/src/zcode-protocol/trace.ts": {
+      "bytes": 349,
+      "sha256": "8d91e253aab67fed52e5b0e628126afad50a7ccdccc03a738c2c89f7460c417b"
+    }
+  },
+  "outputBytes": 562436,
+  "outputSha256": "7b74ae707b21ef9c59952bb9aac9e833f4345c25ac31908b7ccfa2b51319a0f1"
+}
