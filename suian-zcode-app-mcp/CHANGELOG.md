@@ -2,7 +2,7 @@
 
 本文件记录 suian-zcode-app-mcp 的用户可感知变化，版本独立于 common 和自动命名插件。
 
-## [Unreleased] - 开发分支 feat/pin-session-tools（#61）
+## [Unreleased] - 开发分支（#61 起，随正式集成定版）
 
 新增会话置顶管理：可以把会话置顶、取消置顶，并单独列出置顶会话。
 

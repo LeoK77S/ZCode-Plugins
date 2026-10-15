@@ -368,6 +368,32 @@ test('归档与复原读回改用精确查询：列表截断丢目标行时不�
   assert.equal((await f.controller.restoreSession({ session_id: 'sess_new' })).archived, false);
 });
 
+test('归档读回零行、多行歧义或状态不符时报 archive_not_confirmed，不猜默认值', async () => {
+  const missing = await fixture({ listSessionStates: () => [] });
+  await assert.rejects(missing.controller.archiveSession({ session_id: 'sess_new' }), /archive_not_confirmed/);
+  const ambiguous = await fixture({ listSessionStates: () => [{ session_id: 'sess_new', archived: true, pinned: false }, { session_id: 'sess_new', archived: true, pinned: false }] });
+  await assert.rejects(ambiguous.controller.restoreSession({ session_id: 'sess_new' }), /archive_not_confirmed/);
+  const mismatched = await fixture({ listSessionStates: () => [{ session_id: 'sess_new', archived: false, pinned: false }] });
+  await assert.rejects(mismatched.controller.archiveSession({ session_id: 'sess_new' }), /archive_not_confirmed/);
+  for (const f of [missing, ambiguous, mismatched]) assert.ok(f.connections.every(c => c.closed));
+});
+
+test('归档与置顶读回把 workspace_key 透传到精确查询做跨工作区消歧', async () => {
+  const requested = [], lastArchiveMethod = { name: null };
+  const f = await fixture({
+    archiveTask: ([{ taskId }]) => { lastArchiveMethod.name = 'archiveTask'; return { taskId }; },
+    unarchiveTask: ([{ taskId }]) => { lastArchiveMethod.name = 'unarchiveTask'; return { taskId }; },
+    listSessionStates: args => {
+      requested.push(args);
+      return [{ session_id: 'sess_new', archived: lastArchiveMethod.name === 'archiveTask', pinned: true }];
+    }
+  });
+  await f.controller.archiveSession({ session_id: 'sess_new', workspace_key: 'D:\\work\\beta' });
+  await f.controller.pinSession({ session_id: 'sess_new', workspace_key: 'kb' });
+  assert.deepEqual(requested.map(args => args.workspace_key), ['D:\\work\\beta', 'kb']);
+  assert.ok(requested.every(args => args.session_id === 'sess_new' && typeof args.workspace_path === 'string'));
+});
+
 test('缺少运行态不能猜闲置，即使 force 也不在未完成检查时写入', async () => {
   const f = await fixture({ getTaskSnapshot: () => ({ meta: { taskId: 'sess_new', status: 'completed' } }) });
   await assert.rejects(f.controller.archiveSession({ session_id: 'sess_new', force: true }), /activity_unknown/);
