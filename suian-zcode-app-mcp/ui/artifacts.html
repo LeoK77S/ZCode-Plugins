@@ -141,7 +141,39 @@ async function showDetail(ref) {
     detailStatus.className = 'error'; detailStatus.textContent = error.message;
   } finally { if (request === detailRequest) detailRefresh.disabled = false; }
 }
+// 工件面板的实时刷新信号：桥支持资源订阅时挂载（ZCode 3.15+ 的 experimental zcode/resourceSubscribe），
+// 通知只当"有变化"信号，数据仍经 get_artifacts 工具按当前会话拉取；无桥或订阅失败静默保持手动刷新。
+const RESOURCE_URI = 'suian-artifacts://current';
+// 信号路径的详情重拉与列表 refresh 对称合并：进行中收到新信号合并为完成后补拉一次，
+// 避免连续的工件写入突发信号放大对原 Host 的会话状态实时查询；用户点击仍直接刷新
+let detailLiveBusy = false, detailLivePending = false;
+function refreshDetailLive() {
+  if (selectedRef === undefined || detailView.hidden) return;
+  if (detailLiveBusy) { detailLivePending = true; return; }
+  detailLiveBusy = true;
+  const done = () => {
+    detailLiveBusy = false;
+    if (detailLivePending) { detailLivePending = false; refreshDetailLive(); }
+  };
+  void showDetail(selectedRef).then(done, done);
+}
+// 返回订阅是否成功；初始化时先订阅再首刷，把首刷后丢信号的窗口压到订阅在途的毫秒级（MCP 订阅无补发语义）
+async function subscribeLive() {
+  if (typeof host.subscribeResource !== 'function' || typeof host.onResourceUpdated !== 'function') return false;
+  try {
+    host.onResourceUpdated(uri => {
+      if (uri !== RESOURCE_URI) return;
+      void refresh();
+      refreshDetailLive();
+    });
+    await host.subscribeResource(RESOURCE_URI);
+    return true;
+  } catch { return false; }
+}
+let refreshing = false, refreshPending = false;
 async function refresh() {
+  if (refreshing) { refreshPending = true; return; }
+  refreshing = true;
   refreshButton.disabled = true; status.className = ''; status.textContent = '正在刷新…';
   try {
     const state = await get({ offset: 0, limit: 50 });
@@ -155,14 +187,17 @@ async function refresh() {
   } catch (error) {
     groups.replaceChildren(); revision.textContent = '读取失败'; empty.hidden = true; diagnostic.hidden = true;
     status.className = 'error'; status.textContent = error.message;
-  } finally { refreshButton.disabled = false; }
+  } finally {
+    refreshing = false; refreshButton.disabled = false;
+    if (refreshPending) { refreshPending = false; void refresh(); }
+  }
 }
 document.getElementById('back').addEventListener('click', () => {
   detailRequest++; selectedRef = undefined; detailView.hidden = true; listView.hidden = false;
 });
 refreshButton.addEventListener('click', refresh);
 detailRefresh.addEventListener('click', () => showDetail(selectedRef));
-try { host.subscribe(theme); await host.ready(); theme(); await refresh(); }
+try { host.subscribe(theme); await host.ready(); theme(); await subscribeLive(); await refresh(); }
 catch (error) { status.className = 'error'; status.textContent = error.message; refreshButton.disabled = true; }
 </script>
 </body>

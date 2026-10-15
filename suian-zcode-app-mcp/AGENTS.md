@@ -41,12 +41,13 @@
 | skills/ | setup / configuration / sessions / artifacts / glm / debug，paths.md 统一路径与配置说明 |
 | server.mjs | MCP 工具注册、参数校验与结构化响应 |
 | caller.mjs | 每次请求的发起会话定位：MCP 元数据优先，trace_id 与工具名只读匹配本地调用记录 |
-| artifacts.mjs | 插件 SQLite 的当前状态、CAS、服务记录时间、双向创建关系、不可变快照和幂等分叉初始化；每次读取不缓存，session 条目附带按任务索引实时反查的会话列表名称（session_title），不写回存储 |
+| artifacts.mjs | 插件 SQLite 的当前状态、CAS、服务记录时间、双向创建关系、不可变快照和幂等分叉初始化；每次读取不缓存，session 条目附带按任务索引实时反查的会话列表名称（session_title），不写回存储；可选 notify 钩子在实际写入事务 COMMIT 后触发变更信号 |
 | artifact-host.mjs | 只读宿主消息的原始 Stop 断点与隐藏 forkOrigin，不用时间或父最新状态猜测 |
-| artifact-tools.mjs / artifact-ui.mjs | 当前调用者唯一定位、get 列表/详情与 set 注册，以及调用公共 UI 能力判定后启用的页面资源 |
+| artifact-tools.mjs / artifact-ui.mjs | 当前调用者唯一定位、get 列表/详情与 set 注册（写入经 notify 钩子推送变更信号），以及调用公共 UI 能力判定后启用的页面资源 |
+| artifact-resources.mjs | 单一信号资源 suian-artifacts://current（list/read 与 resources/subscribe/unsubscribe）；read 按请求上下文尽力解析会话，实际写入后向已订阅 URI 推送 notifications/resources/updated，页面只当信号、数据走 get_artifacts |
 | artifact-hook.mjs / hooks/hooks.json | 同步 SessionStart 初始化、UserPromptSubmit 简略摘要和 Stop 断点快照 |
 | artifact-prompt.mjs | 自动登记入口、分类统计和有类别保底的 20 条/9000 字符工件简表；只裁剪注入内容，不改变存储 |
-| ui/artifacts.html | 原生折叠分组列表与详情页，共用 get；会话详情实时查询，条目以文本呈现，资源不在页面编辑 |
+| ui/artifacts.html | 原生折叠分组列表与详情页，共用 get；会话详情实时查询，条目以文本呈现，资源不在页面编辑；桥支持时订阅信号资源实现列表与详情的自动刷新，refresh 重入合并，无桥静默保持手动刷新 |
 | control.mjs | 原 Host 改名读回、指定模型与权限模式创建、消息包装、v4 可选投递策略与提交回执、compact 维护命令与受理回执、归档保护与复原；改名/创建后双库标题复核，分叉时回执 warnings；按调用释放连接 |
 | glm.mjs | GLM 个人套餐额度/卡片投影、确认后重置与同次尝试回执；共用 controller 远控互斥 |
 | sessions.mjs | 只读索引查询、会话定位、历史投影与分页；sessionTitle 轻量双库标题读取供复核，sessionMode 读取 CLI 会话库权限供继承与首发后确认（不用索引或创建响应的 mode） |

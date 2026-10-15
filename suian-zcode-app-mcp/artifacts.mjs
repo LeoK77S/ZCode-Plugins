@@ -32,7 +32,10 @@ function storedState(db, sessionId) {
   return row ? { revision: row.revision, items: JSON.parse(row.items), ...(row.inheritance ? { inheritance: JSON.parse(row.inheritance) } : {}) } : { revision: 0, items: [] };
 }
 
-export function createArtifactStore({ artifactDbPath, sessionDbPath, indexDbPath, now = Date.now }) {
+export function createArtifactStore({ artifactDbPath, sessionDbPath, indexDbPath, now = Date.now, notify }) {
+  // 写入成功后的变更通知（COMMIT 之后调用）：仅 server 进程注入，用于向已订阅的工件面板推送 resources/updated；
+  // hooks 进程等无 MCP 连接的调用方不注入，保持静默。initialize/snapshot 不触发（不改工件状态内容）。
+  const changed = () => notify?.();
   function exists() {
     try { statSync(artifactDbPath); return true; }
     catch (error) { if (error.code === 'ENOENT') return false; throw error; }
@@ -120,6 +123,8 @@ export function createArtifactStore({ artifactDbPath, sessionDbPath, indexDbPath
     linkSessions({ creator, created, creatorLabel, createdLabel }) {
       initialize(creator);
       const db = open(true);
+      // 两侧写入合并为一次变更信号，COMMIT 成功后才触发（回滚不通知，避免面板重拉到旧数据）
+      let wrote = false;
       try {
         const session_link = { creator, created };
         for (const [id, ref, label, purpose] of [
@@ -127,9 +132,11 @@ export function createArtifactStore({ artifactDbPath, sessionDbPath, indexDbPath
           [created, creator, creatorLabel, '当前会话的发起会话']
         ]) {
           const old = storedState(db, id).items.find(item => item.ref === ref);
-          update(db, id, { upsert: [{ kind: 'session', ref, label: old?.label ?? label, purpose: old?.purpose ?? purpose, session_link }] });
+          const written = update(db, id, { upsert: [{ kind: 'session', ref, label: old?.label ?? label, purpose: old?.purpose ?? purpose, session_link }] });
+          wrote = written.changed || wrote;
         }
         db.exec('COMMIT');
+        if (wrote) changed();
       } catch (error) { db.exec('ROLLBACK'); throw error; }
       finally { db.close(); }
     },
@@ -171,6 +178,7 @@ export function createArtifactStore({ artifactDbPath, sessionDbPath, indexDbPath
       try {
         const result = update(db, sessionId, { expected_revision, upsert, remove });
         db.exec('COMMIT');
+        if (result.changed) changed();
         return result;
       } catch (error) { db.exec('ROLLBACK'); throw error; }
       finally { db.close(); }

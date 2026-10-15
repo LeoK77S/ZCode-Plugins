@@ -22,7 +22,9 @@ async function messageInput(args) {
 }
 
 export function createMcpServer(config, { controller } = {}) {
-  const server = new McpServer({ name: 'suian-zcode-app-mcp', version: packageMetadata.version });
+  const server = new McpServer({ name: 'suian-zcode-app-mcp', version: packageMetadata.version },
+    // 工件面板经 ZCode 扩展 resources/subscribe 订阅变更信号，写入后推送 notifications/resources/updated
+    { capabilities: { resources: { subscribe: true } } });
   const reader = createSessionReader(config);
   controller ??= createSessionController({ reader, gatewayConfigPath: config.gatewayConfigPath });
   server.registerTool('list_sessions', {

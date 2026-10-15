@@ -2,9 +2,12 @@ import { z } from 'zod';
 import { createArtifactStore } from './artifacts.mjs';
 import { resolveCaller } from './caller.mjs';
 import { registerArtifactUi } from './artifact-ui.mjs';
+import { registerArtifactResources } from './artifact-resources.mjs';
 
 export function registerArtifactTools(server, config, { controller }) {
-  const store = createArtifactStore(config);
+  // notify 闭包先于 registry 声明：set/linkSessions 只在连接建立后经工具调用到达，届时注册表已就绪
+  const store = createArtifactStore({ ...config, notify: () => registry.notifyChanged() });
+  const registry = registerArtifactResources(server, config, store);
   const text = z.string().refine(value => value.trim().length > 0, '必须是非空字符串');
   async function run(extra, name, action) {
     try {
