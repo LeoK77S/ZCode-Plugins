@@ -138,6 +138,23 @@ test('不可达 UNC 主机产生非 ENOENT 错误时降级为存在态，get_art
   assert.equal(detail.isError, undefined);
 });
 
+test('单条 stat 挂起超过软超时按未知降级：不判缺失、不阻塞其余条目与整体完成', { timeout: 3000 }, async () => {
+  const hanging = { kind: 'file', ref: 'D:/net/hang.md', label: '挂起工件', purpose: '参考' };
+  const present = { kind: 'file', ref: 'D:/local/ok.md', label: '本地工件', purpose: '交付' };
+  const polluted = { kind: 'file', ref: 'D:/net/old.md', label: '残留标记', purpose: '参考', is_directory: true, missing: true };
+  const stat = async ref => {
+    if (ref === hanging.ref) return new Promise(() => {}); // 模拟不可达网络盘：永不返回
+    return { isDirectory: () => false };
+  };
+  const started = Date.now();
+  await probeFileStates([hanging, present, polluted], { stat, statTimeoutMs: 25 });
+  assert.ok(Date.now() - started < 1500, '软超时后整体完成，不被挂起条目阻塞');
+  assert.equal(hanging.missing, undefined, '超时不误判缺失');
+  assert.equal(hanging.is_directory, undefined, '超时条目按未知降级、省略标记');
+  assert.equal(present.is_directory, false, '其余条目正常探测不受影响');
+  assert.equal(polluted.is_directory, false, '非挂起条目的残留标记仍被实时探测纠正');
+});
+
 test('get 工具描述说明 file 实时探测字段与降级语义', async t => {
   const f = fixture(t), call = await connect(t, f), { tools } = await call.listTools();
   const get = tools.find(tool => tool.name === 'get_artifacts').description;

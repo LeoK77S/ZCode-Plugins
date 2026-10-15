@@ -67,6 +67,11 @@ const display = item => item.session_title ?? item.label;
 function element(tag, className, text) {
   const node = document.createElement(tag); node.className = className; node.textContent = text; return node;
 }
+// SVG tooltip 一律经 createElementNS+textContent 构造：状态名等文本来自服务端数据，不与图形路径字符串拼接进 innerHTML
+function svgTitle(text) {
+  const node = document.createElementNS('http://www.w3.org/2000/svg', 'title');
+  node.textContent = text; return node;
+}
 function icon(kind, direction, item) {
   const key = kind === 'session' && ['outgoing', 'incoming'].includes(direction) ? direction
     : kind === 'file' && item?.is_directory ? 'folder' : kind;
@@ -81,7 +86,7 @@ function prStateIcon(status) {
   node.setAttribute('viewBox', '0 0 24 24'); node.setAttribute('class', 'icon pr');
   node.setAttribute('aria-hidden', 'true'); node.dataset.icon = 'pr-' + status.status;
   if (prStates[status.status]) node.dataset.state = status.status;
-  node.innerHTML = '<title>PR 状态：' + state.name + '</title>' + state.path; return node;
+  node.innerHTML = state.path; node.append(svgTitle('PR 状态：' + state.name)); return node;
 }
 function issueStateIcon(status) {
   const state = issueStates[status.state] ?? { name: status.state, path: paths.issue };
@@ -89,7 +94,7 @@ function issueStateIcon(status) {
   node.setAttribute('viewBox', '0 0 24 24'); node.setAttribute('class', 'icon issue');
   node.setAttribute('aria-hidden', 'true'); node.dataset.icon = 'issue-' + status.state;
   if (issueStates[status.state]) node.dataset.state = status.state;
-  node.innerHTML = '<title>议题状态：' + state.name + '</title>' + state.path; return node;
+  node.innerHTML = state.path; node.append(svgTitle('议题状态：' + state.name)); return node;
 }
 function bubbleIcon() {
   const node = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
@@ -101,7 +106,7 @@ function clockIcon(status) {
   const node = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
   node.setAttribute('viewBox', '0 0 24 24'); node.setAttribute('class', 'icon clock');
   node.setAttribute('aria-hidden', 'true'); node.dataset.icon = 'pr-stale';
-  node.innerHTML = '<title>状态数据停留于 ' + time(status.fetched_at) + '，本次拉取超时未刷新</title>' + clockPath; return node;
+  node.innerHTML = clockPath; node.append(svgTitle('状态数据停留于 ' + time(status.fetched_at) + '，本次拉取超时未刷新')); return node;
 }
 // 状态装饰幂等：先清旧装饰再按最新结果重画；出错或无数据回默认 pr 图标，不显示数字与钟表
 function decoratePrRow(button) {
@@ -139,7 +144,16 @@ function applyStatuses() {
     renderDetail(currentDetail); // 重绘幂等，状态迟到时补上或更新详情字段
 }
 // 面板专用状态通道：仅挂在标准刷新时机（列表刷新/订阅信号/详情打开与刷新）触发；
-// PR 与议题合并为一次调用，进行中合并为一批，通道失败静默保持现状，不弹错误打断面板
+// PR 与议题合并调用，进行中合并为一批，通道失败静默保持现状，不弹错误打断面板。
+// 服务端 get_pr_statuses 校验单数组至多 200 条，超出整批拒绝会让所有条目失去状态；
+// 面板按 ≤200 切片多次调用并合并结果（服务端 per-ref 缓存与在途合并天然支持分批），
+// PR 与议题切片配对发送，普通规模仍保持一次往返
+const STATUS_BATCH_MAX = 200;
+function chunkRefs(refs) {
+  const chunks = [];
+  for (let i = 0; i < refs.length; i += STATUS_BATCH_MAX) chunks.push(refs.slice(i, i + STATUS_BATCH_MAX));
+  return chunks;
+}
 let statusBusy = false, prQueue = new Set(), issueQueue = new Set();
 function syncStatuses(prRefs, issueRefs) {
   for (const ref of prRefs ?? []) prQueue.add(ref);
@@ -151,19 +165,23 @@ function syncStatuses(prRefs, issueRefs) {
       while (prQueue.size || issueQueue.size) {
         const prBatch = [...prQueue], issueBatch = [...issueQueue];
         prQueue = new Set(); issueQueue = new Set();
-        try {
-          const args = {};
-          if (prBatch.length) args.refs = prBatch;
-          if (issueBatch.length) args.issue_refs = issueBatch;
-          const result = await host.callTool('get_pr_statuses', args);
-          if (!result.isError && result.structuredContent) {
-            // 响应按 ref 合并返回，按本次请求的条目类型分桶归位
-            const merged = result.structuredContent.statuses ?? {};
-            for (const ref of prBatch) if (merged[ref] !== undefined) prStatuses[ref] = merged[ref];
-            for (const ref of issueBatch) if (merged[ref] !== undefined) issueStatuses[ref] = merged[ref];
-            applyStatuses();
-          }
-        } catch { /* 状态通道不可用：静默保持现状 */ }
+        const prChunks = chunkRefs(prBatch), issueChunks = chunkRefs(issueBatch);
+        for (let i = 0; i < Math.max(prChunks.length, issueChunks.length); i++) {
+          const prChunk = prChunks[i], issueChunk = issueChunks[i];
+          try {
+            const args = {};
+            if (prChunk) args.refs = prChunk;
+            if (issueChunk) args.issue_refs = issueChunk;
+            const result = await host.callTool('get_pr_statuses', args);
+            if (!result.isError && result.structuredContent) {
+              // 响应按 ref 合并返回，按本次请求的条目类型分桶归位
+              const merged = result.structuredContent.statuses ?? {};
+              for (const ref of prChunk ?? []) if (merged[ref] !== undefined) prStatuses[ref] = merged[ref];
+              for (const ref of issueChunk ?? []) if (merged[ref] !== undefined) issueStatuses[ref] = merged[ref];
+              applyStatuses();
+            }
+          } catch { /* 状态通道不可用：静默保持现状 */ }
+        }
       }
     } finally { statusBusy = false; }
   })();

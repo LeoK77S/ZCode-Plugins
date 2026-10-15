@@ -31,19 +31,25 @@ export function artifactStats(items) {
 /**
  * file 条目的读取路径实时探测（get_artifacts 列表与详情，不入库）：就地为条目附加 is_directory /
  * missing 标记。仅 ENOENT（路径不存在）判缺失；目录以 is_directory 标记与普通文件区分；
- * 权限、网络盘等其它 stat 错误一律按未知处理——省略标记、面板呈现为存在态，避免误报。
- * 每次探测先清理旧标记再赋值，历史存储残留的标记以实时结果纠正；单条探测异常不外抛。
+ * 权限、网络盘等其它 stat 错误一律按未知处理——省略标记、面板呈现为存在态，避免误报；
+ * 单条 stat 超过 statTimeoutMs（默认 2000ms，可注入覆盖）同样按未知降级，避免不可达网络盘
+ * 挂起整个读取。每次探测先清理旧标记再赋值，历史存储残留的标记以实时结果纠正；单条探测异常不外抛。
  */
-export async function probeFileStates(items, { stat = fsStat } = {}) {
+const statSlow = Symbol('stat-slow');
+export async function probeFileStates(items, { stat = fsStat, statTimeoutMs = 2000 } = {}) {
   await Promise.all(items.map(async item => {
     if (item.kind !== 'file') return;
+    let timer;
     try {
-      const info = await stat(item.ref);
+      const info = await Promise.race([
+        stat(item.ref),
+        new Promise((_, reject) => { timer = setTimeout(() => reject(statSlow), statTimeoutMs); })
+      ]).finally(() => clearTimeout(timer));
       delete item.missing;
       item.is_directory = info.isDirectory();
     } catch (error) {
       delete item.is_directory;
-      if (error.code === 'ENOENT') item.missing = true;
+      if (error !== statSlow && error.code === 'ENOENT') item.missing = true;
       else delete item.missing;
     }
   }));

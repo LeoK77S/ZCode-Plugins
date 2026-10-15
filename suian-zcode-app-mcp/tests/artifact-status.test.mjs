@@ -239,6 +239,23 @@ test('议题与 PR 同服务共存：同一次刷新各自降级互不影响', a
   assert.deepEqual(issue2[GH_ISSUE_REF], { state: 'open', comments: 4, fetched_at: 200000 });
 });
 
+test('同 ref 的 PR 与议题按拉取规格隔离：各自起子进程、快照形状互不污染', async () => {
+  // PR 与议题 ref 不必然不同：工具层 refs/issue_refs 可传同一 URL，缓存与在途合并必须带规格维度
+  const calls = [];
+  const gh = { runGh: args => { calls.push(args); return Promise.resolve(JSON.stringify(args[0] === 'issue' ? OPEN_ISSUE : OPEN_PR)); } };
+  const clock = { value: 0 };
+  const service = createArtifactStatusService({ runGh: gh.runGh, now: () => clock.value, freshMs: 60000 });
+  const [pr, issue] = await Promise.all([service.fetchStatuses([GH_REF]), service.fetchIssueStatuses([GH_REF])]);
+  assert.equal(calls.length, 2, '同 ref 两分支各自起子进程，不在途合并成一个');
+  assert.deepEqual(pr[GH_REF], { status: 'open', additions: 12, deletions: 3, fetched_at: 0 }, 'PR 分支快照形状正确');
+  assert.deepEqual(issue[GH_REF], { state: 'open', comments: 4, fetched_at: 0 }, '议题分支不被 PR 快照污染');
+  clock.value += 1000;
+  const [pr2, issue2] = await Promise.all([service.fetchStatuses([GH_REF]), service.fetchIssueStatuses([GH_REF])]);
+  assert.equal(calls.length, 2, '新鲜期内两分支各自命中本规格缓存');
+  assert.deepEqual(pr2[GH_REF], pr[GH_REF], 'PR 缓存读取不串到议题形状');
+  assert.deepEqual(issue2[GH_REF], issue[GH_REF], '议题缓存读取不串到 PR 形状');
+});
+
 // —— MCP 公开契约 ——
 
 async function connect(t, f, options, capabilities, name = 'plain-client') {
@@ -318,6 +335,21 @@ test('get_pr_statuses 的 issue_refs 通道：与 PR 结果合并返回，校验
   const failure = await broken.callTool({ name: 'get_pr_statuses', arguments: { refs: [GH_REF], issue_refs: [GH_ISSUE_REF] } });
   assert.equal(failure.isError, true);
   assert.match(failure.structuredContent.statuses[GH_ISSUE_REF].error, /boom/, '服务异常时议题 ref 也带回逐条错误');
+});
+
+test('get_pr_statuses 单数组上限 200：恰 200 可用、超出整批拒绝（面板按 ≤200 分块的依据）', async t => {
+  const f = fixture(t);
+  const many = n => Array.from({ length: n }, (_, i) => `https://github.com/o/r/pull/${i + 1}`);
+  const client = await connect(t, f, { prStatus: {
+    fetchStatuses: async refs => Object.fromEntries(refs.map(ref => [ref, { status: 'open', fetched_at: 1 }]))
+  } }, appsCapability(), 'zcode');
+  const full = await client.callTool({ name: 'get_pr_statuses', arguments: { refs: many(200) } });
+  assert.equal(full.isError, undefined, '恰 200 条通过校验');
+  assert.equal(Object.keys(full.structuredContent.statuses).length, 200);
+  const over = await client.callTool({ name: 'get_pr_statuses', arguments: { refs: many(201) } });
+  assert.equal(over.isError, true, '超出单数组上限整批拒绝，面板必须按 ≤200 分块调用');
+  const overIssue = await client.callTool({ name: 'get_pr_statuses', arguments: { refs: [GH_REF], issue_refs: many(201) } });
+  assert.equal(overIssue.isError, true, 'issue_refs 同样受单数组上限约束');
 });
 
 test('模型侧 get_artifacts 列表与详情都不触发状态拉取', async t => {

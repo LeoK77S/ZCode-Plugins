@@ -129,7 +129,7 @@ ZCode UI 的启用条件为客户端应用版本至少 3.15.1，且 MCP 初始�
 
 应用版本优先取 Desktop 传给插件的 ZCODE_APP_VERSION；缺失时才使用 name=zcode 的 MCP initialize.clientInfo.version。本机 3.15.1.8093 实测握手仍报告 CLI 0.16.9，不能将它当作应用版本。未知、旧版或能力不足时关闭 UI 元数据和资源。页面 getHostVersion()/hostInfo.version 是 UI 桥接版本，不能拿它比较应用版本。页面会话上下文使用宿主的绑定身份，切换会话不能沿用上一会话数据。
 
-UI 依据是 [3.15.1 官方 UI_PLUGIN.md](https://github.com/zai-org/ZCode/blob/aac4755666d09fdcd70272fcf063c077a639015f/UI_PLUGIN.md)。实际使用已公开的 window.zcode MCP Apps 兼容桥，不增加页面 SDK 打包依赖。页面只调用 get_artifacts 的列表与详情模式；HTTP(S) 引用经宿主 openExternal 打开。宿主只允许 HTTP(S) 外链，会话 ID 与文件路径完整展示，不伪造可点击跳转。宿主尚未为目标会话连接 MCP 时可能返回 connection unavailable，按错误呈现；不通过发起模型轮掩盖连接问题。跨会话跳转不纳入本次交付；在系统文件管理器中定位 file 工件经面板专用本机定位通道交付（见"面板本机定位"）。
+UI 依据是 [3.15.1 官方 UI_PLUGIN.md](https://github.com/zai-org/ZCode/blob/aac4755666d09fdcd70272fcf063c077a639015f/UI_PLUGIN.md)。实际使用已公开的 window.zcode MCP Apps 兼容桥，不增加页面 SDK 打包依赖。页面数据读取走 get_artifacts 的列表与详情模式；PR/议题实时状态与本机文件定位走面板专用通道（见后文两节），模型侧 get_artifacts 不产生网络副作用。HTTP(S) 引用经宿主 openExternal 打开。宿主只允许 HTTP(S) 外链，会话 ID 与文件路径完整展示，不伪造可点击跳转。宿主尚未为目标会话连接 MCP 时可能返回 connection unavailable，按错误呈现；不通过发起模型轮掩盖连接问题。跨会话跳转不纳入本次交付；在系统文件管理器中定位 file 工件经面板专用本机定位通道交付（见"面板本机定位"）。
 
 ## 面板实时刷新（资源订阅）
 
@@ -139,13 +139,13 @@ server 宣告 `capabilities.resources.subscribe` 并注册单一信号资源 `su
 
 ## 面板 PR/议题实时状态（gh 通道）
 
-PR 条目的实时状态由插件 server 端经本机 `gh` CLI 子进程拉取（`gh pr view <url> --json state,isDraft,mergeable,additions,deletions`）；议题条目同机制拉取（`gh issue view <url> --json state,comments`，comments 实际为不含主帖的完整评论对象数组，服务端归并为评论条数）。通道为面板专用：`get_pr_statuses` 工具默认禁用，UI 能力协商成功后以 `visibility=['app']` 启用，模型侧不可见；`get_artifacts` 列表与详情保持纯本地读取，不产生网络副作用。拉取只挂在面板标准刷新时机（列表刷新按钮、订阅信号触发的 refresh、详情打开与刷新），不轮询；PR 与议题 refs 经同一次调用的 refs/issue_refs 两分支往返，面板单次刷新只发一次请求。
+PR 条目的实时状态由插件 server 端经本机 `gh` CLI 子进程拉取（`gh pr view <url> --json state,isDraft,mergeable,additions,deletions`）；议题条目同机制拉取（`gh issue view <url> --json state,comments`，comments 实际为不含主帖的完整评论对象数组，服务端归并为评论条数）。通道为面板专用：`get_pr_statuses` 工具默认禁用，UI 能力协商成功后以 `visibility=['app']` 启用，模型侧不可见；`get_artifacts` 列表与详情保持纯本地读取，不产生网络副作用。拉取只挂在面板标准刷新时机（列表刷新按钮、订阅信号触发的 refresh、详情打开与刷新），不轮询；PR 与议题 refs 经同一次调用的 refs/issue_refs 两分支往返，普通规模单次刷新只发一次请求。服务端校验单数组至多 200 条，超出整批拒绝；面板按 ≤200 分片多次调用并合并结果，避免大批量时所有条目失去状态。
 
 state/isDraft/mergeable 归并为五种展示状态 open/draft/conflict/merged/closed，优先级 merged、closed > conflict（mergeable=CONFLICTING）> draft > open。首页以状态图形替换默认 PR 图标、不出现状态文字，行尾右对齐显示增删行数（绿 +N、红 -M）；详情页显示状态文字与增删行数。
 
 议题 state 只有 OPEN/CLOSED，归并为 open/closed 两种。首页以状态图形（开放为绿色圆点、已关闭为紫色圆内对勾）替换默认议题图标、不出现状态文字，行尾右对齐显示会话气泡图形与评论数数字；详情页显示状态文字与评论数（不含主帖）。
 
-降级语义：拉取出错（gh 失败、未认证、非 GitHub URL）时该条目不显示状态与数字、logo 回默认；拉取超时（默认 5 秒上限）沿用旧数据正常显示并在行尾追加黄色钟表图形，tooltip 说明数据停留时间与超时原因；无旧数据可沿用时超时按出错处理。内存缓存 per-ref 带成功时间戳，新鲜期（默认 60 秒）内命中缓存不再起子进程；gh 失败清除该 ref 缓存，随后的超时不再回退旧数据；在途请求按 ref 合并为一次子进程调用。非 GitHub 域名的 ref 直接走出错路径，不起子进程。PR 与议题共用同一张 per-ref 缓存表与降级机制，同面板刷新中共存互不影响对方降级状态。契约测试以 gh 子进程桩与可控时钟覆盖成功、超时、出错、缓存命中、非 GitHub 跳过与 PR/议题共存，不依赖真实网络。
+降级语义：拉取出错（gh 失败、未认证、非 GitHub URL）时该条目不显示状态与数字、logo 回默认；拉取超时（默认 5 秒上限）沿用旧数据正常显示并在行尾追加黄色钟表图形，tooltip 说明数据停留时间与超时原因；无旧数据可沿用时超时按出错处理。内存缓存 per-ref 带成功时间戳，新鲜期（默认 60 秒）内命中缓存不再起子进程；gh 失败清除该 ref 缓存，随后的超时不再回退旧数据；在途请求按拉取规格与 ref 合并为一次子进程调用。非 GitHub 域名的 ref 直接走出错路径，不起子进程。PR 与议题共用同一套 per-ref 缓存与降级机制，缓存键带规格维度——同一 URL 同时作为 PR 与议题 ref 时两份快照形状互不污染，同面板刷新中共存互不影响对方降级状态。契约测试以 gh 子进程桩与可控时钟覆盖成功、超时、出错、缓存命中、非 GitHub 跳过与 PR/议题共存，不依赖真实网络。
 
 ## 面板本机定位（文件资源管理器）
 

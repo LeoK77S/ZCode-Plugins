@@ -67,8 +67,11 @@ function runGhProcess(args, { signal }) {
 export function createArtifactStatusService({
   runGh = runGhProcess, now = Date.now, timeoutMs = 5000, freshMs = 60000, maxConcurrent = 6
 } = {}) {
-  const cache = new Map();   // ref -> 快照（PR/议题 ref 天然不重叠，共用一张表）
-  const inFlight = new Map(); // ref -> 进行中的拉取 Promise（结果共享，超时不缓存）
+  // PR 与议题的 ref 可能是同一 URL，两分支快照形状不同；缓存与在途键必须带规格维度隔离，
+  // 仅靠 ref 本身无法区分 PR（gh pr view）与议题（gh issue view）的结果
+  const cacheKey = (spec, ref) => spec.code + '\u0000' + ref;
+  const cache = new Map();   // `${spec.code}\u0000${ref}` -> 快照
+  const inFlight = new Map(); // `${spec.code}\u0000${ref}` -> 进行中的拉取 Promise（结果共享，超时不缓存）
 
   // 拉取规格：同一机制下区分 gh 子命令、JSON 字段、错误码前缀与快照构造
   const SPECS = {
@@ -83,7 +86,8 @@ export function createArtifactStatusService({
   };
 
   function fetchOne(ref, spec) {
-    if (inFlight.has(ref)) return inFlight.get(ref);
+    const key = cacheKey(spec, ref);
+    if (inFlight.has(key)) return inFlight.get(key);
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), timeoutMs);
     const attempt = (async () => {
@@ -93,27 +97,27 @@ export function createArtifactStatusService({
         try { data = JSON.parse(stdout); }
         catch { throw new Error('gh 返回的不是有效 JSON'); }
         const snapshot = { ...spec.build(data), fetched_at: now() };
-        cache.set(ref, snapshot);
+        cache.set(key, snapshot);
         return snapshot;
       } catch (error) {
         if (controller.signal.aborted) {
           // 超时：有旧数据沿用（标记 stale），没有则按出错处理
-          const cached = cache.get(ref);
+          const cached = cache.get(key);
           if (cached) return { ...cached, stale: true, stale_reason: 'timeout' };
           return { error: `${spec.code}_timeout: 拉取超时（${timeoutMs}ms）且没有可沿用的旧数据` };
         }
-        cache.delete(ref);
+        cache.delete(key);
         return { error: `gh_failed: ${error.message}` };
-      } finally { inFlight.delete(ref); }
+      } finally { inFlight.delete(key); }
     })();
-    inFlight.set(ref, attempt);
+    inFlight.set(key, attempt);
     void attempt.finally(() => clearTimeout(timer)).catch(() => undefined);
     return attempt;
   }
 
   async function resolveRef(ref, spec) {
     if (!isGitHubRef(ref)) return { error: `${spec.code}_not_github: 仅支持 GitHub ${spec.noun}链接，非 GitHub 引用不拉取` };
-    const cached = cache.get(ref);
+    const cached = cache.get(cacheKey(spec, ref));
     if (cached && now() - cached.fetched_at < freshMs) return cached;
     return fetchOne(ref, spec);
   }

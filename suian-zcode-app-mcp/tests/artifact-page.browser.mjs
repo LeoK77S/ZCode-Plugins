@@ -3,7 +3,11 @@ import assert from 'node:assert/strict';
 // 使用真实浏览器与 MCP 工具连接执行；调用方提供 page 和已注入 window.zcode 的正式 HTML。
 export async function verifyArtifactPage(page) {
   await page.locator('#status').filter({ hasText: '已更新' }).waitFor();
-  assert.equal(await page.locator('details').count(), 4);
+  assert.equal(await page.locator('details').count(), 5);
+  // 五分组固定顺序：PR、议题、会话、文件、链接；fixture 无议题条目，issue 分组呈现空态
+  assert.deepEqual(await page.locator('details').evaluateAll(groups => groups.map(group => group.dataset.kind)),
+    ['pr', 'issue', 'session', 'file', 'link']);
+  assert.equal(await page.locator('details[data-kind="issue"] .group-empty').textContent(), '暂无议题');
   const pr = page.locator('details[data-kind="pr"]');
   assert.equal(await pr.locator('.count').textContent(), '1');
   await pr.locator('summary').click();
@@ -42,6 +46,21 @@ export async function verifyArtifactPage(page) {
   await page.locator('#detail-status').filter({ hasText: '已读取' }).waitFor();
   assert.match(await page.locator('#detail-content').textContent(), /查询失败.*gateway_unavailable/s);
   assert.doesNotMatch(await page.locator('#detail-content').textContent(), /已完成/);
+  await page.getByRole('button', { name: '返回列表', exact: true }).click();
+  assert.equal(await page.locator('#list-view').isVisible(), true);
+  // file 详情页的本机定位按钮：存在态可点击，缺失态灰化
+  await page.locator('.entry[data-kind="file"]:not(:has(.icon.missing))').first().click();
+  await page.locator('#detail-status').filter({ hasText: '已读取' }).waitFor();
+  const reveal = page.locator('#detail-content .reveal');
+  assert.equal(await reveal.count(), 1, 'file 详情页提供本机定位按钮');
+  assert.equal(await reveal.textContent(), '用文件资源管理器打开');
+  assert.equal(await reveal.isEnabled(), true, '存在态文件的定位按钮可点击');
+  await page.getByRole('button', { name: '返回列表', exact: true }).click();
+  await page.locator('.entry:has(.icon.missing)').first().click();
+  await page.locator('#detail-status').filter({ hasText: '已读取' }).waitFor();
+  const disabledReveal = page.locator('#detail-content .reveal');
+  assert.equal(await disabledReveal.count(), 1);
+  assert.equal(await disabledReveal.isDisabled(), true, '缺失态条目的定位按钮灰化');
   await page.getByRole('button', { name: '返回列表', exact: true }).click();
   assert.equal(await page.locator('#list-view').isVisible(), true);
   assert.match(await page.locator('#groups').textContent(), /<tag>/);
