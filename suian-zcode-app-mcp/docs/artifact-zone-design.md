@@ -37,7 +37,7 @@
 - 分叉时复制父会话工件作为子会话独立初始状态，之后各自维护、互不自动同步。普通新会话从空集合开始；恢复和压缩保留状态，回退聊天不自动回滚工件。
 - 外挂面板作为可选后续票，首版核心不依赖面板完成。
 - 在现有 app-mcp 中新增 get_artifacts/set_artifacts，只操作宿主上下文确定的当前会话。
-- 条目仅含 kind/ref/label/purpose；kind 固定为 pr、session、file、link 四类，按 ref 更新或移除。
+- 条目仅含 kind/ref/label/purpose；kind 固定为 pr、issue、session、file、link 五类，按 ref 更新或移除。
 - 投影尾部指整个模型请求的 messages 数组末端。
 - 保持独立插件、不修改 ZCode 的边界。若发行版没有合适入口，将上游支持列为前置依赖。
 
@@ -114,9 +114,10 @@
 | kind | 目标 | 用途说明 |
 | --- | --- | --- |
 | pr | PR URL | 创建、评审或后续查看相关 PR |
+| issue | 议题 URL | 跟踪任务关联的 GitHub Issue 等议题 |
 | session | ZCode 会话 ID | 父、子或关联会话的作用写入 purpose |
 | file | 文件绝对路径 | 包括本地规格、交接文档和其它关键文件 |
-| link | 其它网页 URL | 在线文档、Issue、部署页面等 |
+| link | 其它网页 URL | 在线文档、部署页面等 |
 
 ## 规格与实现方案
 

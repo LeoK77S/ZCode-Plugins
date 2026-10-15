@@ -32,10 +32,14 @@ test('startSession 创建后在首发前通知工件登记；登记失败保留�
   assert.equal(failed.calls.some(call => call.method === 'sendPrompt'), false);
 });
 async function fixture(overrides = {}) {
-  const calls = [], connections = [], policies = []; let archived = false, persistedMode = 'build';
+  const calls = [], connections = [], policies = []; let archived = false, pinned = false, persistedMode = 'build';
   const { createSessionController } = await import('../control.mjs');
   const controller = createSessionController({
-    reader: { readSession: () => ({ session: { workspace_path: workspace } }), listSessions: () => ({ sessions: [{ session_id: 'sess_new', archived }] }),
+    reader: { readSession: () => ({ session: { workspace_path: workspace } }),
+      listSessions: args => overrides.listSessions ? overrides.listSessions(args)
+        : { sessions: [{ session_id: args.query, archived, pinned }] },
+      listSessionStates: args => overrides.listSessionStates ? overrides.listSessionStates(args)
+        : [{ session_id: args.session_id, archived, pinned }],
       sessionMode: args => overrides.sessionMode ? overrides.sessionMode(args) : { mode: persistedMode, observed: [persistedMode] } },
     loadAuthorization: async () => { throw new Error('网关调用不得读取旧远控凭据'); },
     setTitlePolicy: async args => { policies.push(args); },
@@ -71,6 +75,7 @@ async function fixture(overrides = {}) {
         if (method === 'renameTask') return { taskId: params[0].taskId, workspacePath: workspace, title: params[0].title };
         if (method === 'getTaskSnapshot') return { meta: { taskId: 'sess_new', status: 'completed' }, runtime: { plan: null, backgroundBashJobs: [], pendingCommands: [], pendingPermissions: [] } };
         if (method === 'archiveTask' || method === 'unarchiveTask') { archived = method === 'archiveTask'; return { taskId: params[0].taskId }; }
+        if (method === 'setTaskPinned') { pinned = params[0].pinned; return { taskId: params[0].taskId, workspacePath: workspace, pinned }; }
         if (method === 'sendConversationCommandV4') return { commandId: params[0].envelope.commandId, status: 'accepted', revisionAtDecision: 1,
           result: { type: 'inputAccepted', inputId: params[0].envelope.commandId, delivery: 'startNow' } };
       } };
@@ -325,6 +330,70 @@ test('闲置归档与复原读回索引；二次检查出现活动时拒绝归�
   assert.equal(raced.calls.filter(c => c.method === 'archiveTask').length, 0);
 });
 
+test('置顶与取消置顶经网关写入并从索引读回确认，置顶与归档互不排斥', async () => {
+  const f = await fixture();
+  const pinned = await f.controller.pinSession({ session_id: 'sess_new' });
+  assert.deepEqual(pinned, { source: 'original_host', session_id: 'sess_new', workspace_path: workspace, pinned: true });
+  assert.deepEqual(f.calls.map(c => c.method), ['setTaskPinned']);
+  assert.deepEqual(f.calls[0].params, [{ taskId: 'sess_new', workspacePath: workspace, pinned: true }]);
+  assert.equal(f.connections[0].closed, true);
+  const unpinned = await f.controller.unpinSession({ session_id: 'sess_new', workspace_path: 'D:/FIXTURE' });
+  assert.deepEqual(unpinned, { source: 'original_host', session_id: 'sess_new', workspace_path: workspace, pinned: false });
+  assert.deepEqual(f.calls.at(-1).params, [{ taskId: 'sess_new', workspacePath: workspace, pinned: false }]);
+  assert.ok(f.connections.every(c => c.closed));
+  // 归档行也能置顶：读回时含归档行，pinned 状态独立确认
+  const archivedAndPinned = await fixture({ listSessionStates: () => [{ session_id: 'sess_new', archived: true, pinned: true }] });
+  assert.equal((await archivedAndPinned.controller.pinSession({ session_id: 'sess_new' })).pinned, true);
+});
+
+test('置顶写入失败或索引读回不一致时报错并释放连接，不猜默认值', async () => {
+  const failed = await fixture({ setTaskPinned: () => { throw new Error('fixture write failed'); } });
+  await assert.rejects(failed.controller.pinSession({ session_id: 'sess_new' }), /fixture write failed/);
+  assert.equal(failed.connections[0].closed, true);
+  const stale = await fixture({ listSessionStates: () => [{ session_id: 'sess_new', archived: false, pinned: false }] });
+  await assert.rejects(stale.controller.pinSession({ session_id: 'sess_new' }), /pin_not_confirmed/);
+  assert.equal(stale.calls.filter(c => c.method === 'setTaskPinned').length, 1);
+  assert.ok(stale.connections.every(c => c.closed));
+  const ambiguous = await fixture({ listSessionStates: () => [{ session_id: 'sess_new', archived: false, pinned: false }, { session_id: 'sess_new', archived: false, pinned: true }] });
+  await assert.rejects(ambiguous.controller.unpinSession({ session_id: 'sess_new' }), /pin_not_confirmed/);
+  const missing = await fixture({ listSessionStates: () => [] });
+  await assert.rejects(missing.controller.pinSession({ session_id: 'sess_new' }), /pin_not_confirmed/);
+});
+
+test('归档与复原读回改用精确查询：列表截断丢目标行时不再误报未确认', async () => {
+  // 旧读回走 listSessions 的子串 query + 前 200 条：标题引用目标 ID 的干扰行足够多时，
+  // 目标行被挤出结果集，归档已写入却误报 archive_not_confirmed。精确查询不受子串与分页影响。
+  const f = await fixture({ listSessions: () => ({ sessions: [{ session_id: 'sess_noise', archived: false }] }) });
+  assert.equal((await f.controller.archiveSession({ session_id: 'sess_new' })).archived, true);
+  assert.equal((await f.controller.restoreSession({ session_id: 'sess_new' })).archived, false);
+});
+
+test('归档读回零行、多行歧义或状态不符时报 archive_not_confirmed，不猜默认值', async () => {
+  const missing = await fixture({ listSessionStates: () => [] });
+  await assert.rejects(missing.controller.archiveSession({ session_id: 'sess_new' }), /archive_not_confirmed/);
+  const ambiguous = await fixture({ listSessionStates: () => [{ session_id: 'sess_new', archived: true, pinned: false }, { session_id: 'sess_new', archived: true, pinned: false }] });
+  await assert.rejects(ambiguous.controller.restoreSession({ session_id: 'sess_new' }), /archive_not_confirmed/);
+  const mismatched = await fixture({ listSessionStates: () => [{ session_id: 'sess_new', archived: false, pinned: false }] });
+  await assert.rejects(mismatched.controller.archiveSession({ session_id: 'sess_new' }), /archive_not_confirmed/);
+  for (const f of [missing, ambiguous, mismatched]) assert.ok(f.connections.every(c => c.closed));
+});
+
+test('归档与置顶读回把 workspace_key 透传到精确查询做跨工作区消歧', async () => {
+  const requested = [], lastArchiveMethod = { name: null };
+  const f = await fixture({
+    archiveTask: ([{ taskId }]) => { lastArchiveMethod.name = 'archiveTask'; return { taskId }; },
+    unarchiveTask: ([{ taskId }]) => { lastArchiveMethod.name = 'unarchiveTask'; return { taskId }; },
+    listSessionStates: args => {
+      requested.push(args);
+      return [{ session_id: 'sess_new', archived: lastArchiveMethod.name === 'archiveTask', pinned: true }];
+    }
+  });
+  await f.controller.archiveSession({ session_id: 'sess_new', workspace_key: 'D:\\work\\beta' });
+  await f.controller.pinSession({ session_id: 'sess_new', workspace_key: 'kb' });
+  assert.deepEqual(requested.map(args => args.workspace_key), ['D:\\work\\beta', 'kb']);
+  assert.ok(requested.every(args => args.session_id === 'sess_new' && typeof args.workspace_path === 'string'));
+});
+
 test('缺少运行态不能猜闲置，即使 force 也不在未完成检查时写入', async () => {
   const f = await fixture({ getTaskSnapshot: () => ({ meta: { taskId: 'sess_new', status: 'completed' } }) });
   await assert.rejects(f.controller.archiveSession({ session_id: 'sess_new', force: true }), /activity_unknown/);
@@ -506,7 +575,7 @@ test('一步工具轮并发归档多个会话全部成功，不再只有首个�
   const connections = [];
   const controller = createSessionController({
     reader: { readSession: () => ({ session: { workspace_path: workspace } }),
-      listSessions: ({ query }) => ({ sessions: [{ session_id: query, archived: sessions[query].archived }] }) },
+      listSessionStates: ({ session_id }) => [{ session_id, archived: sessions[session_id].archived, pinned: false }] },
     delay: async () => {},
     connect: async () => {
       const connection = { closed: false }; connections.push(connection);

@@ -37,7 +37,7 @@ lock/unlock/policy 写或查策略前，确认目标 session_id 在 CLI 会话�
 ## 工件区
 
 **工件引用（artifact reference）**:
-工件区中由 `kind/ref/label/purpose` 描述的资源定位记录，kind 固定为 pr、session、file、link 四类。Agent 按后续用途管理引用的生命周期。
+工件区中由 `kind/ref/label/purpose` 描述的资源定位记录，kind 固定为 pr、issue、session、file、link 五类。Agent 按后续用途管理引用的生命周期。
 _Avoid_: 文件正文、聊天摘要、待办事项（这些不等同于工件引用）
 
 **工件区（artifact zone）**:

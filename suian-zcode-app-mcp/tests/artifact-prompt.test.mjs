@@ -5,13 +5,13 @@ import { artifactSummary } from '../artifact-prompt.mjs';
 function summary(items, inheritance) {
   return artifactSummary({ revision: 7, items, inheritance, stats: {
     total: items.length,
-    by_kind: Object.fromEntries(['pr', 'session', 'file', 'link'].map(kind => [kind, items.filter(item => item.kind === kind).length]))
+    by_kind: Object.fromEntries(['pr', 'issue', 'session', 'file', 'link'].map(kind => [kind, items.filter(item => item.kind === kind).length]))
   } });
 }
 const entry = (kind, number, updated_at) => ({ kind, ref: kind === 'file' ? `D:/fixture/file-${number}.md` : `${kind}-${number}`,
   label: `${kind} ${number}`, purpose: '后续使用', updated_at });
 function rows(text) {
-  return text.split('\n').filter(line => /^\| (pr|session|file|link) \|/.test(line)).map(line => {
+  return text.split('\n').filter(line => /^\| (pr|issue|session|file|link) \|/.test(line)).map(line => {
     const [kind, ...cells] = line.slice(2, -2).split(' | ');
     const [label, purpose, ref] = cells.map(cell => JSON.parse(cell.slice(1, -1)));
     return { kind, label, purpose, ref };
@@ -39,6 +39,21 @@ test('时间序落败类别最多保底最新 3 条，再按全局时间补齐�
     assert.equal(entries.length, 3);
     assert.deepEqual(entries.map(item => item.label), [`${kind} 4`, `${kind} 3`, `${kind} 2`]);
   }
+  assert.equal(selected[0].ref, 'pr-29');
+  const times = new Map(items.map(item => [item.ref, item.updated_at]));
+  assert.ok(selected.every((item, i) => !i || times.get(selected[i - 1].ref) >= times.get(item.ref)));
+});
+
+test('统计行含 issue 计数，议题时间序落败时同样保底最新 3 条，总数仍为 20', () => {
+  const items = Array.from({ length: 30 }, (_, i) => entry('pr', i, 100 + i));
+  for (const kind of ['issue', 'session', 'file', 'link'])
+    items.push(...Array.from({ length: 5 }, (_, i) => entry(kind, i, 10 + i)));
+  const text = summary(items), selected = rows(text);
+  assert.match(text, /共 50 条；pr 30；issue 5；session 5；file 5；link 5/);
+  assert.equal(selected.length, 20);
+  assert.equal(selected.filter(item => item.kind === 'pr').length, 8);
+  for (const kind of ['issue', 'session', 'file', 'link'])
+    assert.deepEqual(selected.filter(item => item.kind === kind).map(item => item.label), [`${kind} 4`, `${kind} 3`, `${kind} 2`]);
   assert.equal(selected[0].ref, 'pr-29');
   const times = new Map(items.map(item => [item.ref, item.updated_at]));
   assert.ok(selected.every((item, i) => !i || times.get(selected[i - 1].ref) >= times.get(item.ref)));

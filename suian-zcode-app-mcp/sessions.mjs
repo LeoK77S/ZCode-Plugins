@@ -57,10 +57,45 @@ export function createSessionReader({ indexDbPath, sessionDbPath }) {
         }
         const where = conditions.join(' AND ');
         const total = db.prepare(`SELECT COUNT(*) AS n FROM tasks WHERE ${where}`).get(...args).n;
+        // 置顶优先展示（对齐 Desktop 端置顶区语义），置顶段内部与非置顶段各自按更新时间倒序
+        const sessions = db.prepare(`SELECT ${taskColumns} FROM tasks WHERE ${where}
+          ORDER BY pinned DESC, updated_at DESC, task_id, workspace_key LIMIT ? OFFSET ?`).all(...args, limit, offset).map(taskItem);
+        const next = offset + sessions.length;
+        return { source: 'local_tasks_index', sessions, total, next_offset: next < total ? next : null };
+      } finally { db.close(); }
+    },
+    // 置顶列表与 listSessions 同源；排序在置顶行集下等价（listSessions 多出的 pinned DESC 对全置顶行是常数）
+    listPinnedSessions({ limit = 20, offset = 0, workspace_path, include_archived = false } = {}) {
+      const db = openReadOnly(indexDbPath);
+      try {
+        const conditions = ['deleted=0', 'pinned=1'], args = [];
+        if (!include_archived) conditions.push('archived=0');
+        if (workspace_path !== undefined) {
+          db.function('normalize_workspace', normalizeWorkspace);
+          conditions.push('normalize_workspace(workspace_path)=?');
+          args.push(normalizeWorkspace(workspace_path));
+        }
+        const where = conditions.join(' AND ');
+        const total = db.prepare(`SELECT COUNT(*) AS n FROM tasks WHERE ${where}`).get(...args).n;
         const sessions = db.prepare(`SELECT ${taskColumns} FROM tasks WHERE ${where}
           ORDER BY updated_at DESC, task_id, workspace_key LIMIT ? OFFSET ?`).all(...args, limit, offset).map(taskItem);
         const next = offset + sessions.length;
         return { source: 'local_tasks_index', sessions, total, next_offset: next < total ? next : null };
+      } finally { db.close(); }
+    },
+    // 写后读回的精确定位：按 task_id 精确匹配（子串/分页无关），含归档行、排除删除行；
+    // 跨工作区同 ID 多行由调用方判歧义，不在此静默取舍
+    listSessionStates({ session_id, workspace_path, workspace_key }) {
+      const db = openReadOnly(indexDbPath);
+      try {
+        const conditions = ['task_id=?', 'deleted=0'], args = [session_id];
+        if (workspace_key !== undefined) { conditions.push('workspace_key=?'); args.push(workspace_key); }
+        if (workspace_path !== undefined) {
+          db.function('normalize_workspace', normalizeWorkspace);
+          conditions.push('normalize_workspace(workspace_path)=?');
+          args.push(normalizeWorkspace(workspace_path));
+        }
+        return db.prepare(`SELECT ${taskColumns} FROM tasks WHERE ${conditions.join(' AND ')}`).all(...args).map(taskItem);
       } finally { db.close(); }
     },
     readSession({ session_id, limit = 30, before_message_id, workspace_key }) {

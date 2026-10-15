@@ -1,6 +1,6 @@
 # 会话写工具
 
-六个写工具通过公共远控客户端附着原 ZCode Desktop Host。任务操作调用 `zcode-task`，`send_message` 与 `compact_session` 通过 `zcode-agent` 的 v4 命令分别提交消息和上下文压缩请求；不启动独立 CLI app-server、不直接写会话数据库。读取与分页仍按 [读取契约](./readonly-tools.md)。
+八个写工具通过公共远控客户端附着原 ZCode Desktop Host。任务操作调用 `zcode-task`，`send_message` 与 `compact_session` 通过 `zcode-agent` 的 v4 命令分别提交消息和上下文压缩请求；不启动独立 CLI app-server、不直接写会话数据库。读取与分页仍按 [读取契约](./readonly-tools.md)。
 
 ## 连接与授权
 
@@ -14,7 +14,7 @@
 node "{{plugin_root}}/cli.mjs" --save-authorization
 ```
 
-这条兼容命令保存后退出，不启动 MCP。链接不放到 args/env/日志；--auth-data-dir 或 ZCODE_APP_MCP_AUTH_DATA_DIR 只指定旧密文位置，不影响网关调用。两个读取工具始终无需网关。
+这条兼容命令保存后退出，不启动 MCP。链接不放到 args/env/日志；--auth-data-dir 或 ZCODE_APP_MCP_AUTH_DATA_DIR 只指定旧密文位置，不影响网关调用。三个读取工具始终无需网关。
 
 ## 输入与输出
 
@@ -90,7 +90,7 @@ MCP 开始执行后，工具等待 Host 接受提交的 ACK 即返回并释放�
 
 发信不改变目标会话的权限模式：恢复链路不携带 `mode`，权限保持会话现状；消息也不携带模型选择覆盖。
 
-所有工具拒绝未知参数和空白标题/信息。MCP 注解中两个读取工具保持 `readOnlyHint:true`；六个写工具为 false，创建、发信和压缩请求不是幂等操作。
+所有工具拒绝未知参数和空白标题/信息。MCP 注解中三个读取工具（含 list_pinned_sessions）保持 `readOnlyHint:true`；八个写工具为 false，创建、发信和压缩请求不是幂等操作，置顶与取消置顶声明幂等。
 
 ## 上下文压缩
 
@@ -142,6 +142,26 @@ compact 尚在排队时，guide 仍可能先被当前轮消费；未消费而改
 归档前读两次 Host 快照，捕获二次检查时新出现的活动。该快照接口会恢复运行时、刷新索引，属于写工具流程。宿主 archiveTask 不提供条件写入，最终检查与归档之间仍有状态变化窗口，本工具不宣称原子保证。
 
 归档只隐藏会话，不停止后台/子代理，也不完成任务。复原不发信或启动新工作。成功读回本机索引的 archived:true/false；未确认则明确报错。原因仅含类型、ID、状态和数量，不回传任务输出。
+
+## 置顶管理
+
+`pin_session`、`unpin_session` 的目标参数同改名；`list_pinned_sessions` 只读本机索引，不连接网关。
+
+```json
+{"name":"pin_session","arguments":{"session_id":"sess_example"}}
+{"name":"unpin_session","arguments":{"session_id":"sess_example"}}
+{"name":"list_pinned_sessions","arguments":{"include_archived":true}}
+```
+
+写路径经公共网关调用 `zcode-task` 的 `setTaskPinned`（官方实现写 tasks-index.sqlite 后发 `task_pinned`/`task_unpinned` 列表变更事件），随后按 task_id 从本机任务索引精确读回置顶位（不受标题子串与列表分页影响），对齐归档的写后读回纪律。成功返回 `source:original_host`、`session_id`、`workspace_path`、`pinned`；读回不一致或多行歧义报 `pin_not_confirmed`，不猜默认值。
+
+**置顶与归档是正交状态**：置顶只改变列表展示归属，不影响会话运行与历史；归档会话也可置顶或取消置顶（读回时包含归档行），unpin 不改变归档状态。置顶是幂等操作，重复置顶同一会话结果一致。
+
+错误来源分两段：省略 workspace_path 时先从本机索引与历史定位，会话不在本机索引报本地 `session_not_found`，请求不触达 Host；定位通过后 Host 侧解析失败（如「列表 mutation 无法解析唯一 source」）报 Host 业务层错误。两种错误都明确返回、不静默成功。跨工作区同 ID 用 workspace_key 消歧；目标工作区必须在网关连接的 Desktop 窗口中打开。
+
+`list_pinned_sessions` 列出 `pinned=1` 且未删除的行，默认排除归档、`include_archived:true` 可显式包含；`workspace_path` 过滤、limit/offset 分页与 `list_sessions` 同规则，行结构相同。该工具与 list_sessions 一样返回持久化状态，不要求 Desktop 在线。
+
+宿主能力依据与 2026-10-15 网关探针实测（读路径真实返回、写路径业务错误证明可达、未写真实会话）见[脱敏证据](./pin-session-probe-evidence.json)。
 
 ## 消息来源格式
 

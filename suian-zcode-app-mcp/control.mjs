@@ -79,11 +79,20 @@ export function createSessionController({ reader, gatewayConfigPath, connect = c
     }
     return [];
   };
+  // 读回按 task_id 精确定位（含归档行），不受列表子串查询与前 200 条截断影响；
+  // 与 pinnedResult 同一精确路径，归档状态与置顶分别确认
   const archiveResult = (args, remote, archived) => {
-    const rows = reader.listSessions({ query: args.session_id, workspace_path: remote.workspacePath, include_archived: true, limit: 200 }).sessions
-      .filter(row => row.session_id === args.session_id && (args.workspace_key === undefined || row.workspace_key === args.workspace_key));
+    const rows = reader.listSessionStates({ session_id: args.session_id, workspace_path: remote.workspacePath,
+      ...(args.workspace_key === undefined ? {} : { workspace_key: args.workspace_key }) });
     if (rows.length !== 1 || rows[0].archived !== archived) throw new Error('archive_not_confirmed: 索引读回未确认归档状态，请检查后再操作');
     return { source: 'original_host', session_id: args.session_id, workspace_path: remote.workspacePath, archived };
+  };
+  // 置顶与归档正交：读回按 task_id 精确定位（含归档行），只确认 pinned 位，不把归档当失败
+  const pinnedResult = (args, remote, pinned) => {
+    const rows = reader.listSessionStates({ session_id: args.session_id, workspace_path: remote.workspacePath,
+      ...(args.workspace_key === undefined ? {} : { workspace_key: args.workspace_key }) });
+    if (rows.length !== 1 || rows[0].pinned !== pinned) throw new Error('pin_not_confirmed: 索引读回未确认置顶状态，请检查后再操作');
+    return { source: 'original_host', session_id: args.session_id, workspace_path: remote.workspacePath, pinned };
   };
   return {
     async getSessionStatus(args) {
@@ -260,6 +269,18 @@ export function createSessionController({ reader, gatewayConfigPath, connect = c
       return attached(targetOf(args), async remote => {
         await remote.call('zcode-task', 'unarchiveTask', [{ taskId: args.session_id, workspacePath: remote.workspacePath }]);
         return archiveResult(args, remote, false);
+      });
+    },
+    async pinSession(args) {
+      return attached(targetOf(args), async remote => {
+        await remote.call('zcode-task', 'setTaskPinned', [{ taskId: args.session_id, workspacePath: remote.workspacePath, pinned: true }]);
+        return pinnedResult(args, remote, true);
+      });
+    },
+    async unpinSession(args) {
+      return attached(targetOf(args), async remote => {
+        await remote.call('zcode-task', 'setTaskPinned', [{ taskId: args.session_id, workspacePath: remote.workspacePath, pinned: false }]);
+        return pinnedResult(args, remote, false);
       });
     }
   };

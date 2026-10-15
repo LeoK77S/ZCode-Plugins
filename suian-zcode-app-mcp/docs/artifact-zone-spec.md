@@ -1,6 +1,6 @@
 # 工件区 demo 规格
 
-**状态**：2026-10-12 已在本地实施两项工具、摘要、历史快照和原生侧栏；开发分支增加分组列表、统一详情、服务记录时间和自动创建关系，并取消容量上限。原版隔离 Desktop 接线已验证，改版通过真实 MCP＋浏览器验证；当前安装副本与真实模型主动维护评估待验收。验证范围和宿主连接限制见 [开发验证](artifact-demo-verification.md)。
+**状态**：2026-10-12 已在本地实施两项工具、摘要、历史快照和原生侧栏；开发分支增加分组列表、统一详情、服务记录时间和自动创建关系，并取消容量上限；2026-10-15 面板增加 PR 实时状态与增删行数（gh 通道），详情页增加"用文件资源管理器打开"（本机定位通道）。原版隔离 Desktop 接线已验证，改版通过真实 MCP＋浏览器验证；当前安装副本与真实模型主动维护评估待验收。验证范围和宿主连接限制见 [开发验证](artifact-demo-verification.md)。
 
 阶段决定见 [ADR 0002](adr/0002-artifact-demo-summary.md)，分叉运行证据见 [宿主分叉核查](artifact-host-fork-audit.md)。原先的严格投影目标保留在 [ADR 0001](adr/0001-session-artifact-projection.md) 与 [#27 原始规格](https://github.com/ONEGAYI/ZCode-Plugins/issues/27)，作为完整版后续工作。
 
@@ -24,7 +24,7 @@ Agent 需要维护当前任务相关的 PR、关联会话和关键文件。demo 
 
 ## 条目与时间
 
-写入条目仅提供 kind、ref、label、purpose。kind 固定为 pr、session、file、link；其它三项为非空字符串。ref 是本会话内精确匹配的唯一更新键，不做路径 realpath 或 URL 别名归一化。
+写入条目仅提供 kind、ref、label、purpose。kind 固定为 pr、issue、session、file、link；其它三项为非空字符串。ref 是本会话内精确匹配的唯一更新键，不做路径 realpath 或 URL 别名归一化。
 
 服务在新条目上记录 created_at、updated_at（Unix 毫秒）。内容实际变化时保留创建时间并更新更新时间；相同 upsert 不改变时间或 revision。旧条目没有历史时间记录时详情返回 null，修改旧条目也不补造创建时间。时间随历史快照保存，不取文件修改时间冒充工件时间。
 
@@ -32,12 +32,15 @@ Agent 需要维护当前任务相关的 PR、关联会话和关键文件。demo 
 
 session 条目读取时附带 session_title：以条目 ref（会话 ID）在任务索引实时反查的当前列表名称。任务索引是会话列表名称的权威源（renameTask 先写索引，CLI 会话库是可能滞后的同步副本），会话改名后重新读取即得新名；反查结果不写回存储、不推高 revision。同 task_id 跨工作区多行时取 updated_at 最新一行。反查不到（未入索引、已删除或标题为空）或索引库不可用（缺库、繁忙）时省略该字段并向 stderr 记一行降级诊断（仅库故障时），label 仍为登记时的标注；UserPromptSubmit 简表与原生侧栏的名称显示优先使用 session_title，无该字段时回退 label。
 
+file 条目读取时附带实时探测标记：server 在 get_artifacts 列表与详情读取路径上对路径做 stat 判定（面板不自行探测），目录附 is_directory，路径不存在附 missing；探测结果不写回存储、不推高 revision，删除或恢复后重新读取即得最新状态。缺失判定仅由路径不存在（ENOENT）触发；权限、网络盘等其它 stat 错误按未知处理——省略标记并呈现为存在态，单条探测异常不阻塞 get_artifacts 返回。原生侧栏据此区分三种视觉态：文件夹使用文件夹图标、普通文件使用文件图标、缺失条目按原图标样式灰化，首页与详情一致。
+
 | kind | ref | purpose 的用途 |
 | --- | --- | --- |
 | pr | PR 的 HTTP(S) URL | 说明后续创建、评审或接续查看的用途 |
+| issue | 议题的 HTTP(S) URL | 跟踪任务关联的 GitHub Issue 等议题 |
 | session | ZCode 会话 ID | 说明父、子或其它关联会话的作用 |
 | file | 文件绝对路径 | 定位本地规格、文档或其它交付物 |
-| link | 其它 HTTP(S) URL | 定位在线文档、Issue 或部署页面 |
+| link | 其它 HTTP(S) URL | 定位在线文档、部署页面 |
 
 工件存储取消原有 20 条及 12000 个 Unicode 码点上限，不截断或自动删除条目。20 条/9000 字符只限制 UserPromptSubmit 自动注入的简表。宿主传输仍有自身大小约束；列表提供分页，GUI 每次读取 50 条，总数不受单页限制。发生跨页版本变化时明确要求重新刷新，不展示混合版本。
 
@@ -47,7 +50,7 @@ session 条目读取时附带 session_title：以条目 ref（会话 ID）在任
 
 **get_artifacts 列表模式**：省略 ref。每次读取最新 revision、items 和 stats，不把旧摘要或进程缓存作为当前状态。省略 offset/limit 返回完整列表；传入任一分页参数时 offset 默认 0、limit 默认 50，单页最多 200 条，next_offset 为后续偏移或 null，stats 始终为总数。普通未写入会话返回 revision 0、空列表和零统计，不为普通读取创建工件写存储。
 
-**get_artifacts 详情模式**：填写当前会话已登记的精确 ref，不能混用分页参数。返回 revision、item 与 hyperlink；pr/link 的 hyperlink 是原始 HTTP(S) URL，其它类型为 null。不返回整份列表。不存在的 ref 返回 artifact_not_found，不跨会话任意读取。
+**get_artifacts 详情模式**：填写当前会话已登记的精确 ref，不能混用分页参数。返回 revision、item 与 hyperlink；pr/link/issue 的 hyperlink 是原始 HTTP(S) URL，其它类型为 null。不返回整份列表。不存在的 ref 返回 artifact_not_found，不跨会话任意读取。
 
 会话详情额外返回 session：每次调用原 Host getTaskSnapshot，核对目标 ID 与状态，附实时标题、工作区、状态、等待交互标记、会话创建/更新时间和 queried_at。请求只保留最近一条历史，不向模型或页面返回聊天正文。原 Host 此接口可能恢复会话并同步索引，因此 get 的工具声明不能是纯只读；插件不发送提示词，不调用 sampling 或归档接口。查询失败在 session.error 明确返回，保留工件基本详情，不使用旧状态或本机索引状态替代。GUI 与模型使用相同参数与结果。
 
@@ -55,7 +58,7 @@ session 条目读取时附带 session_title：以条目 ref（会话 ID）在任
 
 版本比较、应用全部变化和保存必须在同一 SQLite 事务内完成。变化才使 revision 加一，无变化保持原版本。版本冲突或无效批次均不产生部分结果。
 
-成功回执返回 revision、changed、upserted、removed 和 stats，不回传完整列表。stats 包含 total 和 pr/session/file/link 的各类条数。失败回执保留稳定错误码与必要的版本信息，不附带整份旧状态。
+成功回执返回 revision、changed、upserted、removed 和 stats，不回传完整列表。stats 包含 total 和 pr/issue/session/file/link 的各类条数。失败回执保留稳定错误码与必要的版本信息，不附带整份旧状态。
 
 缺少继承快照时，get/UI 明确呈现 snapshot_missing 诊断，并提供子会话可独立维护的状态。诊断不作为 get/set 的永久失败条件；后续工件操作正常进行，不把未继承的空状态称为准确继承。
 
@@ -102,11 +105,11 @@ UserPromptSubmit 生成一句登记入口、当次分类统计和部分工件简
 
 选择和裁剪只影响本次上下文，不修改条目、时间、顺序或 revision，不把未展示解释为已删除。同一轮工具续跑与重试保留旧摘要仍是 demo 接受的行为，简表可能已过时，最新完整状态以 get_artifacts 为准。
 
-入口为：“请在创建、接手或替换任务相关的 PR、会话、文件或链接时及时登记或更新工件，详见 mcp__plugin_suian-zcode-app-mcp_suian-zcode-app__set_artifacts。”该名称来自原生插件 manifest 和 MCP server 名经宿主命名规则组合。get_artifacts 工具描述说明提交时摘要可能已过时，需要完整列表、最新 revision 或处理冲突时调用 get；不在自动摘要中重复这些规则。
+入口为：“请在创建、接手或替换任务相关的 PR、议题、会话、文件或链接时及时登记或更新工件，详见 mcp__plugin_suian-zcode-app-mcp_suian-zcode-app__set_artifacts。”该名称来自原生插件 manifest 和 MCP server 名经宿主命名规则组合。get_artifacts 工具描述说明提交时摘要可能已过时，需要完整列表、最新 revision 或处理冲突时调用 get；不在自动摘要中重复这些规则。
 
 详细管理规则放在 get/set 工具描述中：
 
-- 创建或接手当前任务相关的 PR、关联会话、关键文件时，判断后续用途后登记；不把所有访问的资源都加入工件。
+- 创建或接手当前任务相关的 PR、议题、关联会话、关键文件或链接时，判断后续用途后登记；不把所有访问的资源都加入工件。
 - 同一 ref 增量 upsert，purpose 简短说明用途；不复制正文、不编造引用。
 - set 携带最近读取或工具回执的 revision；冲突时先 get，再重新判断变化，不用旧列表覆盖新状态。
 - 被替代、失效且无用途的引用应移除；完成但仍需交付或接续查看的引用继续保留。
@@ -116,7 +119,7 @@ UserPromptSubmit 生成一句登记入口、当次分类统计和部分工件简
 
 ## 原生只读侧栏与版本条件
 
-demo 包含 Desktop 本地会话的原生工件侧栏，按 pr/session/file/link 显示可折叠的垂直列表，分组间使用分割线，折叠后仍显示数量。不同类型使用不同图标，会话按已确认的创建关系区分方向。刷新及详情返回保留分组折叠状态。条目标签按文本呈现，长标题截断，完整内容放在详情中。
+demo 包含 Desktop 本地会话的原生工件侧栏，按 pr/issue/session/file/link 显示可折叠的垂直列表（分组顺序：PR、议题、会话、文件、链接），分组间使用分割线，折叠后仍显示数量。不同类型使用不同图标，会话按已确认的创建关系区分方向，file 按读取时的探测标记区分文件夹、普通文件与路径缺失（缺失为原图标灰化，见"条目与时间"）。刷新及详情返回保留分组折叠状态。条目标签按文本呈现，长标题截断，完整内容放在详情中。
 
 点击条目进入面板内详情，显示完整用途、引用、超链接、工件创建/更新时间。进入会话详情或刷新详情，每次查询原 Host，并显示查询时间或错误；返回列表不重新发起状态查询。查询未结束时返回列表，迟到响应不能重新打开详情。页面不编辑工件、不发送模型请求。
 
@@ -126,7 +129,7 @@ ZCode UI 的启用条件为客户端应用版本至少 3.15.1，且 MCP 初始�
 
 应用版本优先取 Desktop 传给插件的 ZCODE_APP_VERSION；缺失时才使用 name=zcode 的 MCP initialize.clientInfo.version。本机 3.15.1.8093 实测握手仍报告 CLI 0.16.9，不能将它当作应用版本。未知、旧版或能力不足时关闭 UI 元数据和资源。页面 getHostVersion()/hostInfo.version 是 UI 桥接版本，不能拿它比较应用版本。页面会话上下文使用宿主的绑定身份，切换会话不能沿用上一会话数据。
 
-UI 依据是 [3.15.1 官方 UI_PLUGIN.md](https://github.com/zai-org/ZCode/blob/aac4755666d09fdcd70272fcf063c077a639015f/UI_PLUGIN.md)。实际使用已公开的 window.zcode MCP Apps 兼容桥，不增加页面 SDK 打包依赖。页面只调用 get_artifacts 的列表与详情模式；HTTP(S) 引用经宿主 openExternal 打开。宿主只允许 HTTP(S) 外链，会话 ID 与文件路径完整展示，不伪造可点击跳转。宿主尚未为目标会话连接 MCP 时可能返回 connection unavailable，按错误呈现；不通过发起模型轮掩盖连接问题。跨会话跳转、系统打开文件等不纳入本次交付。
+UI 依据是 [3.15.1 官方 UI_PLUGIN.md](https://github.com/zai-org/ZCode/blob/aac4755666d09fdcd70272fcf063c077a639015f/UI_PLUGIN.md)。实际使用已公开的 window.zcode MCP Apps 兼容桥，不增加页面 SDK 打包依赖。页面数据读取走 get_artifacts 的列表与详情模式；PR/议题实时状态与本机文件定位走面板专用通道（见后文两节），模型侧 get_artifacts 不产生网络副作用。HTTP(S) 引用经宿主 openExternal 打开。宿主只允许 HTTP(S) 外链，会话 ID 与文件路径完整展示，不伪造可点击跳转。宿主尚未为目标会话连接 MCP 时可能返回 connection unavailable，按错误呈现；不通过发起模型轮掩盖连接问题。跨会话跳转不纳入本次交付；在系统文件管理器中定位 file 工件经面板专用本机定位通道交付（见"面板本机定位"）。
 
 ## 面板实时刷新（资源订阅）
 
@@ -134,13 +137,31 @@ server 宣告 `capabilities.resources.subscribe` 并注册单一信号资源 `su
 
 页面把订阅只当"有变化"信号：收到通知后重拉列表，停留在详情视图时同步重拉当前详情，数据一律经 `get_artifacts` 工具按当前会话拉取（不产生模型请求、不写聊天历史）；refresh 进行中收到新信号合并为完成后补拉一次。桥缺 subscribeResource/onResourceUpdated（旧宿主或无桥环境）时静默跳过订阅，不产生新报错，手动刷新行为不变。宿主侧订阅由 agent 按 (server, uri) 引用计数聚合转发，多面板共享订阅不因单面板销毁而互斥退订。研究与上游源码依据见 [实时刷新研究](artifact-live-refresh-research.md)，验证证据见 [实时刷新证据](artifact-live-refresh-evidence.json)。真实 Desktop 端到端实测（自动刷新时延、切 tab 连续性）为遗留验收项。
 
+## 面板 PR/议题实时状态（gh 通道）
+
+PR 条目的实时状态由插件 server 端经本机 `gh` CLI 子进程拉取（`gh pr view <url> --json state,isDraft,mergeable,additions,deletions`）；议题条目同机制拉取（`gh issue view <url> --json state,comments`，comments 实际为不含主帖的完整评论对象数组，服务端归并为评论条数）。通道为面板专用：`get_pr_statuses` 工具默认禁用，UI 能力协商成功后以 `visibility=['app']` 启用，模型侧不可见；`get_artifacts` 列表纯本地读取，详情的会话条目仍查询原 Host 实时状态（可能恢复会话并同步索引），两者都不触发本通道的 GitHub 拉取。拉取只挂在面板标准刷新时机（列表刷新按钮、订阅信号触发的 refresh、详情打开与刷新），不轮询；PR 与议题 refs 经同一次调用的 refs/issue_refs 两分支往返，普通规模单次刷新只发一次请求。服务端校验单数组至多 200 条，超出整批拒绝；面板按 ≤200 分片多次调用并合并结果，避免大批量时所有条目失去状态。
+
+state/isDraft/mergeable 归并为五种展示状态 open/draft/conflict/merged/closed，优先级 merged、closed > conflict（mergeable=CONFLICTING）> draft > open。首页以状态图形替换默认 PR 图标、不出现状态文字，行尾右对齐显示增删行数（绿 +N、红 -M）；详情页显示状态文字与增删行数。
+
+议题 state 只有 OPEN/CLOSED，归并为 open/closed 两种。首页以状态图形（开放为绿色圆点、已关闭为紫色圆内对勾）替换默认议题图标、不出现状态文字，行尾右对齐显示会话气泡图形与评论数数字；详情页显示状态文字与评论数（不含主帖）。
+
+降级语义：拉取出错（gh 失败、未认证、非 GitHub URL）时该条目不显示状态与数字、logo 回默认；面板到工具的整次调用失败（callTool 拒绝或 isError 响应）同样把本批条目按出错处理——清状态与数字、logo 回默认，不沿用旧快照冒充有效，下一次成功刷新后恢复显示；拉取超时（默认 5 秒上限）沿用旧数据正常显示并在行尾追加黄色钟表图形，tooltip 说明数据停留时间与超时原因；无旧数据可沿用时超时按出错处理。内存缓存 per-ref 带成功时间戳，新鲜期（默认 60 秒）内命中缓存不再起子进程；gh 失败清除该 ref 缓存，随后的超时不再回退旧数据；在途请求按拉取规格与 ref 合并为一次子进程调用。非 GitHub 域名的 ref 直接走出错路径，不起子进程。PR 与议题共用同一套 per-ref 缓存与降级机制，缓存键带规格维度——同一 URL 同时作为 PR 与议题 ref 时两份快照形状互不污染，同面板刷新中共存互不影响对方降级状态。契约测试以 gh 子进程桩与可控时钟覆盖成功、超时、出错、缓存命中、非 GitHub 跳过与 PR/议题共存，不依赖真实网络；面板侧通道失败回退以页面源码特征断言固化（UI 无浏览器测试设施），真机验收另行留证。
+
+## 面板本机定位（文件资源管理器）
+
+file 条目的详情页提供"用文件资源管理器打开"操作：文件条目打开所在目录并选中该文件，文件夹条目打开该文件夹本身（Linux 无统一选中语法，尽力打开所在目录）。宿主桥 openLink 只放行 HTTP(S)、`file://` 被明确拒绝，因此该操作经页面 callTool 调用面板专用工具 `reveal_artifact`，由 server 进程起系统命令：Windows `explorer /select,<path>`（文件）与 `explorer <path>`（文件夹）、macOS `open -R`（文件）与 `open`（文件夹）、Linux `xdg-open`。
+
+工具默认禁用，UI 能力协商成功后以 `visibility=['app']` 启用，模型侧不可见；会话定位复用 caller 唯一定位机制。权限边界是本通道的核心：参数只收 ref，server 在当前会话工件表中解析 ref，仅命中 file 条目才执行——未登记路径（含其它会话登记的工件）与非 file 条目直接拒绝，不接受任意路径参数。执行前自行 stat 探测：路径不存在（ENOENT）拒绝，权限等其它错误与读取探测一致按存在降级、沿用文件语义。缺失态条目（读取时的 missing 标记）按钮灰化不可点击。
+
+成功判定：explorer.exe 把操作委托给已运行的资源管理器实例后立即退出，退出码 1 是常态而非失败（microsoft/WSL#6565），成功与否无法从退出码区分——可靠性来自执行前的 stat 探测，退出码 0/1 均视为已启动；open 与 xdg-open 是行为正常的控制台程序，仅退出码 0 视为成功。预检 stat 与命令执行共用同一超时预算：网络挂载等场景 stat 无界悬挂时整个操作仍在期限内按 reveal_timeout 失败回报，超时判决后迟到的 stat 结果不继续启动文件管理器。命令无法启动、非零退出（超出平台接受集）或超时（默认 10 秒上限）按 reveal_failed/reveal_timeout 回报，面板在详情页行内展示错误，不静默；详情页打开调用在途时用户返回列表或切换条目，迟到回执不写入其它条目的状态行。契约测试以子进程桩按平台注入验证三个平台的命令形态与退出码语义，非当前平台分支不执行；预检悬挂与迟到结果另有独立用例；Windows 真机打开行为另行烟测。
+
 ## 模块与验证入口
 
 现有 server/cli 提供工件注册和外置配置接线；工件存储模块负责状态、时间、创建关系、快照和幂等初始化；原生 Hook 入口负责摘要与 Stop 快照；UI 资源负责分组和详情呈现。复用 caller、现有 controller 和配置入口，不为本功能重构公共网关。
 
 以真实隔离 SQLite 和 MCP 公开工具为主要契约测试入口。Hook 与 UI 通过正式注册入口验证，不只测试内部 formatter。
 
-1. 当前会话四类条目的增改删、最新 get、统计、CAS 冲突、批次原子性、无变化；超过原数量/字符限制仍可保存，分页没有总条数限制。
+1. 当前会话五类条目的增改删、最新 get、统计、CAS 冲突、批次原子性、无变化；超过原数量/字符限制仍可保存，分页没有总条数限制。
 2. 独立连接/进程的并发写入、重启持久化、普通空状态读取、存储错误不伪装为空。
 3. 实际 UserPromptSubmit 简表最多 20 条/整体 9000 码点，时间排序、各类最多 3 条保底及字符不足至少 1 条；覆盖精确边界、JSON 转义、emoji、旧时间未知、空状态、数量提示和存储不变。下一次提交重新生成，同轮旧摘要仍允许保留。
 4. A 完成→父变 B→从 A 分叉→子首次读 A；无变化断点仍映射，同轮多 Stop 使用所选消息版本。
@@ -149,6 +170,8 @@ server 宣告 `capabilities.resources.subscribe` 并注册单一信号资源 `su
 7. 服务时间、无变化时间不更新、旧时间未知、历史快照保留元信息；创建关系首发前登记、后续维护保留方向、登记失败保留创建回执。
 8. 用固定任务评估真实 Agent 的主动登记、增量维护、保留交付物和清理失效引用，记录失败与成本边界。
 9. 资源订阅契约：能力宣告与清单、read 按上下文解析与缺上下文降级、宿主扩展参数容忍、实际变更推送 updated、相同内容与退订后不推送、store 层 notify 注入条件（见 artifact-resources 契约测试）。
+10. PR/议题状态通道契约：面板专用工具的可见性门控（普通客户端不可见、UI 客户端 visibility=app）、refs/issue_refs 两分支逐 ref 结果与单条错误不拖垮整体、模型侧 get_artifacts 不触发拉取；服务层成功归并、超时沿用旧数据与无旧数据降级、失败清缓存、新鲜期缓存命中、非 GitHub 不起子进程、在途合并、议题与 PR 同服务共存互不影响（见 artifact-status 契约测试）。
+11. 本机定位通道契约：面板专用工具的可见性门控与参数只收 ref、未登记路径/非 file 条目/缺失路径拒绝且不触达打开服务、其它会话登记不互通、打开失败与超时行内可读；服务层三个平台命令形态以子进程桩按 platform 注入验证、win32 explorer 退出码 0/1 接受语义、spawn 失败与非 ENOENT stat 降级（见 artifact-reveal 契约测试）。
 
 新增可执行行为遵循 TDD，先观察公共契约测试暴露缺口，再实现。长耗时命令首次落盘记录日志和退出码，后续从日志复核。当前隔离能力探针不是生产工具、冷恢复或 UI 验收。
 
