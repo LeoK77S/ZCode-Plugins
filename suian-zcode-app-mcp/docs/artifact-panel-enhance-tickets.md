@@ -1,6 +1,6 @@
 # 工件面板增强开票索引
 
-**状态**：2026-10-15 已按用户发布指令创建 #67–#71（均带 enhancement 标签），编号已回填本地草稿。实施未开始；实施遵循仓库开发纪律。上一轮工件区开票见 [工件区开票索引](artifact-zone-tickets.md)（AZ 系列，#27–#31、#36）。
+**状态**：2026-10-15 五票已全部实施并合入 [PR #72](https://github.com/ONEGAYI/ZCode-Plugins/pull/72)（分支 ap-panel-enhance，base dev），经两轮审查循环（三个分层审查子代理 + 独立复核）确认 8 项问题修复闭合、183/183 契约测试全绿，PR 已转正待审查。遗留真机验收项：gh 状态一致性、Windows explorer 打开、五态 logo 观感、面板浏览器端到端（evidence JSON 随真机验收更新）；正式合入 dev 与版本升版待用户指令。上一轮工件区开票见 [工件区开票索引](artifact-zone-tickets.md)（AZ 系列，#27–#31、#36）。
 
 ## 需求与已裁决决策
 
