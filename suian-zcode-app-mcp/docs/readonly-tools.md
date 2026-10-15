@@ -17,7 +17,7 @@
 
 ## 列出会话
 
-`list_sessions` 默认列出**所有工作区最近 20 条未归档会话**，含置顶项，排除已删除项。
+`list_sessions` 默认列出**所有工作区最近 20 条未归档会话**，置顶优先，排除已删除项。
 
 | 参数 | 约定 |
 | --- | --- |
@@ -27,7 +27,7 @@
 | `query` | 可选；在标题或 ID 中匹配字面子串，ASCII 字母不区分大小写。`%`、`_` 和引号没有特殊搜索含义 |
 | `include_archived` | 默认 false；true 将归档项一起列出 |
 
-按 `updated_at DESC, task_id, workspace_key` 排序。返回 `source: local_tasks_index`、`sessions`、筛选后的 `total` 和 `next_offset`。时间戳是 Unix 毫秒。每项包含 ID、标题、工作区路径与 key、远端身份、provider、`permission_mode` 权限模式、持久化状态、时间和置顶/归档标记。
+按 `pinned DESC, updated_at DESC, task_id, workspace_key` 排序：置顶会话排在最前，置顶段内部与非置顶段各自按更新时间从新到旧（对齐 Desktop 端"已置顶"分组的展示语义）。置顶状态在翻页期间变化时页边界会随之移动，沿用同一筛选条件续页即可，不跳页。返回 `source: local_tasks_index`、`sessions`、筛选后的 `total` 和 `next_offset`。时间戳是 Unix 毫秒。每项包含 ID、标题、工作区路径与 key、远端身份、provider、`permission_mode` 权限模式、持久化状态、时间和置顶/归档标记。
 
 这里的“所有工作区”指本机索引已经收录的工作区，不保证存在另一台设备的全部记录。分批查询时，其他进程新增或更新会话会改变 offset 排序；本版不冻结跨调用快照。
 

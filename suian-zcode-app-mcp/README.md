@@ -99,7 +99,7 @@ https://github.com/ONEGAYI/ZCode-Plugins.git
 
 | 工具 | 用途 |
 | --- | --- |
-| `list_sessions` | 按项目、名称或 ID 查找会话，列出最近会话，也可以包含归档项 |
+| `list_sessions` | 按项目、名称或 ID 查找会话，置顶优先列出最近会话，也可以包含归档项 |
 | `read_session` | 读取指定会话最近的聊天，向前翻阅更早内容 |
 | `rename_session` | 将指定会话改为新的名称 |
 | `start_session` | 在已打开的项目中新建会话，可选名称和模型，并交代开局任务 |
