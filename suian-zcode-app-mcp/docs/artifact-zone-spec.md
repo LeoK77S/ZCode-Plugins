@@ -24,7 +24,7 @@ Agent 需要维护当前任务相关的 PR、关联会话和关键文件。demo 
 
 ## 条目与时间
 
-写入条目仅提供 kind、ref、label、purpose。kind 固定为 pr、session、file、link；其它三项为非空字符串。ref 是本会话内精确匹配的唯一更新键，不做路径 realpath 或 URL 别名归一化。
+写入条目仅提供 kind、ref、label、purpose。kind 固定为 pr、issue、session、file、link；其它三项为非空字符串。ref 是本会话内精确匹配的唯一更新键，不做路径 realpath 或 URL 别名归一化。
 
 服务在新条目上记录 created_at、updated_at（Unix 毫秒）。内容实际变化时保留创建时间并更新更新时间；相同 upsert 不改变时间或 revision。旧条目没有历史时间记录时详情返回 null，修改旧条目也不补造创建时间。时间随历史快照保存，不取文件修改时间冒充工件时间。
 
@@ -35,9 +35,10 @@ session 条目读取时附带 session_title：以条目 ref（会话 ID）在任
 | kind | ref | purpose 的用途 |
 | --- | --- | --- |
 | pr | PR 的 HTTP(S) URL | 说明后续创建、评审或接续查看的用途 |
+| issue | 议题的 HTTP(S) URL | 跟踪任务关联的 GitHub Issue 等议题 |
 | session | ZCode 会话 ID | 说明父、子或其它关联会话的作用 |
 | file | 文件绝对路径 | 定位本地规格、文档或其它交付物 |
-| link | 其它 HTTP(S) URL | 定位在线文档、Issue 或部署页面 |
+| link | 其它 HTTP(S) URL | 定位在线文档、部署页面 |
 
 工件存储取消原有 20 条及 12000 个 Unicode 码点上限，不截断或自动删除条目。20 条/9000 字符只限制 UserPromptSubmit 自动注入的简表。宿主传输仍有自身大小约束；列表提供分页，GUI 每次读取 50 条，总数不受单页限制。发生跨页版本变化时明确要求重新刷新，不展示混合版本。
 
@@ -47,7 +48,7 @@ session 条目读取时附带 session_title：以条目 ref（会话 ID）在任
 
 **get_artifacts 列表模式**：省略 ref。每次读取最新 revision、items 和 stats，不把旧摘要或进程缓存作为当前状态。省略 offset/limit 返回完整列表；传入任一分页参数时 offset 默认 0、limit 默认 50，单页最多 200 条，next_offset 为后续偏移或 null，stats 始终为总数。普通未写入会话返回 revision 0、空列表和零统计，不为普通读取创建工件写存储。
 
-**get_artifacts 详情模式**：填写当前会话已登记的精确 ref，不能混用分页参数。返回 revision、item 与 hyperlink；pr/link 的 hyperlink 是原始 HTTP(S) URL，其它类型为 null。不返回整份列表。不存在的 ref 返回 artifact_not_found，不跨会话任意读取。
+**get_artifacts 详情模式**：填写当前会话已登记的精确 ref，不能混用分页参数。返回 revision、item 与 hyperlink；pr/link/issue 的 hyperlink 是原始 HTTP(S) URL，其它类型为 null。不返回整份列表。不存在的 ref 返回 artifact_not_found，不跨会话任意读取。
 
 会话详情额外返回 session：每次调用原 Host getTaskSnapshot，核对目标 ID 与状态，附实时标题、工作区、状态、等待交互标记、会话创建/更新时间和 queried_at。请求只保留最近一条历史，不向模型或页面返回聊天正文。原 Host 此接口可能恢复会话并同步索引，因此 get 的工具声明不能是纯只读；插件不发送提示词，不调用 sampling 或归档接口。查询失败在 session.error 明确返回，保留工件基本详情，不使用旧状态或本机索引状态替代。GUI 与模型使用相同参数与结果。
 
@@ -55,7 +56,7 @@ session 条目读取时附带 session_title：以条目 ref（会话 ID）在任
 
 版本比较、应用全部变化和保存必须在同一 SQLite 事务内完成。变化才使 revision 加一，无变化保持原版本。版本冲突或无效批次均不产生部分结果。
 
-成功回执返回 revision、changed、upserted、removed 和 stats，不回传完整列表。stats 包含 total 和 pr/session/file/link 的各类条数。失败回执保留稳定错误码与必要的版本信息，不附带整份旧状态。
+成功回执返回 revision、changed、upserted、removed 和 stats，不回传完整列表。stats 包含 total 和 pr/issue/session/file/link 的各类条数。失败回执保留稳定错误码与必要的版本信息，不附带整份旧状态。
 
 缺少继承快照时，get/UI 明确呈现 snapshot_missing 诊断，并提供子会话可独立维护的状态。诊断不作为 get/set 的永久失败条件；后续工件操作正常进行，不把未继承的空状态称为准确继承。
 
@@ -102,11 +103,11 @@ UserPromptSubmit 生成一句登记入口、当次分类统计和部分工件简
 
 选择和裁剪只影响本次上下文，不修改条目、时间、顺序或 revision，不把未展示解释为已删除。同一轮工具续跑与重试保留旧摘要仍是 demo 接受的行为，简表可能已过时，最新完整状态以 get_artifacts 为准。
 
-入口为：“请在创建、接手或替换任务相关的 PR、会话、文件或链接时及时登记或更新工件，详见 mcp__plugin_suian-zcode-app-mcp_suian-zcode-app__set_artifacts。”该名称来自原生插件 manifest 和 MCP server 名经宿主命名规则组合。get_artifacts 工具描述说明提交时摘要可能已过时，需要完整列表、最新 revision 或处理冲突时调用 get；不在自动摘要中重复这些规则。
+入口为：“请在创建、接手或替换任务相关的 PR、议题、会话、文件或链接时及时登记或更新工件，详见 mcp__plugin_suian-zcode-app-mcp_suian-zcode-app__set_artifacts。”该名称来自原生插件 manifest 和 MCP server 名经宿主命名规则组合。get_artifacts 工具描述说明提交时摘要可能已过时，需要完整列表、最新 revision 或处理冲突时调用 get；不在自动摘要中重复这些规则。
 
 详细管理规则放在 get/set 工具描述中：
 
-- 创建或接手当前任务相关的 PR、关联会话、关键文件时，判断后续用途后登记；不把所有访问的资源都加入工件。
+- 创建或接手当前任务相关的 PR、议题、关联会话、关键文件或链接时，判断后续用途后登记；不把所有访问的资源都加入工件。
 - 同一 ref 增量 upsert，purpose 简短说明用途；不复制正文、不编造引用。
 - set 携带最近读取或工具回执的 revision；冲突时先 get，再重新判断变化，不用旧列表覆盖新状态。
 - 被替代、失效且无用途的引用应移除；完成但仍需交付或接续查看的引用继续保留。
@@ -116,7 +117,7 @@ UserPromptSubmit 生成一句登记入口、当次分类统计和部分工件简
 
 ## 原生只读侧栏与版本条件
 
-demo 包含 Desktop 本地会话的原生工件侧栏，按 pr/session/file/link 显示可折叠的垂直列表，分组间使用分割线，折叠后仍显示数量。不同类型使用不同图标，会话按已确认的创建关系区分方向。刷新及详情返回保留分组折叠状态。条目标签按文本呈现，长标题截断，完整内容放在详情中。
+demo 包含 Desktop 本地会话的原生工件侧栏，按 pr/issue/session/file/link 显示可折叠的垂直列表（分组顺序：PR、议题、会话、文件、链接），分组间使用分割线，折叠后仍显示数量。不同类型使用不同图标，会话按已确认的创建关系区分方向。刷新及详情返回保留分组折叠状态。条目标签按文本呈现，长标题截断，完整内容放在详情中。
 
 点击条目进入面板内详情，显示完整用途、引用、超链接、工件创建/更新时间。进入会话详情或刷新详情，每次查询原 Host，并显示查询时间或错误；返回列表不重新发起状态查询。查询未结束时返回列表，迟到响应不能重新打开详情。页面不编辑工件、不发送模型请求。
 
@@ -140,7 +141,7 @@ server 宣告 `capabilities.resources.subscribe` 并注册单一信号资源 `su
 
 以真实隔离 SQLite 和 MCP 公开工具为主要契约测试入口。Hook 与 UI 通过正式注册入口验证，不只测试内部 formatter。
 
-1. 当前会话四类条目的增改删、最新 get、统计、CAS 冲突、批次原子性、无变化；超过原数量/字符限制仍可保存，分页没有总条数限制。
+1. 当前会话五类条目的增改删、最新 get、统计、CAS 冲突、批次原子性、无变化；超过原数量/字符限制仍可保存，分页没有总条数限制。
 2. 独立连接/进程的并发写入、重启持久化、普通空状态读取、存储错误不伪装为空。
 3. 实际 UserPromptSubmit 简表最多 20 条/整体 9000 码点，时间排序、各类最多 3 条保底及字符不足至少 1 条；覆盖精确边界、JSON 转义、emoji、旧时间未知、空状态、数量提示和存储不变。下一次提交重新生成，同轮旧摘要仍允许保留。
 4. A 完成→父变 B→从 A 分叉→子首次读 A；无变化断点仍映射，同轮多 Stop 使用所选消息版本。

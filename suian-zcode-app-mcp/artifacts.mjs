@@ -12,17 +12,17 @@ function validateBatch(upsert, remove) {
     if (refs.has(item.ref) || remove.includes(item.ref)) invalid('同一 ref 不能重复 upsert 或同时 upsert/remove');
     refs.add(item.ref);
     if (item.kind === 'file' && !isAbsolute(item.ref) && !win32.isAbsolute(item.ref)) invalid('file ref 必须是绝对路径');
-    if (item.kind === 'pr' || item.kind === 'link') {
+    if (['pr', 'link', 'issue'].includes(item.kind)) {
       let url;
       try { url = new URL(item.ref); }
-      catch { invalid('pr/link ref 必须是 HTTP(S) URL'); }
-      if (!['http:', 'https:'].includes(url.protocol)) invalid('pr/link ref 必须是 HTTP(S) URL');
+      catch { invalid('pr/link/issue ref 必须是 HTTP(S) URL'); }
+      if (!['http:', 'https:'].includes(url.protocol)) invalid('pr/link/issue ref 必须是 HTTP(S) URL');
     }
   }
 }
 
 export function artifactStats(items) {
-  const by_kind = { pr: 0, session: 0, file: 0, link: 0 };
+  const by_kind = { pr: 0, issue: 0, session: 0, file: 0, link: 0 };
   for (const item of items) by_kind[item.kind]++;
   return { total: items.length, by_kind };
 }
