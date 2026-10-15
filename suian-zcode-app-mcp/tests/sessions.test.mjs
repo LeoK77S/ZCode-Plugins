@@ -2,21 +2,24 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { fixture } from './fixtures.mjs';
 
-test('按更新时间跨工作区列出最近 N 条，包含置顶但排除删除与归档项', async t => {
+test('list_sessions 置顶优先，置顶内部与非置顶各自按更新时间排序，排除删除与归档项', async t => {
   const f = fixture(t);
   f.task({ id: 'sess_old', updated: 10 });
   f.task({ id: 'sess_pinned', updated: 20, pinned: 1 });
+  f.task({ id: 'sess_pinned_older', updated: 15, pinned: 1 });
   f.task({ id: 'sess_latest', workspace: 'D:\\work\\beta', updated: 30 });
   f.task({ id: 'sess_archived', updated: 40, archived: 1 });
   f.task({ id: 'sess_deleted', updated: 50, deleted: 1 });
   const { createSessionReader } = await import('../sessions.mjs');
-  const result = createSessionReader(f).listSessions({ limit: 2 });
-  assert.deepEqual(result.sessions.map(s => s.session_id), ['sess_latest', 'sess_pinned']);
-  assert.equal(result.sessions[1].pinned, true);
-  assert.equal(result.total, 3);
-  assert.equal(result.next_offset, 2);
+  const result = createSessionReader(f).listSessions({ limit: 3 });
+  // 置顶区在前且内部 mtime 优先（20>15），最新的非置顶会话排在置顶区之后
+  assert.deepEqual(result.sessions.map(s => s.session_id), ['sess_pinned', 'sess_pinned_older', 'sess_latest']);
+  assert.equal(result.sessions[0].pinned, true);
+  assert.equal(result.sessions[2].pinned, false);
+  assert.equal(result.total, 4);
+  assert.equal(result.next_offset, 3);
   assert.equal(result.source, 'local_tasks_index');
-  assert.equal(f.index.prepare('SELECT COUNT(*) n FROM tasks').get().n, 5);
+  assert.equal(f.index.prepare('SELECT COUNT(*) n FROM tasks').get().n, 6);
 });
 
 test('listPinnedSessions 只列置顶行，默认排除归档与删除，可显式含归档置顶并分页', async t => {

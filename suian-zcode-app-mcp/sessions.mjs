@@ -57,8 +57,9 @@ export function createSessionReader({ indexDbPath, sessionDbPath }) {
         }
         const where = conditions.join(' AND ');
         const total = db.prepare(`SELECT COUNT(*) AS n FROM tasks WHERE ${where}`).get(...args).n;
+        // 置顶优先展示（对齐 Desktop 端置顶区语义），置顶段内部与非置顶段各自按更新时间倒序
         const sessions = db.prepare(`SELECT ${taskColumns} FROM tasks WHERE ${where}
-          ORDER BY updated_at DESC, task_id, workspace_key LIMIT ? OFFSET ?`).all(...args, limit, offset).map(taskItem);
+          ORDER BY pinned DESC, updated_at DESC, task_id, workspace_key LIMIT ? OFFSET ?`).all(...args, limit, offset).map(taskItem);
         const next = offset + sessions.length;
         return { source: 'local_tasks_index', sessions, total, next_offset: next < total ? next : null };
       } finally { db.close(); }

@@ -21,6 +21,10 @@
 
 - `archive_session` / `restore_session` 写后的索引读回从 `listSessions` 的子串查询 + 前 200 条切换为按 `task_id` 精确定位（与置顶读回同一 `listSessionStates` 路径）：标题引用目标会话 ID 的干扰行或列表截断不再可能把已写入的归档误报为 `archive_not_confirmed`。
 
+**list_sessions 置顶优先排序**
+
+- `list_sessions` 排序从纯更新时间改为 `pinned DESC, updated_at DESC, ...`：置顶会话排在最前，置顶段内部与非置顶段各自按更新时间从新到旧，对齐 Desktop 端"已置顶"分组的展示语义。`list_pinned_sessions` 行为不变。
+
 ## [0.5.0] - 2026-10-15
 
 打开的工件面板在 `set_artifacts` 增删改后自动刷新，不再需要手动点"刷新"或重开面板。

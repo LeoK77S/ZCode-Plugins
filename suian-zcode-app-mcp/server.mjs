@@ -29,7 +29,7 @@ export function createMcpServer(config, { controller } = {}) {
   controller ??= createSessionController({ reader, gatewayConfigPath: config.gatewayConfigPath });
   server.registerTool('list_sessions', {
     title: '列出 ZCode 会话',
-    description: '读取本机任务索引，按更新时间从新到旧列出会话。省略 workspace_path 即所有工作区；query 按标题或 ID 作字面子串搜索。默认排除归档与删除项，包含置顶项。total 是筛选后的总条数；有 next_offset 时保留筛选条件继续分页。返回持久化状态。',
+    description: '读取本机任务索引，置顶会话优先，置顶内部与非置顶各自按更新时间从新到旧列出。省略 workspace_path 即所有工作区；query 按标题或 ID 作字面子串搜索。默认排除归档与删除项，包含置顶项。total 是筛选后的总条数；有 next_offset 时保留筛选条件继续分页。返回持久化状态。',
     inputSchema: z.object({
       limit: z.number().int().min(1).max(200).default(20),
       offset: z.number().int().min(0).default(0),
