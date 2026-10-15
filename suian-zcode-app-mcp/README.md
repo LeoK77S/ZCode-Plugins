@@ -107,6 +107,9 @@ https://github.com/ONEGAYI/ZCode-Plugins.git
 | `compact_session` | 请求压缩指定会话上下文；运行中排队，回执仅表示受理 |
 | `archive_session` | 归档会话；如果仍有工作在进行，先取得用户的强制归档许可 |
 | `restore_session` | 将归档会话恢复到列表 |
+| `pin_session` | 置顶会话；只改变列表展示归属，与归档状态互不影响 |
+| `unpin_session` | 取消置顶会话 |
+| `list_pinned_sessions` | 列出置顶会话，可含归档项；只读本机索引，无需 Desktop 在线 |
 | `get_glm_balance` | 查询 GLM 个人套餐的模型、工具额度和可用重置卡 |
 | `reset_glm_quota` | 经本次用户许可和客户端确认表单，消耗一张对应卡重置 5h 或周模型额度 |
 | `get_artifacts` | 无业务参数，读取宿主绑定的当前会话最新 revision、items、stats 与继承诊断 |
@@ -138,7 +141,7 @@ npm ci --ignore-scripts --no-fund --no-audit
 
 这是使用 `mcpServers` 的兼容客户端示例。ZCode 原生 `~/.zcode/cli/config.json` 或工作区 `.zcode/config.json` 使用 `mcp.servers`，由 Agent 按 skill 合并本服务，保留其他配置；不要把整个示例当作原生配置文件。[官方 MCP 文档](https://zcode.z.ai/cn/docs/mcp-services)
 
-公共网关的环境变量必须配置在 Desktop 启动环境中，不能只放在 MCP 服务的 `env`。手动配置流程也以 [公共网关 skill](../suian-zcode-common/SKILL.md) 为准；当前两个 SQLite 工具可独立运行，无需远控授权链接。
+公共网关的环境变量必须配置在 Desktop 启动环境中，不能只放在 MCP 服务的 `env`。手动配置流程也以 [公共网关 skill](../suian-zcode-common/SKILL.md) 为准；当前三个 SQLite 读取工具可独立运行，无需远控授权链接。
 
 默认读取当前系统用户的 `~/.zcode/v2/tasks-index.sqlite` 和 `~/.zcode/cli/db/db.sqlite`。自定义路径可在 args 追加 `--index-db {{index_db_path}} --session-db {{session_db_path}} --artifact-db {{artifact_db_path}}`，或设置对应环境变量。也可用 `--config {{config_file}}` 读取外置 JSON 的 indexDbPath、sessionDbPath、artifactDbPath、gatewayConfigPath、authDataDir。优先级为命令参数 > 对应环境变量 > 外置配置 > 默认路径。
 

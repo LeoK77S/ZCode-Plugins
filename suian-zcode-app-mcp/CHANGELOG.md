@@ -2,6 +2,19 @@
 
 本文件记录 suian-zcode-app-mcp 的用户可感知变化，版本独立于 common 和自动命名插件。
 
+## [Unreleased] - 开发分支 feat/pin-session-tools（#61）
+
+新增会话置顶管理：可以把会话置顶、取消置顶，并单独列出置顶会话。
+
+### 新特性
+
+**会话置顶工具（pin/unpin/list_pinned_sessions）**
+
+- `pin_session` / `unpin_session` 经公共网关调用原 Host `zcode-task` 的 `setTaskPinned` 置顶或取消置顶，写后从本机任务索引读回确认，未确认报 `pin_not_confirmed`，不猜默认值。
+- `list_pinned_sessions` 只读本机任务索引列出置顶会话，默认排除归档与删除项、`include_archived` 可显式包含，workspace 过滤与分页规则同 `list_sessions`，不要求 Desktop 在线。
+- 置顶与归档为正交状态：置顶只改变列表展示归属，不影响会话运行与历史；归档会话也可置顶。
+- 公开工具数 12 → 15；置顶写声明幂等。宿主能力依据：官方 v3.15.1 `zcodeTaskServiceAdapter` 的 `setTaskPinned` 实现与 2026-10-15 网关探针实测（读写路径均可达）。
+
 ## [0.5.0] - 2026-10-15
 
 打开的工件面板在 `set_artifacts` 增删改后自动刷新，不再需要手动点"刷新"或重开面板。

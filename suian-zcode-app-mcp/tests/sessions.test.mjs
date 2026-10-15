@@ -19,6 +19,54 @@ test('按更新时间跨工作区列出最近 N 条，包含置顶但排除删�
   assert.equal(f.index.prepare('SELECT COUNT(*) n FROM tasks').get().n, 5);
 });
 
+test('listPinnedSessions 只列置顶行，默认排除归档与删除，可显式含归档置顶并分页', async t => {
+  const f = fixture(t);
+  f.task({ id: 'sess_pinned_a', updated: 10, pinned: 1 });
+  f.task({ id: 'sess_pinned_b', workspace: 'D:\\work\\beta', updated: 30, pinned: 1 });
+  f.task({ id: 'sess_pinned_archived', updated: 40, pinned: 1, archived: 1 });
+  f.task({ id: 'sess_normal', updated: 50 });
+  f.task({ id: 'sess_pinned_deleted', updated: 60, pinned: 1, deleted: 1 });
+  const { createSessionReader } = await import('../sessions.mjs');
+  const reader = createSessionReader(f);
+  const result = reader.listPinnedSessions({});
+  assert.deepEqual(result.sessions.map(s => s.session_id), ['sess_pinned_b', 'sess_pinned_a']);
+  assert.equal(result.total, 2);
+  assert.equal(result.next_offset, null);
+  assert.ok(result.sessions.every(s => s.pinned === true));
+  assert.equal(result.source, 'local_tasks_index');
+  const withArchived = reader.listPinnedSessions({ include_archived: true });
+  assert.deepEqual(withArchived.sessions.map(s => s.session_id), ['sess_pinned_archived', 'sess_pinned_b', 'sess_pinned_a']);
+  assert.equal(withArchived.total, 3);
+  assert.equal(withArchived.next_offset, null);
+  const scoped = reader.listPinnedSessions({ workspace_path: 'D:/work/beta/' });
+  assert.deepEqual(scoped.sessions.map(s => s.session_id), ['sess_pinned_b']);
+  const paged = reader.listPinnedSessions({ include_archived: true, limit: 2 });
+  assert.deepEqual(paged.sessions.map(s => s.session_id), ['sess_pinned_archived', 'sess_pinned_b']);
+  assert.equal(paged.next_offset, 2);
+});
+
+test('listSessionStates 按 task_id 精确定位写后读回行，含归档、排除删除并支持工作区消歧', async t => {
+  const f = fixture(t);
+  f.task({ id: 'sess_target', updated: 10, pinned: 1, archived: 1 });
+  f.task({ id: 'sess_target', workspace: 'D:\\work\\beta', key: 'kb', updated: 20, pinned: 0 });
+  f.task({ id: 'sess_target_substring_sess_target_x', updated: 30 });
+  f.task({ id: 'sess_target_deleted', updated: 40, deleted: 1, pinned: 1 });
+  const { createSessionReader } = await import('../sessions.mjs');
+  const reader = createSessionReader(f);
+  // 子串命中行与目标行无关：精确定位不受子串/分页干扰，归档行参与、删除行排除
+  const both = reader.listSessionStates({ session_id: 'sess_target' });
+  assert.equal(both.length, 2);
+  assert.deepEqual(both.map(row => [row.session_id, row.pinned, row.archived]),
+    [['sess_target', true, true], ['sess_target', false, false]]);
+  const byKey = reader.listSessionStates({ session_id: 'sess_target', workspace_key: 'kb' });
+  assert.equal(byKey.length, 1);
+  assert.equal(byKey[0].archived, false);
+  const byPath = reader.listSessionStates({ session_id: 'sess_target', workspace_path: 'd:/work/beta' });
+  assert.equal(byPath.length, 1);
+  assert.equal(byPath[0].pinned, false);
+  assert.equal(reader.listSessionStates({ session_id: 'sess_missing' }).length, 0);
+});
+
 test('列表与读取带 permission_mode，sessionMode 供继承发起者权限', async t => {
   const f = fixture(t);
   f.task({ id: 'sess_alpha', mode: 'yolo' });

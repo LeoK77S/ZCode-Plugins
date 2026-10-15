@@ -1,6 +1,6 @@
 # SE-04 · 持久化会话保存模式，自动保存并处理外部修改
 
-**状态**：已发布；代码、统一执行等同性、分层 Native 及文档两轴和串行整合完成，**本地限定条件已通过**。浏览器 42 项／组通过，未改 SDK 复用 33/33。旧 Native 重复审批失败保留，新轮视觉未验；当前前沿为 #45，具体依赖解除与派发由根记录，用户验收未完成。证据分层见 [Native 记录](../se04-watch-native-verification.md)，当前判定见 [实施总记录](../development-verification.md)。
+**状态**：已完成；集成提交 c6d605c，功能随 0.1.0 正式发布，Issue #44 已于 2026-10-15 关闭。代码、统一执行等同性、分层 Native 及文档两轴和串行整合完成，**本地限定条件已通过**；浏览器 42 项／组通过，未改 SDK 复用 33/33。证据分层见 [Native 记录](../se04-watch-native-verification.md)，当前判定见 [实施总记录](../development-verification.md)。
 
 **GitHub**：[#44](https://github.com/ONEGAYI/ZCode-Plugins/issues/44)。
 

@@ -27,7 +27,7 @@ test('原生工件 UI 同时要求 ZCode >=3.15.1 与 MCP Apps MIME；旧版和�
   ]) {
     const client = await connect(t, f, version, capabilities);
     const tools = (await client.listTools()).tools;
-    assert.equal(tools.length, 12);
+    assert.equal(tools.length, 15);
     const get = tools.find(tool => tool.name === 'get_artifacts'), set = tools.find(tool => tool.name === 'set_artifacts');
     assert.ok(get); assert.ok(set);
     assert.equal(get._meta?.ui?.resourceUri, enabled ? uri : undefined, version + JSON.stringify(capabilities));
@@ -56,7 +56,7 @@ test('3.15.1 Desktop 仍报 CLI 0.16.9 时使用宿主传入的应用版本；�
   ]) {
     const client = await connect(t, { ...f, zcodeAppVersion: appVersion }, clientVersion, apps, name);
     const tools = (await client.listTools()).tools;
-    assert.equal(tools.length, 12);
+    assert.equal(tools.length, 15);
     assert.equal(tools.find(tool => tool.name === 'get_artifacts')._meta?.ui?.resourceUri, enabled ? uri : undefined);
     assert.deepEqual(tools.find(tool => tool.name === 'set_artifacts')._meta?.ui?.visibility, enabled ? ['model'] : undefined);
     assert.equal((await client.listResources()).resources.some(resource => resource.uri === uri), enabled);

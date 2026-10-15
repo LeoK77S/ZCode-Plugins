@@ -39,7 +39,7 @@ ZCode-Plugins/
 │   ├── skills/            # setup / configuration / control / debug
 │   └── docs/notes/         # 研究与验证笔记（脱敏后入库；桌面截图等敏感物料不入库）
 │
-├── suian-zcode-app-mcp/    # ZCode 会话 MCP（检索、聊天历史、原 Host 改名/创建/发信/压缩与 stdio 接入）
+├── suian-zcode-app-mcp/    # ZCode 会话 MCP（检索、聊天历史、原 Host 改名/创建/发信/压缩/置顶与 stdio 接入）
 │   ├── .zcode-plugin/      # 原生插件元信息
 │   ├── .mcp.json           # 原生 stdio 注册，配置指向外置 dataPath
 │   ├── hooks/              # 同步工件初始化、提交摘要与 Stop 快照

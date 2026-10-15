@@ -1,6 +1,6 @@
 # SE-01 · 从独立侧栏冷启动，可信绑定当前工作区并读取文本
 
-**状态**：只读切片已本地实施，公开 MCP/stdio 与浏览器夹具检查通过；真实隔离 Desktop 的 H1/H2 已通过原生人工工具审批验证，本票本地实现与条件验证完成。未关票、推送或发布；工具审批不是用户产品验收。详见 [验证记录](../se01-verification.md) 与 [Native 续验](../se01-native-verification.md)。
+**状态**：已完成；集成提交 7a9e06e，功能随 0.1.0 正式发布，Issue #41 已于 2026-10-15 关闭。详见 [验证记录](../se01-verification.md) 与 [Native 续验](../se01-native-verification.md)。
 
 **GitHub**：[#41](https://github.com/ONEGAYI/ZCode-Plugins/issues/41)。
 
