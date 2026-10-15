@@ -1,6 +1,6 @@
 ---
 name: artifacts
-description: 记录、查看和维护当前 ZCode 会话的 PR、关联会话、关键文件及链接工件；处理版本冲突、历史分叉继承与原生只读侧栏。
+description: 记录、查看和维护当前 ZCode 会话的 PR、议题、关联会话、关键文件及链接工件；处理版本冲突、历史分叉继承与原生只读侧栏。
 ---
 
 # 当前会话工件
@@ -15,7 +15,7 @@ get_artifacts 有列表和详情两种模式：省略 ref 返回当前会话列�
 
 会话详情每次查询原 Host 实时状态，并附 queried_at；需要公共网关连接，可能恢复会话并同步索引。session.error 表示查询失败，不能用旧值或本机持久化状态充当实时状态。普通列表不查询 Host。
 
-创建或接手当前任务的 PR、关联会话、关键文件时，判断后续用途后登记；不收录全部访问记录。条目完整提供 kind、ref、label、purpose，kind 为 pr/session/file/link。pr/link 使用 HTTP(S) URL，file 使用绝对路径，session 使用会话 ID。ref 精确匹配，不归一化，不复制资源正文。
+创建或接手当前任务的 PR、议题、关联会话、关键文件或链接时，判断后续用途后登记；不收录全部访问记录。条目完整提供 kind、ref、label、purpose，kind 为 pr/issue/session/file/link。pr/link/issue 使用 HTTP(S) URL，file 使用绝对路径，session 使用会话 ID。ref 精确匹配，不归一化，不复制资源正文。
 
 set_artifacts 使用 expected_revision 和 upsert/remove 增量操作。已有 ref 更新，新 ref 追加；不提交整份旧列表覆盖其它变化。冲突时 get 后重新判断增量；重复 upsert 或同 ref 同时 upsert/remove 会拒绝整批。工件存储不设置条目数和完整表示字符数上限，仍不复制正文；20 条/9000 字符只限制自动注入。时间和来源关系由服务维护，upsert 只提交 kind/ref/label/purpose；相同内容不修改时间或版本。
 
