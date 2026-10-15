@@ -39,6 +39,9 @@ test('原生工件 UI 同时要求 ZCode >=3.15.1 与 MCP Apps MIME；旧版和�
       const page = (await client.readResource({ uri })).contents[0];
       assert.equal(page.mimeType, mime); assert.match(page.text, /get_artifacts/);
       assert.match(page.text, /session_title/);
+      assert.match(page.text, /folder:/, '文件夹图标路径存在');
+      assert.match(page.text, /is_directory/, '图标按目录标记切换');
+      assert.match(page.text, /\.icon\.missing/, '缺失态有灰化样式');
       assert.doesNotMatch(page.text, /set_artifacts|https:\/\/.*\.js|fetch\(/);
     } else await assert.rejects(client.readResource({ uri }));
     assert.equal((await client.callTool({ name: 'get_artifacts', arguments: {}, _meta: { session_id: 'sess_alpha' } })).isError, undefined);
