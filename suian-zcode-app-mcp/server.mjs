@@ -130,6 +130,29 @@ export function createMcpServer(config, { controller } = {}) {
     inputSchema: z.object(target).strict(),
     annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: true }
   }, writeResult(args => controller.restoreSession(args)));
+  server.registerTool('pin_session', {
+    title: '置顶 ZCode 会话',
+    description: '通过公共网关调用原 Host 置顶指定会话，并从本机任务索引读回确认。置顶只改变列表展示归属，不影响会话运行与历史；与归档状态正交，归档会话也可置顶。省略 workspace_path 时从本机历史定位；目标工作区必须在网关连接的 Desktop 窗口中打开。查看置顶列表用 list_pinned_sessions。',
+    inputSchema: z.object(target).strict(),
+    annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: true }
+  }, writeResult(args => controller.pinSession(args)));
+  server.registerTool('unpin_session', {
+    title: '取消置顶 ZCode 会话',
+    description: '通过公共网关调用原 Host 取消置顶指定会话，并从本机任务索引读回确认。置顶与归档为正交状态，本操作不改变归档状态。省略 workspace_path 时从本机历史定位；目标工作区必须在网关连接的 Desktop 窗口中打开。查看置顶列表用 list_pinned_sessions。',
+    inputSchema: z.object(target).strict(),
+    annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: true }
+  }, writeResult(args => controller.unpinSession(args)));
+  server.registerTool('list_pinned_sessions', {
+    title: '列出置顶的 ZCode 会话',
+    description: '读取本机任务索引，按更新时间从新到旧列出置顶会话。省略 workspace_path 即所有工作区；默认排除归档与删除项，include_archived 可显式包含归档的置顶会话。置顶与归档为正交状态。total 是筛选后的总条数；有 next_offset 时保留筛选条件继续分页。返回持久化状态，不连接网关、不要求 Desktop 在线。',
+    inputSchema: z.object({
+      limit: z.number().int().min(1).max(200).default(20),
+      offset: z.number().int().min(0).default(0),
+      workspace_path: z.string().min(1).optional(),
+      include_archived: z.boolean().default(false)
+    }).strict(),
+    annotations
+  }, async args => result(reader.listPinnedSessions(args)));
   server.registerTool('get_glm_balance', {
     title: '查询 GLM 套餐额度与重置卡',
     description: '通过公共网关只读查询当前 Host 的 BigModel 个人 Coding Plan：模型 5h/周额度、GLM 月度工具额度、ZCode 官方 Server MCP 额度，以及未过期的两类重置卡。两组 MCP 额度分别展示，不相加；未返回不等于零，不能据此猜套餐版本。需要 Desktop 在线且已打开目标本地工作区；不查询现金余额。',

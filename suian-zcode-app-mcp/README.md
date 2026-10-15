@@ -107,6 +107,9 @@ https://github.com/ONEGAYI/ZCode-Plugins.git
 | `compact_session` | 请求压缩指定会话上下文；运行中排队，回执仅表示受理 |
 | `archive_session` | 归档会话；如果仍有工作在进行，先取得用户的强制归档许可 |
 | `restore_session` | 将归档会话恢复到列表 |
+| `pin_session` | 置顶会话；只改变列表展示归属，与归档状态互不影响 |
+| `unpin_session` | 取消置顶会话 |
+| `list_pinned_sessions` | 列出置顶会话，可含归档项；只读本机索引，无需 Desktop 在线 |
 | `get_glm_balance` | 查询 GLM 个人套餐的模型、工具额度和可用重置卡 |
 | `reset_glm_quota` | 经本次用户许可和客户端确认表单，消耗一张对应卡重置 5h 或周模型额度 |
 | `get_artifacts` | 无业务参数，读取宿主绑定的当前会话最新 revision、items、stats 与继承诊断 |

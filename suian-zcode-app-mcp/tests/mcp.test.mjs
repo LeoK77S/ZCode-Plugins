@@ -103,7 +103,7 @@ test('compact_session 公布指定目标与受理语义，严格校验参数并�
   assert.equal(rejected.structuredContent.reason_code, 'compactOperationLock');
 });
 
-test('MCP 握手版本与插件元信息一致，公布十二个工具并保持查询只读', async t => {
+test('MCP 握手版本与插件元信息一致，公布十五个工具并保持查询只读', async t => {
   const f = fixture(t);
   f.task({ id: 'sess_alpha', title: 'MCP 工具' });
   f.session({ id: 'sess_alpha', title: 'MCP 工具' });
@@ -120,8 +120,8 @@ test('MCP 握手版本与插件元信息一致，公布十二个工具并保持�
   assert.equal(lockMetadata.packages[''].version, packageMetadata.version);
   assert.equal(client.getServerVersion().version, packageMetadata.version);
   const listed = await client.listTools();
-  assert.deepEqual(listed.tools.map(tool => tool.name), ['list_sessions', 'read_session', 'rename_session', 'start_session', 'send_message', 'compact_session', 'archive_session', 'restore_session', 'get_glm_balance', 'reset_glm_quota', 'get_artifacts', 'set_artifacts']);
-  for (const tool of listed.tools) assert.equal(tool.annotations.readOnlyHint, ['list_sessions', 'read_session', 'get_glm_balance'].includes(tool.name));
+  assert.deepEqual(listed.tools.map(tool => tool.name), ['list_sessions', 'read_session', 'rename_session', 'start_session', 'send_message', 'compact_session', 'archive_session', 'restore_session', 'pin_session', 'unpin_session', 'list_pinned_sessions', 'get_glm_balance', 'reset_glm_quota', 'get_artifacts', 'set_artifacts']);
+  for (const tool of listed.tools) assert.equal(tool.annotations.readOnlyHint, ['list_sessions', 'read_session', 'list_pinned_sessions', 'get_glm_balance'].includes(tool.name));
   assert.equal(listed.tools.find(tool => tool.name === 'reset_glm_quota').annotations.destructiveHint, true);
   assert.equal(listed.tools.find(tool => tool.name === 'reset_glm_quota').annotations.idempotentHint, false);
   const list = await client.callTool({ name: 'list_sessions', arguments: { query: 'MCP', limit: 1 } });
@@ -561,6 +561,39 @@ test('renameSession 写后复核：CLI 会话库持续不一致时暴露 title_s
   const synced = await make('新标题').renameSession({ workspace_path: 'D:/fixture', session_id: 'sess_x', title: '新标题' });
   assert.equal(synced.warnings, undefined, '两库一致时不产生警告');
   assert.equal(probes.length, 4, '一致时只探测一次');
+});
+
+test('置顶工具转交已验证参数，置顶列表走本地索引且拒绝未知字段', async t => {
+  const f = fixture(t), calls = [];
+  f.task({ id: 'sess_pinned', title: '置顶会话', pinned: 1 });
+  f.task({ id: 'sess_normal', title: '普通会话' });
+  const { createMcpServer } = await import('../server.mjs');
+  const controller = Object.fromEntries(['pinSession', 'unpinSession'].map(method => [method, async args => {
+    calls.push({ method, args });
+    return { source: 'original_host', session_id: args.session_id, workspace_path: 'D:\\fixture', pinned: method === 'pinSession' };
+  }]));
+  const server = createMcpServer(f, { controller });
+  const client = new Client({ name: 'pin-contract', version: '1.0.0' });
+  const [ct, st] = InMemoryTransport.createLinkedPair();
+  t.after(async () => { await client.close(); await server.close(); });
+  await server.connect(st); await client.connect(ct);
+  const pinned = await client.callTool({ name: 'pin_session', arguments: { session_id: 'sess_normal' } });
+  assert.equal(pinned.isError, undefined);
+  assert.deepEqual(pinned.structuredContent, { source: 'original_host', session_id: 'sess_normal', workspace_path: 'D:\\fixture', pinned: true });
+  await client.callTool({ name: 'unpin_session', arguments: { session_id: 'sess_normal', workspace_path: 'D:/fixture' } });
+  assert.deepEqual(calls, [
+    { method: 'pinSession', args: { session_id: 'sess_normal' } },
+    { method: 'unpinSession', args: { session_id: 'sess_normal', workspace_path: 'D:/fixture' } }
+  ]);
+  const listed = await client.callTool({ name: 'list_pinned_sessions', arguments: {} });
+  assert.equal(listed.isError, undefined);
+  assert.deepEqual(listed.structuredContent.sessions.map(s => s.session_id), ['sess_pinned']);
+  assert.equal(listed.structuredContent.total, 1);
+  assert.equal(listed.structuredContent.source, 'local_tasks_index');
+  assert.equal((await client.callTool({ name: 'pin_session', arguments: { session_id: 'sess_normal', pinned: false } })).isError, true);
+  assert.equal((await client.callTool({ name: 'unpin_session', arguments: { session_id: ' ' } })).isError, true);
+  assert.equal((await client.callTool({ name: 'list_pinned_sessions', arguments: { unknown: 1 } })).isError, true);
+  assert.equal(calls.length, 2);
 });
 
 test('reader 复核探测抛错时视为无法核实：不告警、不把成功的 RPC 变成工具错误', async () => {

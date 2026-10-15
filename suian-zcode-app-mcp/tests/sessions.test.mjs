@@ -19,6 +19,32 @@ test('按更新时间跨工作区列出最近 N 条，包含置顶但排除删�
   assert.equal(f.index.prepare('SELECT COUNT(*) n FROM tasks').get().n, 5);
 });
 
+test('listPinnedSessions 只列置顶行，默认排除归档与删除，可显式含归档置顶并分页', async t => {
+  const f = fixture(t);
+  f.task({ id: 'sess_pinned_a', updated: 10, pinned: 1 });
+  f.task({ id: 'sess_pinned_b', workspace: 'D:\\work\\beta', updated: 30, pinned: 1 });
+  f.task({ id: 'sess_pinned_archived', updated: 40, pinned: 1, archived: 1 });
+  f.task({ id: 'sess_normal', updated: 50 });
+  f.task({ id: 'sess_pinned_deleted', updated: 60, pinned: 1, deleted: 1 });
+  const { createSessionReader } = await import('../sessions.mjs');
+  const reader = createSessionReader(f);
+  const result = reader.listPinnedSessions({});
+  assert.deepEqual(result.sessions.map(s => s.session_id), ['sess_pinned_b', 'sess_pinned_a']);
+  assert.equal(result.total, 2);
+  assert.equal(result.next_offset, null);
+  assert.ok(result.sessions.every(s => s.pinned === true));
+  assert.equal(result.source, 'local_tasks_index');
+  const withArchived = reader.listPinnedSessions({ include_archived: true });
+  assert.deepEqual(withArchived.sessions.map(s => s.session_id), ['sess_pinned_archived', 'sess_pinned_b', 'sess_pinned_a']);
+  assert.equal(withArchived.total, 3);
+  assert.equal(withArchived.next_offset, null);
+  const scoped = reader.listPinnedSessions({ workspace_path: 'D:/work/beta/' });
+  assert.deepEqual(scoped.sessions.map(s => s.session_id), ['sess_pinned_b']);
+  const paged = reader.listPinnedSessions({ include_archived: true, limit: 2 });
+  assert.deepEqual(paged.sessions.map(s => s.session_id), ['sess_pinned_archived', 'sess_pinned_b']);
+  assert.equal(paged.next_offset, 2);
+});
+
 test('列表与读取带 permission_mode，sessionMode 供继承发起者权限', async t => {
   const f = fixture(t);
   f.task({ id: 'sess_alpha', mode: 'yolo' });

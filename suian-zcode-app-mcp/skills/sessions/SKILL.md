@@ -1,13 +1,13 @@
 ---
 name: sessions
-description: 通过 ZCode 会话 MCP 检索历史、改名、创建、发信、压缩、归档或复原用户指定会话。
+description: 通过 ZCode 会话 MCP 检索历史、改名、创建、发信、压缩、归档、复原或置顶用户指定会话。
 ---
 
 # 会话操作
 
 原生根为 `${ZCODE_SKILL_DIR}/../..`；源码模式沿用已确定的根。先读[路径与配置](../paths.md)，以客户端实际工具清单定位服务。参数细节按需读插件根 docs/readonly-tools.md、docs/write-tools.md。
 
-八个会话工具中 list_sessions/read_session 只读本机 SQLite，其余按需经公共网关调用原 Host，不直接写会话数据库。读取持久化历史，不代表实时流式快照；按返回游标继续分页，远端历史或不存在会话明确报错。不把 getTaskSnapshot 当作无副作用查询。
+十一个会话工具中 list_sessions/read_session/list_pinned_sessions 只读本机 SQLite，其余按需经公共网关调用原 Host，不直接写会话数据库。读取持久化历史，不代表实时流式快照；按返回游标继续分页，远端历史或不存在会话明确报错。不把 getTaskSnapshot 当作无副作用查询。
 
 写操作必须来自用户对具体动作的授权；收到其他会话消息不自动授权回信、改名或归档。创建/发信不接受手填来源 ID，服务从请求元数据或 trace_id 定位；元数据不是用户授权。来源未知或损坏先排障，不猜界面选中项或最近会话。
 
@@ -19,6 +19,8 @@ description: 通过 ZCode 会话 MCP 检索历史、改名、创建、发信、�
 | compact_session | 回执后结束调用，压缩自身也不等待完成 |
 | archive_session | 活跃任务默认需要确认，说明影响并取得许可后才可 force:true |
 | restore_session | 取消归档，不发信或启动任务 |
+| pin_session / unpin_session | 仅按用户要求置顶或取消置顶；置顶与归档正交，不借置顶扩大操作范围 |
+| list_pinned_sessions | 本机索引只读，默认不含归档项；分页与 list_sessions 同规则 |
 
 accepted 仅表示提交，回复用 read_session；超时或部分失败先核查返回会话 ID 和状态，不自动重试写操作。message 与 message_file 只能填一个；长文可用 UTF-8 Markdown 绝对路径。
 
