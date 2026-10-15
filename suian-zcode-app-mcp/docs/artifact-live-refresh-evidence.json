@@ -9,7 +9,19 @@
   "red_checks": [
     { "scope": "资源能力与清单、按上下文读取、订阅通知与扩展参数容忍、store 写入通知", "exit_code": 1, "tests": 4, "pass": 0, "fail": 4, "log_sha256": "A007516D9D9C8EB0CD1752C1FEF910134FA4828ECD060E1B2605313B88BA0D1F" }
   ],
-  "regression": { "tests": 129, "pass": 129, "fail": 0, "exit_code": 0, "log_sha256": "C37855E17E3EA4A0627628D8E87E159DA0250E5A4608039E6CCE3DBC44795C38" },
+  "regression": { "tests": 129, "pass": 129, "fail": 0, "exit_code": 0, "log_sha256": "3EFBD17F03BABA53C0F7241AE70BAF1638959BA358CEBD81AFC6A459DC18A525" },
+  "independent_review": {
+    "axes": ["standards", "spec"],
+    "findings_fixed": [
+      "linkSessions 通知移至事务 COMMIT 成功后、两侧写入合并为一次信号（回滚不通知）",
+      "信号到达时详情视图同步重拉当前详情（原仅刷新列表）",
+      "测试卫生：删除未使用的注入参数、消除变量遮蔽"
+    ],
+    "findings_clarified_in_docs": [
+      "多面板共享订阅不互斥退订（宿主 agent 按 server/uri 引用计数聚合转发）",
+      "无桥环境沿用基线错误提示（宿主内面板必有桥，无桥仅理论防御路径）"
+    ]
+  },
   "syntax": { "scope": "ui/artifacts.html 内联 module script（提取后 node --check）", "passed": true },
   "red_baseline_note": "基线与红检查经 git stash / checkout 临时回退取得；回退误伤实现后已在提交前逐文件重建并复跑全部验证（regression 即重建后结果）",
   "coverage": [
@@ -19,8 +31,8 @@
     "宿主扩展参数（scopeId/generation/_meta）经 subscribe 到达 handler 被容忍",
     "set_artifacts 实际变更推送 notifications/resources/updated，内容相同的 upsert 不推送",
     "退订后不再推送",
-    "store 层 notify 仅在实际写入后触发、未注入时静默",
-    "页面脚本语法（含订阅挂载与 refresh 重入合并）"
+    "store 层 notify 仅在实际写入后触发、未注入时静默（linkSessions 合并为一次信号、COMMIT 后触发）",
+    "页面脚本语法（含订阅挂载、列表与详情的重拉触发、refresh 重入合并）"
   ],
   "limitations": [
     "真实 Desktop 3.15.1 端到端验收未执行（需安装新版插件后实测自动刷新时延、切 tab 连续性与宿主转发的资源请求 _meta 形态）",

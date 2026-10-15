@@ -9,9 +9,9 @@ import { createArtifactStore } from '../artifacts.mjs';
 const RESOURCE_URI = 'suian-artifacts://current';
 const entry = { kind: 'link', ref: 'https://example.com/issue-54', label: '实施票', purpose: '本次实施工单' };
 
-async function pair(t, f, controller) {
+async function pair(t, f) {
   const { createMcpServer } = await import('../server.mjs');
-  const server = createMcpServer(f, controller);
+  const server = createMcpServer(f);
   const client = new Client({ name: 'artifact-resources-contract', version: '1.0.0' });
   const [ct, st] = InMemoryTransport.createLinkedPair();
   t.after(async () => { await client.close(); await server.close(); });
@@ -33,9 +33,9 @@ test('宣告资源订阅能力并暴露工件资源条目', async t => {
   const { client } = await pair(t, f);
   assert.equal(client.getServerCapabilities()?.resources?.subscribe, true);
   const listed = await client.listResources();
-  const entry = listed.resources.find(resource => resource.uri === RESOURCE_URI);
-  assert.ok(entry, 'resources/list 必须包含工件资源条目');
-  assert.equal(entry.mimeType, 'application/json');
+  const resource = listed.resources.find(resource => resource.uri === RESOURCE_URI);
+  assert.ok(resource, 'resources/list 必须包含工件资源条目');
+  assert.equal(resource.mimeType, 'application/json');
 });
 
 test('资源 read 按请求上下文返回当前会话工件，缺上下文时返回说明而非报错', async t => {
@@ -84,7 +84,7 @@ test('store 层通知仅在发生实际写入时触发，未注入 notify 时静
   store.set('sess_a', { expected_revision: 1, upsert: [entry] });
   assert.equal(notified.length, 1, '内容完全相同的 upsert 不触发通知');
   store.linkSessions({ creator: 'sess_a', created: 'sess_b', creatorLabel: '甲', createdLabel: '乙' });
-  assert.equal(notified.length, 3, 'linkSessions 两侧写入各触发一次');
+  assert.equal(notified.length, 2, 'linkSessions 两侧写入合并为一次通知');
   const quiet = createArtifactStore({ ...f, now: () => 1 });
   quiet.set('sess_c', { expected_revision: 0, upsert: [entry] });
   quiet.linkSessions({ creator: 'sess_c', created: 'sess_d', creatorLabel: '甲', createdLabel: '乙' });

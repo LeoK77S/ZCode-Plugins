@@ -123,17 +123,20 @@ export function createArtifactStore({ artifactDbPath, sessionDbPath, indexDbPath
     linkSessions({ creator, created, creatorLabel, createdLabel }) {
       initialize(creator);
       const db = open(true);
+      // 两侧写入合并为一次变更信号，COMMIT 成功后才触发（回滚不通知，避免面板重拉到旧数据）
+      let wrote = false;
       try {
         const session_link = { creator, created };
         for (const [id, ref, label, purpose] of [
           [creator, created, createdLabel, '由当前会话发起的任务'],
           [created, creator, creatorLabel, '当前会话的发起会话']
         ]) {
-        const old = storedState(db, id).items.find(item => item.ref === ref);
-        const written = update(db, id, { upsert: [{ kind: 'session', ref, label: old?.label ?? label, purpose: old?.purpose ?? purpose, session_link }] });
-        if (written.upserted) changed();
-      }
+          const old = storedState(db, id).items.find(item => item.ref === ref);
+          const written = update(db, id, { upsert: [{ kind: 'session', ref, label: old?.label ?? label, purpose: old?.purpose ?? purpose, session_link }] });
+          wrote = written.changed || wrote;
+        }
         db.exec('COMMIT');
+        if (wrote) changed();
       } catch (error) { db.exec('ROLLBACK'); throw error; }
       finally { db.close(); }
     },

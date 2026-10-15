@@ -147,7 +147,11 @@ const RESOURCE_URI = 'suian-artifacts://current';
 function subscribeLive() {
   if (typeof host.subscribeResource !== 'function' || typeof host.onResourceUpdated !== 'function') return;
   try {
-    host.onResourceUpdated(uri => { if (uri === RESOURCE_URI) void refresh(); });
+    host.onResourceUpdated(uri => {
+      if (uri !== RESOURCE_URI) return;
+      void refresh();
+      if (selectedRef !== undefined && !detailView.hidden) void showDetail(selectedRef);
+    });
     void host.subscribeResource(RESOURCE_URI).catch(() => undefined);
   } catch { /* 桥不支持时保持手动刷新 */ }
 }
