@@ -21,7 +21,7 @@ async function messageInput(args) {
   return { ...input, message };
 }
 
-export function createMcpServer(config, { controller } = {}) {
+export function createMcpServer(config, { controller, prStatus } = {}) {
   const server = new McpServer({ name: 'suian-zcode-app-mcp', version: packageMetadata.version },
     // 工件面板经 ZCode 扩展 resources/subscribe 订阅变更信号，写入后推送 notifications/resources/updated
     { capabilities: { resources: { subscribe: true } } });
@@ -175,6 +175,6 @@ export function createMcpServer(config, { controller } = {}) {
       return result(data);
     } catch (error) { return { ...result({ ...error.partial_result, error: error.message }), isError: true }; }
   });
-  const artifactStore = registerArtifactTools(server, config, { controller });
+  const artifactStore = registerArtifactTools(server, config, { controller, prStatus });
   return server;
 }

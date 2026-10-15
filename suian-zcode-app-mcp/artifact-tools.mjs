@@ -1,10 +1,11 @@
 import { z } from 'zod';
 import { createArtifactStore } from './artifacts.mjs';
 import { resolveCaller } from './caller.mjs';
+import { createArtifactStatusService } from './artifact-status.mjs';
 import { registerArtifactUi } from './artifact-ui.mjs';
 import { registerArtifactResources } from './artifact-resources.mjs';
 
-export function registerArtifactTools(server, config, { controller }) {
+export function registerArtifactTools(server, config, { controller, prStatus }) {
   // notify 闭包先于 registry 声明：set/linkSessions 只在连接建立后经工具调用到达，届时注册表已就绪
   const store = createArtifactStore({ ...config, notify: () => registry.notifyChanged() });
   const registry = registerArtifactResources(server, config, store);
@@ -55,6 +56,25 @@ export function registerArtifactTools(server, config, { controller }) {
     }).strict(),
     annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false }
   }, (args, extra) => run(extra, 'set_artifacts', id => store.set(id, args)));
-  registerArtifactUi(server, getTool, setTool, config);
+  // 面板专用 PR 状态通道：拉取只挂在面板标准刷新时机，模型侧 get_artifacts 不产生网络副作用。
+  // 注册后立即禁用，UI 能力协商成功（artifact-ui）后以 visibility=['app'] 启用，普通客户端不可见。
+  const statusService = prStatus ?? createArtifactStatusService(config);
+  const statusTool = server.registerTool('get_pr_statuses', {
+    title: '查询 GitHub PR 实时状态（工件面板）',
+    description: '工件面板专用通道：经本机 gh CLI 实时拉取 GitHub PR 的状态与增删行数，按 ref 逐条返回 {status, additions, deletions, fetched_at}。status 由 state/isDraft/mergeable 归并为 open/draft/conflict/merged/closed（merged、closed 优先于冲突，冲突优先于草稿）。内存缓存 per-ref 带成功时间戳，新鲜期内直接命中；拉取超时沿用旧数据并附 stale/stale_reason，无旧数据、gh 失败或非 GitHub 链接时该 ref 返回 error，不影响其它条目。读取工件清单与详情请用 get_artifacts（纯本地，不产生网络请求）；本工具仅在工件面板可用的客户端启用。',
+    inputSchema: z.object({ refs: z.array(text).min(1).max(200) }).strict(),
+    annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: true }
+  }, async ({ refs }) => {
+    try {
+      const statuses = await statusService.fetchStatuses(refs);
+      const data = { statuses };
+      return { structuredContent: data, content: [{ type: 'text', text: JSON.stringify(data) }] };
+    } catch (error) {
+      const data = { error: error.message, statuses: Object.fromEntries(refs.map(ref => [ref, { error: error.message }])) };
+      return { isError: true, structuredContent: data, content: [{ type: 'text', text: JSON.stringify(data) }] };
+    }
+  });
+  statusTool.disable();
+  registerArtifactUi(server, getTool, setTool, statusTool, config);
   return store;
 }
