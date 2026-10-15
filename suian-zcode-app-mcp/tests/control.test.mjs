@@ -360,6 +360,14 @@ test('置顶写入失败或索引读回不一致时报错并释放连接，不�
   await assert.rejects(missing.controller.pinSession({ session_id: 'sess_new' }), /pin_not_confirmed/);
 });
 
+test('归档与复原读回改用精确查询：列表截断丢目标行时不再误报未确认', async () => {
+  // 旧读回走 listSessions 的子串 query + 前 200 条：标题引用目标 ID 的干扰行足够多时，
+  // 目标行被挤出结果集，归档已写入却误报 archive_not_confirmed。精确查询不受子串与分页影响。
+  const f = await fixture({ listSessions: () => ({ sessions: [{ session_id: 'sess_noise', archived: false }] }) });
+  assert.equal((await f.controller.archiveSession({ session_id: 'sess_new' })).archived, true);
+  assert.equal((await f.controller.restoreSession({ session_id: 'sess_new' })).archived, false);
+});
+
 test('缺少运行态不能猜闲置，即使 force 也不在未完成检查时写入', async () => {
   const f = await fixture({ getTaskSnapshot: () => ({ meta: { taskId: 'sess_new', status: 'completed' } }) });
   await assert.rejects(f.controller.archiveSession({ session_id: 'sess_new', force: true }), /activity_unknown/);
@@ -541,7 +549,7 @@ test('一步工具轮并发归档多个会话全部成功，不再只有首个�
   const connections = [];
   const controller = createSessionController({
     reader: { readSession: () => ({ session: { workspace_path: workspace } }),
-      listSessions: ({ query }) => ({ sessions: [{ session_id: query, archived: sessions[query].archived }] }) },
+      listSessionStates: ({ session_id }) => [{ session_id, archived: sessions[session_id].archived, pinned: false }] },
     delay: async () => {},
     connect: async () => {
       const connection = { closed: false }; connections.push(connection);

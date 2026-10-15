@@ -15,6 +15,12 @@
 - 置顶与归档为正交状态：置顶只改变列表展示归属，不影响会话运行与历史；归档会话也可置顶。
 - 公开工具数 12 → 15；置顶写声明幂等。宿主能力依据：官方 v3.15.1 `zcodeTaskServiceAdapter` 的 `setTaskPinned` 实现与 2026-10-15 网关探针实测（读写路径均可达）。
 
+### 其他改进
+
+**归档/复原读回改用精确查询**
+
+- `archive_session` / `restore_session` 写后的索引读回从 `listSessions` 的子串查询 + 前 200 条切换为按 `task_id` 精确定位（与置顶读回同一 `listSessionStates` 路径）：标题引用目标会话 ID 的干扰行或列表截断不再可能把已写入的归档误报为 `archive_not_confirmed`。
+
 ## [0.5.0] - 2026-10-15
 
 打开的工件面板在 `set_artifacts` 增删改后自动刷新，不再需要手动点"刷新"或重开面板。
