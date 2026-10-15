@@ -186,7 +186,7 @@
 
 <!-- 变更链接 -->
 [0.5.0]: https://github.com/ONEGAYI/ZCode-Plugins/compare/29eb9b5a7fad5681f488e098e6d26ccce0f41a57...5a635fd0722d10a1a1e1ad60c1c8b6c7db0e4a83
-[0.6.0]: https://github.com/ONEGAYI/ZCode-Plugins/compare/5a635fd0722d10a1a1e1ad60c1c8b6c7db0e4a83...741875729a554050faea864c4936a1e37d2ca3f2
+[0.6.0]: https://github.com/ONEGAYI/ZCode-Plugins/compare/5a635fd0722d10a1a1e1ad60c1c8b6c7db0e4a83...2d1e036cde4577cc65322380f536e2e0e8b8e99829a554050faea864c4936a1e37d2ca3f2
 [0.4.1]: https://github.com/ONEGAYI/ZCode-Plugins/compare/67d75b25cf932db9530883711e6226f77d867ca0...29eb9b5a7fad5681f488e098e6d26ccce0f41a57
 [0.4.0]: https://github.com/ONEGAYI/ZCode-Plugins/compare/e049c3c3ab5a3571c9839e600eed62ba99d24b9b...10379eb75289a62f6b3137aadf56bf58fb8376e0
 [0.3.0]: https://github.com/ONEGAYI/ZCode-Plugins/compare/f5571930dcf55edde0a2f6306967393444090359...e049c3c3ab5a3571c9839e600eed62ba99d24b9b
