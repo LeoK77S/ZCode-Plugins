@@ -157,16 +157,18 @@ function refreshDetailLive() {
   };
   void showDetail(selectedRef).then(done, done);
 }
-function subscribeLive() {
-  if (typeof host.subscribeResource !== 'function' || typeof host.onResourceUpdated !== 'function') return;
+// 返回订阅是否成功；初始化时先订阅再首刷，把首刷后丢信号的窗口压到订阅在途的毫秒级（MCP 订阅无补发语义）
+async function subscribeLive() {
+  if (typeof host.subscribeResource !== 'function' || typeof host.onResourceUpdated !== 'function') return false;
   try {
     host.onResourceUpdated(uri => {
       if (uri !== RESOURCE_URI) return;
       void refresh();
       refreshDetailLive();
     });
-    void host.subscribeResource(RESOURCE_URI).catch(() => undefined);
-  } catch { /* 桥不支持时保持手动刷新 */ }
+    await host.subscribeResource(RESOURCE_URI);
+    return true;
+  } catch { return false; }
 }
 let refreshing = false, refreshPending = false;
 async function refresh() {
@@ -195,7 +197,7 @@ document.getElementById('back').addEventListener('click', () => {
 });
 refreshButton.addEventListener('click', refresh);
 detailRefresh.addEventListener('click', () => showDetail(selectedRef));
-try { host.subscribe(theme); await host.ready(); theme(); await refresh(); subscribeLive(); }
+try { host.subscribe(theme); await host.ready(); theme(); await subscribeLive(); await refresh(); }
 catch (error) { status.className = 'error'; status.textContent = error.message; refreshButton.disabled = true; }
 </script>
 </body>

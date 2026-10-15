@@ -26,11 +26,11 @@ export function registerArtifactResources(server, config, store) {
       : { error: 'resource_context_missing: 资源读取缺少会话上下文，请改用 get_artifacts 工具读取工件' };
     return { contents: [{ uri: ARTIFACT_RESOURCE_URI, mimeType: 'application/json', text: JSON.stringify(payload) }] };
   });
-    server.server.setRequestHandler(SubscribeRequestSchema, async request => {
-      // 只接受已注册资源：未知 uri 不入集合，避免订阅集合无界增长与向未声明资源推送
-      if (request.params.uri === ARTIFACT_RESOURCE_URI) subscribed.add(request.params.uri);
-      return {};
-    });
+  server.server.setRequestHandler(SubscribeRequestSchema, async request => {
+    // 只接受已注册资源：未知 uri 不入集合，避免订阅集合无界增长与向未声明资源推送
+    if (request.params.uri === ARTIFACT_RESOURCE_URI) subscribed.add(request.params.uri);
+    return {};
+  });
   server.server.setRequestHandler(UnsubscribeRequestSchema, async request => {
     subscribed.delete(request.params.uri);
     return {};

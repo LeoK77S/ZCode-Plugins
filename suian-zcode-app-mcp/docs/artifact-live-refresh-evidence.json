@@ -9,16 +9,20 @@
   "red_checks": [
     { "scope": "资源能力与清单、按上下文读取、订阅通知与扩展参数容忍、store 写入通知", "exit_code": 1, "tests": 4, "pass": 0, "fail": 4, "log_sha256": "A007516D9D9C8EB0CD1752C1FEF910134FA4828ECD060E1B2605313B88BA0D1F" }
   ],
-  "regression": { "tests": 131, "pass": 131, "fail": 0, "exit_code": 0, "log_sha256": "76C9E6E41F80CD3596A72CFCEEFBCBF9F8D75CE38745047E4FA869F4A383092B" },
+  "regression": { "tests": 131, "pass": 131, "fail": 0, "exit_code": 0, "log_sha256": "ACA610BECC5B1161E190EBBF2A9FE330F5316479860371187D07E7DF3037E25A" },
   "review_loop": {
-    "rounds": 1,
+    "rounds": 2,
     "findings_fixed": [
-      "P2：补 set 版本冲突回滚不通知的失败路径测试（第 5 例）并同步本证据",
-      "P3：subscribe 仅接受已注册 URI 白名单（防集合无界增长与向未声明资源推送），补第 6 例测试",
-      "P3：信号路径的详情重拉与列表对称合并，突发信号不放大原 Host 会话状态查询",
-      "P3 附带：页面注释措辞含 set_artifacts 命中旧宿主兼容正则（artifact-ui 契约），已改写"
+      "R1-P2：补 set 版本冲突回滚不通知的失败路径测试（第 5 例）并同步本证据",
+      "R1-P3：subscribe 仅接受已注册 URI 白名单（防集合无界增长与向未声明资源推送），补第 6 例测试",
+      "R1-P3：信号路径的详情重拉与列表对称合并，突发信号不放大原 Host 会话状态查询",
+      "R1-P3 附带：页面注释措辞含 set_artifacts 命中旧宿主兼容正则（artifact-ui 契约），已改写",
+      "R2 收窄：初始化改为先订阅后首刷，首刷后丢信号窗口压到订阅在途毫秒级（MCP 订阅无补发语义）；修白名单 handler 缩进"
     ],
-    "findings_non_defects": ["initialize 分叉继承首建行不通知（设计边界，spec 自洽）"]
+    "findings_non_defects": [
+      "initialize 分叉继承首建行不通知（设计边界，spec 自洽）",
+      "未知 URI 订阅返回成功而非协议错误（宽容降级，测试固化）"
+    ]
   },
   "independent_review": {
     "axes": ["standards", "spec"],
