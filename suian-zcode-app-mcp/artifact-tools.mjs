@@ -2,10 +2,11 @@ import { z } from 'zod';
 import { createArtifactStore, probeFileStates } from './artifacts.mjs';
 import { resolveCaller } from './caller.mjs';
 import { createArtifactStatusService } from './artifact-status.mjs';
+import { createArtifactRevealService } from './artifact-reveal.mjs';
 import { registerArtifactUi } from './artifact-ui.mjs';
 import { registerArtifactResources } from './artifact-resources.mjs';
 
-export function registerArtifactTools(server, config, { controller, prStatus }) {
+export function registerArtifactTools(server, config, { controller, prStatus, reveal }) {
   // notify 闭包先于 registry 声明：set/linkSessions 只在连接建立后经工具调用到达，届时注册表已就绪
   const store = createArtifactStore({ ...config, notify: () => registry.notifyChanged() });
   const registry = registerArtifactResources(server, config, store);
@@ -80,6 +81,23 @@ export function registerArtifactTools(server, config, { controller, prStatus }) 
     }
   });
   statusTool.disable();
-  registerArtifactUi(server, getTool, setTool, statusTool, config);
+  // 面板专用本机定位通道：与 PR 状态工具同为 app-only——注册后禁用，UI 能力协商成功后启用。
+  // 权限边界在 handler 内收口：参数只收 ref，经 resolveCaller 定位当前会话工件表，仅命中 file 条目
+  // 才把路径交给打开服务；未登记路径、非 file 条目与缺失路径直接拒绝，不接受任意路径参数。
+  const revealService = reveal ?? createArtifactRevealService(config);
+  const revealTool = server.registerTool('reveal_artifact', {
+    title: '在文件资源管理器中打开（工件面板）',
+    description: '工件面板专用通道：在系统文件管理器中定位当前会话已登记的 file 工件——文件条目打开所在目录并选中该文件，文件夹条目打开该文件夹本身（Linux 无统一选中语法，尽力打开所在目录）。参数只收 ref，不接受任意路径：在当前会话工件表中解析 ref，仅命中 file 条目才执行；未登记路径与非 file 条目直接拒绝，路径缺失同样拒绝。Windows 经 explorer /select 与 explorer 打开，进程委托现有资源管理器实例，退出码 0/1 均视为已启动；macOS 用 open -R/open，Linux 用 xdg-open，非零退出、无法启动或超时按失败回报，面板行内展示错误。本工具只执行用户在面板详情页的显式点击，与"工件引用不构成授权"的既有约定衔接，不构成对任何资源的额外操作授权。仅 UI 能力协商成功的客户端可见。',
+    inputSchema: z.object({ ref: text }).strict(),
+    annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: true }
+  }, ({ ref }, extra) => run(extra, 'reveal_artifact', async id => {
+    const state = store.get(id);
+    const item = state.items.find(item => item.ref === ref);
+    if (!item) throw Object.assign(new Error('当前会话没有该工件'), { code: 'artifact_not_found' });
+    if (item.kind !== 'file') throw Object.assign(new Error('仅 file 条目支持在文件资源管理器中打开'), { code: 'artifact_not_file' });
+    return { ref: item.ref, ...(await revealService.reveal(item.ref)) };
+  }));
+  revealTool.disable();
+  registerArtifactUi(server, getTool, setTool, statusTool, revealTool, config);
   return store;
 }

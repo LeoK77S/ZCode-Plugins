@@ -1,6 +1,6 @@
 # 工件区 demo 规格
 
-**状态**：2026-10-12 已在本地实施两项工具、摘要、历史快照和原生侧栏；开发分支增加分组列表、统一详情、服务记录时间和自动创建关系，并取消容量上限；2026-10-15 面板增加 PR 实时状态与增删行数（gh 通道）。原版隔离 Desktop 接线已验证，改版通过真实 MCP＋浏览器验证；当前安装副本与真实模型主动维护评估待验收。验证范围和宿主连接限制见 [开发验证](artifact-demo-verification.md)。
+**状态**：2026-10-12 已在本地实施两项工具、摘要、历史快照和原生侧栏；开发分支增加分组列表、统一详情、服务记录时间和自动创建关系，并取消容量上限；2026-10-15 面板增加 PR 实时状态与增删行数（gh 通道），详情页增加"用文件资源管理器打开"（本机定位通道）。原版隔离 Desktop 接线已验证，改版通过真实 MCP＋浏览器验证；当前安装副本与真实模型主动维护评估待验收。验证范围和宿主连接限制见 [开发验证](artifact-demo-verification.md)。
 
 阶段决定见 [ADR 0002](adr/0002-artifact-demo-summary.md)，分叉运行证据见 [宿主分叉核查](artifact-host-fork-audit.md)。原先的严格投影目标保留在 [ADR 0001](adr/0001-session-artifact-projection.md) 与 [#27 原始规格](https://github.com/ONEGAYI/ZCode-Plugins/issues/27)，作为完整版后续工作。
 
@@ -129,7 +129,7 @@ ZCode UI 的启用条件为客户端应用版本至少 3.15.1，且 MCP 初始�
 
 应用版本优先取 Desktop 传给插件的 ZCODE_APP_VERSION；缺失时才使用 name=zcode 的 MCP initialize.clientInfo.version。本机 3.15.1.8093 实测握手仍报告 CLI 0.16.9，不能将它当作应用版本。未知、旧版或能力不足时关闭 UI 元数据和资源。页面 getHostVersion()/hostInfo.version 是 UI 桥接版本，不能拿它比较应用版本。页面会话上下文使用宿主的绑定身份，切换会话不能沿用上一会话数据。
 
-UI 依据是 [3.15.1 官方 UI_PLUGIN.md](https://github.com/zai-org/ZCode/blob/aac4755666d09fdcd70272fcf063c077a639015f/UI_PLUGIN.md)。实际使用已公开的 window.zcode MCP Apps 兼容桥，不增加页面 SDK 打包依赖。页面只调用 get_artifacts 的列表与详情模式；HTTP(S) 引用经宿主 openExternal 打开。宿主只允许 HTTP(S) 外链，会话 ID 与文件路径完整展示，不伪造可点击跳转。宿主尚未为目标会话连接 MCP 时可能返回 connection unavailable，按错误呈现；不通过发起模型轮掩盖连接问题。跨会话跳转、系统打开文件等不纳入本次交付。
+UI 依据是 [3.15.1 官方 UI_PLUGIN.md](https://github.com/zai-org/ZCode/blob/aac4755666d09fdcd70272fcf063c077a639015f/UI_PLUGIN.md)。实际使用已公开的 window.zcode MCP Apps 兼容桥，不增加页面 SDK 打包依赖。页面只调用 get_artifacts 的列表与详情模式；HTTP(S) 引用经宿主 openExternal 打开。宿主只允许 HTTP(S) 外链，会话 ID 与文件路径完整展示，不伪造可点击跳转。宿主尚未为目标会话连接 MCP 时可能返回 connection unavailable，按错误呈现；不通过发起模型轮掩盖连接问题。跨会话跳转不纳入本次交付；在系统文件管理器中定位 file 工件经面板专用本机定位通道交付（见"面板本机定位"）。
 
 ## 面板实时刷新（资源订阅）
 
@@ -144,6 +144,14 @@ PR 条目的实时状态由插件 server 端经本机 `gh` CLI 子进程拉取�
 state/isDraft/mergeable 归并为五种展示状态 open/draft/conflict/merged/closed，优先级 merged、closed > conflict（mergeable=CONFLICTING）> draft > open。首页以状态图形替换默认 PR 图标、不出现状态文字，行尾右对齐显示增删行数（绿 +N、红 -M）；详情页显示状态文字与增删行数。
 
 降级语义：拉取出错（gh 失败、未认证、非 GitHub URL）时该条目不显示状态与数字、logo 回默认；拉取超时（默认 5 秒上限）沿用旧数据正常显示并在行尾追加黄色钟表图形，tooltip 说明数据停留时间与超时原因；无旧数据可沿用时超时按出错处理。内存缓存 per-ref 带成功时间戳，新鲜期（默认 60 秒）内命中缓存不再起子进程；gh 失败清除该 ref 缓存，随后的超时不再回退旧数据；在途请求按 ref 合并为一次子进程调用。非 GitHub 域名的 ref 直接走出错路径，不起子进程。契约测试以 gh 子进程桩与可控时钟覆盖成功、超时、出错、缓存命中与非 GitHub 跳过，不依赖真实网络。
+
+## 面板本机定位（文件资源管理器）
+
+file 条目的详情页提供"用文件资源管理器打开"操作：文件条目打开所在目录并选中该文件，文件夹条目打开该文件夹本身（Linux 无统一选中语法，尽力打开所在目录）。宿主桥 openLink 只放行 HTTP(S)、`file://` 被明确拒绝，因此该操作经页面 callTool 调用面板专用工具 `reveal_artifact`，由 server 进程起系统命令：Windows `explorer /select,<path>`（文件）与 `explorer <path>`（文件夹）、macOS `open -R`（文件）与 `open`（文件夹）、Linux `xdg-open`。
+
+工具默认禁用，UI 能力协商成功后以 `visibility=['app']` 启用，模型侧不可见；会话定位复用 caller 唯一定位机制。权限边界是本通道的核心：参数只收 ref，server 在当前会话工件表中解析 ref，仅命中 file 条目才执行——未登记路径（含其它会话登记的工件）与非 file 条目直接拒绝，不接受任意路径参数。执行前自行 stat 探测：路径不存在（ENOENT）拒绝，权限等其它错误与读取探测一致按存在降级、沿用文件语义。缺失态条目（读取时的 missing 标记）按钮灰化不可点击。
+
+成功判定：explorer.exe 把操作委托给已运行的资源管理器实例后立即退出，退出码 1 是常态而非失败（microsoft/WSL#6565），成功与否无法从退出码区分——可靠性来自执行前的 stat 探测，退出码 0/1 均视为已启动；open 与 xdg-open 是行为正常的控制台程序，仅退出码 0 视为成功。命令无法启动、非零退出（超出平台接受集）或超时（默认 10 秒上限）按 reveal_failed/reveal_timeout 回报，面板在详情页行内展示错误，不静默。契约测试以子进程桩按平台注入验证三个平台的命令形态与退出码语义，非当前平台分支不执行；Windows 真机打开行为另行烟测。
 
 ## 模块与验证入口
 
@@ -161,6 +169,7 @@ state/isDraft/mergeable 归并为五种展示状态 open/draft/conflict/merged/c
 8. 用固定任务评估真实 Agent 的主动登记、增量维护、保留交付物和清理失效引用，记录失败与成本边界。
 9. 资源订阅契约：能力宣告与清单、read 按上下文解析与缺上下文降级、宿主扩展参数容忍、实际变更推送 updated、相同内容与退订后不推送、store 层 notify 注入条件（见 artifact-resources 契约测试）。
 10. PR 状态通道契约：面板专用工具的可见性门控（普通客户端不可见、UI 客户端 visibility=app）、逐 ref 结果与单条错误不拖垮整体、模型侧 get_artifacts 不触发拉取；服务层成功归并、超时沿用旧数据与无旧数据降级、失败清缓存、新鲜期缓存命中、非 GitHub 不起子进程、在途合并（见 artifact-status 契约测试）。
+11. 本机定位通道契约：面板专用工具的可见性门控与参数只收 ref、未登记路径/非 file 条目/缺失路径拒绝且不触达打开服务、其它会话登记不互通、打开失败与超时行内可读；服务层三个平台命令形态以子进程桩按 platform 注入验证、win32 explorer 退出码 0/1 接受语义、spawn 失败与非 ENOENT stat 降级（见 artifact-reveal 契约测试）。
 
 新增可执行行为遵循 TDD，先观察公共契约测试暴露缺口，再实现。长耗时命令首次落盘记录日志和退出码，后续从日志复核。当前隔离能力探针不是生产工具、冷恢复或 UI 验收。
 
