@@ -64,7 +64,7 @@ export function createSessionReader({ indexDbPath, sessionDbPath }) {
         return { source: 'local_tasks_index', sessions, total, next_offset: next < total ? next : null };
       } finally { db.close(); }
     },
-    // 置顶列表与 listSessions 同源同排序，只多 pinned=1 条件；置顶与归档正交，默认排除归档、可显式包含
+    // 置顶列表与 listSessions 同源；排序在置顶行集下等价（listSessions 多出的 pinned DESC 对全置顶行是常数）
     listPinnedSessions({ limit = 20, offset = 0, workspace_path, include_archived = false } = {}) {
       const db = openReadOnly(indexDbPath);
       try {
