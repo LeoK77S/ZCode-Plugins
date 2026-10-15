@@ -128,6 +128,12 @@ ZCode UI 的启用条件为客户端应用版本至少 3.15.1，且 MCP 初始�
 
 UI 依据是 [3.15.1 官方 UI_PLUGIN.md](https://github.com/zai-org/ZCode/blob/aac4755666d09fdcd70272fcf063c077a639015f/UI_PLUGIN.md)。实际使用已公开的 window.zcode MCP Apps 兼容桥，不增加页面 SDK 打包依赖。页面只调用 get_artifacts 的列表与详情模式；HTTP(S) 引用经宿主 openExternal 打开。宿主只允许 HTTP(S) 外链，会话 ID 与文件路径完整展示，不伪造可点击跳转。宿主尚未为目标会话连接 MCP 时可能返回 connection unavailable，按错误呈现；不通过发起模型轮掩盖连接问题。跨会话跳转、系统打开文件等不纳入本次交付。
 
+## 面板实时刷新（资源订阅）
+
+server 宣告 `capabilities.resources.subscribe` 并注册单一信号资源 `suian-artifacts://current`（list/read 与 resources/subscribe/unsubscribe 处理器）。工件状态**实际写入**（set 增删改、会话关联建链）在事务 COMMIT 成功后向已订阅 URI 推送 `notifications/resources/updated`；内容完全相同的 upsert 不推送，回滚不推送。资源 read 按请求上下文尽力解析会话，缺上下文返回说明而非报错。
+
+页面把订阅只当"有变化"信号：收到通知后重拉列表，停留在详情视图时同步重拉当前详情，数据一律经 `get_artifacts` 工具按当前会话拉取（不产生模型请求、不写聊天历史）；refresh 进行中收到新信号合并为完成后补拉一次。桥缺 subscribeResource/onResourceUpdated（旧宿主或无桥环境）时静默跳过订阅，不产生新报错，手动刷新行为不变。宿主侧订阅由 agent 按 (server, uri) 引用计数聚合转发，多面板共享订阅不因单面板销毁而互斥退订。研究与上游源码依据见 [实时刷新研究](artifact-live-refresh-research.md)，验证证据见 [实时刷新证据](artifact-live-refresh-evidence.json)。真实 Desktop 端到端实测（自动刷新时延、切 tab 连续性）为遗留验收项。
+
 ## 模块与验证入口
 
 现有 server/cli 提供工件注册和外置配置接线；工件存储模块负责状态、时间、创建关系、快照和幂等初始化；原生 Hook 入口负责摘要与 Stop 快照；UI 资源负责分组和详情呈现。复用 caller、现有 controller 和配置入口，不为本功能重构公共网关。
@@ -142,6 +148,7 @@ UI 依据是 [3.15.1 官方 UI_PLUGIN.md](https://github.com/zai-org/ZCode/blob/
 6. UI 版本/能力门控、两会话不串读、空状态、刷新、错误与 snapshot_missing 呈现；分组折叠、数量、图标、详情往返、链接、实时重复查询、查询失败和浅深主题窄栏。真实 Desktop 新版验收另行留证。
 7. 服务时间、无变化时间不更新、旧时间未知、历史快照保留元信息；创建关系首发前登记、后续维护保留方向、登记失败保留创建回执。
 8. 用固定任务评估真实 Agent 的主动登记、增量维护、保留交付物和清理失效引用，记录失败与成本边界。
+9. 资源订阅契约：能力宣告与清单、read 按上下文解析与缺上下文降级、宿主扩展参数容忍、实际变更推送 updated、相同内容与退订后不推送、store 层 notify 注入条件（见 artifact-resources 契约测试）。
 
 新增可执行行为遵循 TDD，先观察公共契约测试暴露缺口，再实现。长耗时命令首次落盘记录日志和退出码，后续从日志复核。当前隔离能力探针不是生产工具、冷恢复或 UI 验收。
 
