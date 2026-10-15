@@ -137,13 +137,15 @@ server 宣告 `capabilities.resources.subscribe` 并注册单一信号资源 `su
 
 页面把订阅只当"有变化"信号：收到通知后重拉列表，停留在详情视图时同步重拉当前详情，数据一律经 `get_artifacts` 工具按当前会话拉取（不产生模型请求、不写聊天历史）；refresh 进行中收到新信号合并为完成后补拉一次。桥缺 subscribeResource/onResourceUpdated（旧宿主或无桥环境）时静默跳过订阅，不产生新报错，手动刷新行为不变。宿主侧订阅由 agent 按 (server, uri) 引用计数聚合转发，多面板共享订阅不因单面板销毁而互斥退订。研究与上游源码依据见 [实时刷新研究](artifact-live-refresh-research.md)，验证证据见 [实时刷新证据](artifact-live-refresh-evidence.json)。真实 Desktop 端到端实测（自动刷新时延、切 tab 连续性）为遗留验收项。
 
-## 面板 PR 实时状态（gh 通道）
+## 面板 PR/议题实时状态（gh 通道）
 
-PR 条目的实时状态由插件 server 端经本机 `gh` CLI 子进程拉取（`gh pr view <url> --json state,isDraft,mergeable,additions,deletions`）。通道为面板专用：`get_pr_statuses` 工具默认禁用，UI 能力协商成功后以 `visibility=['app']` 启用，模型侧不可见；`get_artifacts` 列表与详情保持纯本地读取，不产生网络副作用。拉取只挂在面板标准刷新时机（列表刷新按钮、订阅信号触发的 refresh、详情打开与刷新），不轮询。
+PR 条目的实时状态由插件 server 端经本机 `gh` CLI 子进程拉取（`gh pr view <url> --json state,isDraft,mergeable,additions,deletions`）；议题条目同机制拉取（`gh issue view <url> --json state,comments`，comments 实际为不含主帖的完整评论对象数组，服务端归并为评论条数）。通道为面板专用：`get_pr_statuses` 工具默认禁用，UI 能力协商成功后以 `visibility=['app']` 启用，模型侧不可见；`get_artifacts` 列表与详情保持纯本地读取，不产生网络副作用。拉取只挂在面板标准刷新时机（列表刷新按钮、订阅信号触发的 refresh、详情打开与刷新），不轮询；PR 与议题 refs 经同一次调用的 refs/issue_refs 两分支往返，面板单次刷新只发一次请求。
 
 state/isDraft/mergeable 归并为五种展示状态 open/draft/conflict/merged/closed，优先级 merged、closed > conflict（mergeable=CONFLICTING）> draft > open。首页以状态图形替换默认 PR 图标、不出现状态文字，行尾右对齐显示增删行数（绿 +N、红 -M）；详情页显示状态文字与增删行数。
 
-降级语义：拉取出错（gh 失败、未认证、非 GitHub URL）时该条目不显示状态与数字、logo 回默认；拉取超时（默认 5 秒上限）沿用旧数据正常显示并在行尾追加黄色钟表图形，tooltip 说明数据停留时间与超时原因；无旧数据可沿用时超时按出错处理。内存缓存 per-ref 带成功时间戳，新鲜期（默认 60 秒）内命中缓存不再起子进程；gh 失败清除该 ref 缓存，随后的超时不再回退旧数据；在途请求按 ref 合并为一次子进程调用。非 GitHub 域名的 ref 直接走出错路径，不起子进程。契约测试以 gh 子进程桩与可控时钟覆盖成功、超时、出错、缓存命中与非 GitHub 跳过，不依赖真实网络。
+议题 state 只有 OPEN/CLOSED，归并为 open/closed 两种。首页以状态图形（开放为绿色圆点、已关闭为紫色圆内对勾）替换默认议题图标、不出现状态文字，行尾右对齐显示会话气泡图形与评论数数字；详情页显示状态文字与评论数（不含主帖）。
+
+降级语义：拉取出错（gh 失败、未认证、非 GitHub URL）时该条目不显示状态与数字、logo 回默认；拉取超时（默认 5 秒上限）沿用旧数据正常显示并在行尾追加黄色钟表图形，tooltip 说明数据停留时间与超时原因；无旧数据可沿用时超时按出错处理。内存缓存 per-ref 带成功时间戳，新鲜期（默认 60 秒）内命中缓存不再起子进程；gh 失败清除该 ref 缓存，随后的超时不再回退旧数据；在途请求按 ref 合并为一次子进程调用。非 GitHub 域名的 ref 直接走出错路径，不起子进程。PR 与议题共用同一张 per-ref 缓存表与降级机制，同面板刷新中共存互不影响对方降级状态。契约测试以 gh 子进程桩与可控时钟覆盖成功、超时、出错、缓存命中、非 GitHub 跳过与 PR/议题共存，不依赖真实网络。
 
 ## 模块与验证入口
 
@@ -160,7 +162,7 @@ state/isDraft/mergeable 归并为五种展示状态 open/draft/conflict/merged/c
 7. 服务时间、无变化时间不更新、旧时间未知、历史快照保留元信息；创建关系首发前登记、后续维护保留方向、登记失败保留创建回执。
 8. 用固定任务评估真实 Agent 的主动登记、增量维护、保留交付物和清理失效引用，记录失败与成本边界。
 9. 资源订阅契约：能力宣告与清单、read 按上下文解析与缺上下文降级、宿主扩展参数容忍、实际变更推送 updated、相同内容与退订后不推送、store 层 notify 注入条件（见 artifact-resources 契约测试）。
-10. PR 状态通道契约：面板专用工具的可见性门控（普通客户端不可见、UI 客户端 visibility=app）、逐 ref 结果与单条错误不拖垮整体、模型侧 get_artifacts 不触发拉取；服务层成功归并、超时沿用旧数据与无旧数据降级、失败清缓存、新鲜期缓存命中、非 GitHub 不起子进程、在途合并（见 artifact-status 契约测试）。
+10. PR/议题状态通道契约：面板专用工具的可见性门控（普通客户端不可见、UI 客户端 visibility=app）、refs/issue_refs 两分支逐 ref 结果与单条错误不拖垮整体、模型侧 get_artifacts 不触发拉取；服务层成功归并、超时沿用旧数据与无旧数据降级、失败清缓存、新鲜期缓存命中、非 GitHub 不起子进程、在途合并、议题与 PR 同服务共存互不影响（见 artifact-status 契约测试）。
 
 新增可执行行为遵循 TDD，先观察公共契约测试暴露缺口，再实现。长耗时命令首次落盘记录日志和退出码，后续从日志复核。当前隔离能力探针不是生产工具、冷恢复或 UI 验收。
 

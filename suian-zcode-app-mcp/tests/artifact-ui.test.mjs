@@ -47,6 +47,12 @@ test('原生工件 UI 同时要求 ZCode >=3.15.1 与 MCP Apps MIME；旧版和�
       assert.match(page.text, /\.icon\.missing/, '缺失态有灰化样式');
       assert.match(page.text, /pr: '拉取请求', issue: '议题', session: '会话', file: '文件', link: '链接'/);
       assert.match(page.text, /\.icon\.issue\{color:var\(--issue\)\}/);
+      assert.match(page.text, /\.icon\.issue\[data-state=open\]\{color:var\(--link\)\}/, '议题开放状态着色');
+      assert.match(page.text, /\.icon\.issue\[data-state=closed\]\{color:var\(--accent\)\}/, '议题关闭状态着色');
+      assert.match(page.text, /\.icon\.bubble\{/, '评论气泡样式存在');
+      assert.match(page.text, /issue_refs/, '面板经同一状态通道传递议题 refs');
+      assert.match(page.text, /议题状态/, '详情页显示议题状态');
+      assert.match(page.text, /评论数（不含主帖）/, '详情页显示评论数');
       assert.doesNotMatch(page.text, /set_artifacts|https:\/\/.*\.js|fetch\(/);
     } else await assert.rejects(client.readResource({ uri }));
     assert.equal((await client.callTool({ name: 'get_artifacts', arguments: {}, _meta: { session_id: 'sess_alpha' } })).isError, undefined);
