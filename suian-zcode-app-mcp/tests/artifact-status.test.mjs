@@ -284,6 +284,9 @@ test('get_pr_statuses 是面板专用通道：普通客户端不可见，UI 客�
   assert.equal(tool._meta?.ui?.resourceUri, 'ui://suian-zcode-app-mcp/artifacts.html');
   assert.deepEqual(tool._meta?.ui?.visibility, ['app']);
   assert.equal(tool.annotations.readOnlyHint, true);
+  // 指向 get_artifacts 的表述用限定语义：会话详情仍查询原 Host（可能恢复会话并同步索引），不得标为"纯本地"
+  assert.doesNotMatch(tool.description, /纯本地/, '不使用过宽的纯本地表述');
+  assert.match(tool.description, /会话详情仍查询原 Host 实时状态/, '指明会话详情的原 Host 查询');
 });
 
 test('get_pr_statuses 按透传 refs 返回逐条结果，单条错误不拖垮整体，服务异常整体报错', async t => {

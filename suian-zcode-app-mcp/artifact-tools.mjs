@@ -68,7 +68,7 @@ export function registerArtifactTools(server, config, { controller, prStatus, re
   const statusService = prStatus ?? createArtifactStatusService(config);
   const statusTool = server.registerTool('get_pr_statuses', {
     title: '查询 GitHub PR/议题实时状态（工件面板）',
-    description: '工件面板专用通道：经本机 gh CLI 实时拉取 GitHub PR 与议题状态，按 ref 逐条返回。refs 走 PR 分支（gh pr view），返回 {status, additions, deletions, fetched_at}，status 由 state/isDraft/mergeable 归并为 open/draft/conflict/merged/closed（merged、closed 优先于冲突，冲突优先于草稿）；issue_refs 走议题分支（gh issue view），返回 {state, comments, fetched_at}，state 为 open/closed，comments 为不含主帖的评论数。内存缓存 per-ref 带成功时间戳，新鲜期内直接命中；拉取超时沿用旧数据并附 stale/stale_reason，无旧数据、gh 失败或非 GitHub 链接时该 ref 返回 error，不影响其它条目。读取工件清单与详情请用 get_artifacts（纯本地，不产生网络请求）；本工具仅在工件面板可用的客户端启用。',
+    description: '工件面板专用通道：经本机 gh CLI 实时拉取 GitHub PR 与议题状态，按 ref 逐条返回。refs 走 PR 分支（gh pr view），返回 {status, additions, deletions, fetched_at}，status 由 state/isDraft/mergeable 归并为 open/draft/conflict/merged/closed（merged、closed 优先于冲突，冲突优先于草稿）；issue_refs 走议题分支（gh issue view），返回 {state, comments, fetched_at}，state 为 open/closed，comments 为不含主帖的评论数。内存缓存 per-ref 带成功时间戳，新鲜期内直接命中；拉取超时沿用旧数据并附 stale/stale_reason，无旧数据、gh 失败或非 GitHub 链接时该 ref 返回 error，不影响其它条目。读取工件清单与详情请用 get_artifacts（不触发本通道的 GitHub PR/议题状态拉取；会话详情仍查询原 Host 实时状态，可能恢复会话并同步索引）；本工具仅在工件面板可用的客户端启用。',
     inputSchema: z.object({
       refs: z.array(text).min(1).max(200).optional(),
       issue_refs: z.array(text).min(1).max(200).optional()

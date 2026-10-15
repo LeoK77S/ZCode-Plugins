@@ -144,7 +144,8 @@ function applyStatuses() {
     renderDetail(currentDetail); // 重绘幂等，状态迟到时补上或更新详情字段
 }
 // 面板专用状态通道：仅挂在标准刷新时机（列表刷新/订阅信号/详情打开与刷新）触发；
-// PR 与议题合并调用，进行中合并为一批，通道失败静默保持现状，不弹错误打断面板。
+// PR 与议题合并调用，进行中合并为一批。通道级失败（callTool 拒绝或 isError 响应）把本批
+// 全部条目标记错误并重绘——清状态与数字、logo 回默认，不弹错误打断面板。
 // 服务端 get_pr_statuses 校验单数组至多 200 条，超出整批拒绝会让所有条目失去状态；
 // 面板按 ≤200 切片多次调用并合并结果（服务端 per-ref 缓存与在途合并天然支持分批），
 // PR 与议题切片配对发送，普通规模仍保持一次往返
@@ -155,6 +156,14 @@ function chunkRefs(refs) {
   return chunks;
 }
 let statusBusy = false, prQueue = new Set(), issueQueue = new Set();
+// 通道级失败回退：本批条目全部标记错误并重绘（契约：拉取出错时不显示状态与数字、logo 回默认），
+// 不沿用旧快照冒充有效；错误条目被下一次成功刷新覆盖后即恢复显示，不会被卡死。
+// 与超时语义区分：服务端超时返回的 stale 旧数据走成功响应逐条合并，保留显示并附黄钟表，不经此路径
+function failStatusChunk(prChunk, issueChunk, message) {
+  for (const ref of prChunk ?? []) prStatuses[ref] = { error: message };
+  for (const ref of issueChunk ?? []) issueStatuses[ref] = { error: message };
+  applyStatuses();
+}
 function syncStatuses(prRefs, issueRefs) {
   for (const ref of prRefs ?? []) prQueue.add(ref);
   for (const ref of issueRefs ?? []) issueQueue.add(ref);
@@ -173,14 +182,15 @@ function syncStatuses(prRefs, issueRefs) {
             if (prChunk) args.refs = prChunk;
             if (issueChunk) args.issue_refs = issueChunk;
             const result = await host.callTool('get_pr_statuses', args);
-            if (!result.isError && result.structuredContent) {
-              // 响应按 ref 合并返回，按本次请求的条目类型分桶归位
-              const merged = result.structuredContent.statuses ?? {};
-              for (const ref of prChunk ?? []) if (merged[ref] !== undefined) prStatuses[ref] = merged[ref];
-              for (const ref of issueChunk ?? []) if (merged[ref] !== undefined) issueStatuses[ref] = merged[ref];
-              applyStatuses();
+            if (result.isError || !result.structuredContent) {
+              throw new Error(result.structuredContent?.error ?? result.content?.[0]?.text ?? '状态通道响应无效');
             }
-          } catch { /* 状态通道不可用：静默保持现状 */ }
+            // 响应按 ref 合并返回，按本次请求的条目类型分桶归位；服务端漏返的条目同样按错误回退
+            const merged = result.structuredContent.statuses ?? {};
+            for (const ref of prChunk ?? []) prStatuses[ref] = merged[ref] ?? { error: '状态通道未返回该条目' };
+            for (const ref of issueChunk ?? []) issueStatuses[ref] = merged[ref] ?? { error: '状态通道未返回该条目' };
+            applyStatuses();
+          } catch (error) { failStatusChunk(prChunk, issueChunk, '状态通道调用失败：' + (error?.message ?? '未知错误')); }
         }
       }
     } finally { statusBusy = false; }
@@ -298,15 +308,22 @@ function renderDetail(detail) {
   }
 }
 // 详情页"用文件资源管理器打开"：经 reveal_artifact 由 server 起系统命令定位本机文件；
-// 失败（非零退出、无法启动、超时）行内回报错误，不静默
+// 失败（非零退出、无法启动、超时）行内回报错误，不静默。
+// 回执绑定发起时的详情代次与 ref：A 的打开调用在途时用户返回列表或查看 B（detailRequest 已推进），
+// 迟到回执直接丢弃，不写共享 detailStatus 污染 B 的状态；同一详情刷新（detailRefresh/订阅信号）
+// 同样推进代次并重绘，状态文本以详情读取结果为准，旧回执不再覆盖
 async function revealArtifact(ref, button) {
+  const request = detailRequest;
+  const outdated = () => request !== detailRequest || ref !== selectedRef || detailView.hidden;
   button.disabled = true;
   detailStatus.className = ''; detailStatus.textContent = '正在打开…';
   try {
     const result = await host.callTool('reveal_artifact', { ref });
     if (result.isError) throw new Error(result.structuredContent?.error ?? result.content?.[0]?.text ?? '打开失败');
+    if (outdated()) return;
     detailStatus.textContent = '已在文件资源管理器中打开';
   } catch (error) {
+    if (outdated()) return;
     detailStatus.className = 'error'; detailStatus.textContent = '打开失败：' + error.message;
   } finally { button.disabled = false; }
 }

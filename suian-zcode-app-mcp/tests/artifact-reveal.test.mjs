@@ -101,6 +101,33 @@ test('打开命令超时按 reveal_timeout 回报，不沿用退出码语义', a
   await assert.rejects(() => service.reveal(WIN_FILE), error => error.code === 'reveal_timeout');
 });
 
+// 外层兜底竞速：旧实现对悬挂 stat 无界等待，让缺口以断言失败呈现而不是挂死测试进程
+const hangGuard = (promise, ms = 800) => Promise.race([
+  promise.then(() => 'resolved', error => error.code),
+  new Promise(resolve => setTimeout(() => resolve('测试兜底超时：操作无界等待'), ms))
+]);
+
+test('stat 探测悬挂纳入整体期限：期限内按 reveal_timeout 失败，不起打开进程', async () => {
+  const runner = stubRunner();
+  const stat = () => new Promise(() => {}); // 网络挂载 stat 悬挂：永不 settle
+  const service = createArtifactRevealService({ platform: 'win32', stat, run: runner.run, timeoutMs: 25 });
+  assert.equal(await hangGuard(service.reveal(WIN_FILE)), 'reveal_timeout', '预检悬挂必须在期限内按超时失败');
+  assert.equal(runner.calls.length, 0, '预检未完成不得启动资源管理器');
+});
+
+test('stat 超时判决后迟到返回不再触发打开：race 已决出，迟到结果被忽略', async () => {
+  const runner = stubRunner();
+  let settleStat;
+  const stat = () => new Promise(resolve => { settleStat = () => resolve(fileInfo); });
+  const service = createArtifactRevealService({ platform: 'win32', stat, run: runner.run, timeoutMs: 20 });
+  const outcome = hangGuard(service.reveal(WIN_FILE));
+  await new Promise(resolve => setTimeout(resolve, 80)); // 超过 timeoutMs，超时判决应已作出
+  assert.equal(await outcome, 'reveal_timeout');
+  settleStat(); // stat 迟到成功返回
+  await new Promise(resolve => setTimeout(resolve, 50)); // 迟到结果传播后复查
+  assert.equal(runner.calls.length, 0, '迟到 stat 结果不得触发资源管理器');
+});
+
 // —— MCP 公开契约 ——
 
 async function connect(t, f, options, capabilities, name = 'plain-client') {

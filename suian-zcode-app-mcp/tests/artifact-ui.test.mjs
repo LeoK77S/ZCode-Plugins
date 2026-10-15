@@ -61,6 +61,15 @@ test('原生工件 UI 同时要求 ZCode >=3.15.1 与 MCP Apps MIME；旧版和�
       assert.match(page.text, /issue_refs/, '面板经同一状态通道传递议题 refs');
       assert.match(page.text, /议题状态/, '详情页显示议题状态');
       assert.match(page.text, /评论数（不含主帖）/, '详情页显示评论数');
+      // 状态通道整次失败（callTool 拒绝或 isError）不再静默沿用旧快照：本批全部条目标记错误并重绘，
+      // 清状态与数字、logo 回默认（docs/artifact-zone-spec.md 降级语义）；下一次成功刷新恢复显示
+      assert.doesNotMatch(page.text, /静默保持现状/, '通道失败静默保持现状的旧语义已移除');
+      assert.match(page.text, /通道级失败/, '通道级失败路径注释锚点存在');
+      assert.match(page.text, /failStatusChunk\(prChunk, issueChunk/, '通道失败把整批条目标记为错误');
+      assert.match(page.text, /prStatuses\[ref\] = \{ error: message \}/, 'PR 桶错误标记清状态');
+      assert.match(page.text, /issueStatuses\[ref\] = \{ error: message \}/, '议题桶错误标记清状态');
+      // reveal 迟到回执绑定详情代次与 ref：离开详情或切换条目后不污染共享 detailStatus
+      assert.match(page.text, /request !== detailRequest \|\| ref !== selectedRef/, '打开回执按详情代次与 ref 校验');
       assert.doesNotMatch(page.text, /set_artifacts|https:\/\/.*\.js|fetch\(/);
     } else await assert.rejects(client.readResource({ uri }));
     assert.equal((await client.callTool({ name: 'get_artifacts', arguments: {}, _meta: { session_id: 'sess_alpha' } })).isError, undefined);
@@ -86,4 +95,21 @@ test('3.15.1 Desktop 仍报 CLI 0.16.9 时使用宿主传入的应用版本；�
     assert.equal((await client.listResources()).resources.some(resource => resource.uri === uri), enabled);
     await client.close();
   }
+});
+
+// UI 逻辑无浏览器测试设施：页面行为契约以源码特征断言固化，脚本本身的可解析性用 node --check 守护
+// （module 语法含顶层 await，临时文件取 .mjs 扩展让 --check 按模块解析）
+test('页面内联脚本可解析：抽取后 node --check 通过', async t => {
+  const { readFile, writeFile, rm } = await import('node:fs/promises');
+  const { execFile } = await import('node:child_process');
+  const { promisify } = await import('node:util');
+  const { tmpdir } = await import('node:os');
+  const { join } = await import('node:path');
+  const html = await readFile(new URL('../ui/artifacts.html', import.meta.url), 'utf8');
+  const match = html.match(/<script type="module">([\s\S]*)<\/script>/);
+  assert.ok(match, '页面包含 module 内联脚本');
+  const file = join(tmpdir(), `artifacts-page-${process.pid}-${Date.now()}.mjs`);
+  await writeFile(file, match[1]);
+  t.after(() => rm(file, { force: true }).catch(() => {}));
+  await promisify(execFile)(process.execPath, ['--check', file]);
 });
