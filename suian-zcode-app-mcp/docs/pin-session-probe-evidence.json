@@ -1,0 +1,38 @@
+{
+  "purpose": "app-mcp 置顶工具（#61）的宿主能力探针证据：官方 v3.15.1 源码结论与本机公共网关实测，证明 zcode-task 服务的置顶读写方法在远控链路可达。只保留方法名、结果形状与计数，不含凭据、会话正文与本机路径。",
+  "official_source": {
+    "snapshot": "sources/official-zcode @ aac47556（v3.15.1 公开快照，只读参照）",
+    "channel": "packages/shared/src/channels.ts:110 定义 ZCodeTask: \"zcode-task\"（Host RPC 服务通道）",
+    "setTaskPinned": "packages/services/src/zcode-agent/zcodeTaskServiceAdapter.ts:3412 写 overlay 与 tasks-index.sqlite（updateTaskState 在 RPC 返回前 await 完成）后 emit task_pinned/task_unpinned",
+    "read_methods": "同文件 2723/2732 行 listPinnedTaskIds / listPinnedTasks；接口契约见 packages/services/src/session/zcodeTaskService.ts:451-467、766-773",
+    "v4_commands": "V4 命令层（NATIVE_HANDLERS 全集）不含置顶；置顶不属于 V4 命令，只经 zcode-task 服务通道",
+    "mobile_ui": "手机 web 端无置顶按钮；pinned 仅作为 workspace-list-updated 推送的只读字段（packages/desktop/src/main/webRemoteControlManager.ts:837）"
+  },
+  "probe": {
+    "executed_at": "2026-10-15T10:51:39Z",
+    "environment": "本机公共网关（relay 模式），health 显示 desktop_connected/desktop_ready/upstream_connected 均为 true；探针经 suian-zcode-common connectHost 附着本地工作区后调用 zcode-task 服务",
+    "calls": [
+      { "method": "listPinnedTaskIds", "args": [], "result": "字符串数组，实测返回 1 个真实置顶会话 ID（跨工作区）", "ok": true },
+      { "method": "listPinnedTasks", "args": [{ "workspacePath": "<本机工作区>" }], "result": "数组，实测该工作区置顶数为 0", "ok": true },
+      { "method": "setTaskPinned", "args": [{ "taskId": "__probe_pin_nonexistent__", "workspacePath": "<本机工作区>", "pinned": true }], "result": "业务错误「列表 mutation 无法解析唯一 source，taskId=__probe_pin_nonexistent__, matches=0」——命令穿过网关 RPC 分发直达 Host 实现，写方法可达；未对任何真实会话写入", "ok": "business_error" }
+    ],
+    "interpretation": "读方法真实返回数据；写方法用不存在的 taskId 做无损存在性探测，错误为业务层（task 解析失败）而非 method not found，证明通道为动态方法分发且 setTaskPinned 可达。"
+  },
+  "end_to_end": {
+    "executed_at": "2026-10-15T11:20:06Z",
+    "environment": "真实 Host（本机公共网关 relay 模式，Desktop 在线）；分支代码直驱 control.mjs/sessions.mjs",
+    "session": "经 start_session 新建的专用测试会话（GLM-5.3-Flash，固定标记回复 PIN_E2E_OK；验收后已归档清理）",
+    "steps": [
+      { "name": "listPinnedSessions 基线", "result": "置顶列表为空" },
+      { "name": "pinSession（会话运行中执行）", "result": "网关写入成功，精确读回 source:original_host、pinned:true" },
+      { "name": "listPinnedSessions 置顶后", "result": "列表恰好包含测试会话" },
+      { "name": "unpinSession", "result": "读回 pinned:false" },
+      { "name": "listPinnedSessions 取消后", "result": "列表恢复基线，无残留状态" }
+    ],
+    "conclusions": [
+      "置顶写路径在真实 Host 上全链路可用：网关 RPC → tasks-index.sqlite → 本地精确读回，写后立即可见",
+      "pin/unpin 在会话运行中执行，验证了置顶与运行的正交性；测试会话按指令回复固定标记后正常完成",
+      "归档清理使用既有 archive_session 工具，未对其他会话做任何写操作"
+    ]
+  }
+}

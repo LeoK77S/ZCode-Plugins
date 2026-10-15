@@ -141,7 +141,7 @@ npm ci --ignore-scripts --no-fund --no-audit
 
 这是使用 `mcpServers` 的兼容客户端示例。ZCode 原生 `~/.zcode/cli/config.json` 或工作区 `.zcode/config.json` 使用 `mcp.servers`，由 Agent 按 skill 合并本服务，保留其他配置；不要把整个示例当作原生配置文件。[官方 MCP 文档](https://zcode.z.ai/cn/docs/mcp-services)
 
-公共网关的环境变量必须配置在 Desktop 启动环境中，不能只放在 MCP 服务的 `env`。手动配置流程也以 [公共网关 skill](../suian-zcode-common/SKILL.md) 为准；当前两个 SQLite 工具可独立运行，无需远控授权链接。
+公共网关的环境变量必须配置在 Desktop 启动环境中，不能只放在 MCP 服务的 `env`。手动配置流程也以 [公共网关 skill](../suian-zcode-common/SKILL.md) 为准；当前三个 SQLite 读取工具可独立运行，无需远控授权链接。
 
 默认读取当前系统用户的 `~/.zcode/v2/tasks-index.sqlite` 和 `~/.zcode/cli/db/db.sqlite`。自定义路径可在 args 追加 `--index-db {{index_db_path}} --session-db {{session_db_path}} --artifact-db {{artifact_db_path}}`，或设置对应环境变量。也可用 `--config {{config_file}}` 读取外置 JSON 的 indexDbPath、sessionDbPath、artifactDbPath、gatewayConfigPath、authDataDir。优先级为命令参数 > 对应环境变量 > 外置配置 > 默认路径。
 

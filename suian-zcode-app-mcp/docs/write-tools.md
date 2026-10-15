@@ -14,7 +14,7 @@
 node "{{plugin_root}}/cli.mjs" --save-authorization
 ```
 
-这条兼容命令保存后退出，不启动 MCP。链接不放到 args/env/日志；--auth-data-dir 或 ZCODE_APP_MCP_AUTH_DATA_DIR 只指定旧密文位置，不影响网关调用。两个读取工具始终无需网关。
+这条兼容命令保存后退出，不启动 MCP。链接不放到 args/env/日志；--auth-data-dir 或 ZCODE_APP_MCP_AUTH_DATA_DIR 只指定旧密文位置，不影响网关调用。三个读取工具始终无需网关。
 
 ## 输入与输出
 
@@ -153,13 +153,15 @@ compact 尚在排队时，guide 仍可能先被当前轮消费；未消费而改
 {"name":"list_pinned_sessions","arguments":{"include_archived":true}}
 ```
 
-写路径经公共网关调用 `zcode-task` 的 `setTaskPinned`（官方实现写 tasks-index.sqlite 后发 `task_pinned`/`task_unpinned` 列表变更事件），随后从本机任务索引读回确认置顶位，对齐归档的写后读回纪律。成功返回 `source:original_host`、`session_id`、`workspace_path`、`pinned`；读回不一致或多行歧义报 `pin_not_confirmed`，不猜默认值。
+写路径经公共网关调用 `zcode-task` 的 `setTaskPinned`（官方实现写 tasks-index.sqlite 后发 `task_pinned`/`task_unpinned` 列表变更事件），随后按 task_id 从本机任务索引精确读回置顶位（不受标题子串与列表分页影响），对齐归档的写后读回纪律。成功返回 `source:original_host`、`session_id`、`workspace_path`、`pinned`；读回不一致或多行歧义报 `pin_not_confirmed`，不猜默认值。
 
 **置顶与归档是正交状态**：置顶只改变列表展示归属，不影响会话运行与历史；归档会话也可置顶或取消置顶（读回时包含归档行），unpin 不改变归档状态。置顶是幂等操作，重复置顶同一会话结果一致。
 
-目标会话不存在时错误来自 Host 业务层（如「列表 mutation 无法解析唯一 source」），明确返回、不静默成功。省略 workspace_path 时从本机历史定位，跨工作区同 ID 用 workspace_key 消歧；目标工作区必须在网关连接的 Desktop 窗口中打开。
+错误来源分两段：省略 workspace_path 时先从本机索引与历史定位，会话不在本机索引报本地 `session_not_found`，请求不触达 Host；定位通过后 Host 侧解析失败（如「列表 mutation 无法解析唯一 source」）报 Host 业务层错误。两种错误都明确返回、不静默成功。跨工作区同 ID 用 workspace_key 消歧；目标工作区必须在网关连接的 Desktop 窗口中打开。
 
 `list_pinned_sessions` 列出 `pinned=1` 且未删除的行，默认排除归档、`include_archived:true` 可显式包含；`workspace_path` 过滤、limit/offset 分页与 `list_sessions` 同规则，行结构相同。该工具与 list_sessions 一样返回持久化状态，不要求 Desktop 在线。
+
+宿主能力依据与 2026-10-15 网关探针实测（读路径真实返回、写路径业务错误证明可达、未写真实会话）见[脱敏证据](./pin-session-probe-evidence.json)。
 
 ## 消息来源格式
 

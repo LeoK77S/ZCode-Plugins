@@ -82,6 +82,21 @@ export function createSessionReader({ indexDbPath, sessionDbPath }) {
         return { source: 'local_tasks_index', sessions, total, next_offset: next < total ? next : null };
       } finally { db.close(); }
     },
+    // 写后读回的精确定位：按 task_id 精确匹配（子串/分页无关），含归档行、排除删除行；
+    // 跨工作区同 ID 多行由调用方判歧义，不在此静默取舍
+    listSessionStates({ session_id, workspace_path, workspace_key }) {
+      const db = openReadOnly(indexDbPath);
+      try {
+        const conditions = ['task_id=?', 'deleted=0'], args = [session_id];
+        if (workspace_key !== undefined) { conditions.push('workspace_key=?'); args.push(workspace_key); }
+        if (workspace_path !== undefined) {
+          db.function('normalize_workspace', normalizeWorkspace);
+          conditions.push('normalize_workspace(workspace_path)=?');
+          args.push(normalizeWorkspace(workspace_path));
+        }
+        return db.prepare(`SELECT ${taskColumns} FROM tasks WHERE ${conditions.join(' AND ')}`).all(...args).map(taskItem);
+      } finally { db.close(); }
+    },
     readSession({ session_id, limit = 30, before_message_id, workspace_key }) {
       const index = openReadOnly(indexDbPath);
       let task;

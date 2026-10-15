@@ -38,6 +38,8 @@ async function fixture(overrides = {}) {
     reader: { readSession: () => ({ session: { workspace_path: workspace } }),
       listSessions: args => overrides.listSessions ? overrides.listSessions(args)
         : { sessions: [{ session_id: args.query, archived, pinned }] },
+      listSessionStates: args => overrides.listSessionStates ? overrides.listSessionStates(args)
+        : [{ session_id: args.session_id, archived, pinned }],
       sessionMode: args => overrides.sessionMode ? overrides.sessionMode(args) : { mode: persistedMode, observed: [persistedMode] } },
     loadAuthorization: async () => { throw new Error('网关调用不得读取旧远控凭据'); },
     setTitlePolicy: async args => { policies.push(args); },
@@ -340,7 +342,7 @@ test('置顶与取消置顶经网关写入并从索引读回确认，置顶与�
   assert.deepEqual(f.calls.at(-1).params, [{ taskId: 'sess_new', workspacePath: workspace, pinned: false }]);
   assert.ok(f.connections.every(c => c.closed));
   // 归档行也能置顶：读回时含归档行，pinned 状态独立确认
-  const archivedAndPinned = await fixture({ listSessions: () => ({ sessions: [{ session_id: 'sess_new', archived: true, pinned: true }] }) });
+  const archivedAndPinned = await fixture({ listSessionStates: () => [{ session_id: 'sess_new', archived: true, pinned: true }] });
   assert.equal((await archivedAndPinned.controller.pinSession({ session_id: 'sess_new' })).pinned, true);
 });
 
@@ -348,12 +350,14 @@ test('置顶写入失败或索引读回不一致时报错并释放连接，不�
   const failed = await fixture({ setTaskPinned: () => { throw new Error('fixture write failed'); } });
   await assert.rejects(failed.controller.pinSession({ session_id: 'sess_new' }), /fixture write failed/);
   assert.equal(failed.connections[0].closed, true);
-  const stale = await fixture({ listSessions: () => ({ sessions: [{ session_id: 'sess_new', archived: false, pinned: false }] }) });
+  const stale = await fixture({ listSessionStates: () => [{ session_id: 'sess_new', archived: false, pinned: false }] });
   await assert.rejects(stale.controller.pinSession({ session_id: 'sess_new' }), /pin_not_confirmed/);
   assert.equal(stale.calls.filter(c => c.method === 'setTaskPinned').length, 1);
   assert.ok(stale.connections.every(c => c.closed));
-  const ambiguous = await fixture({ listSessions: () => ({ sessions: [{ session_id: 'sess_new', archived: false, pinned: false }, { session_id: 'sess_new', archived: false, pinned: true }] }) });
+  const ambiguous = await fixture({ listSessionStates: () => [{ session_id: 'sess_new', archived: false, pinned: false }, { session_id: 'sess_new', archived: false, pinned: true }] });
   await assert.rejects(ambiguous.controller.unpinSession({ session_id: 'sess_new' }), /pin_not_confirmed/);
+  const missing = await fixture({ listSessionStates: () => [] });
+  await assert.rejects(missing.controller.pinSession({ session_id: 'sess_new' }), /pin_not_confirmed/);
 });
 
 test('缺少运行态不能猜闲置，即使 force 也不在未完成检查时写入', async () => {
