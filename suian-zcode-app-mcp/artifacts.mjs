@@ -1,5 +1,6 @@
 import { DatabaseSync } from 'node:sqlite';
 import { mkdirSync, statSync } from 'node:fs';
+import { stat as fsStat } from 'node:fs/promises';
 import { dirname, isAbsolute, win32 } from 'node:path';
 import { createHash } from 'node:crypto';
 import { readForkOrigin, readHost, readStopBoundary } from './artifact-host.mjs';
@@ -12,19 +13,46 @@ function validateBatch(upsert, remove) {
     if (refs.has(item.ref) || remove.includes(item.ref)) invalid('同一 ref 不能重复 upsert 或同时 upsert/remove');
     refs.add(item.ref);
     if (item.kind === 'file' && !isAbsolute(item.ref) && !win32.isAbsolute(item.ref)) invalid('file ref 必须是绝对路径');
-    if (item.kind === 'pr' || item.kind === 'link') {
+    if (['pr', 'link', 'issue'].includes(item.kind)) {
       let url;
       try { url = new URL(item.ref); }
-      catch { invalid('pr/link ref 必须是 HTTP(S) URL'); }
-      if (!['http:', 'https:'].includes(url.protocol)) invalid('pr/link ref 必须是 HTTP(S) URL');
+      catch { invalid('pr/link/issue ref 必须是 HTTP(S) URL'); }
+      if (!['http:', 'https:'].includes(url.protocol)) invalid('pr/link/issue ref 必须是 HTTP(S) URL');
     }
   }
 }
 
 export function artifactStats(items) {
-  const by_kind = { pr: 0, session: 0, file: 0, link: 0 };
+  const by_kind = { pr: 0, issue: 0, session: 0, file: 0, link: 0 };
   for (const item of items) by_kind[item.kind]++;
   return { total: items.length, by_kind };
+}
+
+/**
+ * file 条目的读取路径实时探测（get_artifacts 列表与详情，不入库）：就地为条目附加 is_directory /
+ * missing 标记。仅 ENOENT（路径不存在）判缺失；目录以 is_directory 标记与普通文件区分；
+ * 权限、网络盘等其它 stat 错误一律按未知处理——省略标记、面板呈现为存在态，避免误报；
+ * 单条 stat 超过 statTimeoutMs（默认 2000ms，可注入覆盖）同样按未知降级，避免不可达网络盘
+ * 挂起整个读取。每次探测先清理旧标记再赋值，历史存储残留的标记以实时结果纠正；单条探测异常不外抛。
+ */
+const statSlow = Symbol('stat-slow');
+export async function probeFileStates(items, { stat = fsStat, statTimeoutMs = 2000 } = {}) {
+  await Promise.all(items.map(async item => {
+    if (item.kind !== 'file') return;
+    let timer;
+    try {
+      const info = await Promise.race([
+        stat(item.ref),
+        new Promise((_, reject) => { timer = setTimeout(() => reject(statSlow), statTimeoutMs); })
+      ]).finally(() => clearTimeout(timer));
+      delete item.missing;
+      item.is_directory = info.isDirectory();
+    } catch (error) {
+      delete item.is_directory;
+      if (error !== statSlow && error.code === 'ENOENT') item.missing = true;
+      else delete item.missing;
+    }
+  }));
 }
 
 function storedState(db, sessionId) {

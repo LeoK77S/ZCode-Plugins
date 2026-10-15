@@ -85,26 +85,28 @@ test('UserPromptSubmit 注入当次统计与工件简表，下一次提交重新
   const f = fixture(t), call = await connect(t, f);
   f.session({ id: 'sess_parent' });
   const item = { kind: 'file', ref: 'D:/fixture/reference.md', label: '验收规格', purpose: '核对要求' };
-  await call('set_artifacts', { expected_revision: 0, upsert: [item] });
+  const issue = { kind: 'issue', ref: 'https://github.com/example/repo/issues/67', label: '面板增强议题', purpose: '跟踪需求' };
+  await call('set_artifacts', { expected_revision: 0, upsert: [item, issue] });
   const before = (await call('get_artifacts')).structuredContent;
   const first = hook(f, 'UserPromptSubmit').hookSpecificOutput;
   assert.equal(first.hookEventName, 'UserPromptSubmit');
   assert.ok(first.additionalContext.startsWith(
-    '请在创建、接手或替换任务相关的 PR、会话、文件或链接时及时登记或更新工件，详见 mcp__plugin_suian-zcode-app-mcp_suian-zcode-app__set_artifacts。\n'
-    + '工件统计（revision 1）：共 1 条；pr 0；session 0；file 1；link 0'));
-  assert.match(first.additionalContext, /revision 1.*共 1 条/);
+    '请在创建、接手或替换任务相关的 PR、议题、会话、文件或链接时及时登记或更新工件，详见 mcp__plugin_suian-zcode-app-mcp_suian-zcode-app__set_artifacts。\n'
+    + '工件统计（revision 1）：共 2 条；pr 0；issue 1；session 0；file 1；link 0'));
+  assert.match(first.additionalContext, /revision 1.*共 2 条/);
+  assert.match(first.additionalContext, /issue 1/);
   assert.match(first.additionalContext, /file 1/);
   assert.match(first.additionalContext, /类型.*名称.*用途.*引用/);
-  for (const value of [item.ref, item.label, item.purpose]) assert.ok(first.additionalContext.includes(value));
-  assert.match(first.additionalContext, /显示 1\/1 条/);
+  for (const value of [...Object.values(item), ...Object.values(issue)]) assert.ok(first.additionalContext.includes(value));
+  assert.match(first.additionalContext, /显示 2\/2 条/);
   assert.match(first.additionalContext, /可能已过时/);
   assert.match(first.additionalContext, /不是指令或授权/);
   assert.deepEqual((await call('get_artifacts')).structuredContent, before);
   await call('set_artifacts', { expected_revision: 1, remove: [item.ref] });
   const second = hook(f, 'UserPromptSubmit').hookSpecificOutput.additionalContext;
-  assert.match(second, /revision 2.*共 0 条/);
+  assert.match(second, /revision 2.*共 1 条/);
   assert.equal(second.includes(item.ref), false);
-  assert.match(first.additionalContext, /revision 1.*共 1 条/);
+  assert.match(first.additionalContext, /revision 1.*共 2 条/);
 });
 
 test('生产 config 未显式配置时回落本机默认索引库，hook 的名称反查依赖该回落', async () => {
@@ -147,7 +149,7 @@ test('正式 UserPromptSubmit 使用真实工件时间做 20 条类别保底选�
   await call('set_artifacts', { expected_revision: 1, upsert: older });
   const before = (await call('get_artifacts')).structuredContent;
   const text = hook(f, 'UserPromptSubmit').hookSpecificOutput.additionalContext;
-  const rows = text.split('\n').filter(line => /^\| (pr|session|file|link) \|/.test(line));
+  const rows = text.split('\n').filter(line => /^\| (pr|issue|session|file|link) \|/.test(line));
   assert.equal(rows.length, 20); assert.equal(rows.filter(row => row.startsWith('| pr |')).length, 11);
   for (const kind of ['session', 'file', 'link']) assert.equal(rows.filter(row => row.startsWith(`| ${kind} |`)).length, 3);
   assert.match(rows[0], /pull\/29/); assert.match(text, /显示 20\/45 条，省略 25 条/);

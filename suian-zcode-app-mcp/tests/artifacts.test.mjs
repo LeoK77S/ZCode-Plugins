@@ -163,6 +163,29 @@ test('工件时间由服务记录，相同 upsert 不更新时间；详情和列
   assert.equal((await call('set_artifacts', { expected_revision: 2, upsert: [{ ...item, created_at: 1 }] })).isError, true);
 });
 
+test('issue 分类按 pr/link 同规则校验 HTTP(S) URL，非 HTTP(S) 整批拒绝且报错文案一致', async t => {
+  const f = fixture(t), call = await connect(t, f);
+  const issue = { kind: 'issue', ref: 'https://github.com/example/repo/issues/67', label: '面板增强议题', purpose: '跟踪交付' };
+  const written = await call('set_artifacts', { expected_revision: 0, upsert: [issue] });
+  assert.equal(written.isError, undefined);
+  assert.deepEqual(written.structuredContent.stats.by_kind, { pr: 0, issue: 1, session: 0, file: 0, link: 0 });
+  assert.deepEqual(references((await call('get_artifacts')).structuredContent.items), [issue]);
+  const detail = (await call('get_artifacts', { ref: issue.ref })).structuredContent;
+  assert.deepEqual(references([detail.item]), [issue]);
+  assert.equal(detail.hyperlink, issue.ref);
+  const before = (await call('get_artifacts')).structuredContent;
+  const messages = new Map();
+  for (const bad of [{ ...issue, ref: 'ftp://example.com/67' }, { ...issue, kind: 'pr', ref: 'javascript:alert(1)' }, { ...issue, kind: 'link', ref: '相对路径' }]) {
+    const rejected = await call('set_artifacts', { expected_revision: 1, upsert: [bad, { kind: 'file', ref: 'D:/fixture/new.md', label: '新文件', purpose: '交付' }] });
+    assert.equal(rejected.isError, true, bad.ref);
+    assert.equal(rejected.structuredContent.code, 'invalid_input');
+    messages.set(bad.kind, rejected.structuredContent.error);
+    assert.deepEqual((await call('get_artifacts')).structuredContent, before);
+  }
+  assert.equal(messages.get('issue'), messages.get('pr'));
+  assert.equal(messages.get('issue'), messages.get('link'));
+});
+
 test('工件工具描述承载摘要时效、主动登记、增量维护和资源授权的详细规则', async t => {
   const call = await connect(t, fixture(t)), { tools } = await call.listTools();
   const get = tools.find(tool => tool.name === 'get_artifacts').description;
@@ -170,7 +193,8 @@ test('工件工具描述承载摘要时效、主动登记、增量维护和资�
   assert.match(get, /最新.*完整.*统计/);
   assert.match(get, /摘要.*可能已过时/);
   assert.match(set, /创建或接手.*后续用途.*登记/);
-  assert.match(set, /kind\/ref\/label\/purpose.*pr\/session\/file\/link/);
+  assert.match(set, /kind\/ref\/label\/purpose.*pr\/issue\/session\/file\/link/);
+  assert.match(set, /pr\/link\/issue 使用 HTTP\(S\) URL/);
   assert.doesNotMatch(set, /20 条|12000|容量超限/);
   assert.match(set, /不复制正文.*不编造引用/);
   assert.match(set, /最近读取或工具回执的 revision.*增量 upsert\/remove/);
@@ -183,18 +207,19 @@ test('工件工具只读空状态不建库，增量写入后 get 返回当前会
   const f = fixture(t), call = await connect(t, f);
   const empty = await call('get_artifacts');
   assert.equal(empty.isError, undefined);
-  assert.deepEqual(empty.structuredContent, { revision: 0, items: [], stats: { total: 0, by_kind: { pr: 0, session: 0, file: 0, link: 0 } } });
+  assert.deepEqual(empty.structuredContent, { revision: 0, items: [], stats: { total: 0, by_kind: { pr: 0, issue: 0, session: 0, file: 0, link: 0 } } });
   assert.equal(existsSync(f.artifactDbPath), false);
   const items = [
     { kind: 'pr', ref: 'https://github.com/example/repo/pull/1', label: '实现 PR', purpose: '接续评审' },
+    { kind: 'issue', ref: 'https://github.com/example/repo/issues/67', label: '面板增强议题', purpose: '跟踪交付' },
     { kind: 'session', ref: 'sess_child', label: '子会话', purpose: '关联实现任务' },
     { kind: 'file', ref: 'D:/fixture/规格.md', label: '规格', purpose: '核对验收' },
-    { kind: 'link', ref: 'https://example.com/issue', label: '需求', purpose: '跟踪需求' }
+    { kind: 'link', ref: 'https://example.com/page', label: '文档', purpose: '跟踪阅读' }
   ];
   const written = await call('set_artifacts', { expected_revision: 0, upsert: items });
   assert.equal(written.isError, undefined);
-  assert.deepEqual(written.structuredContent, { revision: 1, changed: true, upserted: 4, removed: 0,
-    stats: { total: 4, by_kind: { pr: 1, session: 1, file: 1, link: 1 } } });
+  assert.deepEqual(written.structuredContent, { revision: 1, changed: true, upserted: 5, removed: 0,
+    stats: { total: 5, by_kind: { pr: 1, issue: 1, session: 1, file: 1, link: 1 } } });
   const current = (await call('get_artifacts')).structuredContent;
   assert.deepEqual({ ...current, items: references(current.items) }, { revision: 1, items, stats: written.structuredContent.stats });
   assert.equal((await call('get_artifacts', {}, 'sess_other')).structuredContent.stats.total, 0);
@@ -208,7 +233,7 @@ test('新库首次 revision_conflict 后仍可读取空状态并合法重试', a
     assert.equal(rejected.structuredContent.code, 'revision_conflict');
     const empty = await call('get_artifacts');
     assert.equal(empty.isError, undefined);
-    assert.deepEqual(empty.structuredContent, { revision: 0, items: [], stats: { total: 0, by_kind: { pr: 0, session: 0, file: 0, link: 0 } } });
+    assert.deepEqual(empty.structuredContent, { revision: 0, items: [], stats: { total: 0, by_kind: { pr: 0, issue: 0, session: 0, file: 0, link: 0 } } });
     const retried = await call('set_artifacts', { expected_revision: 0, upsert: [item] });
     assert.equal(retried.isError, undefined);
     assert.equal(retried.structuredContent.revision, 1);

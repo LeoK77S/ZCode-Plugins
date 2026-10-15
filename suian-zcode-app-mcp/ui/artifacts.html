@@ -5,9 +5,9 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>会话工件</title>
 <style>
-:root{color-scheme:light;--bg:#fff;--ink:#25272c;--muted:#85878d;--line:#ececef;--hover:#f5f5f7;--accent:#9b5cff;--file:#5282c9;--link:#459576;--error:#ac5b25}
-:root[data-theme=dark]{color-scheme:dark;--bg:#202124;--ink:#e5e5e9;--muted:#a0a1aa;--line:#38393f;--hover:#2d2e34;--accent:#bc8aff;--file:#8caff0;--link:#85bea4;--error:#edb586}
-*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.6 system-ui,"Microsoft YaHei",sans-serif}main{padding:18px 20px;max-width:880px;margin:auto}button,a,summary{-webkit-tap-highlight-color:transparent}button{font:inherit;color:inherit;border:0;background:none;cursor:pointer}button:disabled{cursor:wait;opacity:.5}button:focus-visible,a:focus-visible,summary:focus-visible{outline:2px solid var(--file);outline-offset:3px;border-radius:5px}header{display:flex;align-items:center;justify-content:space-between;gap:10px;min-height:34px}h1{margin:0;font-size:18px;font-weight:600}.refresh{padding:5px 8px;border-radius:6px;color:var(--muted)}.refresh:hover,.back:hover{background:var(--hover);color:var(--ink)}.context{font-size:12px;color:var(--muted);margin:4px 0 18px}details{border-top:1px solid var(--line);padding:12px 0 10px}details:last-child{border-bottom:1px solid var(--line)}summary{display:flex;align-items:center;gap:9px;cursor:pointer;list-style:none;color:var(--muted);padding:2px 0 7px;user-select:none}summary::-webkit-details-marker{display:none}.chevron{width:14px;height:14px;transition:transform .15s;flex:none}details[open] .chevron{transform:rotate(90deg)}.count{margin-left:auto;min-width:22px;text-align:center;font-size:12px;font-variant-numeric:tabular-nums}.entries{list-style:none;padding:0;margin:0}.entry{width:100%;display:flex;align-items:center;gap:11px;padding:9px 4px;text-align:left;border-radius:6px;min-width:0}.entry:hover{background:var(--hover)}.entry-label{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1}.icon{width:19px;height:19px;flex:none;stroke:currentColor;stroke-width:1.65;stroke-linecap:round;stroke-linejoin:round;fill:none}.icon.pr{color:var(--accent)}.icon.file{color:var(--file)}.icon.link{color:var(--link)}.direction{font-size:11px;color:var(--muted);flex:none}.group-empty{font-size:12px;color:var(--muted);padding:7px 25px}#empty{padding:14px 0;color:var(--muted);font-size:13px}#diagnostic{padding:10px 12px;margin:12px 0;background:var(--hover);border-left:2px solid var(--error);font-size:12px;color:var(--error)}#status,#detail-status{font-size:11px;color:var(--muted);margin:16px 0 0}.error{color:var(--error)!important}.back{display:flex;align-items:center;gap:5px;padding:5px 0;border-radius:5px;color:var(--muted);font-size:13px}.detail-header{border-bottom:1px solid var(--line);padding-bottom:12px;margin-bottom:20px}.detail-title{display:flex;align-items:flex-start;gap:10px;margin:0 0 18px}.detail-title .icon{margin-top:5px}.detail-title h2{font-size:18px;line-height:1.5;margin:0;font-weight:600;overflow-wrap:anywhere;min-width:0}dl{margin:0}dl>div{padding:10px 0;border-bottom:1px solid var(--line)}dt{font-size:12px;color:var(--muted);margin-bottom:3px}dd{margin:0;overflow-wrap:anywhere}a{color:var(--file);text-decoration:none}a:hover{text-decoration:underline}.ref{font:12px/1.7 ui-monospace,Consolas,monospace;white-space:pre-wrap;user-select:text}.session-details{padding-top:20px}.session-details h3{font-size:13px;font-weight:500;color:var(--muted);margin:0 0 8px}.state{display:inline-flex;align-items:center;gap:7px;font-size:14px}.state::before{content:"";width:7px;height:7px;background:var(--link);border-radius:50%}.state[data-state=running]::before{background:var(--file)}.state[data-state=error]::before{background:var(--error)}.session-error{overflow-wrap:anywhere;font-size:13px;color:var(--error)}[hidden]{display:none!important}@media(max-width:340px){main{padding:14px}.direction{font-size:10px}}
+:root{color-scheme:light;--bg:#fff;--ink:#25272c;--muted:#85878d;--line:#ececef;--hover:#f5f5f7;--accent:#9b5cff;--file:#5282c9;--link:#459576;--issue:#b3872e;--error:#ac5b25;--closed:#b8433b;--conflict:#9c6b00;--clock:#8f7a1d}
+:root[data-theme=dark]{color-scheme:dark;--bg:#202124;--ink:#e5e5e9;--muted:#a0a1aa;--line:#38393f;--hover:#2d2e34;--accent:#bc8aff;--file:#8caff0;--link:#85bea4;--issue:#d6ad63;--error:#edb586;--closed:#e07b72;--conflict:#d9a44a;--clock:#cbb14e}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.6 system-ui,"Microsoft YaHei",sans-serif}main{padding:18px 20px;max-width:880px;margin:auto}button,a,summary{-webkit-tap-highlight-color:transparent}button{font:inherit;color:inherit;border:0;background:none;cursor:pointer}button:disabled{cursor:wait;opacity:.5}button:focus-visible,a:focus-visible,summary:focus-visible{outline:2px solid var(--file);outline-offset:3px;border-radius:5px}header{display:flex;align-items:center;justify-content:space-between;gap:10px;min-height:34px}h1{margin:0;font-size:18px;font-weight:600}.refresh{padding:5px 8px;border-radius:6px;color:var(--muted)}.refresh:hover,.back:hover{background:var(--hover);color:var(--ink)}.context{font-size:12px;color:var(--muted);margin:4px 0 18px}details{border-top:1px solid var(--line);padding:12px 0 10px}details:last-child{border-bottom:1px solid var(--line)}summary{display:flex;align-items:center;gap:9px;cursor:pointer;list-style:none;color:var(--muted);padding:2px 0 7px;user-select:none}summary::-webkit-details-marker{display:none}.chevron{width:14px;height:14px;transition:transform .15s;flex:none}details[open] .chevron{transform:rotate(90deg)}.count{margin-left:auto;min-width:22px;text-align:center;font-size:12px;font-variant-numeric:tabular-nums}.entries{list-style:none;padding:0;margin:0}.entry{width:100%;display:flex;align-items:center;gap:11px;padding:9px 4px;text-align:left;border-radius:6px;min-width:0}.entry:hover{background:var(--hover)}.entry-label{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1}.icon{width:19px;height:19px;flex:none;stroke:currentColor;stroke-width:1.65;stroke-linecap:round;stroke-linejoin:round;fill:none}.icon.pr{color:var(--accent)}.icon.file{color:var(--file)}.icon.link{color:var(--link)}.icon.issue{color:var(--issue)}.icon.missing{opacity:.4}.icon.pr[data-state=open]{color:var(--link)}.icon.pr[data-state=draft]{color:var(--muted)}.icon.pr[data-state=conflict]{color:var(--conflict)}.icon.pr[data-state=merged]{color:var(--accent)}.icon.pr[data-state=closed]{color:var(--closed)}.icon.pr path.dash{stroke-dasharray:3 3}.icon.issue[data-state=open]{color:var(--link)}.icon.issue[data-state=closed]{color:var(--accent)}.icon.clock{width:14px;height:14px;color:var(--clock)}.icon.bubble{width:14px;height:14px;color:var(--muted)}.diff{display:inline-flex;align-items:center;gap:7px;flex:none;font-size:12px;font-weight:600;font-variant-numeric:tabular-nums}.diff .additions{color:var(--link)}.diff .deletions{color:var(--closed)}.issue-meta{display:inline-flex;align-items:center;gap:5px;flex:none;font-size:12px;font-weight:600;font-variant-numeric:tabular-nums}.direction{font-size:11px;color:var(--muted);flex:none}.group-empty{font-size:12px;color:var(--muted);padding:7px 25px}#empty{padding:14px 0;color:var(--muted);font-size:13px}#diagnostic{padding:10px 12px;margin:12px 0;background:var(--hover);border-left:2px solid var(--error);font-size:12px;color:var(--error)}#status,#detail-status{font-size:11px;color:var(--muted);margin:16px 0 0}.error{color:var(--error)!important}.back{display:flex;align-items:center;gap:5px;padding:5px 0;border-radius:5px;color:var(--muted);font-size:13px}.detail-header{border-bottom:1px solid var(--line);padding-bottom:12px;margin-bottom:20px}.detail-title{display:flex;align-items:flex-start;gap:10px;margin:0 0 18px}.detail-title .icon{margin-top:5px}.detail-title h2{font-size:18px;line-height:1.5;margin:0;font-weight:600;overflow-wrap:anywhere;min-width:0}dl{margin:0}dl>div{padding:10px 0;border-bottom:1px solid var(--line)}dt{font-size:12px;color:var(--muted);margin-bottom:3px}dd{margin:0;overflow-wrap:anywhere}a{color:var(--file);text-decoration:none}a:hover{text-decoration:underline}.ref{font:12px/1.7 ui-monospace,Consolas,monospace;white-space:pre-wrap;user-select:text}.reveal{display:inline-flex;align-items:center;gap:7px;padding:7px 14px;border:1px solid var(--line);border-radius:6px;font-size:13px}.reveal:hover:not(:disabled){background:var(--hover);border-color:var(--file)}.reveal:disabled{cursor:not-allowed;opacity:.45}.session-details{padding-top:20px}.session-details h3{font-size:13px;font-weight:500;color:var(--muted);margin:0 0 8px}.state{display:inline-flex;align-items:center;gap:7px;font-size:14px}.state::before{content:"";width:7px;height:7px;background:var(--link);border-radius:50%}.state[data-state=running]::before{background:var(--file)}.state[data-state=error]::before{background:var(--error)}.session-error{overflow-wrap:anywhere;font-size:13px;color:var(--error)}[hidden]{display:none!important}@media(max-width:340px){main{padding:14px}.direction{font-size:10px}}
 </style>
 </head>
 <body>
@@ -33,26 +33,168 @@ const refreshButton = document.getElementById('refresh'), detailRefresh = docume
 const revision = document.getElementById('revision'), groups = document.getElementById('groups');
 const diagnostic = document.getElementById('diagnostic'), empty = document.getElementById('empty'), status = document.getElementById('status');
 const detailContent = document.getElementById('detail-content'), detailStatus = document.getElementById('detail-status');
-const names = { pr: '拉取请求', session: '会话', file: '文件', link: '链接' };
+const names = { pr: '拉取请求', issue: '议题', session: '会话', file: '文件', link: '链接' };
 const directions = { outgoing: '已发起', incoming: '发起者', related: '关联会话' };
 const paths = {
   pr: '<circle cx="6" cy="5" r="2"/><circle cx="6" cy="19" r="2"/><circle cx="18" cy="19" r="2"/><path d="M6 7v10M18 17V9a4 4 0 0 0-4-4h-2m2-2-2 2 2 2"/>',
+  issue: '<circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="1.4"/>',
   session: '<path d="M21 11a8 8 0 0 1-8 8H7l-4 3v-6a8 8 0 1 1 18-5Z"/>',
   outgoing: '<path d="M14 3h7v7M21 3 10 14M8 5H4v15h15v-4"/>',
   incoming: '<path d="M10 14H3V7M3 14 14 3M16 5h4v15H5v-3"/>',
   file: '<path d="M14 2H5v20h14V7l-5-5Zm0 0v5h5M8 12h8M8 16h6"/>',
+  folder: '<path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>',
   link: '<path d="m10 13 4-4M8 16l-1 1a4 4 0 0 1-6-6l4-4a4 4 0 0 1 6 0M16 8l1-1a4 4 0 0 1 6 6l-4 4a4 4 0 0 1-6 0"/>'
 };
-let selectedRef, detailRequest = 0;
+// PR 实时状态图形（服务端已归并五种）：沿用现有 stroke 线条风，草稿用虚线区分
+const prStates = {
+  open: { name: '开放', path: paths.pr },
+  draft: { name: '草稿', path: '<circle cx="6" cy="5" r="2"/><circle cx="6" cy="19" r="2"/><circle cx="18" cy="19" r="2"/><path class="dash" d="M6 7v10M18 17v-7a4 4 0 0 0-4-4h-2"/>' },
+  conflict: { name: '冲突', path: '<circle cx="6" cy="5" r="2"/><circle cx="6" cy="19" r="2"/><circle cx="18" cy="19" r="2"/><path d="M6 7v10M18 17v-2"/><path d="M18 6v5"/><path d="M18 13.5v.01"/>' },
+  merged: { name: '已合并', path: '<circle cx="6" cy="5" r="2"/><circle cx="6" cy="19" r="2"/><circle cx="18" cy="19" r="2"/><path d="M6 7v10M18 17v-7a4 4 0 0 0-4-4h-1"/><path d="M13 3l-3 3 3 3"/>' },
+  closed: { name: '已关闭', path: '<circle cx="6" cy="5" r="2"/><circle cx="6" cy="19" r="2"/><circle cx="18" cy="19" r="2"/><path d="M6 7v10M18 17v-3"/><path d="m12.5 6.5 5 5m0-5-5 5"/>' }
+};
+const clockPath = '<circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/>';
+// 议题实时状态（服务端归并两种）：开放沿用默认圆点造型仅换色，已关闭用圆内对勾
+const issueStates = {
+  open: { name: '开放', path: paths.issue },
+  closed: { name: '已关闭', path: '<circle cx="12" cy="12" r="10"/><path d="m8.5 12.2 2.3 2.3 4.7-5"/>' }
+};
+let selectedRef, detailRequest = 0, currentDetail = null;
+// 面板状态通道（get_pr_statuses）最近一次结果，按条目类型分桶：
+// PR：ref -> {status,additions,deletions,fetched_at[,stale]}；议题：ref -> {state,comments,fetched_at[,stale]}；出错均为 {error}
+let prStatuses = {}, issueStatuses = {};
 const display = item => item.session_title ?? item.label;
 function element(tag, className, text) {
   const node = document.createElement(tag); node.className = className; node.textContent = text; return node;
 }
-function icon(kind, direction) {
-  const key = kind === 'session' && ['outgoing', 'incoming'].includes(direction) ? direction : kind;
+// SVG tooltip 一律经 createElementNS+textContent 构造：状态名等文本来自服务端数据，不与图形路径字符串拼接进 innerHTML
+function svgTitle(text) {
+  const node = document.createElementNS('http://www.w3.org/2000/svg', 'title');
+  node.textContent = text; return node;
+}
+function icon(kind, direction, item) {
+  const key = kind === 'session' && ['outgoing', 'incoming'].includes(direction) ? direction
+    : kind === 'file' && item?.is_directory ? 'folder' : kind;
   const node = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-  node.setAttribute('viewBox', '0 0 24 24'); node.setAttribute('class', 'icon ' + kind);
+  node.setAttribute('viewBox', '0 0 24 24');
+  node.setAttribute('class', 'icon ' + kind + (item?.missing ? ' missing' : ''));
   node.setAttribute('aria-hidden', 'true'); node.dataset.icon = key; node.innerHTML = paths[key]; return node;
+}
+function prStateIcon(status) {
+  const state = prStates[status.status] ?? { name: status.status, path: paths.pr };
+  const node = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+  node.setAttribute('viewBox', '0 0 24 24'); node.setAttribute('class', 'icon pr');
+  node.setAttribute('aria-hidden', 'true'); node.dataset.icon = 'pr-' + status.status;
+  if (prStates[status.status]) node.dataset.state = status.status;
+  node.innerHTML = state.path; node.append(svgTitle('PR 状态：' + state.name)); return node;
+}
+function issueStateIcon(status) {
+  const state = issueStates[status.state] ?? { name: status.state, path: paths.issue };
+  const node = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+  node.setAttribute('viewBox', '0 0 24 24'); node.setAttribute('class', 'icon issue');
+  node.setAttribute('aria-hidden', 'true'); node.dataset.icon = 'issue-' + status.state;
+  if (issueStates[status.state]) node.dataset.state = status.state;
+  node.innerHTML = state.path; node.append(svgTitle('议题状态：' + state.name)); return node;
+}
+function bubbleIcon() {
+  const node = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+  node.setAttribute('viewBox', '0 0 24 24'); node.setAttribute('class', 'icon bubble');
+  node.setAttribute('aria-hidden', 'true'); node.dataset.icon = 'issue-comments';
+  node.innerHTML = paths.session; return node;
+}
+function clockIcon(status) {
+  const node = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+  node.setAttribute('viewBox', '0 0 24 24'); node.setAttribute('class', 'icon clock');
+  node.setAttribute('aria-hidden', 'true'); node.dataset.icon = 'pr-stale';
+  node.innerHTML = clockPath; node.append(svgTitle('状态数据停留于 ' + time(status.fetched_at) + '，本次拉取超时未刷新')); return node;
+}
+// 状态装饰幂等：先清旧装饰再按最新结果重画；出错或无数据回默认 pr 图标，不显示数字与钟表
+function decoratePrRow(button) {
+  button.querySelector(':scope > .diff')?.remove();
+  button.querySelector(':scope > .icon.clock')?.remove();
+  const status = prStatuses[button.dataset.ref], usable = status && !status.error;
+  const current = button.querySelector(':scope > .icon');
+  if (current && !usable && current.dataset.state) current.replaceWith(icon('pr'));
+  else if (current && usable && current.dataset.state !== status.status) current.replaceWith(prStateIcon(status));
+  if (!usable) return;
+  const diff = element('span', 'diff', '');
+  diff.append(element('span', 'additions', '+' + status.additions), element('span', 'deletions', '-' + status.deletions));
+  button.append(diff);
+  if (status.stale) button.append(clockIcon(status));
+}
+// 议题行装饰幂等：状态 logo 开放/已关闭，行尾气泡+评论数；超时复用钟表；出错回默认图标且不显示数字
+function decorateIssueRow(button) {
+  button.querySelector(':scope > .issue-meta')?.remove();
+  button.querySelector(':scope > .icon.clock')?.remove();
+  const status = issueStatuses[button.dataset.ref], usable = status && !status.error;
+  const current = button.querySelector(':scope > .icon');
+  if (current && !usable && current.dataset.state) current.replaceWith(icon('issue'));
+  else if (current && usable && current.dataset.state !== status.state) current.replaceWith(issueStateIcon(status));
+  if (!usable) return;
+  const meta = element('span', 'issue-meta', '');
+  meta.append(bubbleIcon(), element('span', '', String(status.comments)));
+  button.append(meta);
+  if (status.stale) button.append(clockIcon(status));
+}
+function applyStatuses() {
+  for (const button of groups.querySelectorAll('.entry[data-kind="pr"]')) decoratePrRow(button);
+  for (const button of groups.querySelectorAll('.entry[data-kind="issue"]')) decorateIssueRow(button);
+  if (currentDetail?.item && ['pr', 'issue'].includes(currentDetail.item.kind)
+    && currentDetail.item.ref === selectedRef && !detailView.hidden)
+    renderDetail(currentDetail); // 重绘幂等，状态迟到时补上或更新详情字段
+}
+// 面板专用状态通道：仅挂在标准刷新时机（列表刷新/订阅信号/详情打开与刷新）触发；
+// PR 与议题合并调用，进行中合并为一批。通道级失败（callTool 拒绝或 isError 响应）把本批
+// 全部条目标记错误并重绘——清状态与数字、logo 回默认，不弹错误打断面板。
+// 服务端 get_pr_statuses 校验单数组至多 200 条，超出整批拒绝会让所有条目失去状态；
+// 面板按 ≤200 切片多次调用并合并结果（服务端 per-ref 缓存与在途合并天然支持分批），
+// PR 与议题切片配对发送，普通规模仍保持一次往返
+const STATUS_BATCH_MAX = 200;
+function chunkRefs(refs) {
+  const chunks = [];
+  for (let i = 0; i < refs.length; i += STATUS_BATCH_MAX) chunks.push(refs.slice(i, i + STATUS_BATCH_MAX));
+  return chunks;
+}
+let statusBusy = false, prQueue = new Set(), issueQueue = new Set();
+// 通道级失败回退：本批条目全部标记错误并重绘（契约：拉取出错时不显示状态与数字、logo 回默认），
+// 不沿用旧快照冒充有效；错误条目被下一次成功刷新覆盖后即恢复显示，不会被卡死。
+// 与超时语义区分：服务端超时返回的 stale 旧数据走成功响应逐条合并，保留显示并附黄钟表，不经此路径
+function failStatusChunk(prChunk, issueChunk, message) {
+  for (const ref of prChunk ?? []) prStatuses[ref] = { error: message };
+  for (const ref of issueChunk ?? []) issueStatuses[ref] = { error: message };
+  applyStatuses();
+}
+function syncStatuses(prRefs, issueRefs) {
+  for (const ref of prRefs ?? []) prQueue.add(ref);
+  for (const ref of issueRefs ?? []) issueQueue.add(ref);
+  if (statusBusy) return;
+  statusBusy = true;
+  void (async () => {
+    try {
+      while (prQueue.size || issueQueue.size) {
+        const prBatch = [...prQueue], issueBatch = [...issueQueue];
+        prQueue = new Set(); issueQueue = new Set();
+        const prChunks = chunkRefs(prBatch), issueChunks = chunkRefs(issueBatch);
+        for (let i = 0; i < Math.max(prChunks.length, issueChunks.length); i++) {
+          const prChunk = prChunks[i], issueChunk = issueChunks[i];
+          try {
+            const args = {};
+            if (prChunk) args.refs = prChunk;
+            if (issueChunk) args.issue_refs = issueChunk;
+            const result = await host.callTool('get_pr_statuses', args);
+            if (result.isError || !result.structuredContent) {
+              throw new Error(result.structuredContent?.error ?? result.content?.[0]?.text ?? '状态通道响应无效');
+            }
+            // 响应按 ref 合并返回，按本次请求的条目类型分桶归位；服务端漏返的条目同样按错误回退
+            const merged = result.structuredContent.statuses ?? {};
+            for (const ref of prChunk ?? []) prStatuses[ref] = merged[ref] ?? { error: '状态通道未返回该条目' };
+            for (const ref of issueChunk ?? []) issueStatuses[ref] = merged[ref] ?? { error: '状态通道未返回该条目' };
+            applyStatuses();
+          } catch (error) { failStatusChunk(prChunk, issueChunk, '状态通道调用失败：' + (error?.message ?? '未知错误')); }
+        }
+      }
+    } finally { statusBusy = false; }
+  })();
 }
 function theme() { document.documentElement.dataset.theme = host.theme ?? 'light'; }
 function time(value) { return value == null ? '未记录' : new Date(value).toLocaleString('zh-CN', { hour12: false }); }
@@ -79,8 +221,9 @@ function render(state) {
     const items = state.items.filter(item => item.kind === kind);
     entries.append(...items.map(item => {
       const row = document.createElement('li'), button = element('button', 'entry', '');
-      button.type = 'button'; button.setAttribute('aria-label', '查看详情：' + display(item)); button.title = display(item);
-      button.append(icon(kind, item.session_direction), element('span', 'entry-label', display(item)));
+      button.type = 'button'; button.dataset.kind = kind; button.dataset.ref = item.ref;
+      button.setAttribute('aria-label', '查看详情：' + display(item)); button.title = display(item);
+      button.append(icon(kind, item.session_direction, item), element('span', 'entry-label', display(item)));
       if (kind === 'session' && item.session_direction && item.session_direction !== 'related')
         button.append(element('span', 'direction', directions[item.session_direction]));
       button.addEventListener('click', () => showDetail(item.ref)); row.append(button); return row;
@@ -88,6 +231,8 @@ function render(state) {
     if (!items.length) entries.append(element('li', 'group-empty', '暂无' + name));
     group.append(summary, entries); return group;
   }));
+  for (const button of groups.querySelectorAll('.entry[data-kind="pr"]')) decoratePrRow(button);
+  for (const button of groups.querySelectorAll('.entry[data-kind="issue"]')) decorateIssueRow(button);
 }
 function field(list, name, value, className = '') {
   const row = document.createElement('div'), content = element('dd', className, '');
@@ -96,7 +241,14 @@ function field(list, name, value, className = '') {
 }
 function renderDetail(detail) {
   const item = detail.item, title = element('div', 'detail-title', '');
-  title.append(icon(item.kind, item.session_direction), element('h2', '', display(item)));
+  const prStatus = item.kind === 'pr' ? prStatuses[item.ref] : undefined;
+  const usable = prStatus && !prStatus.error;
+  const issueStatus = item.kind === 'issue' ? issueStatuses[item.ref] : undefined;
+  const issueUsable = issueStatus && !issueStatus.error;
+  title.append(item.kind === 'pr' && usable ? prStateIcon(prStatus)
+    : item.kind === 'issue' && issueUsable ? issueStateIcon(issueStatus)
+    : icon(item.kind, item.session_direction, item),
+    element('h2', '', display(item)));
   const list = document.createElement('dl');
   field(list, '类型', names[item.kind] + (item.session_direction ? ' · ' + directions[item.session_direction] : ''));
   field(list, '用途', item.purpose);
@@ -111,6 +263,33 @@ function renderDetail(detail) {
   }
   field(list, detail.hyperlink ? '超链接' : '引用', ref, 'ref');
   field(list, '创建时间', time(item.created_at)); field(list, '更新时间', time(item.updated_at));
+  // 本机定位通道（reveal_artifact）：宿主 openLink 只放行 http(s)，file:// 被拒，经 callTool 由 server 起系统命令；
+  // 缺失态（AP-04 探测）灰化不可点击，打开失败行内回报不静默
+  if (item.kind === 'file') {
+    const button = element('button', 'reveal', '用文件资源管理器打开');
+    button.type = 'button';
+    if (item.missing) { button.disabled = true; button.title = '路径缺失，无法在资源管理器中打开'; }
+    else button.addEventListener('click', () => void revealArtifact(item.ref, button));
+    field(list, '操作', button);
+  }
+  if (item.kind === 'pr') {
+    const status = prStatuses[item.ref];
+    if (status && !status.error) {
+      const state = prStates[status.status] ?? { name: status.status };
+      field(list, 'PR 状态', state.name + (status.stale ? '（数据停留于 ' + time(status.fetched_at) + '，拉取超时未刷新）' : ''));
+      const diff = element('span', 'diff', '');
+      diff.append(element('span', 'additions', '+' + status.additions), element('span', 'deletions', '-' + status.deletions));
+      field(list, '代码变更', diff);
+    }
+  }
+  if (item.kind === 'issue') {
+    const status = issueStatuses[item.ref];
+    if (status && !status.error) {
+      const state = issueStates[status.state] ?? { name: status.state };
+      field(list, '议题状态', state.name + (status.stale ? '（数据停留于 ' + time(status.fetched_at) + '，拉取超时未刷新）' : ''));
+      field(list, '评论数（不含主帖）', String(status.comments));
+    }
+  }
   detailContent.replaceChildren(title, list);
   if (detail.session) {
     const session = detail.session, section = element('section', 'session-details', '');
@@ -128,14 +307,37 @@ function renderDetail(detail) {
     detailContent.append(section);
   }
 }
+// 详情页"用文件资源管理器打开"：经 reveal_artifact 由 server 起系统命令定位本机文件；
+// 失败（非零退出、无法启动、超时）行内回报错误，不静默。
+// 回执绑定发起时的详情代次与 ref：A 的打开调用在途时用户返回列表或查看 B（detailRequest 已推进），
+// 迟到回执直接丢弃，不写共享 detailStatus 污染 B 的状态；同一详情刷新（detailRefresh/订阅信号）
+// 同样推进代次并重绘，状态文本以详情读取结果为准，旧回执不再覆盖
+async function revealArtifact(ref, button) {
+  const request = detailRequest;
+  const outdated = () => request !== detailRequest || ref !== selectedRef || detailView.hidden;
+  button.disabled = true;
+  detailStatus.className = ''; detailStatus.textContent = '正在打开…';
+  try {
+    const result = await host.callTool('reveal_artifact', { ref });
+    if (result.isError) throw new Error(result.structuredContent?.error ?? result.content?.[0]?.text ?? '打开失败');
+    if (outdated()) return;
+    detailStatus.textContent = '已在文件资源管理器中打开';
+  } catch (error) {
+    if (outdated()) return;
+    detailStatus.className = 'error'; detailStatus.textContent = '打开失败：' + error.message;
+  } finally { button.disabled = false; }
+}
 async function showDetail(ref) {
   selectedRef = ref; const request = ++detailRequest;
   listView.hidden = true; detailView.hidden = false; detailRefresh.disabled = true;
-  detailContent.replaceChildren(); detailStatus.className = ''; detailStatus.textContent = '正在读取详情…';
+  detailContent.replaceChildren(); currentDetail = null; detailStatus.className = ''; detailStatus.textContent = '正在读取详情…';
   try {
     const detail = await get({ ref });
     if (request !== detailRequest) return;
+    currentDetail = detail;
     renderDetail(detail); detailStatus.textContent = '已读取当前详情';
+    if (detail.item.kind === 'pr') syncStatuses([detail.item.ref]);
+    else if (detail.item.kind === 'issue') syncStatuses([], [detail.item.ref]);
   } catch (error) {
     if (request !== detailRequest) return;
     detailStatus.className = 'error'; detailStatus.textContent = error.message;
@@ -184,6 +386,8 @@ async function refresh() {
       state.items.push(...page.items); next = page.next_offset;
     }
     render(state); status.textContent = '已更新 · 点击条目查看详情';
+    const kindRefs = kind => state.items.filter(item => item.kind === kind).map(item => item.ref);
+    syncStatuses(kindRefs('pr'), kindRefs('issue'));
   } catch (error) {
     groups.replaceChildren(); revision.textContent = '读取失败'; empty.hidden = true; diagnostic.hidden = true;
     status.className = 'error'; status.textContent = error.message;
@@ -193,7 +397,7 @@ async function refresh() {
   }
 }
 document.getElementById('back').addEventListener('click', () => {
-  detailRequest++; selectedRef = undefined; detailView.hidden = true; listView.hidden = false;
+  detailRequest++; selectedRef = undefined; currentDetail = null; detailView.hidden = true; listView.hidden = false;
 });
 refreshButton.addEventListener('click', refresh);
 detailRefresh.addEventListener('click', () => showDetail(selectedRef));
