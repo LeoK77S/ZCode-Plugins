@@ -5,9 +5,9 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>会话工件</title>
 <style>
-:root{color-scheme:light;--bg:#fff;--ink:#25272c;--muted:#85878d;--line:#ececef;--hover:#f5f5f7;--accent:#9b5cff;--file:#5282c9;--link:#459576;--issue:#b3872e;--error:#ac5b25}
-:root[data-theme=dark]{color-scheme:dark;--bg:#202124;--ink:#e5e5e9;--muted:#a0a1aa;--line:#38393f;--hover:#2d2e34;--accent:#bc8aff;--file:#8caff0;--link:#85bea4;--issue:#d6ad63;--error:#edb586}
-*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.6 system-ui,"Microsoft YaHei",sans-serif}main{padding:18px 20px;max-width:880px;margin:auto}button,a,summary{-webkit-tap-highlight-color:transparent}button{font:inherit;color:inherit;border:0;background:none;cursor:pointer}button:disabled{cursor:wait;opacity:.5}button:focus-visible,a:focus-visible,summary:focus-visible{outline:2px solid var(--file);outline-offset:3px;border-radius:5px}header{display:flex;align-items:center;justify-content:space-between;gap:10px;min-height:34px}h1{margin:0;font-size:18px;font-weight:600}.refresh{padding:5px 8px;border-radius:6px;color:var(--muted)}.refresh:hover,.back:hover{background:var(--hover);color:var(--ink)}.context{font-size:12px;color:var(--muted);margin:4px 0 18px}details{border-top:1px solid var(--line);padding:12px 0 10px}details:last-child{border-bottom:1px solid var(--line)}summary{display:flex;align-items:center;gap:9px;cursor:pointer;list-style:none;color:var(--muted);padding:2px 0 7px;user-select:none}summary::-webkit-details-marker{display:none}.chevron{width:14px;height:14px;transition:transform .15s;flex:none}details[open] .chevron{transform:rotate(90deg)}.count{margin-left:auto;min-width:22px;text-align:center;font-size:12px;font-variant-numeric:tabular-nums}.entries{list-style:none;padding:0;margin:0}.entry{width:100%;display:flex;align-items:center;gap:11px;padding:9px 4px;text-align:left;border-radius:6px;min-width:0}.entry:hover{background:var(--hover)}.entry-label{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1}.icon{width:19px;height:19px;flex:none;stroke:currentColor;stroke-width:1.65;stroke-linecap:round;stroke-linejoin:round;fill:none}.icon.pr{color:var(--accent)}.icon.file{color:var(--file)}.icon.link{color:var(--link)}.icon.issue{color:var(--issue)}.icon.missing{opacity:.4}
+:root{color-scheme:light;--bg:#fff;--ink:#25272c;--muted:#85878d;--line:#ececef;--hover:#f5f5f7;--accent:#9b5cff;--file:#5282c9;--link:#459576;--issue:#b3872e;--error:#ac5b25;--closed:#b8433b;--conflict:#9c6b00;--clock:#8f7a1d}
+:root[data-theme=dark]{color-scheme:dark;--bg:#202124;--ink:#e5e5e9;--muted:#a0a1aa;--line:#38393f;--hover:#2d2e34;--accent:#bc8aff;--file:#8caff0;--link:#85bea4;--issue:#d6ad63;--error:#edb586;--closed:#e07b72;--conflict:#d9a44a;--clock:#cbb14e}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.6 system-ui,"Microsoft YaHei",sans-serif}main{padding:18px 20px;max-width:880px;margin:auto}button,a,summary{-webkit-tap-highlight-color:transparent}button{font:inherit;color:inherit;border:0;background:none;cursor:pointer}button:disabled{cursor:wait;opacity:.5}button:focus-visible,a:focus-visible,summary:focus-visible{outline:2px solid var(--file);outline-offset:3px;border-radius:5px}header{display:flex;align-items:center;justify-content:space-between;gap:10px;min-height:34px}h1{margin:0;font-size:18px;font-weight:600}.refresh{padding:5px 8px;border-radius:6px;color:var(--muted)}.refresh:hover,.back:hover{background:var(--hover);color:var(--ink)}.context{font-size:12px;color:var(--muted);margin:4px 0 18px}details{border-top:1px solid var(--line);padding:12px 0 10px}details:last-child{border-bottom:1px solid var(--line)}summary{display:flex;align-items:center;gap:9px;cursor:pointer;list-style:none;color:var(--muted);padding:2px 0 7px;user-select:none}summary::-webkit-details-marker{display:none}.chevron{width:14px;height:14px;transition:transform .15s;flex:none}details[open] .chevron{transform:rotate(90deg)}.count{margin-left:auto;min-width:22px;text-align:center;font-size:12px;font-variant-numeric:tabular-nums}.entries{list-style:none;padding:0;margin:0}.entry{width:100%;display:flex;align-items:center;gap:11px;padding:9px 4px;text-align:left;border-radius:6px;min-width:0}.entry:hover{background:var(--hover)}.entry-label{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1}.icon{width:19px;height:19px;flex:none;stroke:currentColor;stroke-width:1.65;stroke-linecap:round;stroke-linejoin:round;fill:none}.icon.pr{color:var(--accent)}.icon.file{color:var(--file)}.icon.link{color:var(--link)}.icon.issue{color:var(--issue)}.icon.missing{opacity:.4}.icon.pr[data-state=open]{color:var(--link)}.icon.pr[data-state=draft]{color:var(--muted)}.icon.pr[data-state=conflict]{color:var(--conflict)}.icon.pr[data-state=merged]{color:var(--accent)}.icon.pr[data-state=closed]{color:var(--closed)}.icon.pr path.dash{stroke-dasharray:3 3}.icon.clock{width:14px;height:14px;color:var(--clock)}.diff{display:inline-flex;align-items:center;gap:7px;flex:none;font-size:12px;font-weight:600;font-variant-numeric:tabular-nums}.diff .additions{color:var(--link)}.diff .deletions{color:var(--closed)}.direction{font-size:11px;color:var(--muted);flex:none}.group-empty{font-size:12px;color:var(--muted);padding:7px 25px}#empty{padding:14px 0;color:var(--muted);font-size:13px}#diagnostic{padding:10px 12px;margin:12px 0;background:var(--hover);border-left:2px solid var(--error);font-size:12px;color:var(--error)}#status,#detail-status{font-size:11px;color:var(--muted);margin:16px 0 0}.error{color:var(--error)!important}.back{display:flex;align-items:center;gap:5px;padding:5px 0;border-radius:5px;color:var(--muted);font-size:13px}.detail-header{border-bottom:1px solid var(--line);padding-bottom:12px;margin-bottom:20px}.detail-title{display:flex;align-items:flex-start;gap:10px;margin:0 0 18px}.detail-title .icon{margin-top:5px}.detail-title h2{font-size:18px;line-height:1.5;margin:0;font-weight:600;overflow-wrap:anywhere;min-width:0}dl{margin:0}dl>div{padding:10px 0;border-bottom:1px solid var(--line)}dt{font-size:12px;color:var(--muted);margin-bottom:3px}dd{margin:0;overflow-wrap:anywhere}a{color:var(--file);text-decoration:none}a:hover{text-decoration:underline}.ref{font:12px/1.7 ui-monospace,Consolas,monospace;white-space:pre-wrap;user-select:text}.session-details{padding-top:20px}.session-details h3{font-size:13px;font-weight:500;color:var(--muted);margin:0 0 8px}.state{display:inline-flex;align-items:center;gap:7px;font-size:14px}.state::before{content:"";width:7px;height:7px;background:var(--link);border-radius:50%}.state[data-state=running]::before{background:var(--file)}.state[data-state=error]::before{background:var(--error)}.session-error{overflow-wrap:anywhere;font-size:13px;color:var(--error)}[hidden]{display:none!important}@media(max-width:340px){main{padding:14px}.direction{font-size:10px}}
 </style>
 </head>
 <body>
@@ -45,7 +45,18 @@ const paths = {
   folder: '<path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>',
   link: '<path d="m10 13 4-4M8 16l-1 1a4 4 0 0 1-6-6l4-4a4 4 0 0 1 6 0M16 8l1-1a4 4 0 0 1 6 6l-4 4a4 4 0 0 1-6 0"/>'
 };
-let selectedRef, detailRequest = 0;
+// PR 实时状态图形（服务端已归并五种）：沿用现有 stroke 线条风，草稿用虚线区分
+const prStates = {
+  open: { name: '开放', path: paths.pr },
+  draft: { name: '草稿', path: '<circle cx="6" cy="5" r="2"/><circle cx="6" cy="19" r="2"/><circle cx="18" cy="19" r="2"/><path class="dash" d="M6 7v10M18 17v-7a4 4 0 0 0-4-4h-2"/>' },
+  conflict: { name: '冲突', path: '<circle cx="6" cy="5" r="2"/><circle cx="6" cy="19" r="2"/><circle cx="18" cy="19" r="2"/><path d="M6 7v10M18 17v-2"/><path d="M18 6v5"/><path d="M18 13.5v.01"/>' },
+  merged: { name: '已合并', path: '<circle cx="6" cy="5" r="2"/><circle cx="6" cy="19" r="2"/><circle cx="18" cy="19" r="2"/><path d="M6 7v10M18 17v-7a4 4 0 0 0-4-4h-1"/><path d="M13 3l-3 3 3 3"/>' },
+  closed: { name: '已关闭', path: '<circle cx="6" cy="5" r="2"/><circle cx="6" cy="19" r="2"/><circle cx="18" cy="19" r="2"/><path d="M6 7v10M18 17v-3"/><path d="m12.5 6.5 5 5m0-5-5 5"/>' }
+};
+const clockPath = '<circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/>';
+let selectedRef, detailRequest = 0, currentDetail = null;
+// 面板 PR 状态通道（get_pr_statuses）最近一次结果：ref -> {status,additions,deletions,fetched_at[,stale]} 或 {error}
+let prStatuses = {};
 const display = item => item.session_title ?? item.label;
 function element(tag, className, text) {
   const node = document.createElement(tag); node.className = className; node.textContent = text; return node;
@@ -57,6 +68,62 @@ function icon(kind, direction, item) {
   node.setAttribute('viewBox', '0 0 24 24');
   node.setAttribute('class', 'icon ' + kind + (item?.missing ? ' missing' : ''));
   node.setAttribute('aria-hidden', 'true'); node.dataset.icon = key; node.innerHTML = paths[key]; return node;
+}
+function prStateIcon(status) {
+  const state = prStates[status.status] ?? { name: status.status, path: paths.pr };
+  const node = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+  node.setAttribute('viewBox', '0 0 24 24'); node.setAttribute('class', 'icon pr');
+  node.setAttribute('aria-hidden', 'true'); node.dataset.icon = 'pr-' + status.status;
+  if (prStates[status.status]) node.dataset.state = status.status;
+  node.innerHTML = '<title>PR 状态：' + state.name + '</title>' + state.path; return node;
+}
+function clockIcon(status) {
+  const node = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+  node.setAttribute('viewBox', '0 0 24 24'); node.setAttribute('class', 'icon clock');
+  node.setAttribute('aria-hidden', 'true'); node.dataset.icon = 'pr-stale';
+  node.innerHTML = '<title>状态数据停留于 ' + time(status.fetched_at) + '，本次拉取超时未刷新</title>' + clockPath; return node;
+}
+// 状态装饰幂等：先清旧装饰再按最新结果重画；出错或无数据回默认 pr 图标，不显示数字与钟表
+function decoratePrRow(button) {
+  button.querySelector(':scope > .diff')?.remove();
+  button.querySelector(':scope > .icon.clock')?.remove();
+  const status = prStatuses[button.dataset.ref], usable = status && !status.error;
+  const current = button.querySelector(':scope > .icon');
+  if (current && !usable && current.dataset.state) current.replaceWith(icon('pr'));
+  else if (current && usable && current.dataset.state !== status.status) current.replaceWith(prStateIcon(status));
+  if (!usable) return;
+  const diff = element('span', 'diff', '');
+  diff.append(element('span', 'additions', '+' + status.additions), element('span', 'deletions', '-' + status.deletions));
+  button.append(diff);
+  if (status.stale) button.append(clockIcon(status));
+}
+function applyStatuses() {
+  for (const button of groups.querySelectorAll('.entry[data-kind="pr"]')) decoratePrRow(button);
+  if (currentDetail?.item?.kind === 'pr' && currentDetail.item.ref === selectedRef && !detailView.hidden)
+    renderDetail(currentDetail); // 重绘幂等，状态迟到时补上或更新详情字段
+}
+// 面板专用状态通道：仅挂在标准刷新时机（列表刷新/订阅信号/详情打开与刷新）触发；
+// 进行中合并为一批，通道失败静默保持现状，不弹错误打断面板
+let statusBusy = false, statusQueue = new Set();
+function syncStatuses(refs) {
+  for (const ref of refs) statusQueue.add(ref);
+  if (statusBusy) return;
+  statusBusy = true;
+  void (async () => {
+    try {
+      while (statusQueue.size) {
+        const batch = [...statusQueue];
+        statusQueue = new Set();
+        try {
+          const result = await host.callTool('get_pr_statuses', { refs: batch });
+          if (!result.isError && result.structuredContent) {
+            Object.assign(prStatuses, result.structuredContent.statuses ?? {});
+            applyStatuses();
+          }
+        } catch { /* 状态通道不可用：静默保持现状 */ }
+      }
+    } finally { statusBusy = false; }
+  })();
 }
 function theme() { document.documentElement.dataset.theme = host.theme ?? 'light'; }
 function time(value) { return value == null ? '未记录' : new Date(value).toLocaleString('zh-CN', { hour12: false }); }
@@ -83,7 +150,8 @@ function render(state) {
     const items = state.items.filter(item => item.kind === kind);
     entries.append(...items.map(item => {
       const row = document.createElement('li'), button = element('button', 'entry', '');
-      button.type = 'button'; button.setAttribute('aria-label', '查看详情：' + display(item)); button.title = display(item);
+      button.type = 'button'; button.dataset.kind = kind; button.dataset.ref = item.ref;
+      button.setAttribute('aria-label', '查看详情：' + display(item)); button.title = display(item);
       button.append(icon(kind, item.session_direction, item), element('span', 'entry-label', display(item)));
       if (kind === 'session' && item.session_direction && item.session_direction !== 'related')
         button.append(element('span', 'direction', directions[item.session_direction]));
@@ -92,6 +160,7 @@ function render(state) {
     if (!items.length) entries.append(element('li', 'group-empty', '暂无' + name));
     group.append(summary, entries); return group;
   }));
+  for (const button of groups.querySelectorAll('.entry[data-kind="pr"]')) decoratePrRow(button);
 }
 function field(list, name, value, className = '') {
   const row = document.createElement('div'), content = element('dd', className, '');
@@ -100,7 +169,10 @@ function field(list, name, value, className = '') {
 }
 function renderDetail(detail) {
   const item = detail.item, title = element('div', 'detail-title', '');
-  title.append(icon(item.kind, item.session_direction, item), element('h2', '', display(item)));
+  const prStatus = item.kind === 'pr' ? prStatuses[item.ref] : undefined;
+  const usable = prStatus && !prStatus.error;
+  title.append(item.kind === 'pr' && usable ? prStateIcon(prStatus) : icon(item.kind, item.session_direction, item),
+    element('h2', '', display(item)));
   const list = document.createElement('dl');
   field(list, '类型', names[item.kind] + (item.session_direction ? ' · ' + directions[item.session_direction] : ''));
   field(list, '用途', item.purpose);
@@ -115,6 +187,16 @@ function renderDetail(detail) {
   }
   field(list, detail.hyperlink ? '超链接' : '引用', ref, 'ref');
   field(list, '创建时间', time(item.created_at)); field(list, '更新时间', time(item.updated_at));
+  if (item.kind === 'pr') {
+    const status = prStatuses[item.ref];
+    if (status && !status.error) {
+      const state = prStates[status.status] ?? { name: status.status };
+      field(list, 'PR 状态', state.name + (status.stale ? '（数据停留于 ' + time(status.fetched_at) + '，拉取超时未刷新）' : ''));
+      const diff = element('span', 'diff', '');
+      diff.append(element('span', 'additions', '+' + status.additions), element('span', 'deletions', '-' + status.deletions));
+      field(list, '代码变更', diff);
+    }
+  }
   detailContent.replaceChildren(title, list);
   if (detail.session) {
     const session = detail.session, section = element('section', 'session-details', '');
@@ -135,11 +217,13 @@ function renderDetail(detail) {
 async function showDetail(ref) {
   selectedRef = ref; const request = ++detailRequest;
   listView.hidden = true; detailView.hidden = false; detailRefresh.disabled = true;
-  detailContent.replaceChildren(); detailStatus.className = ''; detailStatus.textContent = '正在读取详情…';
+  detailContent.replaceChildren(); currentDetail = null; detailStatus.className = ''; detailStatus.textContent = '正在读取详情…';
   try {
     const detail = await get({ ref });
     if (request !== detailRequest) return;
+    currentDetail = detail;
     renderDetail(detail); detailStatus.textContent = '已读取当前详情';
+    if (detail.item.kind === 'pr') syncStatuses([detail.item.ref]);
   } catch (error) {
     if (request !== detailRequest) return;
     detailStatus.className = 'error'; detailStatus.textContent = error.message;
@@ -188,6 +272,7 @@ async function refresh() {
       state.items.push(...page.items); next = page.next_offset;
     }
     render(state); status.textContent = '已更新 · 点击条目查看详情';
+    syncStatuses(state.items.filter(item => item.kind === 'pr').map(item => item.ref));
   } catch (error) {
     groups.replaceChildren(); revision.textContent = '读取失败'; empty.hidden = true; diagnostic.hidden = true;
     status.className = 'error'; status.textContent = error.message;
@@ -197,7 +282,7 @@ async function refresh() {
   }
 }
 document.getElementById('back').addEventListener('click', () => {
-  detailRequest++; selectedRef = undefined; detailView.hidden = true; listView.hidden = false;
+  detailRequest++; selectedRef = undefined; currentDetail = null; detailView.hidden = true; listView.hidden = false;
 });
 refreshButton.addEventListener('click', refresh);
 detailRefresh.addEventListener('click', () => showDetail(selectedRef));
