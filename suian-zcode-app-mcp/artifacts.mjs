@@ -32,7 +32,10 @@ function storedState(db, sessionId) {
   return row ? { revision: row.revision, items: JSON.parse(row.items), ...(row.inheritance ? { inheritance: JSON.parse(row.inheritance) } : {}) } : { revision: 0, items: [] };
 }
 
-export function createArtifactStore({ artifactDbPath, sessionDbPath, indexDbPath, now = Date.now }) {
+export function createArtifactStore({ artifactDbPath, sessionDbPath, indexDbPath, now = Date.now, notify }) {
+  // 写入成功后的变更通知（COMMIT 之后调用）：仅 server 进程注入，用于向已订阅的工件面板推送 resources/updated；
+  // hooks 进程等无 MCP 连接的调用方不注入，保持静默。initialize/snapshot 不触发（不改工件状态内容）。
+  const changed = () => notify?.();
   function exists() {
     try { statSync(artifactDbPath); return true; }
     catch (error) { if (error.code === 'ENOENT') return false; throw error; }
@@ -126,9 +129,10 @@ export function createArtifactStore({ artifactDbPath, sessionDbPath, indexDbPath
           [creator, created, createdLabel, '由当前会话发起的任务'],
           [created, creator, creatorLabel, '当前会话的发起会话']
         ]) {
-          const old = storedState(db, id).items.find(item => item.ref === ref);
-          update(db, id, { upsert: [{ kind: 'session', ref, label: old?.label ?? label, purpose: old?.purpose ?? purpose, session_link }] });
-        }
+        const old = storedState(db, id).items.find(item => item.ref === ref);
+        const written = update(db, id, { upsert: [{ kind: 'session', ref, label: old?.label ?? label, purpose: old?.purpose ?? purpose, session_link }] });
+        if (written.upserted) changed();
+      }
         db.exec('COMMIT');
       } catch (error) { db.exec('ROLLBACK'); throw error; }
       finally { db.close(); }
@@ -171,6 +175,7 @@ export function createArtifactStore({ artifactDbPath, sessionDbPath, indexDbPath
       try {
         const result = update(db, sessionId, { expected_revision, upsert, remove });
         db.exec('COMMIT');
+        if (result.changed) changed();
         return result;
       } catch (error) { db.exec('ROLLBACK'); throw error; }
       finally { db.close(); }

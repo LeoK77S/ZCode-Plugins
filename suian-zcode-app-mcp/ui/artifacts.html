@@ -141,7 +141,20 @@ async function showDetail(ref) {
     detailStatus.className = 'error'; detailStatus.textContent = error.message;
   } finally { if (request === detailRequest) detailRefresh.disabled = false; }
 }
+// 工件面板的实时刷新信号：桥支持资源订阅时挂载（ZCode 3.15+ 的 experimental zcode/resourceSubscribe），
+// 通知只当"有变化"信号，数据仍经 get_artifacts 工具按当前会话拉取；无桥或订阅失败静默保持手动刷新。
+const RESOURCE_URI = 'suian-artifacts://current';
+function subscribeLive() {
+  if (typeof host.subscribeResource !== 'function' || typeof host.onResourceUpdated !== 'function') return;
+  try {
+    host.onResourceUpdated(uri => { if (uri === RESOURCE_URI) void refresh(); });
+    void host.subscribeResource(RESOURCE_URI).catch(() => undefined);
+  } catch { /* 桥不支持时保持手动刷新 */ }
+}
+let refreshing = false, refreshPending = false;
 async function refresh() {
+  if (refreshing) { refreshPending = true; return; }
+  refreshing = true;
   refreshButton.disabled = true; status.className = ''; status.textContent = '正在刷新…';
   try {
     const state = await get({ offset: 0, limit: 50 });
@@ -155,14 +168,17 @@ async function refresh() {
   } catch (error) {
     groups.replaceChildren(); revision.textContent = '读取失败'; empty.hidden = true; diagnostic.hidden = true;
     status.className = 'error'; status.textContent = error.message;
-  } finally { refreshButton.disabled = false; }
+  } finally {
+    refreshing = false; refreshButton.disabled = false;
+    if (refreshPending) { refreshPending = false; void refresh(); }
+  }
 }
 document.getElementById('back').addEventListener('click', () => {
   detailRequest++; selectedRef = undefined; detailView.hidden = true; listView.hidden = false;
 });
 refreshButton.addEventListener('click', refresh);
 detailRefresh.addEventListener('click', () => showDetail(selectedRef));
-try { host.subscribe(theme); await host.ready(); theme(); await refresh(); }
+try { host.subscribe(theme); await host.ready(); theme(); await refresh(); subscribeLive(); }
 catch (error) { status.className = 'error'; status.textContent = error.message; refreshButton.disabled = true; }
 </script>
 </body>
