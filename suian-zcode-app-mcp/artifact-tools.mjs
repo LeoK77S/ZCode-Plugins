@@ -62,21 +62,31 @@ export function registerArtifactTools(server, config, { controller, prStatus, re
     }).strict(),
     annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false }
   }, (args, extra) => run(extra, 'set_artifacts', id => store.set(id, args)));
-  // 面板专用 PR 状态通道：拉取只挂在面板标准刷新时机，模型侧 get_artifacts 不产生网络副作用。
-  // 注册后立即禁用，UI 能力协商成功（artifact-ui）后以 visibility=['app'] 启用，普通客户端不可见。
+  // 面板专用 PR/议题状态通道：拉取只挂在面板标准刷新时机，模型侧 get_artifacts 不产生网络副作用。
+  // 注册后立即禁用，UI 能力协商成功（artifact-ui）后以 visibility=['app'] 启用，普通客户端不可见；
+  // PR 与议题共用同一工具与同一次调用（refs/issue_refs 两个分支），面板单次刷新只需一次往返。
   const statusService = prStatus ?? createArtifactStatusService(config);
   const statusTool = server.registerTool('get_pr_statuses', {
-    title: '查询 GitHub PR 实时状态（工件面板）',
-    description: '工件面板专用通道：经本机 gh CLI 实时拉取 GitHub PR 的状态与增删行数，按 ref 逐条返回 {status, additions, deletions, fetched_at}。status 由 state/isDraft/mergeable 归并为 open/draft/conflict/merged/closed（merged、closed 优先于冲突，冲突优先于草稿）。内存缓存 per-ref 带成功时间戳，新鲜期内直接命中；拉取超时沿用旧数据并附 stale/stale_reason，无旧数据、gh 失败或非 GitHub 链接时该 ref 返回 error，不影响其它条目。读取工件清单与详情请用 get_artifacts（纯本地，不产生网络请求）；本工具仅在工件面板可用的客户端启用。',
-    inputSchema: z.object({ refs: z.array(text).min(1).max(200) }).strict(),
+    title: '查询 GitHub PR/议题实时状态（工件面板）',
+    description: '工件面板专用通道：经本机 gh CLI 实时拉取 GitHub PR 与议题状态，按 ref 逐条返回。refs 走 PR 分支（gh pr view），返回 {status, additions, deletions, fetched_at}，status 由 state/isDraft/mergeable 归并为 open/draft/conflict/merged/closed（merged、closed 优先于冲突，冲突优先于草稿）；issue_refs 走议题分支（gh issue view），返回 {state, comments, fetched_at}，state 为 open/closed，comments 为不含主帖的评论数。内存缓存 per-ref 带成功时间戳，新鲜期内直接命中；拉取超时沿用旧数据并附 stale/stale_reason，无旧数据、gh 失败或非 GitHub 链接时该 ref 返回 error，不影响其它条目。读取工件清单与详情请用 get_artifacts（纯本地，不产生网络请求）；本工具仅在工件面板可用的客户端启用。',
+    inputSchema: z.object({
+      refs: z.array(text).min(1).max(200).optional(),
+      issue_refs: z.array(text).min(1).max(200).optional()
+    }).strict().refine(args => args.refs !== undefined || args.issue_refs !== undefined, 'refs 与 issue_refs 至少提供一个'),
     annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: true }
-  }, async ({ refs }) => {
+  }, async ({ refs, issue_refs }) => {
     try {
-      const statuses = await statusService.fetchStatuses(refs);
+      const statuses = {};
+      const [prPart, issuePart] = await Promise.all([
+        refs ? statusService.fetchStatuses(refs) : Promise.resolve({}),
+        issue_refs ? statusService.fetchIssueStatuses(issue_refs) : Promise.resolve({})
+      ]);
+      Object.assign(statuses, prPart, issuePart);
       const data = { statuses };
       return { structuredContent: data, content: [{ type: 'text', text: JSON.stringify(data) }] };
     } catch (error) {
-      const data = { error: error.message, statuses: Object.fromEntries(refs.map(ref => [ref, { error: error.message }])) };
+      const requested = [...(refs ?? []), ...(issue_refs ?? [])];
+      const data = { error: error.message, statuses: Object.fromEntries(requested.map(ref => [ref, { error: error.message }])) };
       return { isError: true, structuredContent: data, content: [{ type: 'text', text: JSON.stringify(data) }] };
     }
   });
