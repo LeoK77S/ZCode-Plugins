@@ -1,8 +1,8 @@
 # suian-zcode-common
 
-**业务插件共用的基础能力**：网关、远控协议与探活、DPAPI、Toast、消息投影和原生 UI 能力判定。命名插件保留命名规则，MCP 与侧栏编辑器保留各自业务和数据。公共层不依赖任何插件。
+**业务插件共用的基础能力**：网关、远控协议与探活、DPAPI、Toast、消息投影、原生 UI 能力判定和依赖完整性检查。命名插件保留命名规则，MCP 与侧栏编辑器保留各自业务和数据。公共层不依赖任何插件。
 
-当前版本 `0.1.2` 保留共享 MCP Apps 能力判定，新增向后兼容的 Channel 监听入口与固定官方 V4 逻辑帧 decoder。既有 call/probe/close 和客户端隔离保持；仅使用文本编辑功能时无需启动远控网关，评论另需已有连接。
+当前版本 `0.2.0` 新增 Stop 依赖完整性检查：Agent 会话结束时扫描 suian 系列插件的依赖，缺失时以 Toast 提醒，并提供可复制的修复提示词。既有网关、Channel 监听入口与 V4 decoder 保持；仅使用文本编辑功能时无需启动远控网关，评论另需已有连接。
 
 `connectHost` 的 `listen(channel,event,args)` 保留官方直接对象参数及事件监听／dispose 语义，不新增网关协议。`vendor/conversation-wire.js` 由固定上游 `aac4755666d09fdcd70272fcf063c077a639015f` 的49个必要blob编译，提供完整组装、编码及会话快照／历史页schema；来源见 [清单](vendor/conversation-wire.sources.json)。Apache-2.0／完整NOTICE和Zod MIT许可保留，见 [第三方声明](vendor/NOTICE.md)。当前分支分页、受理证明和评论规则属于侧栏插件，不在公共层扩展常驻状态框架。
 
@@ -37,7 +37,7 @@ flowchart LR
 
 ## 原生公共插件
 
-本目录是两个业务插件的必需安装依赖，公共实现只保留一份。原生模式提供[setup](./skills/setup/SKILL.md)、[configuration](./skills/configuration/SKILL.md)和[debug](./skills/debug/SKILL.md)；根 SKILL.md 继续供源码兼容入口路由。
+本目录是三个业务插件的必需安装依赖，公共实现只保留一份。原生模式提供[setup](./skills/setup/SKILL.md)、[configuration](./skills/configuration/SKILL.md)和[debug](./skills/debug/SKILL.md)；根 SKILL.md 继续供源码兼容入口路由。
 
 npm ci 后运行 link.mjs，将稳定运行入口链接到本公共根，再把已选业务插件的 node_modules/suian-zcode-common 链接到该入口。Windows 使用无需提权的 junction，升级时刷新链接，新进程加载新版本。原生 Install/Restart 加 -NativePlugin，不再复制全局技能；网关、任务和数据仍沿用原身份与目录。
 
@@ -54,6 +54,10 @@ npm ci 后运行 link.mjs，将稳定运行入口链接到本公共根，再把�
 | notification-action.mjs | `copyPromptAndOpenWorkspace({prompt,dataDir})`：复制调用方提示词后打开用户默认工作区；仅用户点击后执行 |
 | notification-install.mjs | `installToastAssets()` / `removeToastAssets()`：接收调用方的 protocol、appId、shortcutName、description、pluginRoot、dataDir |
 | prerequisites.mjs | `checkRuntime()`：两插件的 Node / 公共依赖检查；传入 sqliteBin 时额外检查 sqlite3 CLI，只读查询内存库 |
+| depcheck.mjs | `scanSuianPlugins()`：suian 系列插件依赖完整性扫描；纯内置模块，可独立运行 |
+| depcheck-hook.mjs | `runDepcheckHook()`：Stop 钩子入口，依赖缺失时 Toast 提醒；`--scan-only` 手动复查 |
+| depcheck-prompt.mjs | `buildFixPrompt()` / `buildToastMessage()`：依赖缺失时的修复提示词与提醒文案 |
+| toast-action.mjs | `runAction()`：Toast 按钮协议入口，重扫后复制修复提示词并打开 ZCode |
 | ui-capabilities.mjs | `supportsZcodeMcpApps({clientInfo,capabilities,zcodeAppVersion})`：ZCode 应用版本与 MCP Apps MIME 判定；`MCP_APP_MIME_TYPE` 为页面 MIME 常量 |
 | link.mjs | `linkCommon()`：建立稳定公共入口和业务端 Node 包链接，不复制代码或覆盖普通目录 |
 | vendor/projection.js | `getConversationMessageProjectionPolicy()`：两个插件引用同一固定产物 |
