@@ -75,6 +75,18 @@ test('订阅后 set_artifacts 变更推送 updated 通知，宿主扩展参数�
   assert.equal(updates.length, 1, '退订后不再推送通知');
 });
 
+test('订阅未知资源 URI 不入推送集合，写入不向其发送通知', async t => {
+  const f = fixture(t);
+  const { client } = await pair(t, f);
+  const updates = [];
+  client.setNotificationHandler(ResourceUpdatedNotificationSchema, notification => updates.push(notification.params));
+  await client.subscribeResource({ uri: 'suian-artifacts://other' });
+  await client.callTool({ name: 'set_artifacts', arguments: { expected_revision: 0, upsert: [entry] },
+    _meta: { session_id: 'sess_panel' } });
+  await new Promise(resolve => setTimeout(resolve, 20));
+  assert.deepEqual(updates, [], '未知 URI 的订阅不产生通知');
+});
+
 test('store 层通知仅在发生实际写入时触发，未注入 notify 时静默', async t => {
   const f = fixture(t);
   const notified = [];
@@ -88,4 +100,16 @@ test('store 层通知仅在发生实际写入时触发，未注入 notify 时静
   const quiet = createArtifactStore({ ...f, now: () => 1 });
   quiet.set('sess_c', { expected_revision: 0, upsert: [entry] });
   quiet.linkSessions({ creator: 'sess_c', created: 'sess_d', creatorLabel: '甲', createdLabel: '乙' });
+});
+
+test('写入路径失败（版本冲突回滚）不触发变更通知', async t => {
+  const f = fixture(t);
+  const notified = [];
+  const store = createArtifactStore({ ...f, now: () => 1, notify: () => notified.push('called') });
+  store.set('sess_a', { expected_revision: 0, upsert: [entry] });
+  assert.equal(notified.length, 1);
+  assert.throws(() => store.set('sess_a', { expected_revision: 99, upsert: [{ ...entry, label: '过时版本' }] }),
+    /工件版本冲突/);
+  assert.equal(notified.length, 1, '冲突回滚不触发通知');
+  assert.equal(store.get('sess_a').items[0].label, entry.label, '冲突写入未落库');
 });

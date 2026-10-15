@@ -144,13 +144,26 @@ async function showDetail(ref) {
 // 工件面板的实时刷新信号：桥支持资源订阅时挂载（ZCode 3.15+ 的 experimental zcode/resourceSubscribe），
 // 通知只当"有变化"信号，数据仍经 get_artifacts 工具按当前会话拉取；无桥或订阅失败静默保持手动刷新。
 const RESOURCE_URI = 'suian-artifacts://current';
+// 信号路径的详情重拉与列表 refresh 对称合并：进行中收到新信号合并为完成后补拉一次，
+// 避免连续的工件写入突发信号放大对原 Host 的会话状态实时查询；用户点击仍直接刷新
+let detailLiveBusy = false, detailLivePending = false;
+function refreshDetailLive() {
+  if (selectedRef === undefined || detailView.hidden) return;
+  if (detailLiveBusy) { detailLivePending = true; return; }
+  detailLiveBusy = true;
+  const done = () => {
+    detailLiveBusy = false;
+    if (detailLivePending) { detailLivePending = false; refreshDetailLive(); }
+  };
+  void showDetail(selectedRef).then(done, done);
+}
 function subscribeLive() {
   if (typeof host.subscribeResource !== 'function' || typeof host.onResourceUpdated !== 'function') return;
   try {
     host.onResourceUpdated(uri => {
       if (uri !== RESOURCE_URI) return;
       void refresh();
-      if (selectedRef !== undefined && !detailView.hidden) void showDetail(selectedRef);
+      refreshDetailLive();
     });
     void host.subscribeResource(RESOURCE_URI).catch(() => undefined);
   } catch { /* 桥不支持时保持手动刷新 */ }
