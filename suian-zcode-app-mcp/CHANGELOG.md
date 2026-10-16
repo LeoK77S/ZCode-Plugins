@@ -175,6 +175,7 @@
 仓库尚未建立版本标签，以下版本链接使用对应源码提交。
 
 <!-- 变更链接 -->
+[0.7.0]: https://github.com/ONEGAYI/ZCode-Plugins/compare/2d1e036cde4577cc65322380f536e2e0e8b8e99829a554050faea864c4936a1e37d2ca3f2...2e92187293caba3c2bf98077a8160b0ae95bb662
 [0.5.0]: https://github.com/ONEGAYI/ZCode-Plugins/compare/29eb9b5a7fad5681f488e098e6d26ccce0f41a57...5a635fd0722d10a1a1e1ad60c1c8b6c7db0e4a83
 [0.6.0]: https://github.com/ONEGAYI/ZCode-Plugins/compare/5a635fd0722d10a1a1e1ad60c1c8b6c7db0e4a83...2d1e036cde4577cc65322380f536e2e0e8b8e99829a554050faea864c4936a1e37d2ca3f2
 [0.4.1]: https://github.com/ONEGAYI/ZCode-Plugins/compare/67d75b25cf932db9530883711e6226f77d867ca0...29eb9b5a7fad5681f488e098e6d26ccce0f41a57
