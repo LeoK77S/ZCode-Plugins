@@ -16,7 +16,7 @@
     },
     {
       "name": "suian-zcode-app-mcp",
-      "version": "0.6.0",
+      "version": "0.7.0",
       "source": "./suian-zcode-app-mcp",
       "description": "会话检索、历史读取、原 Host 操作与 GLM 额度 MCP",
       "dependencies": ["suian-zcode-common"]
