@@ -41,6 +41,24 @@ export function createSessionReader({ indexDbPath, sessionDbPath }) {
         return { mode: row?.mode ?? null, observed: row ? [row.mode] : [] };
       } finally { db.close(); }
     },
+    // get_current_session 的自省读取：两库都可能没有行（子代理上下文、deferPersistence 未落库），字段可空不报错。
+    // 跨工作区同 task_id 的多行按 workspace_key 排序全部返回，交调用方判断；index_title 取首行，与 sessionTitle 的诊断语义一致。
+    sessionOverview({ session_id }) {
+      const index = openReadOnly(indexDbPath);
+      let indexMatches;
+      try {
+        indexMatches = index.prepare(`SELECT ${taskColumns} FROM tasks WHERE task_id=? AND deleted=0
+          ORDER BY workspace_key`).all(session_id).map(taskItem);
+      } finally { index.close(); }
+      const db = openReadOnly(sessionDbPath);
+      let sessionTitle = null, workspacePath = null, permissionMode = null;
+      try {
+        const row = db.prepare("SELECT title, directory, json_extract(permission, '$.mode') AS mode FROM session WHERE id=?").get(session_id);
+        if (row) ({ title: sessionTitle, directory: workspacePath, mode: permissionMode } = row);
+      } finally { db.close(); }
+      return { session_title: sessionTitle, index_title: indexMatches.length ? indexMatches[0].title : null,
+        workspace_path: workspacePath, permission_mode: permissionMode, index_matches: indexMatches };
+    },
     listSessions({ limit = 20, offset = 0, workspace_path, query, include_archived = false } = {}) {
       const db = openReadOnly(indexDbPath);
       try {

@@ -103,7 +103,7 @@ test('compact_session 公布指定目标与受理语义，严格校验参数并�
   assert.equal(rejected.structuredContent.reason_code, 'compactOperationLock');
 });
 
-test('MCP 握手版本与插件元信息一致，公布十五个工具并保持查询只读', async t => {
+test('MCP 握手版本与插件元信息一致，公布十六个工具并保持查询只读', async t => {
   const f = fixture(t);
   f.task({ id: 'sess_alpha', title: 'MCP 工具' });
   f.session({ id: 'sess_alpha', title: 'MCP 工具' });
@@ -120,8 +120,8 @@ test('MCP 握手版本与插件元信息一致，公布十五个工具并保持�
   assert.equal(lockMetadata.packages[''].version, packageMetadata.version);
   assert.equal(client.getServerVersion().version, packageMetadata.version);
   const listed = await client.listTools();
-  assert.deepEqual(listed.tools.map(tool => tool.name), ['list_sessions', 'read_session', 'rename_session', 'start_session', 'send_message', 'compact_session', 'archive_session', 'restore_session', 'pin_session', 'unpin_session', 'list_pinned_sessions', 'get_glm_balance', 'reset_glm_quota', 'get_artifacts', 'set_artifacts']);
-  for (const tool of listed.tools) assert.equal(tool.annotations.readOnlyHint, ['list_sessions', 'read_session', 'list_pinned_sessions', 'get_glm_balance'].includes(tool.name));
+  assert.deepEqual(listed.tools.map(tool => tool.name), ['list_sessions', 'read_session', 'get_current_session', 'rename_session', 'start_session', 'send_message', 'compact_session', 'archive_session', 'restore_session', 'pin_session', 'unpin_session', 'list_pinned_sessions', 'get_glm_balance', 'reset_glm_quota', 'get_artifacts', 'set_artifacts']);
+  for (const tool of listed.tools) assert.equal(tool.annotations.readOnlyHint, ['list_sessions', 'read_session', 'get_current_session', 'list_pinned_sessions', 'get_glm_balance'].includes(tool.name));
   assert.equal(listed.tools.find(tool => tool.name === 'reset_glm_quota').annotations.destructiveHint, true);
   assert.equal(listed.tools.find(tool => tool.name === 'reset_glm_quota').annotations.idempotentHint, false);
   const list = await client.callTool({ name: 'list_sessions', arguments: { query: 'MCP', limit: 1 } });
@@ -129,6 +129,55 @@ test('MCP 握手版本与插件元信息一致，公布十五个工具并保持�
   assert.deepEqual(JSON.parse(list.content[0].text), list.structuredContent);
   const chat = await client.callTool({ name: 'read_session', arguments: { session_id: 'sess_alpha' } });
   assert.equal(chat.structuredContent.messages[0].text, '实现只读工具');
+});
+
+test('get_current_session 回显发起会话的本机自省信息，不接受参数', async t => {
+  const f = fixture(t);
+  f.task({ id: 'sess_parent', title: '索引标题', workspace: 'D:\\work\\alpha', updated: 42 });
+  f.session({ id: 'sess_parent', title: 'CLI 标题', directory: 'D:\\work\\alpha', permission: { mode: 'yolo' } });
+  const { createMcpServer } = await import('../server.mjs');
+  const server = createMcpServer(f);
+  const client = new Client({ name: 'self-introspect-contract', version: '1.0.0' });
+  const [ct, st] = InMemoryTransport.createLinkedPair();
+  t.after(async () => { await client.close(); await server.close(); });
+  await server.connect(st); await client.connect(ct);
+  const response = await client.callTool({ name: 'get_current_session', arguments: {}, _meta: { session_id: 'sess_parent' } });
+  assert.equal(response.isError, undefined);
+  const data = response.structuredContent;
+  assert.equal(data.source, 'local_cli_databases');
+  assert.equal(data.session_id, 'sess_parent');
+  assert.equal(data.session_title, 'CLI 标题');
+  assert.equal(data.index_title, '索引标题');
+  assert.equal(data.workspace_path, 'D:\\work\\alpha');
+  assert.equal(data.permission_mode, 'yolo');
+  assert.equal(data.index_matches.length, 1);
+  assert.equal(data.index_matches[0].session_id, 'sess_parent');
+  assert.equal(data.index_matches[0].permission_mode, 'build');
+  assert.equal(data.index_matches[0].updated_at, 42);
+  assert.deepEqual(JSON.parse(response.content[0].text), data);
+  assert.equal((await client.callTool({ name: 'get_current_session', arguments: { session_id: 'sess_forged' }, _meta: { session_id: 'sess_parent' } })).isError, true);
+});
+
+test('get_current_session 未落库时字段可空，来源未知或冲突按错误回报并给出候选', async t => {
+  const f = fixture(t);
+  const { createMcpServer } = await import('../server.mjs');
+  const server = createMcpServer(f);
+  const client = new Client({ name: 'self-introspect-degraded-contract', version: '1.0.0' });
+  const [ct, st] = InMemoryTransport.createLinkedPair();
+  t.after(async () => { await client.close(); await server.close(); });
+  await server.connect(st); await client.connect(ct);
+  const bare = await client.callTool({ name: 'get_current_session', arguments: {}, _meta: { session_id: 'sess_subagent' } });
+  assert.equal(bare.isError, undefined);
+  assert.deepEqual(bare.structuredContent, { source: 'local_cli_databases', session_id: 'sess_subagent',
+    session_title: null, index_title: null, workspace_path: null, permission_mode: null, index_matches: [] });
+  const unknown = await client.callTool({ name: 'get_current_session', arguments: {} });
+  assert.equal(unknown.isError, true);
+  assert.ok(unknown.structuredContent.error.startsWith('caller_unknown:'), unknown.structuredContent.error);
+  const conflict = await client.callTool({ name: 'get_current_session', arguments: {},
+    _meta: { session_id: 'sess_a', 'com.zcode/request-context': { session_id: 'sess_b' } } });
+  assert.equal(conflict.isError, true);
+  assert.equal(conflict.structuredContent.code, 'caller_context_conflict');
+  assert.deepEqual(conflict.structuredContent.possible_session_ids, ['sess_a', 'sess_b']);
 });
 
 test('创建和发信自动读取每次 MCP 请求的来源会话，接口不接受手填来源 ID', async t => {

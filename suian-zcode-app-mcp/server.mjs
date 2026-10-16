@@ -50,6 +50,22 @@ export function createMcpServer(config, { controller, prStatus, reveal } = {}) {
     }).strict(),
     annotations
   }, async args => result(reader.readSession(args)));
+  server.registerTool('get_current_session', {
+    title: '获取当前会话信息',
+    description: '识别本次 MCP 请求的发起会话并回读其本机信息：session_id、CLI 库标题 session_title 与权限模式 permission_mode（权威来源，可能滞后于运行中改动）、工作区路径 workspace_path、任务索引标题 index_title 与未删除匹配行 index_matches（跨工作区同 ID 时多行，自行判断）。来源识别与创建/发信一致：请求上下文优先，缺失时按 trace_id 与工具名查本地调用记录；识别不出时返回错误，冲突时给出 possible_session_ids 候选。只读本机双库，不连接网关、不查询原 Host 实时状态；会话未落库（子代理上下文、deferPersistence）时字段为空不报错。无参数，不接受手填会话 ID。',
+    inputSchema: z.object({}).strict(),
+    annotations
+  }, async (_args, extra) => {
+    try {
+      const origin = resolveCaller({ meta: extra._meta, sessionDbPath: config.sessionDbPath, toolName: 'get_current_session' });
+      if (!origin.sessionId) return { ...result({ code: origin.warning.code,
+        possible_session_ids: origin.warning.possible_session_ids, error: origin.warning.message }), isError: true };
+      return result({ source: 'local_cli_databases', session_id: origin.sessionId,
+        ...reader.sessionOverview({ session_id: origin.sessionId }) });
+    } catch (error) {
+      return { ...result({ code: String(error.message).split(':')[0], error: error.message }), isError: true };
+    }
+  });
   const nonempty = z.string().refine(s => s.trim().length > 0, '不能是空文本');
   const messageFields = {
     message: nonempty.optional().describe('直接输入正文，适合短指令。与 message_file 必须且只能填写一个；长文、汇报推荐文档路径。'),
