@@ -4,6 +4,17 @@
 
 ## [Unreleased]
 
+## [0.7.0] - 2026-10-16
+
+新增会话自省能力：发起 MCP 请求的会话可以直接读回自己的 ID、标题、权限模式与工作区信息，不再需要间接推断或手填标识。
+
+### 新特性
+
+**新增 `get_current_session` 只读自省工具**
+
+- 识别本次 MCP 请求的发起会话并回读本机信息：session_id、CLI 库标题与权限模式、工作区路径、任务索引标题与未删除匹配行；来源识别链路与创建/发信一致（请求上下文优先，缺失时按 trace_id 与工具名查本地调用记录）。
+- 只读本机双库、不连接网关；会话未落库（子代理上下文、deferPersistence）时字段为空不报错；来源未知按错误回报，冲突时给出候选 ID。
+
 ## [0.6.0] - 2026-10-15
 
 工件面板全面增强：新增议题分类、PR/议题实时状态与行尾数字、文件三态图标和"用文件资源管理器打开"；会话工具新增置顶管理，归档读回更可靠。
@@ -164,6 +175,7 @@
 仓库尚未建立版本标签，以下版本链接使用对应源码提交。
 
 <!-- 变更链接 -->
+[0.7.0]: https://github.com/ONEGAYI/ZCode-Plugins/compare/2d1e036cde4577cc65322380f536e2e0e8b8e99829a554050faea864c4936a1e37d2ca3f2...2e92187293caba3c2bf98077a8160b0ae95bb662
 [0.5.0]: https://github.com/ONEGAYI/ZCode-Plugins/compare/29eb9b5a7fad5681f488e098e6d26ccce0f41a57...5a635fd0722d10a1a1e1ad60c1c8b6c7db0e4a83
 [0.6.0]: https://github.com/ONEGAYI/ZCode-Plugins/compare/5a635fd0722d10a1a1e1ad60c1c8b6c7db0e4a83...2d1e036cde4577cc65322380f536e2e0e8b8e99829a554050faea864c4936a1e37d2ca3f2
 [0.4.1]: https://github.com/ONEGAYI/ZCode-Plugins/compare/67d75b25cf932db9530883711e6226f77d867ca0...29eb9b5a7fad5681f488e098e6d26ccce0f41a57

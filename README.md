@@ -161,7 +161,7 @@ git -C "{{repo_dir}}" sparse-checkout set suian-zcode-title suian-zcode-common
 
 ## suian-zcode-app-mcp — 会话 MCP
 
-通过三个本机只读工具检索会话、聊天历史与置顶列表；八个写工具经公共网关调用原 Host 改名、创建、发信、压缩上下文、归档、复原与置顶。另提供 GLM 套餐额度和重置卡查询，以及经用户许可消耗一张卡重置额度。stdio 接入，消息包装来源标识；原 Host 调用不另占官方席位，重置仍需要客户端确认表单。接入与边界见 [suian-zcode-app-mcp](./suian-zcode-app-mcp/)。
+通过四个本机只读工具检索会话、聊天历史、置顶列表与自身会话信息；八个写工具经公共网关调用原 Host 改名、创建、发信、压缩上下文、归档、复原与置顶。另提供 GLM 套餐额度和重置卡查询，以及经用户许可消耗一张卡重置额度。stdio 接入，消息包装来源标识；原 Host 调用不另占官方席位，重置仍需要客户端确认表单。接入与边界见 [suian-zcode-app-mcp](./suian-zcode-app-mcp/)。
 
 工件 demo 提供当前会话的 get/set 增量工具、提交时管理摘要、Stop 历史快照与原生侧栏。提交摘要含有类别保底的部分简表，最多 20 条、整体 9000 字符；工件存储仍不限制数量。侧栏按类型折叠，统一详情含时间和会话实时状态，登记变化后自动刷新；PR 与议题显示实时状态图标和行尾的增删行数或评论数，文件条目区分文件与文件夹，详情页可用资源管理器打开。start_session 自动登记双方关系。原生分叉继承选中断点；缺快照会提示，子会话仍可独立维护。UI 按应用版本和 MCP Apps 能力启用。验证范围及首开连接条件见[开发验证](./suian-zcode-app-mcp/docs/artifact-demo-verification.md)，完整版唯一请求投影继续等待上游。
 
@@ -179,7 +179,7 @@ SE-05 的恢复副本已本地实现：页签、阅读位置与脏正文按会�
 
 统一维护网关、远控协议与探活、DPAPI 授权存取、Toast 通知、消息投影和依赖完整性检查。公共层包含可导入的模块，只有网关是常驻后台进程；命名规则和 MCP 工具契约留在各插件。网关的 Windows 启动、环境变量与恢复只维护一份。操作拆成[安装升级](./suian-zcode-common/skills/setup/SKILL.md)、[连接配置](./suian-zcode-common/skills/configuration/SKILL.md)与[排障](./suian-zcode-common/skills/debug/SKILL.md)，原 SKILL.md 保留为源码兼容路由。
 
-common `0.2.0` 新增 Stop 依赖完整性检查钩子与修复提示词 Toast，既有网关、Channel 监听入口和 V4 decoder 保持。官方代码按 Apache-2.0 保留完整许可与 NOTICE，内含 Zod 的 MIT 许可另存；来源与职责见 [公共模块说明](./suian-zcode-common/README.md)。app-mcp 当前为 `0.6.0`，title `0.1.1`。
+common `0.2.0` 新增 Stop 依赖完整性检查钩子与修复提示词 Toast，既有网关、Channel 监听入口和 V4 decoder 保持。官方代码按 Apache-2.0 保留完整许可与 NOTICE，内含 Zod 的 MIT 许可另存；来源与职责见 [公共模块说明](./suian-zcode-common/README.md)。app-mcp 当前为 `0.7.0`，title `0.1.1`。
 
 **可以在 ZCode 当前会话里完成安装或升级**。重载网关时，只需暂时关闭 ZCode 内的移动端远控，让 Agent 继续配置。首次接入或修改启动地址时，Agent 也会先完成配置和本机检查，最后再提示你择时重启生效；已经连接正确网关且地址未变时，重新开启远控即可。
 

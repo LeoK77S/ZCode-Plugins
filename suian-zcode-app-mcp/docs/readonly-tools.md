@@ -52,6 +52,14 @@
 
 `session.revert` 裁剪废弃分支：优先使用当前的 `branchCutAfterMessageID`，拼接截断点之后新增的消息；兼容旧 `createdMessageID`。这遵循[官方当前分支选择器](https://github.com/zai-org/ZCode/blob/29628c9acdb81b703bbd4080c207a0e7ce5e276e/apps/zcode-cli/packages/contracts/src/rewind/index.ts#L176-L215)。内部 rewind 确认消息不作为聊天正文；分页游标必须属于当前可见分支。
 
+## 获取当前会话
+
+`get_current_session` 无参数，识别**本次 MCP 请求的发起会话**并回读本机信息。来源识别与创建/发信共用一条链路：请求上下文的 `session_id` 优先，缺失时按 `trace_id` 与工具名查本地调用记录唯一匹配；识别不出按错误返回，来源冲突返回 `possible_session_ids` 候选，不由服务猜测。
+
+返回 `source: local_cli_databases`、`session_id` 与双库汇集的字段：CLI 库的 `session_title`、`workspace_path`、`permission_mode`（权威来源，可能滞后于运行中的临时改动）；任务索引的 `index_title` 与未删除匹配行 `index_matches`（通常一行；跨工作区同 ID 时多行返回，自行判断）。
+
+只读本机双库，不连接网关，也不查询原 Host 实时状态。会话尚未落库（子代理上下文、`deferPersistence` 未落）时对应字段为 `null`、`index_matches` 为空数组，不当作错误。
+
 ## 明确的失败与边界
 
 - `session_not_found`：索引没有目标，或目标已删除。
@@ -60,6 +68,8 @@
 - `history_not_found`：元数据存在，但本机 CLI 历史不存在；其他 provider 的历史格式尚未适配。
 - `workspace_mismatch`：索引与本机历史的工作区归属不一致，不继续读取。
 - `history_format_error`：消息角色或片段正文结构不兼容，不当作空聊天。
+- `caller_unknown` / `caller_context_invalid`（get_current_session）：请求没有可识别的发起会话，或来源元数据损坏。
+- `caller_context_conflict` / `caller_ambiguous`（get_current_session）：来源冲突或本地记录多义，返回候选 ID 供调用方核证。
 - 数据库或数据格式错误：原错误返回；不当作空会话。
 
 结果是已经提交到数据库的历史，不承诺包含正在流式生成的最新字符、当前运行实例的内存状态或所有桌面时间线事件。副作用边界是本服务不执行持久化写入；活跃 WAL 数据库的锁及共享内存由 SQLite 管理。
