@@ -20,7 +20,7 @@ description: 诊断 ZCode 公共网关、启动任务、Desktop、上游和手�
 
 网关可达但任务未运行时修复启动链，不另开实例。任务运行而健康不可达时先读数据目录中的 gateway.error.log 等启动日志；Restart/Remove 会拒绝在未知状态下修改配置。缺少 rpc_available 可能是旧进程，按[setup](../setup/SKILL.md)安全重载，不回退官方独立 terminal。
 
-Desktop 未连接时先确认远控开启、模式和日志，再核对启动环境；不能仅凭 false 断言环境继承错误。首次环境修改按[configuration](../configuration/SKILL.md)在配置完成后安排重开。
+Desktop 未连接时先确认远控开启（面板显示"等待手机连接"为准，停在"启动中"通常是官方服务器不可达）、模式和日志，再核对启动环境；不能仅凭 false 断言环境继承错误。首次环境修改按[configuration](../configuration/SKILL.md)在配置完成后安排重开。
 
 手机远端工作区忙时本地 RPC 返回 remote_workspace_busy，等待用户主动切回。隔离测试不等于真实手机共存，重新开启后需实际验收。不要创建真实任务探活，不擅自杀进程、提权或修改其他插件。
 
