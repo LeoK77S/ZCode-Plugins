@@ -5,7 +5,12 @@ description: 通过 ZCode 会话 MCP 检索历史、改名、创建、发信、�
 
 # 会话操作
 
-原生根为 `${ZCODE_SKILL_DIR}/../..`；源码模式沿用已确定的根。先读[路径与配置](../paths.md)，以客户端实际工具清单定位服务。参数细节按需读插件根 docs/readonly-tools.md、docs/write-tools.md。
+原生根为 `${ZCODE_SKILL_DIR}/../..`；源码模式沿用已确定的根。先读[路径与配置](../paths.md)，以客户端实际工具清单定位服务。
+
+工具描述保留授权、副作用与重试边界；其余细节按操作读取，不必通读所有契约：
+
+- 查询与自省：[读取契约](../../docs/readonly-tools.md)说明双库字段来源、持久化分支、过滤及分页。
+- 创建与控制：[写入契约](../../docs/write-tools.md)说明正文文件、模型、权限继承、标题锁定、来源识别与回执；压缩队列、归档和置顶各有独立章节。
 
 十二个会话工具中 list_sessions/read_session/get_current_session/list_pinned_sessions 只读本机 SQLite，其余按需经公共网关调用原 Host，不直接写会话数据库。读取持久化历史，不代表实时流式快照；按返回游标继续分页，远端历史或不存在会话明确报错。不把 getTaskSnapshot 当作无副作用查询。
 

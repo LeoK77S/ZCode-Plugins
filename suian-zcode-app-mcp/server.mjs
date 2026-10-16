@@ -4,12 +4,12 @@ import { createSessionReader } from './sessions.mjs';
 import { createSessionController } from './control.mjs';
 import { resolveCaller } from './caller.mjs';
 import { registerArtifactTools } from './artifact-tools.mjs';
+import { toolResult } from './tool-result.mjs';
 import { readFile } from 'node:fs/promises';
 import { extname, isAbsolute } from 'node:path';
 import packageMetadata from './package.json' with { type: 'json' };
 
 const annotations = { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false };
-const result = data => ({ content: [{ type: 'text', text: JSON.stringify(data) }], structuredContent: data });
 // 上游 ZCodeTaskMode 六档中的五档 canonical 值（autoEdit 是 build 的旧别名，映射后不单独暴露）
 const PERMISSION_MODES = new Set(['build', 'plan', 'edit', 'auto', 'yolo']);
 
@@ -27,9 +27,13 @@ export function createMcpServer(config, { controller, prStatus, reveal } = {}) {
     { capabilities: { resources: { subscribe: true } } });
   const reader = createSessionReader(config);
   controller ??= createSessionController({ reader, gatewayConfigPath: config.gatewayConfigPath });
+  const respond = (name, run) => async (args, extra) => {
+    try { return toolResult(name, await run(args, extra)); }
+    catch (error) { return { ...toolResult(name, { ...error.partial_result, error: error.message }), isError: true }; }
+  };
   server.registerTool('list_sessions', {
     title: '列出 ZCode 会话',
-    description: '读取本机任务索引，置顶会话优先，置顶内部与非置顶各自按更新时间从新到旧列出。省略 workspace_path 即所有工作区；query 按标题或 ID 作字面子串搜索。默认排除归档与删除项，包含置顶项。total 是筛选后的总条数；有 next_offset 时保留筛选条件继续分页。返回持久化状态。',
+    description: '读取本机会话索引，置顶优先、组内按更新时间降序。query 按标题或 ID 作字面子串搜索；默认排除归档与删除项。省略 workspace_path 查询全部工作区；按 next_offset 保持筛选条件续页。结果是持久化状态。',
     inputSchema: z.object({
       limit: z.number().int().min(1).max(200).default(20),
       offset: z.number().int().min(0).default(0),
@@ -38,10 +42,10 @@ export function createMcpServer(config, { controller, prStatus, reveal } = {}) {
       include_archived: z.boolean().default(false)
     }).strict(),
     annotations
-  }, async args => result(reader.listSessions(args)));
+  }, respond('list_sessions', args => reader.listSessions(args)));
   server.registerTool('read_session', {
     title: '读取 ZCode 聊天消息',
-    description: '读取指定会话的本机 CLI 持久化历史，遵循可见消息与回退分支规则。默认最近 30 条，每页按时间顺序返回用户与助手完整正文、附件名称及类型；不含工具输出、思考与隐藏通知。用 next_before_message_id 作为 before_message_id 获取更早页。不是实时流式快照；远端历史或不在索引中的会话会明确报错。',
+    description: '读取本机持久化分支的可见用户与助手消息，含完整正文与附件信息，不含工具输出、思考及隐藏通知。页内按时间顺序；将 next_before_message_id 传入 before_message_id 续读更早历史。非实时流；远端或未入索引的会话报错。',
     inputSchema: z.object({
       session_id: z.string().min(1),
       workspace_key: z.string().min(1).optional(),
@@ -49,51 +53,47 @@ export function createMcpServer(config, { controller, prStatus, reveal } = {}) {
       before_message_id: z.string().min(1).optional()
     }).strict(),
     annotations
-  }, async args => result(reader.readSession(args)));
+  }, respond('read_session', args => reader.readSession(args)));
   server.registerTool('get_current_session', {
     title: '获取当前会话信息',
-    description: '识别本次 MCP 请求的发起会话并回读其本机信息：session_id、CLI 库标题 session_title 与权限模式 permission_mode（权威来源，可能滞后于运行中改动）、工作区路径 workspace_path、任务索引标题 index_title 与未删除匹配行 index_matches（跨工作区同 ID 时多行，自行判断）。来源识别与创建/发信一致：请求上下文优先，缺失时按 trace_id 与工具名查本地调用记录；识别不出时返回错误，冲突时给出 possible_session_ids 候选。只读本机双库，不连接网关、不查询原 Host 实时状态；会话未落库（子代理上下文、deferPersistence）时字段为空不报错。无参数，不接受手填会话 ID。',
+    description: '只读识别本次请求的发起会话，返回 ID、本机标题、权限与工作区信息。无参数；识别失败报错，冲突候选不可当作已确认来源。未落库字段可为空；持久化信息可能滞后，不查询原 Host 实时状态。',
     inputSchema: z.object({}).strict(),
     annotations
   }, async (_args, extra) => {
     try {
       const origin = resolveCaller({ meta: extra._meta, sessionDbPath: config.sessionDbPath, toolName: 'get_current_session' });
-      if (!origin.sessionId) return { ...result({ code: origin.warning.code,
+      if (!origin.sessionId) return { ...toolResult('get_current_session', { code: origin.warning.code,
         possible_session_ids: origin.warning.possible_session_ids, error: origin.warning.message }), isError: true };
-      return result({ source: 'local_cli_databases', session_id: origin.sessionId,
+      return toolResult('get_current_session', { source: 'local_cli_databases', session_id: origin.sessionId,
         ...reader.sessionOverview({ session_id: origin.sessionId }) });
     } catch (error) {
-      return { ...result({ code: String(error.message).split(':')[0], error: error.message }), isError: true };
+      return { ...toolResult('get_current_session', { code: String(error.message).split(':')[0], error: error.message }), isError: true };
     }
   });
   const nonempty = z.string().refine(s => s.trim().length > 0, '不能是空文本');
   const messageFields = {
-    message: nonempty.optional().describe('直接输入正文，适合短指令。与 message_file 必须且只能填写一个；长文、汇报推荐文档路径。'),
+    message: nonempty.optional().describe('消息正文；与 message_file 必须且只能填写一个。'),
     message_file: nonempty.refine(path => isAbsolute(path) && extname(path).toLowerCase() === '.md', '必须是 Markdown .md 文档的绝对路径')
-      .optional().describe('UTF-8 Markdown 文档的绝对路径，读取正文作为消息；适合长文和汇报。推荐先写入工作区已被 Git 忽略的临时目录，如 .zcode/tmp/。与 message 必须且只能填写一个。')
+      .optional().describe('UTF-8 Markdown .md 文件的绝对路径，正文作为消息；与 message 二选一。')
   };
   const oneMessage = args => (args.message === undefined) !== (args.message_file === undefined);
   const messageSchemaMeta = { oneOf: [{ required: ['message'] }, { required: ['message_file'] }] };
   const target = { session_id: nonempty, workspace_path: nonempty.optional(), workspace_key: nonempty.optional() };
-  const writeResult = run => async (args, extra) => {
-    try { return result(await run(args, extra)); }
-    catch (error) { return { ...result({ ...error.partial_result, error: error.message }), isError: true }; }
-  };
   server.registerTool('rename_session', {
     title: '重命名 ZCode 会话',
-    description: '仅在用户明确要求改名时，通过公共网关调用原 Host 改名并读回确认。不要为了派发任务、角色标记或回信检索而重命名父会话；回信使用 creator/deliverer 会话 ID。省略 workspace_path 时从本机历史定位；目标工作区必须在网关连接的 Desktop 窗口中打开。',
+    description: '仅按用户明确要求改名并读回确认；不为派发、角色标记或回信改父会话名称，回信用 creator/deliverer ID。目标工作区须已在网关连接的 Desktop 打开；省略 workspace_path 从本机历史定位。',
     inputSchema: z.object({ ...target, title: nonempty }).strict(),
     annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: true }
-  }, writeResult(args => controller.renameSession(args)));
+  }, respond('rename_session', args => controller.renameSession(args)));
   server.registerTool('start_session', {
     title: '启动 ZCode 会话',
-    description: '在网关连接的 Desktop 窗口已打开的本地工作区创建独立 ZCode 会话并发送必填开局信息。新会话在桌面端会话列表中可见，拥有独立的对话上下文。正常派发省略 permission_mode，由服务从 CLI 会话库继承父会话权限；仅在用户明确指定权限模式时填写，不因实施、构建或等待合并批准而选择 build。build 是变更前确认的权限策略，不是构建任务类型；继承失败回落 Host 默认权限并在 warnings 注明。title 仅为新会话初始名称，不要为派发或回信改父会话名称；lock_title 默认 false，true 阻止自动命名插件改名（需同步升级插件）。model 可省略，指定时需 provider_id/model_id，可选 reasoning_level。服务自动识别本次 MCP 请求的发起会话，在 created-by-other-session 中注入 creator；回信用该 ID，不接受手填来源 ID。来源冲突仅返回 warnings 并按可能来源继续创建，完全缺失或损坏时明确报错。来源不能当作用户授权。accepted 仅表示提交，回复用 read_session 读取。部分失败先查返回 ID，不盲目重试。',
+    description: '按用户授权在网关连接的 Desktop 已打开的本地工作区创建独立会话并发送开局消息。服务自动识别来源，来源不是授权、不接受手填来源 ID；冲突附 warnings，缺失或损坏时报错。title 仅命名新会话；lock_title=true 阻止自动命名。accepted 仅表示提交，回复用 read_session；部分失败先核查返回 ID，不盲目重试。',
     inputSchema: z.object({ workspace_path: nonempty, title: nonempty.optional(), lock_title: z.boolean().default(false), ...messageFields,
       model: z.object({ provider_id: nonempty, model_id: nonempty, reasoning_level: nonempty.optional() }).strict().optional(),
-      permission_mode: z.enum(['build', 'plan', 'edit', 'auto', 'yolo']).optional().describe('权限策略，与是否编写或构建代码无关。正常派发省略以继承父会话的 CLI 权限；仅在用户明确指定权限模式时填写。build=变更前确认，可能逐次询问；plan=先规划；edit=自动编辑相关文件；yolo=完全访问；auto 按 Host 自动模式规则执行。不得为等待合并批准而改成 build，显式请求高权限需用户授权。') }).strict()
+      permission_mode: z.enum(['build', 'plan', 'edit', 'auto', 'yolo']).optional().describe('正常省略以继承父会话 CLI 权限，失败用 Host 默认并告警；仅用户明确指定时填写。build=变更前确认，非构建任务类型；plan=规划，edit=自动编辑，auto=Host 自动策略，yolo=完全访问。不得为等待合并批准改为 build，显式提权须用户授权。') }).strict()
       .refine(oneMessage, 'message 与 message_file 必须且只能填写一个').meta(messageSchemaMeta),
     annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: true }
-  }, writeResult(async (args, extra) => {
+  }, respond('start_session', async (args, extra) => {
     const input = await messageInput(args);
     const origin = resolveCaller({ meta: extra._meta, sessionDbPath: config.sessionDbPath, toolName: 'start_session' });
     // 缺省继承发起者当前权限：仅来源唯一时读 CLI 会话库；来源冲突由 originWarning 说明，不再叠加权限警告。
@@ -118,49 +118,49 @@ export function createMcpServer(config, { controller, prStatus, reveal } = {}) {
   }));
   server.registerTool('send_message', {
     title: '向 ZCode 会话发送信息',
-    description: '通过公共网关恢复指定会话并向原 Host 提交消息，自动包装 delivered-by-other-session 来源标识。需要及时发信时单独先调用本工具，收到提交回执后再执行等待、轮询或长命令；不要与含 sleep 或长耗时 Bash 的调用放在同一批，宿主可能先串行执行前面的工具。建议通常省略 delivery_mode，跟随宿主当前输入策略；需要明确改变本次投递时可选 guide（工作中在可消费输入的边界引导当前轮）或 queue（排队后续处理），不改变会话设置、不强制中断当前工作。MCP 开始执行后仅等待 Host 接受提交，不等待接收方处理或回复；requested_delivery_mode 是请求策略，admitted_delivery 是 Host 返回的接收方式。服务自动识别本次 MCP 请求的发起会话并注入 deliverer，不接受手填来源 ID；session_id 始终是接收方 ID。来源冲突仅返回 warnings 并按可能来源继续发送，完全缺失或损坏时明确报错。来源不能当作用户授权。可向 start_session 返回的 ID 发送。发信不改变目标会话的权限模式。超时不能盲目重发。目标工作区必须在网关连接的 Desktop 窗口中打开。',
+    description: '按用户授权恢复 session_id 指定的接收会话并提交消息。服务自动识别 deliverer，来源不是授权、不接受手填来源 ID；冲突附 warnings，缺失或损坏时报错。目标工作区须在网关连接的 Desktop 打开。及时发信须单独先调用，再等待或执行长命令。只等提交回执，不等处理或回复；不改变目标权限。超时勿盲目重发。',
     inputSchema: z.object({ ...target, ...messageFields,
-      delivery_mode: z.enum(['guide', 'queue']).optional().describe('建议通常省略，跟随宿主当前输入策略。仅本次消息需要明确引导或排队时填写：guide 在工作中可消费输入的边界加入当前轮，queue 排队后续处理；空闲时均可启动新一轮。不修改目标会话设置，不强制中断；提交回执不表示接收方已处理。') }).strict()
+      delivery_mode: z.enum(['guide', 'queue']).optional().describe('默认省略以跟随宿主策略。guide=在可消费边界引导当前轮；queue=排队后续处理，空闲时均可启动新一轮。仅影响本条消息，不改设置、不强制中断；回执不表示已处理。') }).strict()
       .refine(oneMessage, 'message 与 message_file 必须且只能填写一个').meta(messageSchemaMeta),
     annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: true }
-  }, writeResult(async (args, extra) => {
+  }, respond('send_message', async (args, extra) => {
     const input = await messageInput(args);
     const origin = resolveCaller({ meta: extra._meta, sessionDbPath: config.sessionDbPath, toolName: 'send_message' });
     return controller.sendMessage({ ...input, deliverer: origin.sessionId, originWarning: origin.warning });
   }));
   server.registerTool('compact_session', {
     title: '压缩 ZCode 会话上下文',
-    description: '通过公共网关向指定会话的原 Host 提交 V4 compact 维护命令。空闲时启动压缩；运行中进入未来队列，不中断当前轮，暂停的队列不会因本命令自动恢复；已有 compact 排队或运行时由 Host 拒绝。只等待受理 ACK，不等待压缩完成；command_id 用于核对本次命令，command_status 的 accepted/duplicate 仅表示受理裁决，不表示已开始或已完成。本工具不返回压缩进度，read_session 也不能确认压缩终态。compact 尚在排队时 guide 仍可能先影响当前轮，压缩开始后新消息等待后续处理。压缩自己时也应收到回执就结束调用，不等待终态。超时或回执未知不能盲目重试；目标工作区必须在网关连接的 Desktop 窗口中打开。',
+    description: '向原 Host 提交 compact：空闲时开始，运行中排队，不中断当前轮、不恢复暂停队列；已有 compact 时拒绝。ACK 与 accepted/duplicate 仅表示受理，不表示已开始或完成；本工具和 read_session 均不能确认终态，压缩自身也只等回执。目标工作区须在网关连接的 Desktop 打开；超时或回执未知勿盲目重试。',
     inputSchema: z.object(target).strict(),
     annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: true }
-  }, writeResult(args => controller.compactSession(args)));
+  }, respond('compact_session', args => controller.compactSession(args)));
   server.registerTool('archive_session', {
     title: '归档 ZCode 会话',
-    description: '从原 Host 快照检查主代理、挂载后台/子代理、未完成计划与目标、待处理输入及交互。活跃时默认返回 confirmation_required 和原因，不归档；Agent 必须向用户说明并取得明确授权后才可 force:true 再调用，不能自行推断授权。状态不可核实则报错。归档只隐藏会话，不停止后台工作；复原用 restore_session。',
+    description: '从原 Host 快照检查活跃状态，归档只隐藏会话，不停止后台工作。活跃时默认返回 confirmation_required，不归档；须向用户说明原因并取得明确许可后才传 force=true，不自行推断授权。状态不可核实时仍报错。复原用 restore_session。',
     inputSchema: z.object({ ...target, force: z.boolean().default(false) }).strict(),
     annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: true }
-  }, writeResult(args => controller.archiveSession(args)));
+  }, respond('archive_session', args => controller.archiveSession(args)));
   server.registerTool('restore_session', {
     title: '复原归档的 ZCode 会话',
-    description: '通过原 Host 取消归档并读取本机索引确认；不发送输入或启动新的 Agent 工作。使用实际 session_id。',
+    description: '通过原 Host 取消归档并读回确认；不发信、不启动任务。使用实际 session_id。',
     inputSchema: z.object(target).strict(),
     annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: true }
-  }, writeResult(args => controller.restoreSession(args)));
+  }, respond('restore_session', args => controller.restoreSession(args)));
   server.registerTool('pin_session', {
     title: '置顶 ZCode 会话',
-    description: '通过公共网关调用原 Host 置顶指定会话，并从本机任务索引读回确认。置顶只改变列表展示归属，不影响会话运行与历史；与归档状态正交，归档会话也可置顶。省略 workspace_path 时从本机历史定位；目标工作区必须在网关连接的 Desktop 窗口中打开。查看置顶列表用 list_pinned_sessions。',
+    description: '通过原 Host 置顶并从本机索引确认；不改变运行、历史或归档状态。省略 workspace_path 从本机历史定位；目标工作区须在网关连接的 Desktop 打开。列表用 list_pinned_sessions。',
     inputSchema: z.object(target).strict(),
     annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: true }
-  }, writeResult(args => controller.pinSession(args)));
+  }, respond('pin_session', args => controller.pinSession(args)));
   server.registerTool('unpin_session', {
     title: '取消置顶 ZCode 会话',
-    description: '通过公共网关调用原 Host 取消置顶指定会话，并从本机任务索引读回确认。置顶与归档为正交状态，本操作不改变归档状态。省略 workspace_path 时从本机历史定位；目标工作区必须在网关连接的 Desktop 窗口中打开。查看置顶列表用 list_pinned_sessions。',
+    description: '通过原 Host 取消置顶并从本机索引确认，不改变归档状态。省略 workspace_path 从本机历史定位；目标工作区须在网关连接的 Desktop 打开。列表用 list_pinned_sessions。',
     inputSchema: z.object(target).strict(),
     annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: true }
-  }, writeResult(args => controller.unpinSession(args)));
+  }, respond('unpin_session', args => controller.unpinSession(args)));
   server.registerTool('list_pinned_sessions', {
     title: '列出置顶的 ZCode 会话',
-    description: '读取本机任务索引，按更新时间从新到旧列出置顶会话。省略 workspace_path 即所有工作区；默认排除归档与删除项，include_archived 可显式包含归档的置顶会话。置顶与归档为正交状态。total 是筛选后的总条数；有 next_offset 时保留筛选条件继续分页。返回持久化状态，不连接网关、不要求 Desktop 在线。',
+    description: '只读本机索引中的置顶会话，按更新时间降序；默认排除归档与删除项，include_archived 可含归档项。省略 workspace_path 查询所有工作区，按 next_offset 保持筛选条件续页。返回持久化状态，不要求 Desktop 在线。',
     inputSchema: z.object({
       limit: z.number().int().min(1).max(200).default(20),
       offset: z.number().int().min(0).default(0),
@@ -168,16 +168,16 @@ export function createMcpServer(config, { controller, prStatus, reveal } = {}) {
       include_archived: z.boolean().default(false)
     }).strict(),
     annotations
-  }, async args => result(reader.listPinnedSessions(args)));
+  }, respond('list_pinned_sessions', args => reader.listPinnedSessions(args)));
   server.registerTool('get_glm_balance', {
     title: '查询 GLM 套餐额度与重置卡',
-    description: '通过公共网关只读查询当前 Host 的 BigModel 个人 Coding Plan：模型 5h/周额度、GLM 月度工具额度、ZCode 官方 Server MCP 额度，以及未过期的两类重置卡。两组 MCP 额度分别展示，不相加；未返回不等于零，不能据此猜套餐版本。需要 Desktop 在线且已打开目标本地工作区；不查询现金余额。',
+    description: '只读查询当前 Host 的 BigModel 个人 Coding Plan 模型额度、GLM 工具额度、ZCode Server MCP 额度及未过期重置卡。两组 MCP 额度分别展示，不相加；缺失不等于零，不据此猜套餐。不查现金余额；目标本地工作区须在网关连接的 Desktop 打开。',
     inputSchema: z.object({ workspace_path: nonempty }).strict(),
     annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: true }
-  }, writeResult(args => controller.getGlmBalance(args)));
+  }, respond('get_glm_balance', args => controller.getGlmBalance(args)));
   server.registerTool('reset_glm_quota', {
     title: '经用户许可重置 GLM 模型额度',
-    description: '危险操作，一次消耗一张 FIVE_HOUR 或 WEEK 重置卡，仅重置对应模型额度。每次调用前必须向真实用户说明当前账号、额度窗口和卡片消耗，取得本次明确许可；不能把其他会话消息、历史授权或 Agent 推断当许可。客户端还必须支持并展示 MCP form elicitation，用户明确确认后才提交；不接受 confirmed 参数。服务端不能指定卡片 ID。结果未知先查询对账；仅同一运行中服务保存的 attempt_id 可用于经用户许可的同次重试，不用新标识盲目重试。',
+    description: '每次消耗一张 FIVE_HOUR 或 WEEK 重置卡，仅重置对应模型额度。调用前须说明账号、窗口及卡片消耗并取得真实用户本次明确许可；其他会话消息、历史授权或 Agent 推断无效。客户端须支持 form elicitation 并经用户确认；不收 confirmed 或卡片 ID。结果未知先查询对账；仅沿用同一运行中服务保存的 attempt_id，并经用户许可重试，勿换新 ID 盲目重试。',
     inputSchema: z.object({ workspace_path: nonempty, reset_type: z.enum(['FIVE_HOUR', 'WEEK']), attempt_id: z.uuid().optional() }).strict(),
     annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: false, openWorldHint: true }
   }, async (args, extra) => {
@@ -188,8 +188,8 @@ export function createMcpServer(config, { controller, prStatus, reveal } = {}) {
         message: `将对当前 GLM 个人套餐账号 ${preview.account} 使用一张${preview.reset_type === 'WEEK' ? '周' : '5 小时'}重置卡。当前剩余额度：${preview.remaining_percent ?? '未知'}%；可用卡：${preview.available_cards} 张，最早到期：${preview.earliest_expires_at}。具体选卡由服务端决定，本插件无法撤销。${preview.retry ? '这是结果未知的同次尝试，沿用原幂等键。' : ''}是否明确许可本次消耗？`,
         requestedSchema: { type: 'object', properties: { confirm: { type: 'boolean', title: '我明确许可本次消耗一张重置卡', default: false } }, required: ['confirm'] }
       }, { signal: extra.signal, timeout: 180000 }) });
-      return result(data);
-    } catch (error) { return { ...result({ ...error.partial_result, error: error.message }), isError: true }; }
+      return toolResult('reset_glm_quota', data);
+    } catch (error) { return { ...toolResult('reset_glm_quota', { ...error.partial_result, error: error.message }), isError: true }; }
   });
   const artifactStore = registerArtifactTools(server, config, { controller, prStatus, reveal });
   return server;

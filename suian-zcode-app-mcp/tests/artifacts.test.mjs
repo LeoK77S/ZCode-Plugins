@@ -208,6 +208,7 @@ test('工件工具只读空状态不建库，增量写入后 get 返回当前会
   const empty = await call('get_artifacts');
   assert.equal(empty.isError, undefined);
   assert.deepEqual(empty.structuredContent, { revision: 0, items: [], stats: { total: 0, by_kind: { pr: 0, issue: 0, session: 0, file: 0, link: 0 } } });
+  assert.match(empty.content[0].text, /工件.*0 条.*版本 0/);
   assert.equal(existsSync(f.artifactDbPath), false);
   const items = [
     { kind: 'pr', ref: 'https://github.com/example/repo/pull/1', label: '实现 PR', purpose: '接续评审' },
@@ -218,6 +219,8 @@ test('工件工具只读空状态不建库，增量写入后 get 返回当前会
   ];
   const written = await call('set_artifacts', { expected_revision: 0, upsert: items });
   assert.equal(written.isError, undefined);
+  assert.match(written.content[0].text, /登记 5 条.*移除 0 条/);
+  assert.ok(!written.content[0].text.includes('by_kind'));
   assert.deepEqual(written.structuredContent, { revision: 1, changed: true, upserted: 5, removed: 0,
     stats: { total: 5, by_kind: { pr: 1, issue: 1, session: 1, file: 1, link: 1 } } });
   const current = (await call('get_artifacts')).structuredContent;

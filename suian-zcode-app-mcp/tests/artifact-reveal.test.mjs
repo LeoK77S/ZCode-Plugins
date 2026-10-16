@@ -201,7 +201,8 @@ test('权限边界：仅当前会话已登记的 file 条目执行——未登�
   const ok = await call('reveal_artifact', { ref: FILE_REF });
   assert.equal(ok.isError, undefined);
   assert.deepEqual(ok.structuredContent, { ref: FILE_REF, is_directory: true, platform: 'win32' });
-  assert.deepEqual(JSON.parse(ok.content[0].text), ok.structuredContent);
+  assert.match(ok.content[0].text, /文件管理器.*定位/);
+  assert.ok(!ok.content[0].text.includes(FILE_REF), '定位回执不重复完整引用');
   assert.deepEqual(service.calls, [FILE_REF], '仅命中 file 条目才把路径交给打开服务');
 });
 
@@ -218,5 +219,6 @@ test('打开失败与路径缺失在回执中行内可读：isError 携带 code 
     assert.equal(outcome.isError, true);
     assert.equal(outcome.structuredContent.code, code);
     assert.match(outcome.structuredContent.error, new RegExp(code));
+    assert.match(outcome.content[0].text, /操作失败/);
   }
 });

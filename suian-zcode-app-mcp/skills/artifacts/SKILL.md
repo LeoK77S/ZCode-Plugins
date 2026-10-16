@@ -27,4 +27,4 @@ start_session 创建后自动在发起者和新会话的工件区登记双方引
 
 Desktop 本地会话的原生侧栏不编辑工件，按类型提供可折叠列表、数量、图标和条目详情。打开、刷新与详情使用同一个 get，不启动模型。HTTP(S) 引用经宿主打开，会话 ID 与文件路径展示原始引用。UI 要求 ZCode ≥3.15.1、MCP Apps MIME 和目标会话 MCP 连接就绪；旧版保留工具与摘要。连接或存储失败明确呈现错误，不伪装为空工件。
 
-详细规则和验证范围见 [工件规格](../../docs/artifact-zone-spec.md)与[开发验证](../../docs/artifact-demo-verification.md)。
+工具描述保留读取模式、增量维护、资源授权与会话详情的副作用。分页默认值、字段来源、未知时间与 file 探测降级见[工件规格](../../docs/artifact-zone-spec.md)的“条目与时间”“当前会话工具”；侧栏能力与验证范围见[开发验证](../../docs/artifact-demo-verification.md)。

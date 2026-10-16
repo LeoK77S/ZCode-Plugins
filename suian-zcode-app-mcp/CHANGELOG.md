@@ -4,6 +4,28 @@
 
 ## [Unreleased]
 
+## [0.7.2] - 2026-10-16
+
+减少会话 MCP 的常驻工具说明与调用结果重复，完整数据继续保留在结构化回执中。
+
+### Bug 修复
+
+**完整工具结果不再重复进入模型上下文**
+
+- `structuredContent` 保留完整结果，`content` 改为最多 160 个 Unicode 码点的数量、操作状态或错误简报，不再复制聊天正文和完整清单。
+- 业务错误保留 `isError:true` 与完整结构化错误；简报区分已提交、未确认完成、结果未知、归档待确认及取消重置等状态，保留对应重试边界。
+- 工件侧栏继续读取完整结构化数据；工件 Hook 和页面实现保持原有行为。
+
+### 其他改进
+
+- 精简工具描述和参数说明，保留关键授权、副作用及重试边界；详细说明由既有技能按需连接文档，工具名、输入 schema 和校验规则不变。
+- 普通客户端仍公开 16 个工具，MCP Apps 客户端另有 2 个面板专用工具；注解和可见性不变。
+- 原生清单、包元信息、锁文件根版本和市场条目同步为 `0.7.2`，运行时继续读取包版本。
+
+> **兼容范围**：本次面向当前 ZCode，仅读取文本 JSON 的旧客户端不在兼容范围；完整数据应读取 `structuredContent`。
+
+> **验证范围**：190 项回归通过；当前 ZCode 3.15.3.8237 产物离线重放确认完整正文由两份降为一份，Chromium＋真实 MCP＋隔离 SQLite 的侧栏验证通过。未替换用户安装缓存，实际 Desktop 更新后的端到端验收仍待执行。
+
 ## [0.7.1] - 2026-10-16
 
 按官方界面文案澄清远控开关的操作方式，并补充离线机器的安装指引。
@@ -186,6 +208,8 @@
 仓库尚未建立版本标签，以下版本链接使用对应源码提交。
 
 <!-- 变更链接 -->
+[0.7.2]: https://github.com/ONEGAYI/ZCode-Plugins/compare/cd747c3f59cb3d160da1f92f283c6ed4bca30102...bf4e6db5713ab622f6cbffccd06e952ede96951b
+[0.7.1]: https://github.com/ONEGAYI/ZCode-Plugins/compare/2e92187293caba3c2bf98077a8160b0ae95bb662...cd747c3f59cb3d160da1f92f283c6ed4bca30102
 [0.7.0]: https://github.com/ONEGAYI/ZCode-Plugins/compare/2d1e036cde4577cc65322380f536e2e0e8b8e99829a554050faea864c4936a1e37d2ca3f2...2e92187293caba3c2bf98077a8160b0ae95bb662
 [0.5.0]: https://github.com/ONEGAYI/ZCode-Plugins/compare/29eb9b5a7fad5681f488e098e6d26ccce0f41a57...5a635fd0722d10a1a1e1ad60c1c8b6c7db0e4a83
 [0.6.0]: https://github.com/ONEGAYI/ZCode-Plugins/compare/5a635fd0722d10a1a1e1ad60c1c8b6c7db0e4a83...2d1e036cde4577cc65322380f536e2e0e8b8e99829a554050faea864c4936a1e37d2ca3f2

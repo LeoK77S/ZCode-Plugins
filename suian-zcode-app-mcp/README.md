@@ -148,6 +148,10 @@ npm ci --ignore-scripts --no-fund --no-audit
 
 默认读取当前系统用户的 `~/.zcode/v2/tasks-index.sqlite` 和 `~/.zcode/cli/db/db.sqlite`。自定义路径可在 args 追加 `--index-db {{index_db_path}} --session-db {{session_db_path}} --artifact-db {{artifact_db_path}}`，或设置对应环境变量。也可用 `--config {{config_file}}` 读取外置 JSON 的 indexDbPath、sessionDbPath、artifactDbPath、gatewayConfigPath、authDataDir。优先级为命令参数 > 对应环境变量 > 外置配置 > 默认路径。
 
+工具结果面向当前 ZCode：`structuredContent` 保存完整数据，`content` 只提供最多 160 个 Unicode 码点的数量、操作状态或错误简报，不重复正文和完整清单。
+
+业务错误保留 `isError:true` 与完整结构化错误；SDK 参数校验错误仍由 SDK 返回。工件侧栏继续读取结构化数据，Hook 摘要不变。仅解析文本 JSON 的旧客户端不在本次兼容范围。
+
 原生工件默认放在 dataPath/artifacts.sqlite；源码模式使用 ~/.zcode/tools/suian-zcode-app-mcp/artifacts.sqlite。Hook 与 MCP 读取同一外置配置。仅手动添加 stdio 服务不会加载 Hook 或侧栏，完整 demo 推荐原生插件安装。
 
 ### 调用示例
