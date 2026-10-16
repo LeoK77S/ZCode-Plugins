@@ -303,7 +303,8 @@ test('get_pr_statuses 按透传 refs 返回逐条结果，单条错误不拖垮�
   assert.deepEqual(seen, [[GH_REF, 'https://example.com/pull/1']]);
   assert.deepEqual(response.structuredContent.statuses[GH_REF], { status: 'merged', additions: 7, deletions: 2, fetched_at: 9 });
   assert.match(response.structuredContent.statuses['https://example.com/pull/1'].error, /^pr_status_not_github/);
-  assert.deepEqual(JSON.parse(response.content[0].text), response.structuredContent);
+  assert.match(response.content[0].text, /2 条.*1 条失败/);
+  assert.ok(!response.content[0].text.includes(GH_REF), '状态清单只在结构化数据中保留');
   assert.equal((await client.callTool({ name: 'get_pr_statuses', arguments: { refs: [] } })).isError, true);
   assert.equal((await client.callTool({ name: 'get_pr_statuses', arguments: { refs: [GH_REF], extra: 1 } })).isError, true);
   assert.equal((await client.callTool({ name: 'get_pr_statuses', arguments: {} })).isError, true);
@@ -311,6 +312,7 @@ test('get_pr_statuses 按透传 refs 返回逐条结果，单条错误不拖垮�
   const failure = await broken.callTool({ name: 'get_pr_statuses', arguments: { refs: [GH_REF] } });
   assert.equal(failure.isError, true);
   assert.match(failure.structuredContent.error, /boom/);
+  assert.match(failure.content[0].text, /操作失败.*boom/);
 });
 
 test('get_pr_statuses 的 issue_refs 通道：与 PR 结果合并返回，校验与服务异常覆盖议题', async t => {
@@ -325,7 +327,7 @@ test('get_pr_statuses 的 issue_refs 通道：与 PR 结果合并返回，校验
   assert.deepEqual(seen, [['pr', [GH_REF]], ['issue', [GH_ISSUE_REF]]], '同一次调用分发两个分支');
   assert.deepEqual(both.structuredContent.statuses[GH_REF], { status: 'merged', additions: 7, deletions: 2, fetched_at: 9 });
   assert.deepEqual(both.structuredContent.statuses[GH_ISSUE_REF], { state: 'closed', comments: 7, fetched_at: 10 });
-  assert.deepEqual(JSON.parse(both.content[0].text), both.structuredContent);
+  assert.match(both.content[0].text, /2 条/);
   const issueOnly = await client.callTool({ name: 'get_pr_statuses', arguments: { issue_refs: [GH_ISSUE_REF] } });
   assert.equal(issueOnly.isError, undefined);
   assert.deepEqual(issueOnly.structuredContent.statuses[GH_ISSUE_REF], { state: 'closed', comments: 7, fetched_at: 10 });

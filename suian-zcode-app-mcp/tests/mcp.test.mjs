@@ -126,9 +126,12 @@ test('MCP 握手版本与插件元信息一致，公布十六个工具并保持�
   assert.equal(listed.tools.find(tool => tool.name === 'reset_glm_quota').annotations.idempotentHint, false);
   const list = await client.callTool({ name: 'list_sessions', arguments: { query: 'MCP', limit: 1 } });
   assert.equal(list.structuredContent.sessions[0].session_id, 'sess_alpha');
-  assert.deepEqual(JSON.parse(list.content[0].text), list.structuredContent);
+  assert.match(list.content[0]?.text ?? '', /本次 1 个.*共 1 个/, '文本只报告关键数量');
+  assert.ok(!list.content[0].text.includes('sess_alpha'), '列表正文不重复进入文本摘要');
   const chat = await client.callTool({ name: 'read_session', arguments: { session_id: 'sess_alpha' } });
   assert.equal(chat.structuredContent.messages[0].text, '实现只读工具');
+  assert.match(chat.content[0]?.text ?? '', /1 条消息/);
+  assert.ok(!chat.content[0].text.includes('实现只读工具'), '聊天正文只在 structuredContent 中保留');
 });
 
 test('get_current_session 回显发起会话的本机自省信息，不接受参数', async t => {
@@ -154,7 +157,8 @@ test('get_current_session 回显发起会话的本机自省信息，不接受参
   assert.equal(data.index_matches[0].session_id, 'sess_parent');
   assert.equal(data.index_matches[0].permission_mode, 'build');
   assert.equal(data.index_matches[0].updated_at, 42);
-  assert.deepEqual(JSON.parse(response.content[0].text), data);
+  assert.match(response.content[0]?.text ?? '', /当前会话.*sess_parent/);
+  assert.ok(!response.content[0].text.includes('index_matches'));
   assert.equal((await client.callTool({ name: 'get_current_session', arguments: { session_id: 'sess_forged' }, _meta: { session_id: 'sess_parent' } })).isError, true);
 });
 
@@ -173,6 +177,8 @@ test('get_current_session 未落库时字段可空，来源未知或冲突按错
   const unknown = await client.callTool({ name: 'get_current_session', arguments: {} });
   assert.equal(unknown.isError, true);
   assert.ok(unknown.structuredContent.error.startsWith('caller_unknown:'), unknown.structuredContent.error);
+  assert.match(unknown.content[0]?.text ?? '', /操作失败.*caller_unknown/);
+  assert.ok(Array.from(unknown.content[0].text).length <= 160, '错误报告保持简短，完整错误仍在 structuredContent');
   const conflict = await client.callTool({ name: 'get_current_session', arguments: {},
     _meta: { session_id: 'sess_a', 'com.zcode/request-context': { session_id: 'sess_b' } } });
   assert.equal(conflict.isError, true);

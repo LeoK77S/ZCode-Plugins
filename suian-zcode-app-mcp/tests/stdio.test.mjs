@@ -47,14 +47,16 @@ test('独立 stdio 进程完成握手、分页、消息读取与错误反馈，�
   assert.equal(chat.structuredContent.messages[0].text, '读取目标');
   const missing = await client.callTool({ name: 'read_session', arguments: { session_id: 'sess_missing' } });
   assert.equal(missing.isError, true);
-  assert.match(missing.content[0].text, /session_not_found/);
+  assert.match(missing.structuredContent?.error ?? '', /session_not_found/);
+  assert.match(missing.content[0].text, /操作失败.*session_not_found/);
   const invalid = await client.callTool({ name: 'list_sessions', arguments: { limit: -1 } });
   assert.equal(invalid.isError, true);
   const extra = await client.callTool({ name: 'read_session', arguments: { session_id: 'sess_alpha', sql: 'DROP TABLE session' } });
   assert.equal(extra.isError, true);
   const unauthorized = await client.callTool({ name: 'send_message', arguments: { session_id: 'sess_alpha', message: 'hello', workspace_path: 'D:/fixture' }, _meta: { session_id: 'sess_sender' } });
   assert.equal(unauthorized.isError, true);
-   assert.match(unauthorized.content[0].text, /公共网关尚未配置/);
+  assert.match(unauthorized.structuredContent.error, /公共网关尚未配置/);
+  assert.match(unauthorized.content[0].text, /操作失败/);
   assert.deepEqual([digest(f.indexDbPath), digest(f.sessionDbPath)], before);
   await client.close();
   assert.equal(stderr, '');

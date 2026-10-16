@@ -179,7 +179,7 @@ SE-05 的恢复副本已本地实现：页签、阅读位置与脏正文按会�
 
 统一维护网关、远控协议与探活、DPAPI 授权存取、Toast 通知、消息投影和依赖完整性检查。公共层包含可导入的模块，只有网关是常驻后台进程；命名规则和 MCP 工具契约留在各插件。网关的 Windows 启动、环境变量与恢复只维护一份。操作拆成[安装升级](./suian-zcode-common/skills/setup/SKILL.md)、[连接配置](./suian-zcode-common/skills/configuration/SKILL.md)与[排障](./suian-zcode-common/skills/debug/SKILL.md)，原 SKILL.md 保留为源码兼容路由。
 
-common 当前为 `0.2.1`，本版补充远控开关操作说明；`0.2.0` 新增 Stop 依赖完整性检查钩子与修复提示词 Toast，既有网关、Channel 监听入口和 V4 decoder 保持。官方代码按 Apache-2.0 保留完整许可与 NOTICE，内含 Zod 的 MIT 许可另存；来源与职责见 [公共模块说明](./suian-zcode-common/README.md)。app-mcp 当前为 `0.7.1`，title `0.1.2`。
+common 当前为 `0.2.1`，本版补充远控开关操作说明；`0.2.0` 新增 Stop 依赖完整性检查钩子与修复提示词 Toast，既有网关、Channel 监听入口和 V4 decoder 保持。官方代码按 Apache-2.0 保留完整许可与 NOTICE，内含 Zod 的 MIT 许可另存；来源与职责见 [公共模块说明](./suian-zcode-common/README.md)。app-mcp 当前为 `0.7.2`，精简工具说明并以关键简报配合完整结构化结果，减少上下文重复；title `0.1.2`。
 
 **可以在 ZCode 当前会话里完成安装或升级**。重载网关时，只需暂时关闭 ZCode 内的移动端远控（面板内点"停止"），让 Agent 继续配置。首次接入或修改启动地址时，Agent 也会先完成配置和本机检查，最后再提示你择时重启生效；已经连接正确网关且地址未变时，重新开启远控即可。
 
