@@ -24,10 +24,10 @@ export function createBackend({event,config,saveState,prompt,connect=connectHost
   };
   // 宿主在会话内 CronCreate 成功后会把会话标题冻结为任务标题（setCustomSessionTitle），
   // 该路径只写会话库不同步任务索引；冻结证据取会话历史中 CronCreate 调用记录的 input.title，
-  // 只认 create（宿主只在创建时冻结），不含 CronUpdate 的事后改名。查询失败按无证据处理，维持护栏。
+  // 只认 create 成功（宿主只在创建成功后冻结），不含 CronUpdate 的事后改名。查询失败按无证据处理，维持护栏。
   const loadFreezeTitles=async()=> {
     try {
-      return (await queryJson(config.sessionDb,`SELECT DISTINCT json_extract(data,'$.state.input.title') title FROM part WHERE session_id='${sessionId}' AND json_extract(data,'$.type')='tool' AND json_extract(data,'$.tool')='CronCreate' AND json_extract(data,'$.state.input.title') IS NOT NULL;`)).map(row=>row.title);
+      return (await queryJson(config.sessionDb,`SELECT DISTINCT json_extract(data,'$.state.input.title') title FROM part WHERE session_id='${sessionId}' AND json_extract(data,'$.type')='tool' AND json_extract(data,'$.tool')='CronCreate' AND json_extract(data,'$.state.status')='completed' AND json_extract(data,'$.state.input.title') IS NOT NULL;`)).map(row=>row.title);
     }catch{return [];}
   };
   const resolveWorkspace=async()=> {
@@ -60,13 +60,15 @@ export function createBackend({event,config,saveState,prompt,connect=connectHost
       const row=await loadIndexRow();
       // 新会话首轮索引行可能尚未写入：session.directory 已足以定位，不因缺行失败
       const history=await readHistory({dbPath:config.sessionDb,sqliteBin:config.sqliteBin,sessionId,workspacePath:ws});
-      // 索引与会话库标题分裂时先查冻结证据：命中说明分裂来自宿主 CronCreate 冻结路径
-      // （只写会话库），放行并由命名层接管 rename 同步两库；未命中维持护栏拦截真实数据损坏。
-      const freezeTitles=row&&row.title!==history.session.title?await loadFreezeTitles():[];
+      // 冻结证据承担两个用途：解释索引分裂（mismatch 护栏）与豁免命名层手动改名锁。
+      // 前者只在分裂时需要，后者在 custom 标题（冻结只写 custom）时就需要——索引行缺失
+      // 或恰好同步的会话不能因此拿不到证据而被误锁。
+      const freezeTitles=row&&row.title!==history.session.title||history.session.titleSource==="custom"?await loadFreezeTitles():[];
       if(row&&row.title!==history.session.title&&!freezeTitles.includes(history.session.title)){const mismatch=new Error("任务索引与 CLI 会话标题不一致");mismatch.reasonCode="index_title_mismatch";throw mismatch;}
       if(remote) {
         const meta=await remote.call("zcode-task","getTaskMeta",[{taskId:sessionId,workspacePath:ws}]);
-        if(meta.taskId!==sessionId||meta.workspacePath!==ws||meta.title!==history.session.title){const mismatch=new Error("原 Host 与持久化标题不一致");mismatch.reasonCode="host_title_mismatch";throw mismatch;}
+        // 冻结分裂下宿主任务元（索引/overlay）仍是旧标题属预期状态，与 generate 的漂移校验同口径
+        if(meta.taskId!==sessionId||meta.workspacePath!==ws||meta.title!==history.session.title&&!freezeTitles.includes(history.session.title)){const mismatch=new Error("原 Host 与持久化标题不一致");mismatch.reasonCode="host_title_mismatch";throw mismatch;}
       }
       return{...recentSnapshot(history,ws),freezeTitles,titleSource:history.session.titleSource??null,titlePolicy:await readTitlePolicy({sessionId}),archived:!!row?.archived,deleted:!!row?.deleted,running:row?.task_status==="running"};
     },

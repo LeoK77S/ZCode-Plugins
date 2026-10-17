@@ -22,7 +22,7 @@ description: 排查 ZCode 自动命名不触发、标题异常、模型错误和
 | remote_workspace_busy | 手机远端工作区占用，等用户主动切回 |
 | bridge_timeout / rpc_protocol_error | 核对版本和原窗口，不重试已提交写操作 |
 | stale_result / outdated_event | 内容、运行状态或标题已变化，候选被丢弃 |
-| index_title_mismatch / host_title_mismatch | 标题存储不一致；不直接写库，明确授权后经官方改名链路对齐 |
+| index_title_mismatch / host_title_mismatch | 标题存储不一致；不直接写库，明确授权后经官方改名链路对齐。宿主 CronCreate 冻结标题（命中会话内成功 CronCreate 的 input.title）会命中冻结放行并由命名层接管，无需人工对齐 |
 
 Hook 在会话创建时快照；变更注册后用新会话或重开后的会话验证。Stop → Hook → 延迟 8 秒 → 后台 worker；先看 state/hook.log.jsonl，再看 runner.log.jsonl 和 usage.jsonl，不把旧会话无触发当新配置无效。
 
