@@ -38,8 +38,12 @@ export async function runNaming({backend,selection,state={},apply=false,eventUse
   // 标题变化且非宿主自动生成（generated）才视为用户手动改名并锁定；
   // 宿主自带的首轮/后续自动命名与我们存在竞争，视为待覆盖的旧标题
   if(!before.titlePolicy&&state.lastFingerprint&&state.lastTitle!==before.title&&before.titleSource!=="generated") {
-    if(apply)await backend.saveState({...state,locked:true,lastTitle:before.title});
-    return{status:"manual_title",title:before.title};
+    // 宿主在会话内 CronCreate 成功后会把标题冻结为任务标题（custom，且只写会话库不同步任务索引）；
+    // 命中冻结证据（backend 从会话内 CronCreate 调用记录提取的 input.title）时接管命名，不作为用户意志锁定
+    if(!before.freezeTitles?.includes(before.title)) {
+      if(apply)await backend.saveState({...state,locked:true,lastTitle:before.title});
+      return{status:"manual_title",title:before.title};
+    }
   }
   const requireFormat=before.titlePolicy?.locked===false;
   if(state.lastFingerprint===before.fingerprint&&state.lastTitle===before.title&&(!requireFormat||!titleFormatError(before.title)))return{status:"unchanged",title:before.title};

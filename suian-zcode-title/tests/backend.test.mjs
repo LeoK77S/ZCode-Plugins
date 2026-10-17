@@ -50,6 +50,50 @@ test("后端读取双库状态，指定模型辅助生成，原 Host 改名后�
   } finally {rmSync(root,{recursive:true});}
 });
 
+test("索引标题分裂时按会话内 CronCreate 冻结证据放行，无证据则维持 mismatch 失败",async()=>{
+  const root=mkdtempSync(join(tmpdir(),"z-title-backend3-")),sessionDb=join(root,"session.sqlite"),indexDb=join(root,"index.sqlite");
+  const sqliteBin=process.env.SQLITE_BIN||"sqlite3",frozenTitle="PR 轮询任务标题（每5分钟）";
+  const cronCall=JSON.stringify({type:"tool",callID:"call_fixture",tool:"CronCreate",state:{status:"completed",input:{cron:"*/5 * * * *",title:frozenTitle,prompt:"轮询"}}});
+  const cronUpdate=JSON.stringify({type:"tool",callID:"call_fixture2",tool:"CronUpdate",state:{status:"completed",input:{id:"automation-fixture",title:"更新后的任务标题"}}});
+  execFileSync(sqliteBin,[sessionDb,[
+    "CREATE TABLE session(id,title,directory,path,revert,title_source);",
+    "CREATE TABLE message(id,session_id,time_created,time_updated,data,sequence);",
+    "CREATE TABLE part(id,message_id,session_id,time_created,time_updated,data,sequence);",
+    "INSERT INTO session VALUES('sess_frozen','"+frozenTitle+"','D:\\\\belongs\\\\frozen',NULL,NULL,'custom');",
+    "INSERT INTO message VALUES('u1','sess_frozen',1,1,'"+JSON.stringify({role:"user"})+"',1);",
+    "INSERT INTO part VALUES('p1','u1','sess_frozen',1,1,'"+cronCall+"',1);",
+    "INSERT INTO part VALUES('p2','u1','sess_frozen',1,1,'"+cronUpdate+"',2);",
+    "INSERT INTO part VALUES('p3','u1','sess_frozen',1,1,'"+JSON.stringify({type:"text",text:"改进编辑体验"})+"',3);",
+    "INSERT INTO session VALUES('sess_plain','他方改写','D:\\\\belongs\\\\plain',NULL,NULL,'custom');",
+    "INSERT INTO message VALUES('u2','sess_plain',1,1,'"+JSON.stringify({role:"user"})+"',1);",
+    "INSERT INTO part VALUES('p4','u2','sess_plain',1,1,'"+JSON.stringify({type:"text",text:"普通会话内容"})+"',1);"
+  ].join("\n")]);
+  execFileSync(sqliteBin,[indexDb,["CREATE TABLE tasks(task_id,workspace_path,title,archived,deleted,task_status);",
+    "INSERT INTO tasks VALUES('sess_frozen','D:\\\\belongs\\\\frozen','🧩 旧标题｜索引残留',0,0,'completed');",
+    "INSERT INTO tasks VALUES('sess_plain','D:\\\\belongs\\\\plain','🧩 旧标题｜索引残留',0,0,'completed');"].join("\n")]);
+  const config={sessionDb,indexDb,sqliteBin};
+  const selection={providerId:"fixture-provider",modelId:"fixture-model",options:{reasoningLevel:"low"}};
+  try {
+    const frozen=createBackend({event:{session_id:"sess_frozen",cwd:"D:\\anywhere"},config,connect:async()=>({
+      call:async(channel,method)=>{
+        if(method==="getView")return{providers:[{providerId:"fixture-provider",models:[{modelId:"fixture-model",config:{optionSpecs:{reasoningLevel:{values:["low"]}}}}]}]};
+        // 宿主任务元仍挂索引旧标题：freeze 路径不更新索引/overlay，分裂是预期状态
+        if(method==="getTaskMeta")return{taskId:"sess_frozen",workspacePath:"D:\\belongs\\frozen",title:"🧩 旧标题｜索引残留"};
+        if(method==="generateWorkspaceText")return{text:"{}",finishReason:"stop"};
+        throw Error("unexpected fixture method");
+      },close:()=>{}
+    }),saveState:async()=>{},prompt:"规则"});
+    const snap=await frozen.read();
+    assert.equal(snap.title,frozenTitle,"冻结证据命中时以会话库标题为准放行");
+    assert.deepEqual(snap.freezeTitles,[frozenTitle],"只取 CronCreate 的 input.title，不含 CronUpdate");
+    assert.equal(snap.turnCount,1);
+    await frozen.generate(snap.context,selection);
+    frozen.close();
+    const plain=createBackend({event:{session_id:"sess_plain",cwd:"D:\\anywhere"},config,connect:async()=>{throw Error("read 不应连远控");},saveState:async()=>{},prompt:"规则"});
+    await assert.rejects(plain.read(),/任务索引与 CLI 会话标题不一致/);
+  } finally {rmSync(root,{recursive:true});}
+});
+
 test("payload cwd 与会话归属不一致时以 session.directory 为准；索引缺行也能读取并透传 titleSource",async()=>{
   const root=mkdtempSync(join(tmpdir(),"z-title-backend2-")),sessionDb=join(root,"session.sqlite"),indexDb=join(root,"index.sqlite");
   const sqliteBin=process.env.SQLITE_BIN||"sqlite3";
