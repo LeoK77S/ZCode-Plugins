@@ -29,6 +29,12 @@
       "red": "apply 流程 generate 后复读必抛 host_title_mismatch（preview 不复读故未暴露）；generate 内 getTaskMeta 旧标题触发「模型请求前目标标题已经变化」；反向验证：撤除豁免后 backend 套件 1 fail",
       "green": "host 校验复用 freezeTitles 同口径豁免；generate 校验懒查证据；generate→read 时序用例锁住该缺口",
       "tests": ["tests/backend.test.mjs"]
+    },
+    {
+      "feature": "证据加载条件收窄：双库一致 custom 不加载（review 轮 2 N1 回归窗口修复）",
+      "red": "一致双库 + custom + 会话含历史 CronCreate 时 freezeTitles 非空，用户手动改回历史 cron 标题会旁路手动锁、被反复覆盖改名",
+      "green": "custom 析取支限定为索引行缺失场景（分裂 OR 缺行+custom），改名通道产物（一致 custom）证据为空恢复手动锁语义；顺带消除所有 custom 会话每次 read 的额外证据查询",
+      "tests": ["tests/backend.test.mjs"]
     }
   ],
   "machineVerified": [

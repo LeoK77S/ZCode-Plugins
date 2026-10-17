@@ -61,9 +61,9 @@ export function createBackend({event,config,saveState,prompt,connect=connectHost
       // 新会话首轮索引行可能尚未写入：session.directory 已足以定位，不因缺行失败
       const history=await readHistory({dbPath:config.sessionDb,sqliteBin:config.sqliteBin,sessionId,workspacePath:ws});
       // 冻结证据承担两个用途：解释索引分裂（mismatch 护栏）与豁免命名层手动改名锁。
-      // 前者只在分裂时需要，后者在 custom 标题（冻结只写 custom）时就需要——索引行缺失
-      // 或恰好同步的会话不能因此拿不到证据而被误锁。
-      const freezeTitles=row&&row.title!==history.session.title||history.session.titleSource==="custom"?await loadFreezeTitles():[];
+      // 前者只在分裂时需要；后者在索引行缺失 + custom（冻结只写 custom）时就需要。
+      // 双库一致的 custom 是改名通道产物，不加载证据——否则用户手动改回历史 cron 标题会旁路手动锁。
+      const freezeTitles=row&&row.title!==history.session.title||!row&&history.session.titleSource==="custom"?await loadFreezeTitles():[];
       if(row&&row.title!==history.session.title&&!freezeTitles.includes(history.session.title)){const mismatch=new Error("任务索引与 CLI 会话标题不一致");mismatch.reasonCode="index_title_mismatch";throw mismatch;}
       if(remote) {
         const meta=await remote.call("zcode-task","getTaskMeta",[{taskId:sessionId,workspacePath:ws}]);

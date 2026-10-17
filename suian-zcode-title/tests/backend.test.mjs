@@ -72,7 +72,12 @@ test("索引标题分裂时按会话内 CronCreate 冻结证据放行，无证�
     "INSERT INTO session VALUES('sess_noindex','"+frozenTitle+"','D:\\\\belongs\\\\noindex',NULL,NULL,'custom');",
     "INSERT INTO message VALUES('u3','sess_noindex',1,1,'"+JSON.stringify({role:"user"})+"',1);",
     "INSERT INTO part VALUES('p6','u3','sess_noindex',1,1,'"+cronCall+"',1);",
-    "INSERT INTO part VALUES('p7','u3','sess_noindex',1,1,'"+JSON.stringify({type:"text",text:"索引行缺失的冻结会话"})+"',2);"
+    "INSERT INTO part VALUES('p7','u3','sess_noindex',1,1,'"+JSON.stringify({type:"text",text:"索引行缺失的冻结会话"})+"',2);",
+    // 双库一致 + custom：改名通道产物，不是冻结分裂，不得加载证据（否则用户手动改回历史 cron 标题时锁被误豁免）
+    "INSERT INTO session VALUES('sess_synced','"+frozenTitle+"','D:\\\\belongs\\\\synced',NULL,NULL,'custom');",
+    "INSERT INTO message VALUES('u4','sess_synced',1,1,'"+JSON.stringify({role:"user"})+"',1);",
+    "INSERT INTO part VALUES('p8','u4','sess_synced',1,1,'"+cronCall+"',1);",
+    "INSERT INTO part VALUES('p9','u4','sess_synced',1,1,'"+JSON.stringify({type:"text",text:"双库一致的改名会话"})+"',2);"
   ].join("\n")]);
   execFileSync(sqliteBin,[indexDb,["CREATE TABLE tasks(task_id,workspace_path,title,archived,deleted,task_status);",
     "INSERT INTO tasks VALUES('sess_frozen','D:\\\\belongs\\\\frozen','🧩 旧标题｜索引残留',0,0,'completed');",
@@ -105,6 +110,11 @@ test("索引标题分裂时按会话内 CronCreate 冻结证据放行，无证�
     const nosnap=await noindex.read();
     assert.equal(nosnap.title,frozenTitle);
     assert.deepEqual(nosnap.freezeTitles,[frozenTitle],"custom 标题必须加载冻结证据，与索引是否分裂无关");
+    // 双库一致的 custom：手动改名通道产物，证据集合必须为空以保留手动锁语义
+    execFileSync(sqliteBin,[indexDb,"INSERT INTO tasks VALUES('sess_synced','D:\\\\belongs\\\\synced','"+frozenTitle+"',0,0,'completed');"]);
+    const synced=createBackend({event:{session_id:"sess_synced",cwd:"D:\\anywhere"},config,connect:async()=>{throw Error("read 不应连远控");},saveState:async()=>{},prompt:"规则"});
+    const syncsnap=await synced.read();
+    assert.deepEqual(syncsnap.freezeTitles,[],"一致双库不加载冻结证据，防止历史 cron 标题旁路手动锁");
   } finally {rmSync(root,{recursive:true});}
 });
 
