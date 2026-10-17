@@ -36,6 +36,8 @@ Install 复用唯一当前用户登录任务，以隐藏 VBS → PowerShell → 
 
 原生插件通过原生管理器更新，不能在版本缓存里 git pull。更新后重新执行 zcode plugins list --json，以新的 rootPath、dataPath 读取并执行 setup，不沿用当前会话加载的旧缓存路径。源码安装先确认干净工作树和基线，再 fast-forward 更新，不覆盖本地修改。公共层和已选择业务插件使用配套版本。
 
+由 Agent 代为更新原生插件时，更新对象是市场副本仓库 suian-zcode-plugins，不是版本缓存：先核对来源分支并拉取远端最新 HEAD，本地修改或分叉时说明原因，不强制覆盖；副本不含 Git 元数据时改用 CLI 的 `plugins marketplace update suian-zcode-plugins` 刷新。CLI 不依赖 PATH：定位用户实际安装的 Desktop 目录，用随应用提供的 zcode CLI（如 `resources/glm/zcode.cjs`，由 Node.js 24+ 执行相同参数），不下载另一份。更新顺序为先 common 后业务插件，命令形如 `zcode plugins update suian-zcode-common@suian-zcode-plugins`，只对实际已安装的插件执行。
+
 更新后重装公共与 MCP 的锁定依赖，再刷新 link.mjs 的公共入口和所有已安装业务端链接。刷新链接不会重载运行中的网关或 MCP。
 
 需要重载网关时，等插件调用收尾，请用户只暂停 ZCode 的移动端远控，保留 ZCode 与当前 Agent 完成升级。Status 确认 desktop_connected:false 后 Restart，原生模式加 -NativePlugin。脚本等待网关和启动器退出后才更新任务，保留已有配置。业务安装器同时更新通知脚本的代码路径。
