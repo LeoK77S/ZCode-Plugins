@@ -152,6 +152,37 @@ test("自动命名竞争仍保留 keep、手动标题、新输入和会话状态
   });
 });
 
+test("宿主 CronCreate 冻结的标题命中冻结证据时接管重命名，不视为手动改名锁定",async()=>{
+  const box=fixture(),frozenTitle="PR #581 评论轮询（每5分钟，六审成品已推）";
+  box.snapshot.title=frozenTitle;box.snapshot.titleSource="custom";
+  box.snapshot.context.current_title=frozenTitle;
+  box.snapshot.freezeTitles=[frozenTitle];
+  const result=await runNaming({backend:box.backend,selection,state:{lastFingerprint:"content-v0",lastTitle:"🧩 旧标题｜已过时"},apply:true});
+  assert.equal(result.status,"renamed","冻结是宿主副作用，应接管而非锁定");
+  assert.equal(box.snapshot.title,candidate.title);
+  assert.equal(box.state.locked,undefined,"接管不得写入手动改名锁");
+  assert.equal(box.state.lastTitle,candidate.title);
+  const box2=fixture();
+  box2.snapshot.title=frozenTitle;box2.snapshot.titleSource="custom";
+  box2.snapshot.context.current_title=frozenTitle;
+  box2.snapshot.freezeTitles=[frozenTitle];
+  box2.backend.generate=async()=>({text:JSON.stringify({action:"keep",title:frozenTitle,reason:"任务标题合适"}),finishReason:"stop"});
+  const kept=await runNaming({backend:box2.backend,selection,state:{lastFingerprint:"content-v0",lastTitle:"🧩 旧标题｜已过时"},apply:true});
+  assert.equal(kept.status,"kept");
+  assert.equal(box2.state.lastTitle,frozenTitle,"keep 以冻结标题建立去重基线");
+  assert.equal(box2.state.locked,undefined);
+});
+test("冻结集合不含当前标题时维持手动改名锁定",async()=>{
+  const box=fixture(),frozenTitle="PR #581 评论轮询（每5分钟，六审成品已推）";
+  box.snapshot.title="用户手改的标题";box.snapshot.titleSource="custom";
+  box.snapshot.context.current_title="用户手改的标题";
+  box.snapshot.freezeTitles=[frozenTitle];
+  const result=await runNaming({backend:box.backend,selection,state:{lastFingerprint:"content-v0",lastTitle:"🧩 旧标题｜已过时"},apply:true});
+  assert.equal(result.status,"manual_title","集合外标题变化仍按用户手动改名处理");
+  assert.equal(box.state.locked,true);
+  assert.equal(box.generations,0);
+});
+
 test('MCP 显式不锁名称时非规范 keep 要纠正一次，并记录模型理由', async () => {
   const box = fixture();
   box.snapshot.titlePolicy = { version: 1, locked: false };

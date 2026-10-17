@@ -1,0 +1,50 @@
+{
+  "topic": "suian-zcode-title 宿主 CronCreate 冻结标题的识别与接管命名",
+  "date": "2026-10-17T21:30:00+08:00",
+  "issue": "ONEGAYI/ZCode-Plugins#91",
+  "baselineBefore": {
+    "tests": 64,
+    "result": "pass",
+    "log": "worktree 全新检出于 feat/title-freeze-takeover（基 dev 97a23da），公共层 npm ci + node_modules junction 后全量通过"
+  },
+  "after": {
+    "tests": 70,
+    "result": "pass"
+  },
+  "redGreenLog": [
+    {
+      "feature": "backend 冻结证据查询与 mismatch 护栏条件放行（loadFreezeTitles + read）",
+      "red": "冻结分裂会话 read 抛 index_title_mismatch「任务索引与 CLI 会话标题不一致」",
+      "green": "证据命中放行并返回 freezeTitles；未命中维持 throw；索引行缺失 + custom 仍加载证据（锁豁免用途与分裂表象解耦）；仅 status=completed 的 CronCreate 计入（失败调用不构成证据，宿主只在创建成功后冻结）",
+      "tests": ["tests/backend.test.mjs"]
+    },
+    {
+      "feature": "naming 冻结接管：跳过手动改名锁（runNaming 锁分支）",
+      "red": "冻结场景返回 manual_title 并写 state.locked",
+      "green": "证据命中时落入正常命名流程接管 rename；keep 时以冻结标题建立去重基线；集合外标题维持锁定语义",
+      "tests": ["tests/naming.test.mjs"]
+    },
+    {
+      "feature": "read() host 校验与 generate 漂移校验的冻结豁免（review 轮 1 P1/P3 修复）",
+      "red": "apply 流程 generate 后复读必抛 host_title_mismatch（preview 不复读故未暴露）；generate 内 getTaskMeta 旧标题触发「模型请求前目标标题已经变化」；反向验证：撤除豁免后 backend 套件 1 fail",
+      "green": "host 校验复用 freezeTitles 同口径豁免；generate 校验懒查证据；generate→read 时序用例锁住该缺口",
+      "tests": ["tests/backend.test.mjs"]
+    },
+    {
+      "feature": "证据加载条件收窄：双库一致 custom 不加载（review 轮 2 N1 回归窗口修复）",
+      "red": "一致双库 + custom + 会话含历史 CronCreate 时 freezeTitles 非空，用户手动改回历史 cron 标题会旁路手动锁、被反复覆盖改名",
+      "green": "custom 析取支限定为索引行缺失场景（分裂 OR 缺行+custom），改名通道产物（一致 custom）证据为空恢复手动锁语义；顺带消除所有 custom 会话每次 read 的额外证据查询",
+      "tests": ["tests/backend.test.mjs"]
+    }
+  ],
+  "machineVerified": [
+    "本机翻车会话（宿主任务已删、会话库为冻结标题 title_source=custom、索引为旧插件标题 title_overridden=1）preview 端到端返回 {status:preview,action:rename,候选标题}；修复前同一入口每轮 index_title_mismatch 失败",
+    "本机会话库实证：part 中 Cron 系工具调用 7 条均为 state.status=completed，其 input.title 与冻结标题逐字相等",
+    "反向验证：临时撤除 host 校验冻结豁免后 backend 套件 1 fail，恢复后 3/3；全量 70 项通过"
+  ],
+  "traps": [
+    "fixture 的 session.directory 用四反斜杠（落库双反斜杠）与 getTaskMeta 单反斜杠字面值不等，host 校验在 workspacePath 比较处短路抛错，制造了掩盖真实豁免缺口的假红；造数时两处必须同型",
+    "preview（apply:false）不执行 generate 后的复读，完全掩盖 host 校验豁免缺口；端到端 preview 不能替代 apply 链路验证",
+    "本执行环境的 bash heredoc/printf 会叠加一层反斜杠转义，JSON 造数一律经 JS 文件直写或正斜杠路径规避"
+  ]
+}
