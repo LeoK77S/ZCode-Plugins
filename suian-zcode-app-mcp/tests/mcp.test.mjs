@@ -103,7 +103,7 @@ test('compact_session 公布指定目标与受理语义，严格校验参数并�
   assert.equal(rejected.structuredContent.reason_code, 'compactOperationLock');
 });
 
-test('MCP 握手版本与插件元信息一致，公布十七个工具并保持查询只读', async t => {
+test('MCP 握手版本与插件元信息一致，公布十九个工具并保持查询只读', async t => {
   const f = fixture(t);
   f.task({ id: 'sess_alpha', title: 'MCP 工具' });
   f.session({ id: 'sess_alpha', title: 'MCP 工具' });
