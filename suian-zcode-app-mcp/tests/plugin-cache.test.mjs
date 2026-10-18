@@ -10,7 +10,7 @@ import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
 import { linkCommon } from '../../suian-zcode-common/link.mjs';
 
-test('分别缓存的两个业务插件通过公共包入口启动，MCP 公布十六个工具', async t => {
+test('分别缓存的两个业务插件通过公共包入口启动，MCP 公布十七个工具', async t => {
   const root = await mkdtemp(join(tmpdir(), 'zcode-native-cache-'));
   t.after(() => rm(root, { recursive: true }));
   const repo = fileURLToPath(new URL('../../', import.meta.url));
@@ -40,7 +40,7 @@ test('分别缓存的两个业务插件通过公共包入口启动，MCP 公布�
   t.after(() => client.close());
   await client.connect(transport);
   assert.equal(client.getServerVersion().version, JSON.parse(await readFile(join(roots['suian-zcode-app-mcp'], '.zcode-plugin', 'plugin.json'), 'utf8')).version);
-  assert.equal((await client.listTools()).tools.length, 16);
+  assert.equal((await client.listTools()).tools.length, 17);
   await client.close();
   const hook = JSON.parse(await readFile(join(roots['suian-zcode-title'], 'hooks', 'hooks.json'), 'utf8')).hooks.Stop[0].hooks[0];
   assert.equal(hook.async, true);

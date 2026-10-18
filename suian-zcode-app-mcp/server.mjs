@@ -169,6 +169,15 @@ export function createMcpServer(config, { controller, prStatus, reveal } = {}) {
     }).strict(),
     annotations
   }, respond('list_pinned_sessions', args => reader.listPinnedSessions(args)));
+  server.registerTool('list_automations', {
+    title: '列出 ZCode 定时任务',
+    description: '读取本机持久库，列出定时任务（automation）清单与调度状态：automationId、title、cronExpr、enabled、lifecycleStatus、nextRunAt、lastRunAt、runCount、recurring、maxRuns、scheduleRule、workspaceKey、workspacePath、targetTaskId（绑定的会话）。省略参数返回全部工作区；workspace_path / workspace_key 可选过滤。只读本机数据，离线可用。定时任务自动触发的轮次里官方 Cron 写工具不可用时，本工具仍可正常调用，可先据此定位目标任务的 automationId。',
+    inputSchema: z.object({
+      workspace_path: z.string().min(1).optional(),
+      workspace_key: z.string().min(1).optional()
+    }).strict(),
+    annotations
+  }, respond('list_automations', args => reader.listAutomations(args)));
   server.registerTool('get_glm_balance', {
     title: '查询 GLM 套餐额度与重置卡',
     description: '只读查询当前 Host 的 BigModel 个人 Coding Plan 模型额度、GLM 工具额度、ZCode Server MCP 额度及未过期重置卡。两组 MCP 额度分别展示，不相加；缺失不等于零，不据此猜套餐。不查现金余额；目标本地工作区须在网关连接的 Desktop 打开。',
