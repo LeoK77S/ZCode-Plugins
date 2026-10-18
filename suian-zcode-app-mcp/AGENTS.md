@@ -38,7 +38,7 @@
 | cli.mjs | stdio 入口、数据库/公共网关配置路径；旧 stdin DPAPI 保存入口兼容 |
 | config.mjs | MCP 和原生 Hook 共用的外置配置、路径优先级与 Desktop 应用版本来源 |
 | .zcode-plugin/plugin.json / .mcp.json | 原生元信息与 stdio 注册；参数 --config 指向外置配置 |
-| skills/ | setup / configuration / sessions / artifacts / glm / debug，paths.md 统一路径与配置说明 |
+| skills/ | setup / configuration / sessions / automations / artifacts / glm / debug，paths.md 统一路径与配置说明 |
 | server.mjs | MCP 工具注册、参数校验与结构化响应 |
 | tool-result.mjs | 当前 ZCode 的关键状态简报与完整结构化结果，避免文本重复承载完整 JSON |
 | caller.mjs | 每次请求的发起会话定位：MCP 元数据优先，trace_id 与工具名只读匹配本地调用记录 |
