@@ -7,6 +7,7 @@ const summaries = {
   rename_session: () => '会话已重命名并读回确认。',
   start_session: () => '会话已创建，开局消息已提交。',
   send_message: () => '消息已提交，尚未确认处理或回复。',
+  reset_cron_tools_visibility: () => '唤醒消息已提交；收到回执后立即结束本轮，下一轮官方 Cron 工具恢复可用。',
   compact_session: () => '压缩请求已受理，尚未确认完成。',
   archive_session: data => data.requires_confirmation ? '会话仍活跃，归档未执行，需用户确认。' : '会话已归档，后台工作不会因此停止。',
   restore_session: () => '归档会话已复原。',

@@ -215,6 +215,30 @@ test('发信策略可缺省跟随宿主或显式 guide/queue，回执报告 Host
   }
 });
 
+test('reset 向当前会话排队唤醒消息：固定 queue 投递，默认与覆盖文本都携带结束本轮指令', async () => {
+  const f = await fixture();
+  const sent = () => f.calls.filter(call => call.method === 'sendConversationCommandV4').at(-1).params[0].envelope;
+  const result = await f.controller.resetCronToolsVisibility({ session_id: 'sess_working' });
+  let envelope = sent();
+  assert.equal(envelope.type, 'sendText');
+  assert.equal(envelope.sessionId, 'sess_working', '目标固定为当前会话');
+  assert.equal(envelope.payload.requestedDelivery, 'queue', '投递固定 queue，不暴露模式参数');
+  assert.ok(envelope.payload.text.includes('收到回执后立即结束本轮'), '默认文本含结束本轮指令');
+  assert.equal(result.requested_delivery_mode, 'queue');
+  assert.equal(result.delivery_status, 'accepted');
+  assert.ok(result.input_id);
+  assert.equal(f.connections[0].args.sessionId, 'sess_working', '连接目标即当前会话');
+  const overridden = await f.controller.resetCronToolsVisibility({ session_id: 'sess_working', instruction: ' 下一轮删除 automation-fixture 后重建 ' });
+  envelope = sent();
+  assert.equal(envelope.sessionId, 'sess_working');
+  assert.equal(envelope.payload.requestedDelivery, 'queue');
+  assert.ok(envelope.payload.text.includes('下一轮删除 automation-fixture 后重建'), 'instruction 覆盖生效');
+  assert.ok(envelope.payload.text.includes('收到回执后立即结束本轮'), '覆盖文本仍携带结束本轮指令');
+  assert.equal(overridden.delivery_status, 'accepted');
+  assert.equal(f.calls.filter(call => call.method === 'sendConversationCommandV4').length, 2);
+  assert.ok(f.connections.every(c => c.closed));
+});
+
 test('发信等待 Host ACK 后即回执，不等待工作中接收方结束或回复', { timeout: 2000 }, async () => {
   const submitted = Promise.withResolvers(), ackGate = Promise.withResolvers();
   const f = await fixture({

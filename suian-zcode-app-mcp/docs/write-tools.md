@@ -1,6 +1,6 @@
 # 会话写工具
 
-八个写工具通过公共远控客户端附着原 ZCode Desktop Host。任务操作调用 `zcode-task`，`send_message` 与 `compact_session` 通过 `zcode-agent` 的 v4 命令分别提交消息和上下文压缩请求；不启动独立 CLI app-server、不直接写会话数据库。读取与分页仍按 [读取契约](./readonly-tools.md)。
+九个写工具通过公共远控客户端附着原 ZCode Desktop Host。任务操作调用 `zcode-task`，`send_message`、`reset_cron_tools_visibility` 与 `compact_session` 通过 `zcode-agent` 的 v4 命令分别提交消息、定时任务唤醒消息和上下文压缩请求；不启动独立 CLI app-server、不直接写会话数据库。读取与分页仍按 [读取契约](./readonly-tools.md)。
 
 ## 连接与授权
 
@@ -90,7 +90,25 @@ MCP 开始执行后，工具等待 Host 接受提交的 ACK 即返回并释放�
 
 发信不改变目标会话的权限模式：恢复链路不携带 `mode`，权限保持会话现状；消息也不携带模型选择覆盖。
 
-所有工具拒绝未知参数和空白标题/信息。MCP 注解中三个读取工具（含 list_pinned_sessions）保持 `readOnlyHint:true`；八个写工具为 false，创建、发信和压缩请求不是幂等操作，置顶与取消置顶声明幂等。
+所有工具拒绝未知参数和空白标题/信息。MCP 注解中三个读取工具（含 list_pinned_sessions）保持 `readOnlyHint:true`；九个写工具为 false，创建、发信、唤醒消息和压缩请求不是幂等操作，置顶与取消置顶声明幂等。
+
+## 定时任务工具面唤醒
+
+`reset_cron_tools_visibility` 是 `send_message` 面向定时任务场景的语法糖。定时任务触发的派发轮里，官方为防任务递归修改自身调度，把 CronCreate / CronUpdate / CronDelete 从该轮模型工具面整体剥离——上下文中仍列出这些工具，实际调不动，调用意图会坍缩到最相似的可用工具（实测表现为连发 CronList）。轮结束后，下一轮（人工轮）恢复完整工具面。
+
+```json
+{"name":"reset_cron_tools_visibility","arguments":{}}
+{"name":"reset_cron_tools_visibility","arguments":{"instruction":"下一轮删除 automation-xxx 后重建"}}
+```
+
+- 入参仅可选 `instruction` 非空字符串，无其他参数；不接受目标会话、工作区或投递模式。
+- 目标固定为本次 MCP 请求的发起会话，服务自动定位，来源纪律同创建/发信；来源未知或冲突时不发消息，按 `caller_unknown` / `caller_context_conflict` 报错——唤醒没有独立于来源的目标，不做降级继续。
+- 投递固定 v4 `requestedDelivery:queue`，不暴露 `delivery_mode`（实测显式 guide 对运行中会话会被宿主降级，无意义）。
+- 消息文本默认内置，必含「收到回执后立即结束本轮」指令——实测同轮注入不换工具面，恢复的关键动作是结束轮而非发消息；`instruction` 覆盖默认文本时，实现把该指令拼接在覆盖文本末尾，任何路径都携带。
+- 正文沿用 delivered-by 来源包装，`deliverer` 为发起会话自身 ID；成功回执与失败语义同 `send_message`（`input_id`、`delivery_status:accepted`、`requested_delivery_mode:queue`、`admitted_delivery`，不自动重发）。
+- 工具描述按 writing-for-agents 纪律只写模型调用所需信息（何时需要、怎么用、下一轮效果、人工轮与自动化轮区别、能看见不等于能调用），不出现剥离机制名、通道与协议字段名；MCP 注解为写工具（`readOnlyHint:false`、非幂等）。
+
+设计与本机实测证据见 [automation tools 规格](./automation-tools-spec.md)。
 
 ## 上下文压缩
 

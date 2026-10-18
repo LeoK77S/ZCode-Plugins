@@ -103,7 +103,7 @@ test('compact_session 公布指定目标与受理语义，严格校验参数并�
   assert.equal(rejected.structuredContent.reason_code, 'compactOperationLock');
 });
 
-test('MCP 握手版本与插件元信息一致，公布十六个工具并保持查询只读', async t => {
+test('MCP 握手版本与插件元信息一致，公布十七个工具并保持查询只读', async t => {
   const f = fixture(t);
   f.task({ id: 'sess_alpha', title: 'MCP 工具' });
   f.session({ id: 'sess_alpha', title: 'MCP 工具' });
@@ -120,7 +120,7 @@ test('MCP 握手版本与插件元信息一致，公布十六个工具并保持�
   assert.equal(lockMetadata.packages[''].version, packageMetadata.version);
   assert.equal(client.getServerVersion().version, packageMetadata.version);
   const listed = await client.listTools();
-  assert.deepEqual(listed.tools.map(tool => tool.name), ['list_sessions', 'read_session', 'get_current_session', 'rename_session', 'start_session', 'send_message', 'compact_session', 'archive_session', 'restore_session', 'pin_session', 'unpin_session', 'list_pinned_sessions', 'get_glm_balance', 'reset_glm_quota', 'get_artifacts', 'set_artifacts']);
+  assert.deepEqual(listed.tools.map(tool => tool.name), ['list_sessions', 'read_session', 'get_current_session', 'rename_session', 'start_session', 'send_message', 'reset_cron_tools_visibility', 'compact_session', 'archive_session', 'restore_session', 'pin_session', 'unpin_session', 'list_pinned_sessions', 'get_glm_balance', 'reset_glm_quota', 'get_artifacts', 'set_artifacts']);
   for (const tool of listed.tools) assert.equal(tool.annotations.readOnlyHint, ['list_sessions', 'read_session', 'get_current_session', 'list_pinned_sessions', 'get_glm_balance'].includes(tool.name));
   assert.equal(listed.tools.find(tool => tool.name === 'reset_glm_quota').annotations.destructiveHint, true);
   assert.equal(listed.tools.find(tool => tool.name === 'reset_glm_quota').annotations.idempotentHint, false);
@@ -237,6 +237,59 @@ test('send_message 投递策略可省略或显式 guide/queue，不允许强制�
   }, _meta: { session_id: 'sess_sender' } });
   assert.equal(rejected.isError, true);
   assert.equal(calls.length, 3);
+});
+
+test('reset_cron_tools_visibility 固定发给当前会话并立即排队，描述只讲使用时机与下一轮效果', async t => {
+  const f = fixture(t), calls = [];
+  const { createMcpServer } = await import('../server.mjs');
+  const controller = { resetCronToolsVisibility: async args => {
+    calls.push(args);
+    return { source: 'original_host', session_id: args.session_id, workspace_path: 'D:/fixture',
+      input_id: 'input_fixture', requested_delivery_mode: 'queue', delivery_status: 'accepted' };
+  } };
+  const server = createMcpServer(f, { controller });
+  const client = new Client({ name: 'reset-cron-contract', version: '1.0.0' });
+  const [ct, st] = InMemoryTransport.createLinkedPair();
+  t.after(async () => { await client.close(); await server.close(); });
+  await server.connect(st); await client.connect(ct);
+  const tool = (await client.listTools()).tools.find(tool => tool.name === 'reset_cron_tools_visibility');
+  assert.ok(tool);
+  assert.deepEqual(Object.keys(tool.inputSchema.properties), ['instruction']);
+  assert.equal(tool.inputSchema.additionalProperties, false);
+  assert.equal(tool.annotations.readOnlyHint, false);
+  assert.equal(tool.annotations.idempotentHint, false);
+  assert.match(tool.description, /自动化轮/);
+  assert.match(tool.description, /人工轮/);
+  assert.match(tool.description, /立即结束本轮/);
+  for (const banned of ['denylist', 'denyList', 'RPC', 'requestedDelivery', 'sendConversationCommandV4',
+    'heldQueueDisposition', 'envelope', 'zcode-agent', 'zcode-task', 'V4', '协议', '通道'])
+    assert.ok(!tool.description.includes(banned), `描述不得出现内部实现词汇：${banned}`);
+  const first = await client.callTool({ name: 'reset_cron_tools_visibility', arguments: {}, _meta: { session_id: 'sess_self' } });
+  assert.equal(first.isError, undefined);
+  assert.equal(calls[0].session_id, 'sess_self', '目标由本次请求的会话定位');
+  assert.equal(calls[0].instruction, undefined);
+  assert.equal(calls[0].deliverer, 'sess_self');
+  assert.equal(calls[0].originWarning, undefined);
+  const second = await client.callTool({ name: 'reset_cron_tools_visibility',
+    arguments: { instruction: '下一轮删除 automation-fixture 并重建' }, _meta: { 'com.zcode/request-context': { session_id: 'sess_self' } } });
+  assert.equal(second.isError, undefined);
+  assert.equal(calls[1].session_id, 'sess_self');
+  assert.equal(calls[1].instruction, '下一轮删除 automation-fixture 并重建');
+  assert.equal(calls[1].deliverer, 'sess_self');
+  for (const invalid of [{ session_id: 'sess_other' }, { instruction: ' ' }, { delivery_mode: 'queue' }, { workspace_path: 'D:/fixture' }]) {
+    assert.equal((await client.callTool({ name: 'reset_cron_tools_visibility', arguments: invalid, _meta: { session_id: 'sess_self' } })).isError, true,
+      JSON.stringify(invalid));
+  }
+  assert.equal(calls.length, 2, '非法输入未到达 controller');
+  const unknown = await client.callTool({ name: 'reset_cron_tools_visibility', arguments: {} });
+  assert.equal(unknown.isError, true);
+  assert.ok(unknown.structuredContent.error.startsWith('caller_unknown:'), unknown.structuredContent.error);
+  const conflict = await client.callTool({ name: 'reset_cron_tools_visibility', arguments: {},
+    _meta: { session_id: 'sess_a', 'com.zcode/request-context': { session_id: 'sess_b' } } });
+  assert.equal(conflict.isError, true);
+  assert.equal(conflict.structuredContent.code, 'caller_context_conflict');
+  assert.deepEqual(conflict.structuredContent.possible_session_ids, ['sess_a', 'sess_b']);
+  assert.equal(calls.length, 2, '来源未知或冲突时不发唤醒消息');
 });
 
 test('请求缺少会话 ID 时按 trace_id 和工具名从本地调用记录精确定位来源', async t => {
