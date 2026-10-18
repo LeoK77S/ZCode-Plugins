@@ -17,6 +17,7 @@
 **`set_automation_enabled` 启停工具**
 
 - `enabled:false` 暂停调度（任务保留不删）、`true` 恢复，经 `zcode-agent` 通道直达官方定时任务服务；目标工作区须已在网关连接的 Desktop 打开。
+- 官方写入对零行更新（任务不存在或工作区不匹配）静默成功，本工具写后同 scope 读回确认：未找到或状态不符返回明确结构化错误，已处于目标状态视为幂等确认。
 
 **`reset_cron_tools_visibility` 唤醒语法糖**
 

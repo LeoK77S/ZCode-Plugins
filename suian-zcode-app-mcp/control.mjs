@@ -301,12 +301,19 @@ export function createSessionController({ reader, gatewayConfigPath, connect = c
     },
     // 定时任务启停：官方会话内工具面禁改 enabled（CronUpdate 权限边界），经 zcode-agent 通道直达 Host。
     // enabled=false → lifecycle paused、调度器停止认领派发；true → active、按原计划继续；id、历史与会话绑定不变。
-    // 官方 setAutomationEnabled 返回 void，Host 侧带工作区归属校验，失败经 RPC 异常外溢。
+    // 官方 setAutomationEnabled 返回 void 且 UPDATE 零行不报错（automation_id 不存在或 workspace_key
+    // 不匹配都静默成功），不能回显请求值：写后用同 scope listAutomations 读回，未找到或状态不符
+    // 按结构化错误返回且不自动重试；已处于目标状态视为幂等确认。
     async setAutomationEnabled(args) {
       return attached({ workspacePath: args.workspace_path }, async remote => {
+        const identity = args.workspace_key === undefined ? {} : { workspaceIdentity: args.workspace_key };
         await remote.call('zcode-agent', 'setAutomationEnabled', [{ automationId: args.automation_id, enabled: args.enabled,
-          workspacePath: remote.workspacePath, ...(args.workspace_key === undefined ? {} : { workspaceIdentity: args.workspace_key }) }]);
-        return { source: 'original_host', automation_id: args.automation_id, workspace_path: remote.workspacePath, enabled: args.enabled };
+          workspacePath: remote.workspacePath, ...identity }]);
+        const listed = await remote.call('zcode-agent', 'listAutomations', [{ workspacePath: remote.workspacePath, ...identity }]);
+        const current = Array.isArray(listed) ? listed.find(item => item?.automationId === args.automation_id) : undefined;
+        if (!current) throw new Error(`automation_not_found_or_wrong_scope: 写后同 scope 读回未找到 ${args.automation_id}，启停未生效（任务不存在或不属于该工作区）`);
+        if (current.enabled !== args.enabled) throw new Error(`automation_update_unconfirmed: 写后读回 enabled=${current.enabled} 与请求 ${args.enabled} 不符，启停未确认生效，不自动重试`);
+        return { source: 'original_host', automation_id: args.automation_id, workspace_path: remote.workspacePath, enabled: current.enabled };
       });
     }
   };
