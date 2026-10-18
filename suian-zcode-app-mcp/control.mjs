@@ -22,6 +22,15 @@ function createdMessage(content, creator, warning) {
   return `<created-by-other-session${attribute}>\n<notice>\nYou are a new zcode session created by another zcode session or the system, instead of directly by the user.${sourceNotice('creator', warning)}\n</notice>\n${content}\n</created-by-other-session>`;
 }
 
+// 定时任务触发的自动化轮内官方 Cron 写工具会被剥离，实测恢复的关键动作是结束轮而非发消息
+// （同轮注入不换工具面），因此唤醒文本必须携带结束本轮指令；instruction 覆盖默认文本时同样拼接注入。
+const RESET_TURN_INSTRUCTION = '收到回执后立即结束本轮';
+const RESET_DEFAULT_MESSAGE = `本消息由本会话的 reset_cron_tools_visibility 工具发出：定时任务触发的自动化轮内，官方 Cron 写工具（CronCreate/CronUpdate/CronDelete）能看见但调不动。${RESET_TURN_INSTRUCTION}，本轮内不要再尝试 Cron 写操作；下一轮（人工轮）官方 Cron 工具恢复可用，请按既定计划继续处理定时任务（CronList 定位，CronDelete/CronCreate 完成删除或重建）。`;
+
+function resetWakeMessage(instruction) {
+  return instruction === undefined ? RESET_DEFAULT_MESSAGE : `${instruction.trim()}\n\n${RESET_TURN_INSTRUCTION}。`;
+}
+
 function archiveActivity(snapshot, sessionId) {
   const runtime = snapshot?.runtime;
   if (snapshot?.meta?.taskId !== sessionId || !runtime || !['running', 'completed', 'error'].includes(snapshot.meta.status) ||
@@ -94,7 +103,7 @@ export function createSessionController({ reader, gatewayConfigPath, connect = c
     if (rows.length !== 1 || rows[0].pinned !== pinned) throw new Error('pin_not_confirmed: 索引读回未确认置顶状态，请检查后再操作');
     return { source: 'original_host', session_id: args.session_id, workspace_path: remote.workspacePath, pinned };
   };
-  return {
+  const api = {
     async getSessionStatus(args) {
       return attached(targetOf(args), async remote => {
         const snapshot = await remote.call('zcode-task', 'getTaskSnapshot', [{ taskId: args.session_id, workspacePath: remote.workspacePath, messageLimit: 1 }]);
@@ -222,6 +231,13 @@ export function createSessionController({ reader, gatewayConfigPath, connect = c
         return { ...result, delivery_status: 'accepted', admitted_delivery: ack.result.delivery };
       });
     },
+    // 语法糖（issue #95）：复用 sendMessage 的 v4 投递，目标固定当前会话、投递固定 queue；
+    // 唤醒文本由 resetWakeMessage 组合，保证默认与覆盖文本都携带结束本轮指令。
+    // 服务层负责从 MCP 请求定位会话（不接受手填目标），这里只收 session_id 与来源信息。
+    async resetCronToolsVisibility(args) {
+      return api.sendMessage({ session_id: args.session_id, message: resetWakeMessage(args.instruction), delivery_mode: 'queue',
+        deliverer: args.deliverer, originWarning: args.originWarning });
+    },
     async compactSession(args) {
       return attached(targetOf(args), async remote => {
         const hello = await remote.call('zcode-agent', 'helloConversationV4');
@@ -294,4 +310,5 @@ export function createSessionController({ reader, gatewayConfigPath, connect = c
       });
     }
   };
+  return api;
 }

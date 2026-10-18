@@ -128,6 +128,23 @@ export function createMcpServer(config, { controller, prStatus, reveal } = {}) {
     const origin = resolveCaller({ meta: extra._meta, sessionDbPath: config.sessionDbPath, toolName: 'send_message' });
     return controller.sendMessage({ ...input, deliverer: origin.sessionId, originWarning: origin.warning });
   }));
+  server.registerTool('reset_cron_tools_visibility', {
+    title: '恢复官方 Cron 工具的可用性',
+    description: '用于定时任务触发的自动化轮：这一轮里官方 Cron 写工具（CronCreate/CronUpdate/CronDelete）能看见但调不动，直接调用不会生效；人工轮（由用户或消息输入发起的轮）不受此限制。本工具给当前会话排队一条唤醒消息，收到回执后必须立即结束本轮——本轮不结束，工具不会恢复；下一轮将是人工轮，官方 Cron 工具恢复可用，届时再做需要的删除、重建等操作。instruction 可选，为下一轮携带具体指示；消息只发给本会话，不能指定其他目标。',
+    inputSchema: z.object({
+      instruction: nonempty.optional().describe('可选的具体指示，随唤醒消息发给下一轮；默认文本已含结束本轮与继续处理的指令。')
+    }).strict(),
+    annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: true }
+  }, async (args, extra) => {
+    // 与 get_current_session 同型：来源无法唯一确认时不发消息（isError 回执不能经 respond 二次包装）。
+    try {
+      const origin = resolveCaller({ meta: extra._meta, sessionDbPath: config.sessionDbPath, toolName: 'reset_cron_tools_visibility' });
+      if (!origin.sessionId) return { ...toolResult('reset_cron_tools_visibility', { code: origin.warning.code,
+        possible_session_ids: origin.warning.possible_session_ids, error: origin.warning.message }), isError: true };
+      return toolResult('reset_cron_tools_visibility', await controller.resetCronToolsVisibility({ session_id: origin.sessionId,
+        instruction: args.instruction, deliverer: origin.sessionId, originWarning: origin.warning }));
+    } catch (error) { return { ...toolResult('reset_cron_tools_visibility', { ...error.partial_result, error: error.message }), isError: true }; }
+  });
   server.registerTool('compact_session', {
     title: '压缩 ZCode 会话上下文',
     description: '向原 Host 提交 compact：空闲时开始，运行中排队，不中断当前轮、不恢复暂停队列；已有 compact 时拒绝。ACK 与 accepted/duplicate 仅表示受理，不表示已开始或完成；本工具和 read_session 均不能确认终态，压缩自身也只等回执。目标工作区须在网关连接的 Desktop 打开；超时或回执未知勿盲目重试。',

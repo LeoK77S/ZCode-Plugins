@@ -276,7 +276,7 @@ test('get_pr_statuses 是面板专用通道：普通客户端不可见，UI 客�
   const quiet = { fetchStatuses: async () => { throw new Error('普通客户端不应触达状态服务'); } };
   const plain = await connect(t, f, { prStatus: quiet });
   const listed = await plain.listTools();
-  assert.equal(listed.tools.some(tool => tool.name === 'get_pr_statuses'), false, '默认禁用：模型侧契约保持十八个工具');
+  assert.equal(listed.tools.some(tool => tool.name === 'get_pr_statuses'), false, '默认禁用：模型侧契约保持十九个工具');
   const ui = await connect(t, f, { prStatus: quiet }, appsCapability(), 'zcode');
   const tool = (await ui.listTools()).tools.find(tool => tool.name === 'get_pr_statuses');
   assert.ok(tool, 'UI 能力协商成功后启用');
