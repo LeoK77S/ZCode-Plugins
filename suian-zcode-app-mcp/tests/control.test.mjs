@@ -215,6 +215,30 @@ test('发信策略可缺省跟随宿主或显式 guide/queue，回执报告 Host
   }
 });
 
+test('reset 向当前会话排队唤醒消息：固定 queue 投递，默认与覆盖文本都携带结束本轮指令', async () => {
+  const f = await fixture();
+  const sent = () => f.calls.filter(call => call.method === 'sendConversationCommandV4').at(-1).params[0].envelope;
+  const result = await f.controller.resetCronToolsVisibility({ session_id: 'sess_working' });
+  let envelope = sent();
+  assert.equal(envelope.type, 'sendText');
+  assert.equal(envelope.sessionId, 'sess_working', '目标固定为当前会话');
+  assert.equal(envelope.payload.requestedDelivery, 'queue', '投递固定 queue，不暴露模式参数');
+  assert.ok(envelope.payload.text.includes('收到回执后立即结束本轮'), '默认文本含结束本轮指令');
+  assert.equal(result.requested_delivery_mode, 'queue');
+  assert.equal(result.delivery_status, 'accepted');
+  assert.ok(result.input_id);
+  assert.equal(f.connections[0].args.sessionId, 'sess_working', '连接目标即当前会话');
+  const overridden = await f.controller.resetCronToolsVisibility({ session_id: 'sess_working', instruction: ' 下一轮删除 automation-fixture 后重建 ' });
+  envelope = sent();
+  assert.equal(envelope.sessionId, 'sess_working');
+  assert.equal(envelope.payload.requestedDelivery, 'queue');
+  assert.ok(envelope.payload.text.includes('下一轮删除 automation-fixture 后重建'), 'instruction 覆盖生效');
+  assert.ok(envelope.payload.text.includes('收到回执后立即结束本轮'), '覆盖文本仍携带结束本轮指令');
+  assert.equal(overridden.delivery_status, 'accepted');
+  assert.equal(f.calls.filter(call => call.method === 'sendConversationCommandV4').length, 2);
+  assert.ok(f.connections.every(c => c.closed));
+});
+
 test('发信等待 Host ACK 后即回执，不等待工作中接收方结束或回复', { timeout: 2000 }, async () => {
   const submitted = Promise.withResolvers(), ackGate = Promise.withResolvers();
   const f = await fixture({
@@ -590,6 +614,53 @@ test('一步工具轮并发归档多个会话全部成功，不再只有首个�
   assert.deepEqual(Object.values(sessions).map(session => session.archived), [true, true, true]);
   assert.equal(connections.length, 3);
   assert.ok(connections.every(connection => connection.closed));
+});
+
+test('定时任务暂停/恢复经网关 zcode-agent 通道直达 Host 并同 scope 读回确认，workspace_key 透传为 workspaceIdentity', async () => {
+  const automations = [{ automationId: 'automation-1', enabled: true }];
+  const f = await fixture({ listAutomations: () => automations.slice(),
+    setAutomationEnabled: params => { automations[0] = { ...automations[0], enabled: params[0].enabled }; } });
+  const paused = await f.controller.setAutomationEnabled({ automation_id: 'automation-1', enabled: false, workspace_path: workspace });
+  assert.deepEqual(paused, { source: 'original_host', automation_id: 'automation-1', workspace_path: workspace, enabled: false });
+  assert.deepEqual(f.calls.map(c => c.channel), ['zcode-agent', 'zcode-agent']);
+  assert.deepEqual(f.calls.map(c => c.method), ['setAutomationEnabled', 'listAutomations']);
+  assert.deepEqual(f.calls[0].params, [{ automationId: 'automation-1', enabled: false, workspacePath: workspace }]);
+  assert.deepEqual(f.calls[1].params, [{ workspacePath: workspace }], '读回必须与写同 scope');
+  // 恢复时桥回实际工作区路径，workspace_key 作为 RPC 层归属标识透传（写与读回一致）
+  automations[0] = { automationId: 'automation-1', enabled: false };
+  const resumed = await f.controller.setAutomationEnabled({ automation_id: 'automation-1', enabled: true, workspace_path: 'D:/FIXTURE', workspace_key: 'kb' });
+  assert.deepEqual(resumed, { source: 'original_host', automation_id: 'automation-1', workspace_path: workspace, enabled: true });
+  assert.deepEqual(f.calls.at(-2).params, [{ automationId: 'automation-1', enabled: true, workspacePath: workspace, workspaceIdentity: 'kb' }]);
+  assert.deepEqual(f.calls.at(-1).params, [{ workspacePath: workspace, workspaceIdentity: 'kb' }]);
+  assert.ok(f.connections.every(c => c.closed));
+});
+
+test('官方启停 void 零行更新不得回显成功：读回未找到或状态不符按结构化错误返回，幂等仍确认', async () => {
+  // automation_id 不存在或 workspace_key 不匹配：官方 UPDATE 零行静默返回 void，同 scope 读回找不到目标
+  const missing = await fixture({ listAutomations: () => [{ automationId: 'automation-other', enabled: true }] });
+  await assert.rejects(missing.controller.setAutomationEnabled({ automation_id: 'automation-ghost', enabled: false, workspace_path: workspace }),
+    /automation_not_found_or_wrong_scope/);
+  assert.deepEqual(missing.calls.map(c => c.method), ['setAutomationEnabled', 'listAutomations'], '写后必须读回验证');
+  assert.ok(missing.connections.every(c => c.closed));
+  // 写后读回 enabled 与请求不符：写未生效，不得确认
+  const stale = await fixture({ listAutomations: () => [{ automationId: 'automation-1', enabled: true }] });
+  await assert.rejects(stale.controller.setAutomationEnabled({ automation_id: 'automation-1', enabled: false, workspace_path: workspace }),
+    /automation_update_unconfirmed/);
+  // 已处于目标状态：幂等操作仍确认成功
+  const idempotent = await fixture({ listAutomations: () => [{ automationId: 'automation-1', enabled: false }] });
+  const again = await idempotent.controller.setAutomationEnabled({ automation_id: 'automation-1', enabled: false, workspace_path: workspace });
+  assert.equal(again.enabled, false);
+});
+
+test('定时任务启停 RPC 被拒或网关不可达时明确报错并释放连接，不猜成功', async () => {
+  const failed = await fixture({ setAutomationEnabled: () => { throw new Error('fixture RPC rejected'); } });
+  await assert.rejects(failed.controller.setAutomationEnabled({ automation_id: 'automation-1', enabled: false, workspace_path: workspace }), /fixture RPC rejected/);
+  assert.equal(failed.calls.filter(c => c.method === 'setAutomationEnabled').length, 1);
+  assert.equal(failed.connections[0].closed, true);
+  const { createSessionController } = await import('../control.mjs');
+  const unreachable = createSessionController({ reader: {},
+    connect: async () => { throw new Error('gateway_unreachable: fixture 网关不可达'); } });
+  await assert.rejects(unreachable.setAutomationEnabled({ automation_id: 'automation-1', enabled: true, workspace_path: workspace }), /gateway_unreachable/);
 });
 
 test('额度重置保持单飞，确认流程期间的并发重置明确拒绝', async () => {

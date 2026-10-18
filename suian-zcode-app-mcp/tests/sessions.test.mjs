@@ -282,3 +282,54 @@ test('sessionTitle 轻量读取双库标题，行缺失返回 null', async t => 
   assert.deepEqual(reader.sessionTitle({ session_id: 'sess_cli_only' }), { index_title: null, session_title: '只有会话库' });
   assert.deepEqual(reader.sessionTitle({ session_id: 'sess_none' }), { index_title: null, session_title: null });
 });
+
+test('listAutomations 全量按创建时间倒序返回 camelCase 投影，脏 scheduleRule 不拖垮列表', async t => {
+  const f = fixture(t);
+  f.automation({ id: 'automation-alpha', title: '[pr-babysit] org/repo#1', cron: '*/30 * * * *',
+    target: 'sess_bound', runCount: 3, nextRunAt: 200, lastRunAt: 150, created: 100,
+    scheduleRule: JSON.stringify({ kind: 'weekly', daysOfWeek: [3] }) });
+  f.automation({ id: 'automation-beta', title: '暂停的巡查', workspace: 'D:\\work\\beta', key: 'kb',
+    cron: '0 9 * * *', recurring: 0, maxRuns: 1, enabled: 0, lifecycle: 'paused', created: 300 });
+  f.automation({ id: 'automation-dirty', title: '历史脏数据', created: 200, scheduleRule: '{broken' });
+  const { createSessionReader } = await import('../sessions.mjs');
+  const result = createSessionReader(f).listAutomations({});
+  assert.equal(result.source, 'local_tasks_index');
+  assert.equal(result.total, 3);
+  assert.deepEqual(result.automations.map(a => a.automationId), ['automation-beta', 'automation-dirty', 'automation-alpha']);
+  // 完整投影以独立字面量核对：布尔真实化、可空字段为 null、scheduleRule 解析为对象
+  assert.deepEqual(result.automations[0], { automationId: 'automation-beta', title: '暂停的巡查',
+    cronExpr: '0 9 * * *', enabled: false, lifecycleStatus: 'paused', nextRunAt: null, lastRunAt: null,
+    runCount: 0, recurring: false, maxRuns: 1, scheduleRule: null, workspaceKey: 'kb',
+    workspacePath: 'D:\\work\\beta', targetTaskId: null });
+  const alpha = result.automations[2];
+  assert.equal(alpha.enabled, true);
+  assert.equal(alpha.recurring, true);
+  assert.equal(alpha.maxRuns, null);
+  assert.deepEqual(alpha.scheduleRule, { kind: 'weekly', daysOfWeek: [3] });
+  assert.equal(alpha.targetTaskId, 'sess_bound');
+  assert.equal(alpha.nextRunAt, 200);
+  assert.equal(alpha.lastRunAt, 150);
+  assert.equal(alpha.runCount, 3);
+  assert.equal(alpha.lifecycleStatus, 'active');
+  // 单条 scheduleRule 脏数据按未配置处理，列表整体不受影响
+  assert.equal(result.automations[1].scheduleRule, null);
+  assert.equal(result.automations[1].title, '历史脏数据');
+});
+
+test('listAutomations 支持 workspace_path 规范化匹配与 workspace_key 精确过滤，空表返回空列表', async t => {
+  const f = fixture(t);
+  f.automation({ id: 'automation-alpha', created: 100 });
+  f.automation({ id: 'automation-beta', workspace: 'D:\\work\\beta', key: 'kb', created: 300 });
+  const { createSessionReader } = await import('../sessions.mjs');
+  const reader = createSessionReader(f);
+  // Windows 路径统一分隔符、大小写与尾部分隔符后匹配
+  assert.deepEqual(reader.listAutomations({ workspace_path: 'd:/WORK/beta/' }).automations.map(a => a.automationId), ['automation-beta']);
+  assert.deepEqual(reader.listAutomations({ workspace_key: 'kb' }).automations.map(a => a.automationId), ['automation-beta']);
+  // 两个过滤条件同时给出时按 AND 收窄
+  assert.deepEqual(reader.listAutomations({ workspace_path: 'D:\\work\\beta', workspace_key: 'kb' }).automations.map(a => a.automationId), ['automation-beta']);
+  assert.deepEqual(reader.listAutomations({ workspace_path: 'D:\\missing' }).automations, []);
+  assert.equal(reader.listAutomations({ workspace_path: 'D:\\missing' }).total, 0);
+  // 空表是空列表而非错误
+  const empty = fixture(t);
+  assert.deepEqual(createSessionReader(empty).listAutomations({}), { source: 'local_tasks_index', automations: [], total: 0 });
+});

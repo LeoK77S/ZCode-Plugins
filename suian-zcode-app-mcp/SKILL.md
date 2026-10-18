@@ -18,8 +18,9 @@ description: ZCode 会话 MCP 的源码兼容入口，按请求定位安装、�
 | 安装、升级或迁移旧 MCP 注册 | skills/setup/SKILL.md |
 | 数据库、网关路径与客户端接入 | skills/configuration/SKILL.md |
 | 检索、读取、改名、创建、发信、压缩、归档或置顶会话 | skills/sessions/SKILL.md |
+| 定时任务查询、启停或派发轮内恢复官方 Cron 工具 | skills/automations/SKILL.md |
 | 登记、查看、更新、清理当前会话工件或只读侧栏 | skills/artifacts/SKILL.md |
 | GLM 套餐额度、卡片与许可后重置 | skills/glm/SKILL.md |
 | 服务、来源定位或原 Host 故障 | skills/debug/SKILL.md |
 
-共十六个工具。工件使用插件自有 SQLite；公共模块和网关由公共插件提供，业务插件不复制其实现。
+共十九个工具。工件使用插件自有 SQLite；公共模块和网关由公共插件提供，业务插件不复制其实现。

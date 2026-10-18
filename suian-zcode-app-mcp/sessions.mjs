@@ -12,6 +12,19 @@ const taskColumns = `task_id AS session_id, title, workspace_path, workspace_key
   workspace_identity, provider, mode AS permission_mode, task_status AS status, created_at, updated_at, pinned, archived`;
 const taskItem = row => ({ ...row, pinned: !!row.pinned, archived: !!row.archived });
 
+// automations 行映射对齐官方 rowToAutomation：布尔真实化、可空字段统一 null；
+// scheduleRule 为 JSON 列，历史脏数据按未配置处理，不让单行拖垮整个列表
+const automationItem = row => ({ automationId: row.automation_id, title: row.title, cronExpr: row.cron_expr,
+  enabled: row.enabled === 1, lifecycleStatus: row.lifecycle_status,
+  nextRunAt: row.next_run_at ?? null, lastRunAt: row.last_run_at ?? null, runCount: row.run_count,
+  recurring: row.recurring === 1, maxRuns: row.max_runs ?? null, scheduleRule: parseScheduleRule(row.schedule_rule),
+  workspaceKey: row.workspace_key, workspacePath: row.workspace_path, targetTaskId: row.target_task_id ?? null });
+
+function parseScheduleRule(raw) {
+  if (raw === null || raw === undefined) return null;
+  try { return JSON.parse(raw); } catch { return null; }
+}
+
 const normalizeWorkspace = path => win32.normalize(path).replaceAll('\\', '/').replace(/\/$/, '').toLowerCase();
 
 export function createSessionReader({ indexDbPath, sessionDbPath }) {
@@ -114,6 +127,26 @@ export function createSessionReader({ indexDbPath, sessionDbPath }) {
           args.push(normalizeWorkspace(workspace_path));
         }
         return db.prepare(`SELECT ${taskColumns} FROM tasks WHERE ${conditions.join(' AND ')}`).all(...args).map(taskItem);
+      } finally { db.close(); }
+    },
+    // 定时任务清单：直读 automations 表（官方任务索引同库），只读、离线可用；
+    // 缺省全量，与官方 automation list 同按创建时间倒序。产品上限 20 条，不做分页。
+    listAutomations({ workspace_path, workspace_key } = {}) {
+      const db = openReadOnly(indexDbPath);
+      try {
+        const conditions = [], args = [];
+        if (workspace_key !== undefined) { conditions.push('workspace_key=?'); args.push(workspace_key); }
+        if (workspace_path !== undefined) {
+          db.function('normalize_workspace', normalizeWorkspace);
+          conditions.push('normalize_workspace(workspace_path)=?');
+          args.push(normalizeWorkspace(workspace_path));
+        }
+        const where = conditions.length ? ` WHERE ${conditions.join(' AND ')}` : '';
+        const automations = db.prepare(`SELECT automation_id, title, cron_expr, enabled, lifecycle_status,
+          next_run_at, last_run_at, run_count, recurring, max_runs, schedule_rule,
+          workspace_key, workspace_path, target_task_id FROM automations${where}
+          ORDER BY created_at DESC, automation_id`).all(...args).map(automationItem);
+        return { source: 'local_tasks_index', automations, total: automations.length };
       } finally { db.close(); }
     },
     readSession({ session_id, limit = 30, before_message_id, workspace_key }) {
