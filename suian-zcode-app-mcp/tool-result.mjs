@@ -2,6 +2,7 @@
 const summaries = {
   list_sessions: data => `会话：本次 ${data.sessions.length} 个，共 ${data.total} 个。`,
   list_pinned_sessions: data => `置顶会话：本次 ${data.sessions.length} 个，共 ${data.total} 个。`,
+  list_automations: data => `定时任务：本次 ${data.automations.length} 个，共 ${data.total} 个。`,
   read_session: data => `已读取 ${data.messages.length} 条消息。`,
   get_current_session: data => `当前会话：${data.session_id}。`,
   rename_session: () => '会话已重命名并读回确认。',

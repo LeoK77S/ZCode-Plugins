@@ -120,8 +120,8 @@ test('MCP 握手版本与插件元信息一致，公布十七个工具并保持�
   assert.equal(lockMetadata.packages[''].version, packageMetadata.version);
   assert.equal(client.getServerVersion().version, packageMetadata.version);
   const listed = await client.listTools();
-  assert.deepEqual(listed.tools.map(tool => tool.name), ['list_sessions', 'read_session', 'get_current_session', 'rename_session', 'start_session', 'send_message', 'compact_session', 'archive_session', 'restore_session', 'pin_session', 'unpin_session', 'list_pinned_sessions', 'get_glm_balance', 'reset_glm_quota', 'set_automation_enabled', 'get_artifacts', 'set_artifacts']);
-  for (const tool of listed.tools) assert.equal(tool.annotations.readOnlyHint, ['list_sessions', 'read_session', 'get_current_session', 'list_pinned_sessions', 'get_glm_balance'].includes(tool.name));
+  assert.deepEqual(listed.tools.map(tool => tool.name), ['list_sessions', 'read_session', 'get_current_session', 'rename_session', 'start_session', 'send_message', 'compact_session', 'archive_session', 'restore_session', 'pin_session', 'unpin_session', 'list_pinned_sessions', 'list_automations', 'get_glm_balance', 'reset_glm_quota', 'set_automation_enabled', 'get_artifacts', 'set_artifacts']);
+  for (const tool of listed.tools) assert.equal(tool.annotations.readOnlyHint, ['list_sessions', 'read_session', 'get_current_session', 'list_pinned_sessions', 'list_automations', 'get_glm_balance'].includes(tool.name));
   assert.equal(listed.tools.find(tool => tool.name === 'reset_glm_quota').annotations.destructiveHint, true);
   assert.equal(listed.tools.find(tool => tool.name === 'reset_glm_quota').annotations.idempotentHint, false);
   const list = await client.callTool({ name: 'list_sessions', arguments: { query: 'MCP', limit: 1 } });
@@ -132,6 +132,51 @@ test('MCP 握手版本与插件元信息一致，公布十七个工具并保持�
   assert.equal(chat.structuredContent.messages[0].text, '实现只读工具');
   assert.match(chat.content[0]?.text ?? '', /1 条消息/);
   assert.ok(!chat.content[0].text.includes('实现只读工具'), '聊天正文只在 structuredContent 中保留');
+});
+
+test('list_automations 公布只读注解与可选工作区过滤，strict 拒绝未知与非法输入', async t => {
+  const f = fixture(t);
+  f.automation({ id: 'automation-alpha', title: '[pr-babysit] org/repo#1', created: 100 });
+  f.automation({ id: 'automation-beta', workspace: 'D:\\work\\beta', key: 'kb', created: 300 });
+  const { createMcpServer } = await import('../server.mjs');
+  const server = createMcpServer(f);
+  const client = new Client({ name: 'automations-contract', version: '1.0.0' });
+  const [ct, st] = InMemoryTransport.createLinkedPair();
+  t.after(async () => { await client.close(); await server.close(); });
+  await server.connect(st); await client.connect(ct);
+  const tool = (await client.listTools()).tools.find(tool => tool.name === 'list_automations');
+  assert.ok(tool);
+  // schema 公布形状：两个可选过滤参数、无必填、strict 拒绝未知字段
+  assert.deepEqual(Object.keys(tool.inputSchema.properties), ['workspace_path', 'workspace_key']);
+  assert.equal(tool.inputSchema.required, undefined);
+  assert.equal(tool.inputSchema.additionalProperties, false);
+  assert.equal(tool.annotations.readOnlyHint, true);
+  assert.equal(tool.annotations.destructiveHint, false);
+  assert.equal(tool.annotations.idempotentHint, true);
+  const all = await client.callTool({ name: 'list_automations', arguments: {} });
+  assert.equal(all.isError, undefined);
+  assert.equal(all.structuredContent.source, 'local_tasks_index');
+  assert.deepEqual(all.structuredContent.automations.map(a => a.automationId), ['automation-beta', 'automation-alpha']);
+  assert.equal(all.structuredContent.total, 2);
+  assert.match(all.content[0]?.text ?? '', /定时任务：本次 2 个，共 2 个/);
+  const scoped = await client.callTool({ name: 'list_automations', arguments: { workspace_path: 'd:/work/beta/' } });
+  assert.deepEqual(scoped.structuredContent.automations.map(a => a.automationId), ['automation-beta']);
+  for (const invalid of [{ workspace_path: '' }, { workspace_path: 5 },
+    { workspace_key: '' }, { unknown: 1 }, { limit: 50 }]) {
+    const response = await client.callTool({ name: 'list_automations', arguments: invalid });
+    assert.equal(response.isError, true, JSON.stringify(invalid));
+  }
+  // 空表是空列表而非错误；文本摘要保持简短
+  const empty = fixture(t);
+  const emptyServer = createMcpServer(empty);
+  const emptyClient = new Client({ name: 'automations-empty-contract', version: '1.0.0' });
+  const [ect, est] = InMemoryTransport.createLinkedPair();
+  t.after(async () => { await emptyClient.close(); await emptyServer.close(); });
+  await emptyServer.connect(est); await emptyClient.connect(ect);
+  const bare = await emptyClient.callTool({ name: 'list_automations', arguments: {} });
+  assert.equal(bare.isError, undefined);
+  assert.deepEqual(bare.structuredContent, { source: 'local_tasks_index', automations: [], total: 0 });
+  assert.match(bare.content[0]?.text ?? '', /定时任务：本次 0 个，共 0 个/);
 });
 
 test('get_current_session 回显发起会话的本机自省信息，不接受参数', async t => {

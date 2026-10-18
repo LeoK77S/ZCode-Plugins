@@ -60,6 +60,21 @@
 
 只读本机双库，不连接网关，也不查询原 Host 实时状态。会话尚未落库（子代理上下文、`deferPersistence` 未落）时对应字段为 `null`、`index_matches` 为空数组，不当作错误。
 
+## 列出定时任务
+
+`list_automations` 列出定时任务（automation）清单与调度状态，跨工作区。数据直读任务索引同库的 `automations` 表（tasks-index.sqlite），不连接网关、离线可用，与官方桌面管理页看到的是同一份持久化数据。
+
+| 参数 | 约定 |
+| --- | --- |
+| `workspace_path` | 可选；省略时返回全部工作区。Windows 路径统一分隔符、大小写与尾部分隔符 |
+| `workspace_key` | 可选；精确匹配工作区 key |
+
+两个参数同时给出时按 AND 收窄。无必填参数，也不做分页——官方产品上限为 20 条定时任务。排序与官方 automation list 一致：按创建时间从新到旧。空表返回空列表而非错误。
+
+每项字段与官方 ZCodeAutomation 模型同名（camelCase）：`automationId`、`title`、`cronExpr`、`enabled`、`lifecycleStatus`（active / paused / completed / failed）、`nextRunAt`、`lastRunAt`、`runCount`、`recurring`、`maxRuns`、`scheduleRule`、`workspaceKey`、`workspacePath`、`targetTaskId`。`enabled` 与 `recurring` 是真实布尔；`nextRunAt`、`lastRunAt`、`maxRuns`、`scheduleRule`、`targetTaskId` 可空（null），`targetTaskId` 存在时即该任务绑定的会话 ID。`scheduleRule` 为 JSON 列，解析为对象返回；历史脏数据按未配置（null）处理，不让单行拖垮整个列表。时间戳是 Unix 毫秒。
+
+任务索引数据库缺失、或当前版本尚未建出 `automations` 表时，错误原样返回，不当作空清单。
+
 ## 明确的失败与边界
 
 - `session_not_found`：索引没有目标，或目标已删除。
