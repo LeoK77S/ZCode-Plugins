@@ -22,6 +22,14 @@ export function createBackend({event,config,saveState,prompt,connect=connectHost
   const loadIndexRow=async()=> {
     try {return (await queryJson(config.indexDb,`SELECT task_id,workspace_path,title,archived,deleted,task_status FROM tasks WHERE task_id='${sessionId}';`))[0]??null;}catch{return null;}
   };
+  // 宿主在会话内 CronCreate 成功后会把会话标题冻结为任务标题（setCustomSessionTitle），
+  // 该路径只写会话库不同步任务索引；冻结证据取会话历史中 CronCreate 调用记录的 input.title，
+  // 只认 create 成功（宿主只在创建成功后冻结），不含 CronUpdate 的事后改名。查询失败按无证据处理，维持护栏。
+  const loadFreezeTitles=async()=> {
+    try {
+      return (await queryJson(config.sessionDb,`SELECT DISTINCT json_extract(data,'$.state.input.title') title FROM part WHERE session_id='${sessionId}' AND json_extract(data,'$.type')='tool' AND json_extract(data,'$.tool')='CronCreate' AND json_extract(data,'$.state.status')='completed' AND json_extract(data,'$.state.input.title') IS NOT NULL;`)).map(row=>row.title);
+    }catch{return [];}
+  };
   const resolveWorkspace=async()=> {
     if(resolvedWorkspace)return resolvedWorkspace;
     try {
@@ -52,12 +60,17 @@ export function createBackend({event,config,saveState,prompt,connect=connectHost
       const row=await loadIndexRow();
       // 新会话首轮索引行可能尚未写入：session.directory 已足以定位，不因缺行失败
       const history=await readHistory({dbPath:config.sessionDb,sqliteBin:config.sqliteBin,sessionId,workspacePath:ws});
-      if(row&&row.title!==history.session.title){const mismatch=new Error("任务索引与 CLI 会话标题不一致");mismatch.reasonCode="index_title_mismatch";throw mismatch;}
+      // 冻结证据承担两个用途：解释索引分裂（mismatch 护栏）与豁免命名层手动改名锁。
+      // 前者只在分裂时需要；后者在索引行缺失 + custom（冻结只写 custom）时就需要。
+      // 双库一致的 custom 是改名通道产物，不加载证据——否则用户手动改回历史 cron 标题会旁路手动锁。
+      const freezeTitles=row&&row.title!==history.session.title||!row&&history.session.titleSource==="custom"?await loadFreezeTitles():[];
+      if(row&&row.title!==history.session.title&&!freezeTitles.includes(history.session.title)){const mismatch=new Error("任务索引与 CLI 会话标题不一致");mismatch.reasonCode="index_title_mismatch";throw mismatch;}
       if(remote) {
         const meta=await remote.call("zcode-task","getTaskMeta",[{taskId:sessionId,workspacePath:ws}]);
-        if(meta.taskId!==sessionId||meta.workspacePath!==ws||meta.title!==history.session.title){const mismatch=new Error("原 Host 与持久化标题不一致");mismatch.reasonCode="host_title_mismatch";throw mismatch;}
+        // 冻结分裂下宿主任务元（索引/overlay）仍是旧标题属预期状态，与 generate 的漂移校验同口径
+        if(meta.taskId!==sessionId||meta.workspacePath!==ws||meta.title!==history.session.title&&!freezeTitles.includes(history.session.title)){const mismatch=new Error("原 Host 与持久化标题不一致");mismatch.reasonCode="host_title_mismatch";throw mismatch;}
       }
-      return{...recentSnapshot(history,ws),titleSource:history.session.titleSource??null,titlePolicy:await readTitlePolicy({sessionId}),archived:!!row?.archived,deleted:!!row?.deleted,running:row?.task_status==="running"};
+      return{...recentSnapshot(history,ws),freezeTitles,titleSource:history.session.titleSource??null,titlePolicy:await readTitlePolicy({sessionId}),archived:!!row?.archived,deleted:!!row?.deleted,running:row?.task_status==="running"};
     },
     // 存在性校验与 resolveWorkspace 的容错链不同：查询异常不吞、不兜底，避免把"查不了"静默当"不存在"
     async sessionExists() {
@@ -74,7 +87,8 @@ export function createBackend({event,config,saveState,prompt,connect=connectHost
       if(!model.config.optionSpecs.reasoningLevel.values.includes(selection.options?.reasoningLevel))throw new Error("指定思考档位不可用");
       const ws=await workspacePath();
       const meta=await connection.call("zcode-task","getTaskMeta",[{taskId:sessionId,workspacePath:ws}]);
-      if(meta.title!==context.current_title)throw new Error("模型请求前目标标题已经变化");
+      // 冻结分裂下宿主任务元（索引/overlay）仍是旧标题属预期状态；非冻结场景维持漂移护栏
+      if(meta.title!==context.current_title&&!(await loadFreezeTitles()).includes(context.current_title))throw new Error("模型请求前目标标题已经变化");
       return connection.call("zcode-agent","generateWorkspaceText",[{
         workspacePath:ws,selection,messages:[{role:"system",content:prompt},{role:"user",content:JSON.stringify(context)}],
         tools:[],querySource:"session_title_external",maxOutputTokens:config.maxOutputTokens??2048,
