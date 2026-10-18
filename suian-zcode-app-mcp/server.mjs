@@ -128,6 +128,23 @@ export function createMcpServer(config, { controller, prStatus, reveal } = {}) {
     const origin = resolveCaller({ meta: extra._meta, sessionDbPath: config.sessionDbPath, toolName: 'send_message' });
     return controller.sendMessage({ ...input, deliverer: origin.sessionId, originWarning: origin.warning });
   }));
+  server.registerTool('reset_cron_tools_visibility', {
+    title: '恢复官方 Cron 工具的可用性',
+    description: '用于定时任务触发的自动化轮：这一轮里官方 Cron 写工具（CronCreate/CronUpdate/CronDelete）能看见但调不动，直接调用不会生效；人工轮（由用户或消息输入发起的轮）不受此限制。本工具给当前会话排队一条唤醒消息，收到回执后必须立即结束本轮——本轮不结束，工具不会恢复；下一轮将是人工轮，官方 Cron 工具恢复可用，届时再做需要的删除、重建等操作。instruction 可选，为下一轮携带具体指示；消息只发给本会话，不能指定其他目标。',
+    inputSchema: z.object({
+      instruction: nonempty.optional().describe('可选的具体指示，随唤醒消息发给下一轮；默认文本已含结束本轮与继续处理的指令。')
+    }).strict(),
+    annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: true }
+  }, async (args, extra) => {
+    // 与 get_current_session 同型：来源无法唯一确认时不发消息（isError 回执不能经 respond 二次包装）。
+    try {
+      const origin = resolveCaller({ meta: extra._meta, sessionDbPath: config.sessionDbPath, toolName: 'reset_cron_tools_visibility' });
+      if (!origin.sessionId) return { ...toolResult('reset_cron_tools_visibility', { code: origin.warning.code,
+        possible_session_ids: origin.warning.possible_session_ids, error: origin.warning.message }), isError: true };
+      return toolResult('reset_cron_tools_visibility', await controller.resetCronToolsVisibility({ session_id: origin.sessionId,
+        instruction: args.instruction, deliverer: origin.sessionId, originWarning: origin.warning }));
+    } catch (error) { return { ...toolResult('reset_cron_tools_visibility', { ...error.partial_result, error: error.message }), isError: true }; }
+  });
   server.registerTool('compact_session', {
     title: '压缩 ZCode 会话上下文',
     description: '向原 Host 提交 compact：空闲时开始，运行中排队，不中断当前轮、不恢复暂停队列；已有 compact 时拒绝。ACK 与 accepted/duplicate 仅表示受理，不表示已开始或完成；本工具和 read_session 均不能确认终态，压缩自身也只等回执。目标工作区须在网关连接的 Desktop 打开；超时或回执未知勿盲目重试。',
@@ -169,6 +186,15 @@ export function createMcpServer(config, { controller, prStatus, reveal } = {}) {
     }).strict(),
     annotations
   }, respond('list_pinned_sessions', args => reader.listPinnedSessions(args)));
+  server.registerTool('list_automations', {
+    title: '列出 ZCode 定时任务',
+    description: '读取本机持久库，列出定时任务（automation）清单与调度状态：automationId、title、cronExpr、enabled、lifecycleStatus、nextRunAt、lastRunAt、runCount、recurring、maxRuns、scheduleRule、workspaceKey、workspacePath、targetTaskId（绑定的会话）。省略参数返回全部工作区；workspace_path / workspace_key 可选过滤。只读本机数据，离线可用。定时任务自动触发的轮次里官方 Cron 写工具不可用时，本工具仍可正常调用，可先据此定位目标任务的 automationId。',
+    inputSchema: z.object({
+      workspace_path: z.string().min(1).optional(),
+      workspace_key: z.string().min(1).optional()
+    }).strict(),
+    annotations
+  }, respond('list_automations', args => reader.listAutomations(args)));
   server.registerTool('get_glm_balance', {
     title: '查询 GLM 套餐额度与重置卡',
     description: '只读查询当前 Host 的 BigModel 个人 Coding Plan 模型额度、GLM 工具额度、ZCode Server MCP 额度及未过期重置卡。两组 MCP 额度分别展示，不相加；缺失不等于零，不据此猜套餐。不查现金余额；目标本地工作区须在网关连接的 Desktop 打开。',
@@ -191,6 +217,17 @@ export function createMcpServer(config, { controller, prStatus, reveal } = {}) {
       return toolResult('reset_glm_quota', data);
     } catch (error) { return { ...toolResult('reset_glm_quota', { ...error.partial_result, error: error.message }), isError: true }; }
   });
+  server.registerTool('set_automation_enabled', {
+    title: '暂停或恢复 ZCode 定时任务',
+    description: '暂停或恢复定时任务，与桌面管理页的启停操作等价：enabled=false 暂停，调度器不再认领派发；true 恢复，按原计划继续；任务 id、历史与会话绑定不变。操作完成后向原 Host 读回确认实际状态：任务不存在、不属于该工作区或状态未生效时返回明确错误，不会报告虚假成功。会话内官方定时任务工具不能修改启停，需要暂停/恢复时使用本工具。目标工作区须在网关连接的 Desktop 打开。',
+    inputSchema: z.object({
+      automation_id: nonempty.describe('定时任务 ID，见桌面管理页或任务创建记录'),
+      enabled: z.boolean().describe('false 暂停（lifecycle paused，调度器停止派发）；true 恢复（active，按原计划继续）'),
+      workspace_path: nonempty.describe('定时任务所属本地工作区路径'),
+      workspace_key: nonempty.optional().describe('同 ID 跨工作区歧义时的工作区归属标识')
+    }).strict(),
+    annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: true }
+  }, respond('set_automation_enabled', args => controller.setAutomationEnabled(args)));
   const artifactStore = registerArtifactTools(server, config, { controller, prStatus, reveal });
   return server;
 }

@@ -44,7 +44,7 @@ ZCode-Plugins/
 │   ├── .mcp.json           # 原生 stdio 注册，配置指向外置 dataPath
 │   ├── hooks/              # 同步工件初始化、提交摘要与 Stop 快照
 │   ├── ui/                 # 原生只读工件侧栏资源
-│   └── skills/             # setup / configuration / sessions / artifacts / glm / debug
+│   └── skills/             # setup / configuration / sessions / automations / artifacts / glm / debug
 │
 ├── suian-side-editor/     # 本机文本编辑器 0.2.0；选区评论尽力保护，原#47缺口与Native待验
 │   ├── AGENTS.md          # 本插件规则与文档入口
