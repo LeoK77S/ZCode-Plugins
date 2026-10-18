@@ -191,6 +191,17 @@ export function createMcpServer(config, { controller, prStatus, reveal } = {}) {
       return toolResult('reset_glm_quota', data);
     } catch (error) { return { ...toolResult('reset_glm_quota', { ...error.partial_result, error: error.message }), isError: true }; }
   });
+  server.registerTool('set_automation_enabled', {
+    title: '暂停或恢复 ZCode 定时任务',
+    description: '暂停或恢复定时任务，与桌面管理页的启停操作等价：enabled=false 暂停，调度器不再认领派发；true 恢复，按原计划继续；任务 id、历史与会话绑定不变。会话内官方定时任务工具不能修改启停，需要暂停/恢复时使用本工具。目标工作区须在网关连接的 Desktop 打开。',
+    inputSchema: z.object({
+      automation_id: nonempty.describe('定时任务 ID，见桌面管理页或任务创建记录'),
+      enabled: z.boolean().describe('false 暂停（lifecycle paused，调度器停止派发）；true 恢复（active，按原计划继续）'),
+      workspace_path: nonempty.describe('定时任务所属本地工作区路径'),
+      workspace_key: nonempty.optional().describe('同 ID 跨工作区歧义时的工作区归属标识')
+    }).strict(),
+    annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: true }
+  }, respond('set_automation_enabled', args => controller.setAutomationEnabled(args)));
   const artifactStore = registerArtifactTools(server, config, { controller, prStatus, reveal });
   return server;
 }

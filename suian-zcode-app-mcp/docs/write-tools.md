@@ -1,6 +1,6 @@
 # 会话写工具
 
-八个写工具通过公共远控客户端附着原 ZCode Desktop Host。任务操作调用 `zcode-task`，`send_message` 与 `compact_session` 通过 `zcode-agent` 的 v4 命令分别提交消息和上下文压缩请求；不启动独立 CLI app-server、不直接写会话数据库。读取与分页仍按 [读取契约](./readonly-tools.md)。
+九个写工具通过公共远控客户端附着原 ZCode Desktop Host。任务操作调用 `zcode-task`，`send_message` 与 `compact_session` 通过 `zcode-agent` 的 v4 命令分别提交消息和上下文压缩请求，`set_automation_enabled` 经 `zcode-agent` 桥通道直达定时任务服务；不启动独立 CLI app-server、不直接写会话数据库。读取与分页仍按 [读取契约](./readonly-tools.md)。
 
 ## 连接与授权
 
@@ -90,7 +90,7 @@ MCP 开始执行后，工具等待 Host 接受提交的 ACK 即返回并释放�
 
 发信不改变目标会话的权限模式：恢复链路不携带 `mode`，权限保持会话现状；消息也不携带模型选择覆盖。
 
-所有工具拒绝未知参数和空白标题/信息。MCP 注解中三个读取工具（含 list_pinned_sessions）保持 `readOnlyHint:true`；八个写工具为 false，创建、发信和压缩请求不是幂等操作，置顶与取消置顶声明幂等。
+所有工具拒绝未知参数和空白标题/信息。MCP 注解中三个读取工具（含 list_pinned_sessions）保持 `readOnlyHint:true`；九个写工具为 false，创建、发信和压缩请求不是幂等操作，置顶与取消置顶、定时任务启停声明幂等。
 
 ## 上下文压缩
 
@@ -162,6 +162,20 @@ compact 尚在排队时，guide 仍可能先被当前轮消费；未消费而改
 `list_pinned_sessions` 列出 `pinned=1` 且未删除的行，默认排除归档、`include_archived:true` 可显式包含；`workspace_path` 过滤、limit/offset 分页与 `list_sessions` 同规则，行结构相同。该工具与 list_sessions 一样返回持久化状态，不要求 Desktop 在线。
 
 宿主能力依据与 2026-10-15 网关探针实测（读路径真实返回、写路径业务错误证明可达、未写真实会话）见[脱敏证据](./pin-session-probe-evidence.json)。
+
+## 定时任务启停
+
+`set_automation_enabled` 暂停或恢复定时任务：必填 `automation_id`、布尔 `enabled`、`workspace_path`；可选 `workspace_key` 作为 RPC 层归属标识（`workspaceIdentity`）透传，用于同 ID 跨工作区消歧。
+
+```json
+{"name":"set_automation_enabled","arguments":{"automation_id":"automation_example","enabled":false,"workspace_path":"D:/work/example"}}
+```
+
+语义与桌面管理页的启停一致：`enabled:false` 将 lifecycle 置为 paused，调度器不再认领派发；`true` 恢复 active，按原计划继续；任务 id、历史与会话绑定不变。操作可逆，不设 reset_glm_quota 级授权语义。
+
+写路径经公共网关调用 `zcode-agent` 通道的 `setAutomationEnabled`（Host 侧带工作区归属校验后透传 automationService.setEnabled）。官方会话内工具面没有启停能力——CronUpdate 明确禁改 enabled，且自动化派发轮内官方 Cron 写工具整体剥离——本工具经 MCP 注入不受该剥离影响，派发轮内可用。
+
+成功返回 `source:original_host`、`automation_id`、`workspace_path`、`enabled`。官方 setEnabled 无返回值，插件不做读回确认；目标工作区不在网关连接的 Desktop、网关不可达或 Host 拒绝时返回 `isError:true` 结构化错误，不抛裸异常、不猜成功。重复设置同值为幂等操作。
 
 ## 消息来源格式
 

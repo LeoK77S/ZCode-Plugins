@@ -282,6 +282,16 @@ export function createSessionController({ reader, gatewayConfigPath, connect = c
         await remote.call('zcode-task', 'setTaskPinned', [{ taskId: args.session_id, workspacePath: remote.workspacePath, pinned: false }]);
         return pinnedResult(args, remote, false);
       });
+    },
+    // 定时任务启停：官方会话内工具面禁改 enabled（CronUpdate 权限边界），经 zcode-agent 通道直达 Host。
+    // enabled=false → lifecycle paused、调度器停止认领派发；true → active、按原计划继续；id、历史与会话绑定不变。
+    // 官方 setAutomationEnabled 返回 void，Host 侧带工作区归属校验，失败经 RPC 异常外溢。
+    async setAutomationEnabled(args) {
+      return attached({ workspacePath: args.workspace_path }, async remote => {
+        await remote.call('zcode-agent', 'setAutomationEnabled', [{ automationId: args.automation_id, enabled: args.enabled,
+          workspacePath: remote.workspacePath, ...(args.workspace_key === undefined ? {} : { workspaceIdentity: args.workspace_key }) }]);
+        return { source: 'original_host', automation_id: args.automation_id, workspace_path: remote.workspacePath, enabled: args.enabled };
+      });
     }
   };
 }

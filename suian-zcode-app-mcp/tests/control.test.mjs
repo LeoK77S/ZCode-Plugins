@@ -592,6 +592,31 @@ test('一步工具轮并发归档多个会话全部成功，不再只有首个�
   assert.ok(connections.every(connection => connection.closed));
 });
 
+test('定时任务暂停/恢复经网关 zcode-agent 通道直达 Host，workspace_key 透传为 workspaceIdentity', async () => {
+  const f = await fixture();
+  const paused = await f.controller.setAutomationEnabled({ automation_id: 'automation-1', enabled: false, workspace_path: workspace });
+  assert.deepEqual(paused, { source: 'original_host', automation_id: 'automation-1', workspace_path: workspace, enabled: false });
+  assert.deepEqual(f.calls.map(c => c.channel), ['zcode-agent']);
+  assert.deepEqual(f.calls.map(c => c.method), ['setAutomationEnabled']);
+  assert.deepEqual(f.calls[0].params, [{ automationId: 'automation-1', enabled: false, workspacePath: workspace }]);
+  // 恢复时桥回实际工作区路径，workspace_key 作为 RPC 层归属标识透传
+  const resumed = await f.controller.setAutomationEnabled({ automation_id: 'automation-1', enabled: true, workspace_path: 'D:/FIXTURE', workspace_key: 'kb' });
+  assert.deepEqual(resumed, { source: 'original_host', automation_id: 'automation-1', workspace_path: workspace, enabled: true });
+  assert.deepEqual(f.calls.at(-1).params, [{ automationId: 'automation-1', enabled: true, workspacePath: workspace, workspaceIdentity: 'kb' }]);
+  assert.ok(f.connections.every(c => c.closed));
+});
+
+test('定时任务启停 RPC 被拒或网关不可达时明确报错并释放连接，不猜成功', async () => {
+  const failed = await fixture({ setAutomationEnabled: () => { throw new Error('fixture RPC rejected'); } });
+  await assert.rejects(failed.controller.setAutomationEnabled({ automation_id: 'automation-1', enabled: false, workspace_path: workspace }), /fixture RPC rejected/);
+  assert.equal(failed.calls.filter(c => c.method === 'setAutomationEnabled').length, 1);
+  assert.equal(failed.connections[0].closed, true);
+  const { createSessionController } = await import('../control.mjs');
+  const unreachable = createSessionController({ reader: {},
+    connect: async () => { throw new Error('gateway_unreachable: fixture 网关不可达'); } });
+  await assert.rejects(unreachable.setAutomationEnabled({ automation_id: 'automation-1', enabled: true, workspace_path: workspace }), /gateway_unreachable/);
+});
+
 test('额度重置保持单飞，确认流程期间的并发重置明确拒绝', async () => {
   const entered = Promise.withResolvers(), gate = Promise.withResolvers();
   const f = await fixture({ getView: () => { entered.resolve(); return gate.promise; } });

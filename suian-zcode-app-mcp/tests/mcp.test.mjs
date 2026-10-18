@@ -103,7 +103,7 @@ test('compact_session 公布指定目标与受理语义，严格校验参数并�
   assert.equal(rejected.structuredContent.reason_code, 'compactOperationLock');
 });
 
-test('MCP 握手版本与插件元信息一致，公布十六个工具并保持查询只读', async t => {
+test('MCP 握手版本与插件元信息一致，公布十七个工具并保持查询只读', async t => {
   const f = fixture(t);
   f.task({ id: 'sess_alpha', title: 'MCP 工具' });
   f.session({ id: 'sess_alpha', title: 'MCP 工具' });
@@ -120,7 +120,7 @@ test('MCP 握手版本与插件元信息一致，公布十六个工具并保持�
   assert.equal(lockMetadata.packages[''].version, packageMetadata.version);
   assert.equal(client.getServerVersion().version, packageMetadata.version);
   const listed = await client.listTools();
-  assert.deepEqual(listed.tools.map(tool => tool.name), ['list_sessions', 'read_session', 'get_current_session', 'rename_session', 'start_session', 'send_message', 'compact_session', 'archive_session', 'restore_session', 'pin_session', 'unpin_session', 'list_pinned_sessions', 'get_glm_balance', 'reset_glm_quota', 'get_artifacts', 'set_artifacts']);
+  assert.deepEqual(listed.tools.map(tool => tool.name), ['list_sessions', 'read_session', 'get_current_session', 'rename_session', 'start_session', 'send_message', 'compact_session', 'archive_session', 'restore_session', 'pin_session', 'unpin_session', 'list_pinned_sessions', 'get_glm_balance', 'reset_glm_quota', 'set_automation_enabled', 'get_artifacts', 'set_artifacts']);
   for (const tool of listed.tools) assert.equal(tool.annotations.readOnlyHint, ['list_sessions', 'read_session', 'get_current_session', 'list_pinned_sessions', 'get_glm_balance'].includes(tool.name));
   assert.equal(listed.tools.find(tool => tool.name === 'reset_glm_quota').annotations.destructiveHint, true);
   assert.equal(listed.tools.find(tool => tool.name === 'reset_glm_quota').annotations.idempotentHint, false);
@@ -649,6 +649,49 @@ test('置顶工具转交已验证参数，置顶列表走本地索引且拒绝�
   assert.equal((await client.callTool({ name: 'unpin_session', arguments: { session_id: ' ' } })).isError, true);
   assert.equal((await client.callTool({ name: 'list_pinned_sessions', arguments: { unknown: 1 } })).isError, true);
   assert.equal(calls.length, 2);
+});
+
+test('set_automation_enabled 公布暂停/恢复语义，严格校验参数并转交控制器，错误结构化返回', async t => {
+  const f = fixture(t), calls = [];
+  const { createMcpServer } = await import('../server.mjs');
+  const receipt = { source: 'original_host', automation_id: 'automation-1', workspace_path: 'D:/fixture', enabled: false };
+  const server = createMcpServer(f, { controller: { setAutomationEnabled: async args => {
+    calls.push(args);
+    if (args.automation_id === 'automation_rejected') throw Object.assign(new Error('automation_write_failed: fixture'), {
+      partial_result: { ...receipt, automation_id: args.automation_id, enabled: true } });
+    return receipt;
+  } } });
+  const client = new Client({ name: 'automation-enabled-contract', version: '1.0.0' });
+  const [ct, st] = InMemoryTransport.createLinkedPair();
+  t.after(async () => { await client.close(); await server.close(); });
+  await server.connect(st); await client.connect(ct);
+  const tool = (await client.listTools()).tools.find(tool => tool.name === 'set_automation_enabled');
+  assert.ok(tool);
+  assert.deepEqual(Object.keys(tool.inputSchema.properties), ['automation_id', 'enabled', 'workspace_path', 'workspace_key']);
+  assert.equal(tool.inputSchema.properties.enabled.type, 'boolean');
+  assert.equal(tool.inputSchema.required.includes('enabled'), true);
+  assert.equal(tool.annotations.readOnlyHint, false);
+  assert.equal(tool.annotations.destructiveHint, false);
+  assert.equal(tool.annotations.idempotentHint, true);
+  assert.match(tool.description, /暂停|恢复/);
+  const args = { automation_id: 'automation-1', enabled: false, workspace_path: 'D:/fixture', workspace_key: 'fixture-key' };
+  const accepted = await client.callTool({ name: 'set_automation_enabled', arguments: args });
+  assert.equal(accepted.isError, undefined);
+  assert.deepEqual(accepted.structuredContent, receipt);
+  assert.deepEqual(calls, [args]);
+  for (const invalid of [{}, { automation_id: 'automation-1', workspace_path: 'D:/fixture' },
+    { automation_id: 'automation-1', enabled: 'false', workspace_path: 'D:/fixture' },
+    { automation_id: 'automation-1', enabled: 1, workspace_path: 'D:/fixture' },
+    { automation_id: ' ', enabled: false, workspace_path: 'D:/fixture' },
+    { automation_id: 'automation-1', enabled: false, workspace_path: ' ' },
+    { automation_id: 'automation-1', enabled: false, force: true }]) {
+    assert.equal((await client.callTool({ name: 'set_automation_enabled', arguments: invalid })).isError, true, JSON.stringify(invalid));
+  }
+  assert.equal(calls.length, 1);
+  const rejected = await client.callTool({ name: 'set_automation_enabled', arguments: { automation_id: 'automation_rejected', enabled: true, workspace_path: 'D:/fixture' } });
+  assert.equal(rejected.isError, true);
+  assert.equal(rejected.structuredContent.automation_id, 'automation_rejected');
+  assert.match(rejected.structuredContent.error, /automation_write_failed/);
 });
 
 test('reader 复核探测抛错时视为无法核实：不告警、不把成功的 RPC 变成工具错误', async () => {

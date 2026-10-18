@@ -30,7 +30,7 @@ try {
 }
 ```
 
-预期 toolCount 为 16，包含 list_sessions、read_session、get_current_session、get_artifacts 和 set_artifacts。失败时保留错误；不以重新注册全局 MCP 作为修复。该调试客户端没有声明 MCP Apps，工件工具没有 UI 元数据属于正常降级。
+预期 toolCount 为 17，包含 list_sessions、read_session、get_current_session、get_artifacts 和 set_artifacts。失败时保留错误；不以重新注册全局 MCP 作为修复。该调试客户端没有声明 MCP Apps，工件工具没有 UI 元数据属于正常降级。
 
 原生侧栏失败先区分三层：版本/能力未满足时资源不提供；宿主尚未为目标会话取得 MCP 连接时，在页面装载前可能报告 connection unavailable；页面 get 的 caller 或 SQLite 错误会显示读取失败。当前会话 MCP 连接就绪后使用“重新加载”或页面“刷新”，不要通过启动模型轮掩盖问题。3.15.1.8093 的 initialize 实测仍报告 CLI 0.16.9，实际应用版本来自 Desktop 传入的 ZCODE_APP_VERSION。详细证据见 ../../docs/artifact-demo-verification.md。
 
