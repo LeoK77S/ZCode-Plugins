@@ -17,14 +17,14 @@ test("stop_hook_active 或无效负载直接跳过，不启动任何进程",asyn
   assert.deepEqual(await dispatchStopEvent({payload:{session_id:"nope",cwd:"D:\\w"},dataDir:"D",pluginRoot,loadAuth,spawnWorker}),{action:"ignored_invalid"});
   assert.equal(calls.length,0,"跳过路径不得读授权或建进程");
 });
-test("网关模式无需远控链接，Stop 事件只传会话元数据",async()=>{
+for (const sessionId of ['sess_x', 'session_316_fixture']) test(`网关模式 Stop 支持 ${sessionId.split('_')[0]} 前缀，仅传会话元数据`,async()=>{
   const calls=[];
   assert.deepEqual(await dispatchStopEvent({
-    payload:{session_id:"sess_x",cwd:"D:\\workspace"},dataDir:"D",pluginRoot,
+    payload:{session_id:sessionId,cwd:"D:\\workspace"},dataDir:"D",pluginRoot,
     loadAuth:async()=>null,spawnWorker:async options=>{calls.push(options);},startDelayMs:0
   }),{action:"dispatched"});
   assert.equal(calls.length,1);
-  assert.deepEqual(calls[0].event,{session_id:"sess_x",workspace_path:"D:\\workspace"});
+  assert.deepEqual(calls[0].event,{session_id:sessionId,workspace_path:"D:\\workspace"});
 });
 test("有效事件后台派发：仅经 stdin 注入会话元数据",async()=>{
   const seen=[];

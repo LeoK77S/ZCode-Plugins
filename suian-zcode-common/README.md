@@ -8,7 +8,9 @@
 
 只有网关是常驻独立进程，其他模块由调用方导入，按需执行。共享代码不等于合并运行数据或给只读 MCP 增加通知。
 
-当前开发分支增加 3.16 实验性 `terminal` 模式，使用外部注入的 token 提供方直连官方 relay，不代理 Desktop。它已通过独立终端联调，但尚不支持同一设备与手机共存，也未接入安装流程；共存是后续交付的必需条件。源码依据、验证范围与待选接入方案见[3.16 网关验证记录](../suian-zcode-app-mcp/docs/zcode-3.16-gateway-validation.md)。下图和既有安装流程描述旧版 relay 模式。
+当前开发分支为 `relay` 模式增加 3.16 V2 适配：使用原版 Desktop，经回环网关转发官方鉴权连接；手机继续连接官方 relay，插件复用同一个 Host 桥。真机双向发信、插件改名与手机显示已验证；尚未发布。独立 `terminal` 模式保留为研究入口，同设备会与手机争用席位，不作为共存方案。源码依据、验证范围及首轮测试隔离失误见[3.16 网关验证记录](../suian-zcode-app-mcp/docs/zcode-3.16-gateway-validation.md)。
+
+3.16 实验配置使用 `relay_protocol_version: 2`，对应模块参数 `relayProtocolVersion: 2`，上游为 `wss://zcode.z.ai/api/v1/remote/ws2`。默认及未填写该字段的旧配置仍使用 V1；`connectHost` 接口不变。一次性 token 与 MID 仅随 Desktop 的连接转发，不申请额外 terminal。V2 注入消息严格区分客户端／服务器字段并使用 Unix 秒。现有 Windows 安装脚本尚未新增 V2 配置参数，以下安装默认值仍属于 V1；不要据此宣称 3.16 已完成正式部署。本轮暂缓 3.16 local-only 与离线冷启动。
 
 ```mermaid
 flowchart LR
@@ -47,7 +49,7 @@ npm ci 后运行 link.mjs，将稳定运行入口链接到本公共根，再把�
 
 | 模块 | 公共接口与调用方 |
 | --- | --- |
-| gateway.mjs | `startGateway()`：独立网关；同进程 `bootstrap()`、`close()` |
+| gateway.mjs | `startGateway({relayProtocolVersion:1或2})`：独立 relay 网关；同进程 `bootstrap()`、`close()`；缺省 V1 |
 | terminal-gateway.mjs / terminal-relay.mjs | 实验性 `startGateway({mode:'terminal',deviceSid,deviceMid,getToken,controlToken})` 与 `startTerminalRelay()`；token 由调用方提供，未接入安装流程 |
 | gateway-client.mjs / remote.mjs | 插件默认 `connectHost()` / `probeHost()`；旧 `connectRemote()` / `probeRemote()` / `startRelay()` 仅保留显式诊断用途 |
 | rpc-broker.mjs | 一个本地 Host 桥；客户端 RPC 编号、订阅及手机虚拟桥分流 |
