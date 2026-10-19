@@ -72,9 +72,10 @@ async function fixture(t, pairStatus = 'matched', options = {}) {
       identity = { bridgeSessionId: p.bridgeSessionId, bridgeGeneration: p.bridgeGeneration };
       assembler = new Assembler({ identity }); physical = 1; message = 1;
       helloIssued = false; boundClientId = undefined;
+      const prepared = options.projectDirectories?.[p.project?.projectId];
       desktop.send(JSON.stringify({ type: 'data', payload: { zcode_type: 'workspace-bridge-ready', requestId: p.requestId,
         bridge: { ...identity, kind: p.workspaceKey === 'remote:fixture' ? 'remote' : 'local', workspaceKey: p.workspaceKey,
-          workspacePath: p.workspaceKey === 'remote:fixture' ? '/remote' : workspace } } }));
+          workspacePath: prepared?.workspacePath ?? (p.workspaceKey === 'remote:fixture' ? '/remote' : workspace) } } }));
       respond([200], undefined);
     } else if (p?.zcode_type === 'rpc-frame') {
       const result = assembler.accept(parse(p));
@@ -82,6 +83,11 @@ async function fixture(t, pairStatus = 'matched', options = {}) {
         desktop.send(JSON.stringify({ type: 'data', payload: { zcode_type: 'rpc-frame-ack', ...identity, ackMessageSeq: result.messageSeq } }));
         const [header, body] = unpack(result.bytes);
         requests.push([header, body]);
+        if (header[0] === 100 && header[2] === 'project' && header[3] === 'prepareSession' && options.projectDirectories) {
+          const directories = options.projectDirectories[body[0].projectId];
+          if (directories) respond([201, header[1]], directories);
+          else respond([202, header[1]], { name: 'Error', message: 'project.not-found' });
+        }
         if (options.v4Host && header[0] === 100 && header[2] === 'zcode-agent') {
           try {
             let reply;
@@ -154,6 +160,160 @@ test('V2 多执行目录按各自会话归属附着，手机与插件仍共用�
   assert.equal((await ready.promise).bridge.workspacePath, 'D:\\other');
   assert.equal(f.bridgeOpens.length, 1);
   assert.equal(f.relay.clients.size, 1);
+  assert.deepEqual(f.faults, []);
+});
+
+for (const rootCount of [1, 3]) test(`V2 ${rootCount} 个根目录项目导航采用 Host 主目录且不打断插件`, { timeout: 4000 }, async t => {
+  const { connectHost } = await import('../gateway-client.mjs');
+  const directories = { projectId: 'multi-project', workspacePath: 'D:\\project-primary',
+    additionalDirectories: rootCount === 1 ? [] : ['D:\\project-extra-a', 'D:\\project-extra-b'] };
+  const f = await fixture(t, 'matched', { gateway: { relayProtocolVersion: 2 }, v4Host: true,
+    projectDirectories: { 'multi-project': directories } });
+  const dir = await mkdtemp(join(tmpdir(), 'zcode-project-navigation-'));
+  t.after(() => rm(dir, { recursive: true }));
+  const gatewayConfigPath = join(dir, 'config.json');
+  await writeFile(gatewayConfigPath, JSON.stringify({ version: 1, port: Number(new URL(f.gateway.url).port), control_token: 'fixture-rpc-token' }));
+  const plugin = await connectHost({ workspacePath: workspace, gatewayConfigPath });
+  t.after(() => plugin.close());
+  await plugin.call('zcode-agent', 'helloConversationV4');
+  await plugin.call('zcode-agent', 'initializeConversationV4', [{ clientId: 'plugin-before-project' }]);
+
+  const phoneIdentity = { bridgeSessionId: 'phone-multi-project', bridgeGeneration: 1 };
+  const emitter = new Emitter(), phoneReady = Promise.withResolvers();
+  let phoneAssembler, seq = 1, messageSeq = 1;
+  const phone = new ChannelClient({ onMessage: emitter.event, send: bytes => {
+    const frames = encode(bytes.buffer, { ...phoneIdentity, firstPhysicalSeq: seq, messageSeq: messageSeq++ });
+    seq += frames.length;
+    for (const frame of frames) f.phone.send(JSON.stringify({ type: 'data', payload: frame }));
+  } });
+  t.after(() => { phone.dispose(); emitter.dispose(); });
+  f.phone.on('message', data => {
+    const payload = JSON.parse(data).payload;
+    if (payload?.zcode_type === 'workspace-bridge-ready') {
+      phoneAssembler = new Assembler({ identity: phoneIdentity }); phoneReady.resolve(payload.bridge);
+    } else if (payload?.zcode_type === 'workspace-bridge-error') phoneReady.reject(new Error(payload.error));
+    else if (payload?.zcode_type === 'rpc-frame') {
+      const result = phoneAssembler.accept(parse(payload));
+      if (result.kind === 'complete') emitter.fire(VSBuffer.wrap(result.bytes));
+    }
+  });
+  f.phone.send(JSON.stringify({ type: 'data', payload: { zcode_type: 'workspace-bridge-open', requestId: 'open-multi-project',
+    ...phoneIdentity, workspaceKey: workspace, project: { projectId: 'multi-project', hostId: 'local' } } }));
+  const bridge = await phoneReady.promise;
+  assert.equal(bridge.workspacePath, 'D:\\project-primary');
+  assert.equal(bridge.workspaceKey, 'D:\\project-primary');
+  assert.deepEqual(f.requests.find(([header]) => header[2] === 'project' && header[3] === 'prepareSession')[1],
+    [{ projectId: 'multi-project', hostId: 'local' }]);
+  assert.deepEqual(await phone.getChannel('project').call('prepareSession', [{ projectId: 'multi-project' }]), directories,
+    '主目录和附加目录保持 Host 的原始解析结果');
+  await phone.getChannel('zcode-agent').call('helloConversationV4', []);
+  await phone.getChannel('zcode-agent').call('initializeConversationV4', [{ clientId: 'phone-project-client' }]);
+  const replies = await Promise.all([
+    phone.getChannel('zcode-agent').call('sendConversationCommandV4', [{ workspacePath: bridge.workspacePath,
+      envelope: { clientId: 'phone-project-client', commandId: 'phone-project-send', sessionId: 'project-session' } }]),
+    plugin.call('zcode-agent', 'sendConversationCommandV4', [{ workspacePath: workspace,
+      envelope: { clientId: 'plugin-before-project', commandId: 'plugin-after-project', sessionId: 'plugin-session' } }]),
+  ]);
+  assert.deepEqual(replies.map(reply => reply.status), ['accepted', 'accepted']);
+  assert.equal(f.bridgeOpens.length, 1, '本地项目导航仍复用同一窗口 Host 桥');
+  assert.equal(f.relay.clients.size, 1);
+  assert.deepEqual(f.faults, []);
+});
+
+for (const pluginFirst of [false, true]) test(`V2 手机项目首页导航不依赖旧 workspaceKey，插件先接入=${pluginFirst}`, { timeout: 3000 }, async t => {
+  const { connectHost } = await import('../gateway-client.mjs');
+  const f = await fixture(t, 'matched', { gateway: { relayProtocolVersion: 2 },
+    projectDirectories: { 'cold-project': { projectId: 'cold-project', workspacePath: 'D:\\cold-primary', additionalDirectories: ['D:\\cold-extra'] } } });
+  if (pluginFirst) {
+    const dir = await mkdtemp(join(tmpdir(), 'zcode-project-home-'));
+    t.after(() => rm(dir, { recursive: true }));
+    const gatewayConfigPath = join(dir, 'config.json');
+    await writeFile(gatewayConfigPath, JSON.stringify({ version: 1, port: Number(new URL(f.gateway.url).port), control_token: 'fixture-rpc-token' }));
+    const plugin = await connectHost({ workspacePath: workspace, gatewayConfigPath });
+    t.after(() => plugin.close());
+  }
+  const response = new Promise(resolve => f.phone.on('message', data => {
+    const payload = JSON.parse(data).payload;
+    if (['workspace-bridge-ready', 'workspace-bridge-error'].includes(payload?.zcode_type)) resolve(payload);
+  }));
+  const project = { projectId: 'cold-project', hostId: 'local' };
+  f.phone.send(JSON.stringify({ type: 'data', payload: { zcode_type: 'workspace-bridge-open', requestId: 'project-home-open',
+    bridgeSessionId: 'project-home-bridge', bridgeGeneration: 1, workspaceKey: 'project-navigation', project } }));
+  const reply = await response;
+  assert.equal(reply.zcode_type, 'workspace-bridge-ready', reply.error);
+  assert.equal(reply.bridge.workspacePath, 'D:\\cold-primary');
+  assert.equal(reply.bridge.workspaceKey, 'D:\\cold-primary');
+  assert.equal(f.bridgeOpens.length, 1);
+  if (!pluginFirst) assert.deepEqual(f.bridgeOpens[0].project, project);
+  assert.deepEqual(f.faults, []);
+});
+
+test('V2 目标项目不存在时返回 Host 错误，不以旧目录冒充成功且插件继续可用', { timeout: 3000 }, async t => {
+  const { connectHost } = await import('../gateway-client.mjs');
+  const f = await fixture(t, 'matched', { gateway: { relayProtocolVersion: 2 }, v4Host: true, projectDirectories: {} });
+  const dir = await mkdtemp(join(tmpdir(), 'zcode-project-error-'));
+  t.after(() => rm(dir, { recursive: true }));
+  const gatewayConfigPath = join(dir, 'config.json');
+  await writeFile(gatewayConfigPath, JSON.stringify({ version: 1, port: Number(new URL(f.gateway.url).port), control_token: 'fixture-rpc-token' }));
+  const plugin = await connectHost({ workspacePath: workspace, gatewayConfigPath });
+  t.after(() => plugin.close());
+  f.phone.send(JSON.stringify({ type: 'data', payload: { zcode_type: 'workspace-bridge-open', requestId: 'missing-project',
+    bridgeSessionId: 'missing-project-bridge', bridgeGeneration: 1, workspaceKey: workspace,
+    project: { projectId: 'missing', hostId: 'local' } } }));
+  await until(() => f.phoneMessages.some(message => message.payload?.requestId === 'missing-project'));
+  const reply = f.phoneMessages.find(message => message.payload?.requestId === 'missing-project').payload;
+  assert.equal(reply.zcode_type, 'workspace-bridge-error');
+  assert.equal(reply.error, 'project.not-found');
+  assert.equal((await plugin.call('zcode-agent', 'helloConversationV4')).protocolVersion, 3);
+  assert.equal(f.bridgeOpens.length, 1);
+  assert.deepEqual(f.faults, []);
+});
+
+test('V2 快速切换项目时迟到的解析结果不能覆盖当前手机目录', { timeout: 3000 }, async t => {
+  const { connectHost } = await import('../gateway-client.mjs');
+  const f = await fixture(t, 'matched', { gateway: { relayProtocolVersion: 2 }, v4Host: true });
+  const dir = await mkdtemp(join(tmpdir(), 'zcode-project-race-'));
+  t.after(() => rm(dir, { recursive: true }));
+  const gatewayConfigPath = join(dir, 'config.json');
+  await writeFile(gatewayConfigPath, JSON.stringify({ version: 1, port: Number(new URL(f.gateway.url).port), control_token: 'fixture-rpc-token' }));
+  const plugin = await connectHost({ workspacePath: workspace, gatewayConfigPath });
+  t.after(() => plugin.close());
+  f.phone.send(JSON.stringify({ type: 'data', payload: { zcode_type: 'workspace-bridge-open', requestId: 'slow-project',
+    bridgeSessionId: 'slow-bridge', bridgeGeneration: 1, workspaceKey: workspace,
+    project: { projectId: 'slow', hostId: 'local' } } }));
+  await until(() => f.requests.length === 1);
+  const first = f.requests[0][0][1];
+  f.phone.send(JSON.stringify({ type: 'data', payload: { zcode_type: 'workspace-bridge-open', requestId: 'current-project',
+    bridgeSessionId: 'current-bridge', bridgeGeneration: 2, workspaceKey: workspace,
+    project: { projectId: 'current', hostId: 'local' } } }));
+  await until(() => f.requests.length === 2);
+  f.respond([201, f.requests[1][0][1]], { projectId: 'current', workspacePath: 'D:\\current-primary', additionalDirectories: ['D:\\current-extra'] });
+  await until(() => f.phoneMessages.some(message => message.payload?.requestId === 'current-project'));
+  f.respond([201, first], { projectId: 'slow', workspacePath: 'D:\\slow-primary', additionalDirectories: [] });
+  // 同一 Host 上的后续 RPC 回包证明旧解析回复已先被消费。
+  assert.equal((await plugin.call('zcode-agent', 'helloConversationV4')).protocolVersion, 3);
+  const replies = f.phoneMessages.map(message => message.payload).filter(payload => payload?.zcode_type === 'workspace-bridge-ready');
+  assert.deepEqual(replies.map(reply => [reply.requestId, reply.bridge.workspacePath]), [['current-project', 'D:\\current-primary']]);
+  assert.equal(f.bridgeOpens.length, 1);
+});
+
+for (const relayProtocolVersion of [1, 2]) test(`relay V${relayProtocolVersion} 旧工作区请求无需 project 服务，手机与插件仍共用桥`, { timeout: 3000 }, async t => {
+  const { connectHost } = await import('../gateway-client.mjs');
+  const f = await fixture(t, 'matched', { gateway: { relayProtocolVersion } });
+  f.phone.send(JSON.stringify({ type: 'data', payload: { zcode_type: 'workspace-bridge-open', requestId: 'legacy-phone-open',
+    bridgeSessionId: 'legacy-phone-bridge', bridgeGeneration: 1, workspaceKey: workspace } }));
+  await until(() => f.phoneMessages.some(message => message.payload?.zcode_type === 'workspace-bridge-ready'));
+  const ready = f.phoneMessages.find(message => message.payload?.zcode_type === 'workspace-bridge-ready').payload;
+  assert.equal(ready.bridge.workspacePath, workspace);
+  const dir = await mkdtemp(join(tmpdir(), 'zcode-legacy-project-'));
+  t.after(() => rm(dir, { recursive: true }));
+  const gatewayConfigPath = join(dir, 'config.json');
+  await writeFile(gatewayConfigPath, JSON.stringify({ version: 1, port: Number(new URL(f.gateway.url).port), control_token: 'fixture-rpc-token' }));
+  const plugin = await connectHost({ workspacePath: workspace, gatewayConfigPath });
+  t.after(() => plugin.close());
+  assert.equal(f.requests.length, 0, '旧 Desktop 不需要新增 project RPC 服务');
+  assert.equal(f.bridgeOpens.length, 1);
+  assert.equal(f.bridgeOpens[0].project, undefined);
   assert.deepEqual(f.faults, []);
 });
 

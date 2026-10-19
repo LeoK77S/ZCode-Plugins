@@ -106,17 +106,29 @@ export function createRpcBroker({ bootstrap, sendDesktop, sendPhone, bridgeTimeo
       drainInitializations();
     }
   };
-  const ensureHost = async workspacePath => {
+  const ensureHost = async (workspacePath, project) => {
     if (!physical) {
       const identity = { bridgeSessionId: randomUUID(), bridgeGeneration: 1 };
       const ready = Promise.withResolvers(), initialize = Promise.withResolvers();
       physical = { identity, clientId: randomUUID(), initializations: [], requestId: randomUUID(), assembler: new Assembler({ identity }), seq: 1, message: 1, ready, initialize, initialized: false };
       physical.timer = setTimeout(() => resetPhysical(Object.assign(new Error('原 Host 桥初始化超时'), { code: 'gateway_bridge_timeout' })), bridgeTimeoutMs);
       bridgeRequests.add(physical.requestId);
-      sendDesktop({ zcode_type: 'workspace-bridge-open', requestId: physical.requestId, ...identity, workspaceKey: workspacePath });
+      sendDesktop({ zcode_type: 'workspace-bridge-open', requestId: physical.requestId, ...identity, workspaceKey: workspacePath,
+        ...(project ? { project } : {}) });
     }
     const [meta] = await Promise.all([physical.ready.promise, physical.initialize.promise]);
     return meta;
+  };
+  const callHost = async (channel, method, args, timeoutMessage) => {
+    const emitter = new Emitter(), fault = Promise.withResolvers();
+    const peer = { ids: new Map(), send: bytes => emitter.fire(VSBuffer.wrap(bytes)), fail: error => fault.reject(error) };
+    peers.add(peer);
+    const client = new ChannelClient({ onMessage: emitter.event, send: bytes => request(peer, bytes.buffer), drain: () => Promise.resolve() });
+    emitter.fire(VSBuffer.wrap(packet([200])));
+    const timer = setTimeout(() => fault.reject(new Error(timeoutMessage)), bridgeTimeoutMs);
+    try {
+      return await Promise.race([client.getChannel(channel).call(method, args), fault.promise]);
+    } finally { clearTimeout(timer); cancelPeer(peer); client.dispose(); emitter.dispose(); }
   };
   const attach = async (peer, workspacePath, sessionId, suppliedBootstrap) => {
     if (phone?.passthrough) throw Object.assign(new Error('手机当前使用远端工作区，本地 RPC 暂时让位'), { code: 'remote_workspace_busy' });
@@ -128,17 +140,8 @@ export function createRpcBroker({ bootstrap, sendDesktop, sendPhone, bridgeTimeo
     const meta = await ensureHost(workspace.workspacePath);
     // 3.16 bootstrap 不再返回 tasks；由目标工作区 Host 查询会话归属。
     if (sessionId !== undefined && result.result.tasks === undefined) {
-      const emitter = new Emitter();
-      const fault = Promise.withResolvers();
-      const validator = { ids: new Map(), send: bytes => emitter.fire(VSBuffer.wrap(bytes)), fail: error => fault.reject(error) };
-      peers.add(validator);
-      const client = new ChannelClient({ onMessage: emitter.event, send: bytes => request(validator, bytes.buffer), drain: () => Promise.resolve() });
-      emitter.fire(VSBuffer.wrap(packet([200])));
-      const timer = setTimeout(() => fault.reject(new Error('Host session lookup timed out')), bridgeTimeoutMs);
-      try {
-        const task = await Promise.race([client.getChannel('zcode-task').call('getTaskMeta', [{taskId:sessionId,workspacePath:workspace.workspacePath}]), fault.promise]);
-        if (!task || task.taskId !== sessionId || !samePath(task.workspacePath, workspace.workspacePath)) throw new Error('Session is not present in the requested workspace');
-      } finally { clearTimeout(timer); cancelPeer(validator); client.dispose(); emitter.dispose(); }
+      const task = await callHost('zcode-task', 'getTaskMeta', [{ taskId: sessionId, workspacePath: workspace.workspacePath }], 'Host session lookup timed out');
+      if (!task || task.taskId !== sessionId || !samePath(task.workspacePath, workspace.workspacePath)) throw new Error('Session is not present in the requested workspace');
     }
     peers.add(peer);
     return { bootstrap: result.result, workspace_path: workspace.workspacePath, meta };
@@ -161,15 +164,32 @@ export function createRpcBroker({ bootstrap, sendDesktop, sendPhone, bridgeTimeo
         if (phone !== peer) return;
         if (!result.success) throw new Error('Desktop bootstrap failed');
         const workspace = result.result.workspaces.find(w => workspaceKey(w) === payload.workspaceKey);
-        if (!workspace) throw new Error('Requested workspace is not open in the Desktop window');
-        if (workspace.kind !== 'local') {
+        if (!workspace && !payload.project) throw new Error('Requested workspace is not open in the Desktop window');
+        const remote = payload.project ? (payload.project.hostId ?? 'local') !== 'local' : workspace.kind !== 'local';
+        if (remote) {
           if (localPeers.size) throw Object.assign(new Error('本地 RPC 正在使用窗口 Host，暂不能切换远端工作区'), { code: 'remote_workspace_busy' });
           resetPhysical(new Error('Phone switched to a remote workspace'));
           peer.passthrough = true;
           sendDesktop(payload);
           return;
         }
-        const attached = await attach(peer, workspace.workspacePath, undefined, result);
+        let attached;
+        if (payload.project) {
+          if (payload.taskId) throw new Error('Project navigation is unavailable.');
+          const reused = Boolean(physical);
+          // 新桥交给 Desktop 导航；已有桥通过同一 Host 解析项目目录，保留插件连接。
+          const meta = await ensureHost(workspace?.workspacePath ?? payload.workspaceKey, payload.project);
+          if (phone !== peer) return;
+          let targetPath = meta.workspacePath;
+          if (reused) {
+            const input = { ...payload.project };
+            if (input.projectId === null) delete input.projectId;
+            const directories = await callHost('project', 'prepareSession', [input], 'Host project navigation timed out');
+            targetPath = directories.workspacePath;
+          }
+          attached = { meta, workspace_path: targetPath };
+          peers.add(peer);
+        } else attached = await attach(peer, workspace.workspacePath, undefined, result);
         if (phone !== peer) { cancelPeer(peer); return; }
         sendPhone({ zcode_type: 'workspace-bridge-ready', requestId: payload.requestId, ...identity,
           bridge: { ...attached.meta, ...identity, workspaceKey: attached.workspace_path, workspacePath: attached.workspace_path, initialTaskId: payload.taskId } });
