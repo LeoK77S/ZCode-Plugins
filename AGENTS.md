@@ -73,6 +73,6 @@ ZCode-Plugins/
 │   └── skills/             # setup / configuration / debug
 │
 └── sources/                # 上游源码 submodule 引用（只读，见 sources/README.md）
-    ├── official-zcode/     # zai-org/ZCode @ aac47556（v3.15.1 公开快照）
+    ├── official-zcode/     # zai-org/ZCode @ 0a1fc56d（2026-10-19 公开快照，包含 Relay V2）
     └── zcode-open-bridge/  # tizerluo/zcode-open-bridge @ e8bd9bc（社区桥接参考）
 ```

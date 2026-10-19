@@ -6,6 +6,7 @@ import { parseArgs } from 'node:util';
 import { readFile } from 'node:fs/promises';
 import WebSocket, { WebSocketServer } from 'ws';
 import { createRpcBroker } from './rpc-broker.mjs';
+import { startTerminalGateway } from './terminal-gateway.mjs';
 
 export const OFFICIAL_RELAY = 'wss://zcode.z.ai/ws';
 
@@ -17,8 +18,9 @@ function envelope(data, isBinary) {
 }
 
 // 只接受一个 Desktop，消息体及文本/二进制类型原样转发。
-export async function startGateway({ mode = 'relay', upstreamUrl = OFFICIAL_RELAY, port = 0, instanceId = 'standalone', controlToken, bridgeTimeoutMs = 5000, onError = (error) => console.error('gateway socket error:', error.code ?? error.name), onTraffic = () => {} } = {}) {
+export async function startGateway({ mode = 'relay', upstreamUrl = mode === 'terminal' ? 'wss://zcode.z.ai/api/v1/remote/ws2' : OFFICIAL_RELAY, port = 0, instanceId = 'standalone', controlToken, bridgeTimeoutMs = 5000, onError = (error) => console.error('gateway socket error:', error.code ?? error.name), onTraffic = () => {}, deviceSid, deviceMid, getToken, WebSocketImpl } = {}) {
   if (!Number.isInteger(port) || port < 0 || port > 65535) throw new Error('Invalid gateway port');
+  if (mode === 'terminal') return startTerminalGateway({port,instanceId,controlToken,upstreamUrl,deviceSid,deviceMid,getToken,bridgeTimeoutMs,WebSocketImpl,onError});
   if (!['relay', 'local-only'].includes(mode)) throw new Error('Invalid gateway mode');
   let active;
   const http = createServer(async (request, response) => {

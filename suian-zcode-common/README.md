@@ -8,6 +8,8 @@
 
 只有网关是常驻独立进程，其他模块由调用方导入，按需执行。共享代码不等于合并运行数据或给只读 MCP 增加通知。
 
+当前开发分支增加 3.16 实验性 `terminal` 模式，使用外部注入的 token 提供方直连官方 relay，不代理 Desktop。它已通过独立终端联调，但尚不支持同一设备与手机共存，也未接入安装流程；共存是后续交付的必需条件。源码依据、验证范围与待选接入方案见[3.16 网关验证记录](../suian-zcode-app-mcp/docs/zcode-3.16-gateway-validation.md)。下图和既有安装流程描述旧版 relay 模式。
+
 ```mermaid
 flowchart LR
   Desktop[ZCode Desktop] <--> Gateway[公共回环网关]
@@ -46,6 +48,7 @@ npm ci 后运行 link.mjs，将稳定运行入口链接到本公共根，再把�
 | 模块 | 公共接口与调用方 |
 | --- | --- |
 | gateway.mjs | `startGateway()`：独立网关；同进程 `bootstrap()`、`close()` |
+| terminal-gateway.mjs / terminal-relay.mjs | 实验性 `startGateway({mode:'terminal',deviceSid,deviceMid,getToken,controlToken})` 与 `startTerminalRelay()`；token 由调用方提供，未接入安装流程 |
 | gateway-client.mjs / remote.mjs | 插件默认 `connectHost()` / `probeHost()`；旧 `connectRemote()` / `probeRemote()` / `startRelay()` 仅保留显式诊断用途 |
 | rpc-broker.mjs | 一个本地 Host 桥；客户端 RPC 编号、订阅及手机虚拟桥分流 |
 | auth-store.mjs | `saveAuthorization({dataDir,url})`、`loadAuthorization({dataDir})`、`clearAuthorization({dataDir})` |

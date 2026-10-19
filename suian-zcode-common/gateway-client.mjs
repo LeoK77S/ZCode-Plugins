@@ -24,7 +24,7 @@ export async function connectHost({ workspacePath, sessionId, gatewayConfigPath 
   catch (error) { throw failure('gateway_unreachable', '公共网关健康检查失败：' + error.name); }
   if (health.service !== 'suian-zcode-gateway' || health.rpc_protocol_version !== 1) throw failure('gateway_upgrade_required', '运行中的网关未提供 RPC，请按公共 skill 暂停移动端远控并重载网关，保留 ZCode 完成升级');
   const mode = health.mode === undefined ? 'relay' : health.mode;
-  if (!['relay', 'local-only'].includes(mode)) throw failure('gateway_rpc_protocol_error', '公共网关返回未知运行模式');
+  if (!['relay', 'local-only', 'terminal'].includes(mode)) throw failure('gateway_rpc_protocol_error', '公共网关返回未知运行模式');
   if (!health.desktop_connected || (mode === 'local-only' ? !health.desktop_ready : !health.upstream_connected)) throw failure('gateway_desktop_offline', 'Desktop 尚未就绪，或 relay 模式的官方上游尚未连接');
   const ready = Promise.withResolvers(), fault = Promise.withResolvers(), emitter = new Emitter();
   const socket = new WebSocket(`ws://127.0.0.1:${config.port}/rpc`, { headers: { Authorization: `Bearer ${config.control_token}` }, handshakeTimeout: handshakeTimeoutMs });
