@@ -8,6 +8,7 @@
 - 自动化测试与脚本严禁触发 `suian-zcode-title://` 协议激活链路（会弹 ZCode 官方确认模态框，无人值守时无限阻塞）。
 - 公共 vendor 是固定来源的协议与投影库；版本信息见 ../suian-zcode-common/vendor/NOTICE.md，不自动更新。
 - 新行为先写契约测试，记录红绿验证日志（docs/ 下按功能分卷，现有 round2-evidence.json 与 title-lock-evidence.json）；不添加无关功能。
+- 会话 ID 同时接受旧版 `sess_` 与 3.16 的 `session_` 前缀；其余字符仍限制为字母、数字、下划线与连字符。前缀兼容测试不代表真实 3.16 Stop Hook 与自动命名已验收。
 - MCP 创建会话的公共命名策略优先：locked:true 不生成；false 不推断手动保护、要求格式合规。不合规 keep 最多纠正一次并记录理由。既有无策略会话保留原规则。
 
 ## 技术参考（面向维护者）

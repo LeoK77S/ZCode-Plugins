@@ -38,22 +38,34 @@ async function fixture(t, pairStatus = 'matched', options = {}) {
   await once(desktop, 'open');
   let phone;
   const ack = once(desktop, 'message');
-  if (accepted) { [phone] = await accepted; phone.send(JSON.stringify({ type: 'auth_ack', pair_status: pairStatus })); }
+  if (accepted) { [phone] = await accepted; phone.send(JSON.stringify({ type: 'auth_ack', pair_status: pairStatus,
+    ...(options.gateway?.relayProtocolVersion === 2 ? { device_sid: 'd_fixture-v2', server_ts: Math.floor(Date.now() / 1000) } : {}) })); }
   else desktop.send(JSON.stringify({ type: 'auth_init', role: 'device', device_sid: 'd_fixture-existing' }));
   await ack;
-  const requests = [], bridgeOpens = [];
+  const requests = [], bridgeOpens = [], desktopMessages = [], phoneMessages = [];
+  phone?.on('message', data => phoneMessages.push(JSON.parse(data)));
   let identity, assembler, physical = 1, message = 1, helloIssued = false, boundClientId;
+  let desktopPaired = pairStatus === 'matched';
   const respond = (header, body) => {
     for (const f of encode(pack(header, body), { ...identity, firstPhysicalSeq: physical, messageSeq: message++ })) {
       physical++; desktop.send(JSON.stringify({ type: 'data', payload: f }));
     }
   };
   desktop.on('message', data => {
-    const p = JSON.parse(data).payload;
+    const incoming = JSON.parse(data);
+    desktopMessages.push(incoming);
+    if (incoming.type === 'pair_status_ack') {
+      if (options.gateway?.relayProtocolVersion === 2 && Object.keys(incoming).some(key => !['type', 'terminal_sid', 'pair_status', 'server_ts'].includes(key))) return;
+      desktopPaired = incoming.pair_status === 'matched';
+    }
+    // V2 auth_ack 只在首次鉴权时生效；后续配对变化由 pair_status_ack 驱动。
+    if (options.gateway?.relayProtocolVersion === 2 && incoming.type === 'data' && !desktopPaired) return;
+    const p = incoming.payload;
     if (p?.zcode_type === 'bootstrap-request') {
       desktop.send(JSON.stringify({ type: 'data', payload: { zcode_type: 'bootstrap-response', requestId: p.requestId, success: true,
         result: { workspaces: [{ kind: 'local', workspacePath: workspace }, { kind: 'local', workspacePath: 'D:\\other' },
-          { kind: 'remote', workspacePath: '/remote', workspaceIdentity: 'remote:fixture', remoteSessionId: 'remote-session-fixture' }], tasks: [] } } }));
+          { kind: 'remote', workspacePath: '/remote', workspaceIdentity: 'remote:fixture', remoteSessionId: 'remote-session-fixture' }],
+          ...(options.gateway?.relayProtocolVersion === 2 ? { desktopAppVersion: '3.16.1', windowControlSessionId: 'fixture-window', mobileTaskViewEpoch: 1 } : { tasks: [] }) } } }));
     } else if (p?.zcode_type === 'workspace-bridge-open') {
       bridgeOpens.push(p);
       if (options.ignoreBridge) return;
@@ -95,15 +107,28 @@ async function fixture(t, pairStatus = 'matched', options = {}) {
       }
     }
   });
-  return { gateway, desktop, phone, relay, requests, bridgeOpens, respond, faults };
+  return { gateway, desktop, phone, relay, requests, bridgeOpens, respond, faults, desktopMessages, phoneMessages };
 }
 
-test('v4 手机与多个本地客户端分别握手后共用 Host 桥，后加入者及重连者仍可发信', { timeout: 5000 }, async t => {
+test('V2 首次心跳前本地插件即可附着，配对通知不能重复使用 auth_ack', { timeout: 2500 }, async t => {
+  const { connectHost } = await import('../gateway-client.mjs');
+  const f = await fixture(t, 'waiting', { gateway: { relayProtocolVersion: 2 } });
+  const dir = await mkdtemp(join(tmpdir(), 'zcode-v2-before-heartbeat-'));
+  t.after(() => rm(dir, { recursive: true }));
+  const gatewayConfigPath = join(dir, 'config.json');
+  await writeFile(gatewayConfigPath, JSON.stringify({ version: 1, port: Number(new URL(f.gateway.url).port), control_token: 'fixture-rpc-token' }));
+  const client = await connectHost({ workspacePath: workspace, gatewayConfigPath, handshakeTimeoutMs: 1000 });
+  t.after(() => client.close());
+  assert.equal(client.bootstrap.desktopAppVersion, '3.16.1');
+  assert.ok(f.desktopMessages.some(message => message.type === 'pair_status_ack' && message.pair_status === 'matched'));
+});
+
+for (const relayProtocolVersion of [1, 2]) test(`relay V${relayProtocolVersion}：v4 手机与多个本地客户端分别握手后共用 Host 桥，后加入者及重连者仍可发信`, { timeout: 5000 }, async t => {
   const { connectHost } = await import('../gateway-client.mjs');
   for (const phoneFirst of [true, false, 'parallel']) {
     const gate = Promise.withResolvers(), phoneInitializing = Promise.withResolvers();
     t.after(() => gate.resolve());
-    const f = await fixture(t, 'matched', { v4Host: true, beforeInitializeAck: async params => {
+    const f = await fixture(t, 'matched', { gateway: { relayProtocolVersion }, v4Host: true, beforeInitializeAck: async params => {
       if (phoneFirst === 'parallel' && params.capabilities?.workflowRunDeltas === true) {
         phoneInitializing.resolve(); await gate.promise;
       }
@@ -189,6 +214,17 @@ test('v4 手机与多个本地客户端分别握手后共用 Host 桥，后加�
     const commands = f.requests.filter(([header]) => header[3] === 'sendConversationCommandV4');
     assert.ok(commands.every(([, body]) => body[0].envelope.payload.text === '原样正文'));
     assert.equal(f.requests.filter(([header]) => header[3] === 'initializeConversationV4').at(-1)[1][0].capabilities.workflowRunDeltas, true);
+    if (relayProtocolVersion === 2) {
+      for (const message of f.desktopMessages.filter(m => m.type === 'data')) {
+        assert.equal(message.client_ts, undefined);
+        assert.ok(Math.abs(message.server_ts - Math.floor(Date.now() / 1000)) <= 5);
+      }
+      assert.ok(f.phoneMessages.some(m => m.type === 'data'));
+      for (const message of f.phoneMessages.filter(m => m.type === 'data')) {
+        assert.equal(message.server_ts, undefined);
+        assert.ok(Math.abs(message.client_ts - Math.floor(Date.now() / 1000)) <= 5);
+      }
+    }
   }
 });
 

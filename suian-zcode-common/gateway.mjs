@@ -6,8 +6,10 @@ import { parseArgs } from 'node:util';
 import { readFile } from 'node:fs/promises';
 import WebSocket, { WebSocketServer } from 'ws';
 import { createRpcBroker } from './rpc-broker.mjs';
+import { startTerminalGateway } from './terminal-gateway.mjs';
 
 export const OFFICIAL_RELAY = 'wss://zcode.z.ai/ws';
+export const OFFICIAL_RELAY_V2 = 'wss://zcode.z.ai/api/v1/remote/ws2';
 
 // JSON 只用于观察路由字段；其他文本和二进制消息仍作为不透明数据转发。
 function envelope(data, isBinary) {
@@ -17,8 +19,10 @@ function envelope(data, isBinary) {
 }
 
 // 只接受一个 Desktop，消息体及文本/二进制类型原样转发。
-export async function startGateway({ mode = 'relay', upstreamUrl = OFFICIAL_RELAY, port = 0, instanceId = 'standalone', controlToken, bridgeTimeoutMs = 5000, onError = (error) => console.error('gateway socket error:', error.code ?? error.name), onTraffic = () => {} } = {}) {
+export async function startGateway({ mode = 'relay', relayProtocolVersion = 1, upstreamUrl = mode === 'terminal' || relayProtocolVersion === 2 ? OFFICIAL_RELAY_V2 : OFFICIAL_RELAY, port = 0, instanceId = 'standalone', controlToken, bridgeTimeoutMs = 5000, onError = (error) => console.error('gateway socket error:', error.code ?? error.name), onTraffic = () => {}, deviceSid, deviceMid, getToken, WebSocketImpl } = {}) {
   if (!Number.isInteger(port) || port < 0 || port > 65535) throw new Error('Invalid gateway port');
+  if (![1, 2].includes(relayProtocolVersion)) throw new Error('Invalid relay protocol version');
+  if (mode === 'terminal') return startTerminalGateway({port,instanceId,controlToken,upstreamUrl,deviceSid,deviceMid,getToken,bridgeTimeoutMs,WebSocketImpl,onError});
   if (!['relay', 'local-only'].includes(mode)) throw new Error('Invalid gateway mode');
   let active;
   const http = createServer(async (request, response) => {
@@ -32,7 +36,7 @@ export async function startGateway({ mode = 'relay', upstreamUrl = OFFICIAL_RELA
     }
     if (request.method !== 'GET' || request.url !== '/health') { response.writeHead(404).end(); return; }
     response.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }).end(JSON.stringify({
-      service: 'suian-zcode-gateway', version: 1, instance_id: instanceId, upstream_url: upstreamUrl, mode,
+      service: 'suian-zcode-gateway', version: 1, instance_id: instanceId, upstream_url: upstreamUrl, mode, relay_protocol_version: relayProtocolVersion,
       desktop_connected: active?.desktop.readyState === WebSocket.OPEN,
       desktop_ready: active?.authenticated ?? false,
       upstream_connected: active?.upstream?.readyState === WebSocket.OPEN,
@@ -57,14 +61,14 @@ export async function startGateway({ mode = 'relay', upstreamUrl = OFFICIAL_RELA
     const connection = active;
     connection.localClients.add(socket);
     connection.paired = true;
-    if (mode === 'relay' && !connection.phonePaired) connection.desktop.send(JSON.stringify({ ...connection.lastPairAck, pair_status: 'matched' }));
+    if (mode === 'relay' && !connection.phonePaired) connection.sendPairStatus('matched');
     socket.on('error', onError);
     connection.broker.acceptLocal(socket);
     socket.on('close', () => {
       connection.localClients.delete(socket);
       if (active !== connection) return;
       connection.paired = connection.authenticated && (mode === 'local-only' || connection.phonePaired || connection.localClients.size > 0);
-      if (!connection.paired && connection.authenticated) connection.desktop.send(JSON.stringify(connection.lastPairAck));
+      if (!connection.paired && connection.authenticated) connection.sendPairStatus(connection.lastPairAck.pair_status);
     });
   });
   const closeGateway = async () => {
@@ -85,15 +89,23 @@ export async function startGateway({ mode = 'relay', upstreamUrl = OFFICIAL_RELA
     let upstream;
     if (mode === 'relay') {
       const address = new URL(upstreamUrl);
-      const mid = new URL(request.url, 'http://127.0.0.1').searchParams.get('mid');
+      const query = new URL(request.url, 'http://127.0.0.1').searchParams;
+      const mid = query.get('mid');
       if (mid !== null) address.searchParams.set('mid', mid);
+      if (relayProtocolVersion === 2 && query.has('token')) address.searchParams.set('token', query.get('token'));
       const deviceId = request.headers['x-device-id'];
       upstream = new WebSocket(address, { headers: deviceId ? { 'X-Device-ID': deviceId } : {} });
     }
     const connection = { desktop, upstream, paired: false, phonePaired: false, authenticated: false, localClients: new Set(), pending: new Map(), localIds: new Set() };
-    const sendData = (socket, payload) => socket.send(JSON.stringify({ type: 'data', payload, client_ts: Date.now() }));
+    connection.sendPairStatus = pair_status => desktop.send(JSON.stringify(relayProtocolVersion === 2
+      ? { type: 'pair_status_ack', pair_status, server_ts: Math.floor(Date.now() / 1000),
+        ...(connection.lastPairAck.terminal_sid === undefined ? {} : { terminal_sid: connection.lastPairAck.terminal_sid }) }
+      : { ...connection.lastPairAck, pair_status }));
+    const sendData = (socket, payload) => socket.send(JSON.stringify({ type: 'data', payload,
+      ...(relayProtocolVersion === 2 ? { [socket === desktop ? 'server_ts' : 'client_ts']: Math.floor(Date.now() / 1000) } : { client_ts: Date.now() }) }));
+    connection.sendDesktop = payload => sendData(desktop, payload);
     connection.broker = createRpcBroker({ bootstrap: () => requestBootstrap(connection), bridgeTimeoutMs,
-      sendDesktop: payload => sendData(desktop, payload), sendPhone: payload => { if (upstream?.readyState === WebSocket.OPEN) sendData(upstream, payload); } });
+      sendDesktop: connection.sendDesktop, sendPhone: payload => { if (upstream?.readyState === WebSocket.OPEN) sendData(upstream, payload); } });
     active = connection;
     const queued = [];
     const rejectPending = (error) => {
@@ -179,7 +191,7 @@ export async function startGateway({ mode = 'relay', upstreamUrl = OFFICIAL_RELA
         if (!connection.phonePaired) connection.broker.phoneDisconnected();
         connection.paired = connection.authenticated && (connection.phonePaired || connection.localClients.size > 0);
         if (!connection.paired) rejectPending(new Error('配对结束'));
-        if (connection.authenticated && !connection.phonePaired && connection.localClients.size > 0) { desktop.send(JSON.stringify({ ...message, pair_status: 'matched' })); return; }
+        if (connection.authenticated && !connection.phonePaired && connection.localClients.size > 0) { connection.sendPairStatus('matched'); return; }
       }
       // 3.14.4 已鉴权状态下 WRONG_PARAM 非致命，INTERNAL 等待重新配对但不重做鉴权。
       if (message?.type === 'error' && !(connection.authenticated && message.code === 'WRONG_PARAM')) {
@@ -189,7 +201,7 @@ export async function startGateway({ mode = 'relay', upstreamUrl = OFFICIAL_RELA
         connection.paired = connection.authenticated && connection.localClients.size > 0;
         if (connection.authenticated) connection.lastPairAck = { ...connection.lastPairAck, pair_status: 'waiting' };
         // 已鉴权的 INTERNAL 仅影响手机配对；本地 Host 调用可能仍在执行，不截断其 ACK。
-        if (connection.paired) { desktop.send(JSON.stringify({ ...connection.lastPairAck, pair_status: 'matched' })); return; }
+        if (connection.paired) { connection.sendPairStatus('matched'); return; }
         rejectPending(new Error(`relay error: ${message.code}`));
         connection.broker.close(new Error(`relay error: ${message.code}`));
       }
@@ -209,7 +221,7 @@ export async function startGateway({ mode = 'relay', upstreamUrl = OFFICIAL_RELA
     return new Promise((resolve, reject) => {
       const timer = setTimeout(() => { connection.pending.delete(requestId); reject(new Error('bootstrap 超时')); }, timeoutMs);
       connection.pending.set(requestId, { resolve, reject, timer });
-      connection.desktop.send(JSON.stringify({ type: 'data', payload: { zcode_type: 'bootstrap-request', requestId }, client_ts: Date.now() }));
+      connection.sendDesktop({ zcode_type: 'bootstrap-request', requestId });
     });
   }
   return {
@@ -223,13 +235,14 @@ export async function startGateway({ mode = 'relay', upstreamUrl = OFFICIAL_RELA
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
-  const { values } = parseArgs({ options: { config: { type: 'string' }, mode: { type: 'string', default: 'relay' }, port: { type: 'string', default: '17329' }, upstream: { type: 'string', default: OFFICIAL_RELAY }, 'instance-id': { type: 'string', default: 'standalone' } } });
-  let options = { mode: values.mode, port: Number(values.port), upstreamUrl: values.upstream, instanceId: values['instance-id'] };
+  const { values } = parseArgs({ options: { config: { type: 'string' }, mode: { type: 'string', default: 'relay' }, 'relay-protocol-version': { type: 'string', default: '1' }, port: { type: 'string', default: '17329' }, upstream: { type: 'string' }, 'instance-id': { type: 'string', default: 'standalone' } } });
+  let options = { mode: values.mode, relayProtocolVersion: Number(values['relay-protocol-version']), port: Number(values.port), upstreamUrl: values.upstream, instanceId: values['instance-id'] };
   if (values.config) {
     const config = JSON.parse(await readFile(values.config, 'utf8'));
     if (config.version !== 1 || typeof config.control_token !== 'string' || !config.control_token) throw new Error('Invalid gateway config');
-    options = { mode: config.mode === undefined ? 'relay' : config.mode, port: config.port, upstreamUrl: config.upstream_url, instanceId: config.instance_id, controlToken: config.control_token };
+    options = { mode: config.mode === undefined ? 'relay' : config.mode, relayProtocolVersion: config.relay_protocol_version ?? 1, port: config.port, upstreamUrl: config.upstream_url, instanceId: config.instance_id, controlToken: config.control_token };
   }
+  options.upstreamUrl ??= options.relayProtocolVersion === 2 ? OFFICIAL_RELAY_V2 : OFFICIAL_RELAY;
   const upstream = new URL(options.upstreamUrl);
   if ((upstream.protocol !== 'wss:' && !(upstream.protocol === 'ws:' && upstream.hostname === '127.0.0.1')) || upstream.username || upstream.password || upstream.search || upstream.hash) throw new Error('Upstream must be a credential-free wss URL (or loopback ws for testing)');
   const gateway = await startGateway(options);

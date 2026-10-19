@@ -5,6 +5,29 @@ import { createHmac } from 'node:crypto';
 import WebSocket, { WebSocketServer } from 'ws';
 import { startGateway } from '../gateway.mjs';
 
+test('V2 原样转发一次性 token、mid 与鉴权，注入 Desktop 的数据使用服务器秒级时间戳', { timeout: 3000 }, async t => {
+  const { gateway, desktop, upstream, relay } = await connectedFixture(t, 'matched', { relayProtocolVersion: 2 });
+  // 隔离测试只使用合成 token。
+  const request = relay.fixtureRequest;
+  assert.equal(new URL(request.url, 'http://127.0.0.1').searchParams.get('token'), 'fixture-single-use-token');
+  assert.equal(new URL(request.url, 'http://127.0.0.1').searchParams.get('mid'), 'fixture-v2-mid');
+  const auth = JSON.stringify({ type: 'auth_init', device_sid: 'd_fixture-v2', client_ts: Math.floor(Date.now() / 1000) });
+  const forwarded = once(upstream, 'message');
+  desktop.send(auth);
+  assert.equal((await forwarded)[0].toString(), auth);
+  const requested = once(desktop, 'message');
+  const pending = gateway.bootstrap();
+  const message = JSON.parse((await requested)[0].toString());
+  assert.equal(message.type, 'data');
+  assert.equal(message.client_ts, undefined);
+  assert.ok(Math.abs(message.server_ts - Math.floor(Date.now() / 1000)) <= 1);
+  desktop.send(JSON.stringify({ type: 'data', payload: { zcode_type: 'bootstrap-response', requestId: message.payload.requestId, success: true, result: { desktopAppVersion: '3.16.1', workspaces: [] } }, client_ts: Math.floor(Date.now() / 1000) }));
+  assert.equal((await pending).result.desktopAppVersion, '3.16.1');
+  const health = await (await fetch(gateway.url.replace('ws:', 'http:').replace('/ws', '/health'))).json();
+  assert.equal(health.relay_protocol_version, 2);
+  assert.equal(relay.clients.size, 1);
+});
+
 test('健康入口区分网关、设备连接和配对，拒绝浏览器连接且不返回认证材料', { timeout: 3000 }, async (t) => {
   const { gateway, desktop, upstream, relay } = await connectedFixture(t, 'matched', { instanceId: 'fixture-installation', controlToken: 'fixture-health-token' });
   const healthUrl = gateway.url.replace('ws:', 'http:').replace('/ws', '/health');
@@ -14,7 +37,7 @@ test('健康入口区分网关、设备连接和配对，拒绝浏览器连接�
     service: 'suian-zcode-gateway', version: 1, instance_id: 'fixture-installation', mode: 'relay',
     upstream_url: `ws://127.0.0.1:${relay.address().port}/ws`,
     desktop_connected: true, desktop_ready: true, upstream_connected: true, paired: true,
-    upstream_paired: true, local_clients: 0, rpc_protocol_version: 1,
+    upstream_paired: true, local_clients: 0, rpc_protocol_version: 1, relay_protocol_version: 1,
   });
   const changed = once(desktop, 'message');
   upstream.send('{"type":"pair_status_ack","pair_status":"waiting"}');
@@ -98,10 +121,11 @@ async function connectedFixture(t, pairStatus, options = {}) {
   const gateway = await startGateway({ upstreamUrl: `ws://127.0.0.1:${relay.address().port}/ws`, ...options });
   t.after(() => gateway.close());
   const accepted = once(relay, 'connection');
-  const desktop = new WebSocket(gateway.url);
+  const desktop = new WebSocket(gateway.url + (options.relayProtocolVersion === 2 ? '?token=fixture-single-use-token&mid=fixture-v2-mid' : ''));
   t.after(() => desktop.terminate());
   const opened = once(desktop, 'open');
-  const [upstream] = await accepted;
+  const [upstream, request] = await accepted;
+  relay.fixtureRequest = request;
   await opened;
   const ack = once(desktop, 'message');
   upstream.send(JSON.stringify({ type: 'auth_ack', pair_status: pairStatus }));

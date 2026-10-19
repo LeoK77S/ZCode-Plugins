@@ -3,6 +3,8 @@ import { win32 } from 'node:path';
 import { Hs as encode, Bs as Assembler, Ws as parse, S as workspaceKey } from './vendor/remote-shared.js';
 import { BufferReader, BufferWriter, deserialize, serialize } from './vendor/serialization.js';
 import { VSBuffer } from './vendor/buffer.js';
+import { ChannelClient } from './vendor/channelClient.js';
+import { Emitter } from './vendor/foundation.js';
 
 const samePath = (a, b) => win32.normalize(a).toLowerCase() === win32.normalize(b).toLowerCase();
 const packet = (header, tail = Buffer.from([0])) => {
@@ -122,8 +124,22 @@ export function createRpcBroker({ bootstrap, sendDesktop, sendPhone, bridgeTimeo
     if (!result.success) throw new Error('Desktop bootstrap failed');
     const workspace = result.result.workspaces.find(w => w.kind === 'local' && samePath(w.workspacePath, workspacePath));
     if (!workspace) throw new Error('Requested local workspace is not open in the Desktop window');
-    if (sessionId !== undefined && !result.result.tasks.some(t => t.taskId === sessionId && samePath(t.workspacePath, workspace.workspacePath))) throw new Error('Session is not present in the requested workspace');
+    if (sessionId !== undefined && result.result.tasks !== undefined && !result.result.tasks.some(t => t.taskId === sessionId && samePath(t.workspacePath, workspace.workspacePath))) throw new Error('Session is not present in the requested workspace');
     const meta = await ensureHost(workspace.workspacePath);
+    // 3.16 bootstrap 不再返回 tasks；由目标工作区 Host 查询会话归属。
+    if (sessionId !== undefined && result.result.tasks === undefined) {
+      const emitter = new Emitter();
+      const fault = Promise.withResolvers();
+      const validator = { ids: new Map(), send: bytes => emitter.fire(VSBuffer.wrap(bytes)), fail: error => fault.reject(error) };
+      peers.add(validator);
+      const client = new ChannelClient({ onMessage: emitter.event, send: bytes => request(validator, bytes.buffer), drain: () => Promise.resolve() });
+      emitter.fire(VSBuffer.wrap(packet([200])));
+      const timer = setTimeout(() => fault.reject(new Error('Host session lookup timed out')), bridgeTimeoutMs);
+      try {
+        const task = await Promise.race([client.getChannel('zcode-task').call('getTaskMeta', [{taskId:sessionId,workspacePath:workspace.workspacePath}]), fault.promise]);
+        if (!task || task.taskId !== sessionId || !samePath(task.workspacePath, workspace.workspacePath)) throw new Error('Session is not present in the requested workspace');
+      } finally { clearTimeout(timer); cancelPeer(validator); client.dispose(); emitter.dispose(); }
+    }
     peers.add(peer);
     return { bootstrap: result.result, workspace_path: workspace.workspacePath, meta };
   };

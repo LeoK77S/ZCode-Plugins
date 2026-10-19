@@ -5,7 +5,7 @@ import { randomUUID } from 'node:crypto';
 
 const defaultDirectory = join(homedir(), '.zcode', 'tools', 'suian-zcode-common', 'session-titles');
 function policyFile(directory, sessionId) {
-  if (!/^sess_[A-Za-z0-9_-]+$/.test(sessionId)) throw new Error('Invalid title policy sessionId');
+  if (!/^sess(?:ion)?_[A-Za-z0-9_-]+$/.test(sessionId)) throw new Error('Invalid title policy sessionId');
   return join(directory, sessionId + '.json');
 }
 export async function readTitlePolicy({ sessionId, directory = defaultDirectory }) {

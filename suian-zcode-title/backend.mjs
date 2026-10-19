@@ -5,7 +5,7 @@ import {connectHost} from "suian-zcode-common/remote.mjs";
 import {readHistory,recentSnapshot} from "./history.mjs";
 import {readTitlePolicy as loadTitlePolicy} from "suian-zcode-common/title-policy.mjs";
 
-const SESSION_ID_RE=/^sess_[A-Za-z0-9_-]+$/;
+const SESSION_ID_RE=/^sess(?:ion)?_[A-Za-z0-9_-]+$/;
 
 export function createBackend({event,config,saveState,prompt,connect=connectHost,readTitlePolicy=loadTitlePolicy}) {
   const sessionId=event.session_id;

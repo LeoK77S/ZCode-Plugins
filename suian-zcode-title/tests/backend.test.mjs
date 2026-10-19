@@ -5,9 +5,9 @@ import {execFileSync} from "node:child_process";
 import {mkdtempSync,rmSync} from "node:fs";
 import {join} from "node:path";
 import {tmpdir} from "node:os";
-test("后端读取双库状态，指定模型辅助生成，原 Host 改名后校验读回",async()=>{
+for (const sessionId of ['sess_fixture', 'session_316_fixture']) test(`命名后端兼容 ${sessionId.split('_')[0]} 前缀，读双库、辅助生成和原 Host 改名核验`,async()=>{
   const root=mkdtempSync(join(tmpdir(),"z-title-backend-")),sessionDb=join(root,"session.sqlite"),indexDb=join(root,"index.sqlite");
-  const sqliteBin=process.env.SQLITE_BIN||"sqlite3",workspacePath="D:\\fixture",sessionId="sess_fixture";
+  const sqliteBin=process.env.SQLITE_BIN||"sqlite3",workspacePath="D:\\fixture";
   execFileSync(sqliteBin,[sessionDb,[
     "CREATE TABLE session(id,title,directory,path,revert,title_source);",
     "CREATE TABLE message(id,session_id,time_created,time_updated,data,sequence);",
@@ -15,8 +15,8 @@ test("后端读取双库状态，指定模型辅助生成，原 Host 改名后�
     "INSERT INTO session VALUES('sess_fixture','原名','D:\\fixture',NULL,NULL,'custom');",
     "INSERT INTO message VALUES('u1','sess_fixture',1,1,'"+JSON.stringify({role:"user"})+"',1);",
     "INSERT INTO part VALUES('p1','u1','sess_fixture',1,1,'"+JSON.stringify({type:"text",text:"改进编辑体验"})+"',1);"
-  ].join("\n")]);
-  execFileSync(sqliteBin,[indexDb,"CREATE TABLE tasks(task_id,workspace_path,title,archived,deleted,task_status);INSERT INTO tasks VALUES('sess_fixture','D:\\fixture','原名',0,0,'completed');"]);
+  ].join("\n").replaceAll('sess_fixture',sessionId)]);
+  execFileSync(sqliteBin,[indexDb,"CREATE TABLE tasks(task_id,workspace_path,title,archived,deleted,task_status);INSERT INTO tasks VALUES('sess_fixture','D:\\fixture','原名',0,0,'completed');".replaceAll('sess_fixture',sessionId)]);
   const selection={providerId:"fixture-provider",modelId:"fixture-model",options:{reasoningLevel:"low"}},calls=[];
   const remote={
     call:async(channel,method,args)=>{

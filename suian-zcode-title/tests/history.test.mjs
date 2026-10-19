@@ -20,7 +20,7 @@ test("按真实用户输入合并多条助手，取三轮并排除内部提醒�
   const changed=recentSnapshot({session,messages:[...messages,m("u4","user","后续输入")]},"D:\\测试工程");
   assert.notEqual(changed.fingerprint,snap.fingerprint);
 });
-test("SQLite 只读读取按 sequence 重建文本分片，工作区不匹配时拒绝",async()=>{
+for (const sessionId of ['sess_fixture', 'session_316_fixture']) test(`SQLite 只读历史兼容 ${sessionId.split('_')[0]} 前缀，按 sequence 重建并校验工作区`,async()=>{
   const root=mkdtempSync(join(tmpdir(),"z-title-fixture-")),db=join(root,"fixture.sqlite"),sqliteBin=process.env.SQLITE_BIN||"sqlite3";
   try {
     const sql=[
@@ -32,11 +32,11 @@ test("SQLite 只读读取按 sequence 重建文本分片，工作区不匹配时
       "INSERT INTO part VALUES('p2','u1','sess_fixture',1,1,'"+JSON.stringify({type:"text",text:"第二段"})+"',2);",
       "INSERT INTO part VALUES('p1','u1','sess_fixture',2,2,'"+JSON.stringify({type:"text",text:"第一段"})+"',1);"
     ].join("\n");
-    execFileSync(sqliteBin,[db,sql]);
-    const result=await readHistory({dbPath:db,sqliteBin,sessionId:"sess_fixture",workspacePath:"D:\\fixture"});
+    execFileSync(sqliteBin,[db,sql.replaceAll('sess_fixture',sessionId)]);
+    const result=await readHistory({dbPath:db,sqliteBin,sessionId,workspacePath:"D:\\fixture"});
     assert.equal(result.messages[0].info.id,"u1");
     assert.deepEqual(result.messages[0].parts.map(p=>p.text),["第一段","第二段"]);
-    await assert.rejects(readHistory({dbPath:db,sqliteBin,sessionId:"sess_fixture",workspacePath:"D:\\other"}),/工作区/);
+    await assert.rejects(readHistory({dbPath:db,sqliteBin,sessionId,workspacePath:"D:\\other"}),/工作区/);
     assert.equal(execFileSync(sqliteBin,["-readonly",db,"SELECT count(*) FROM part;"],{encoding:"utf8"}).trim(),"2");
   } finally {rmSync(root,{recursive:true});}
 });

@@ -4,6 +4,26 @@
 
 ## [Unreleased]
 
+## [0.8.1] - 2026-10-19
+
+搭配公共插件 suian-zcode-common 0.3.0，支持 ZCode 3.16 的核心会话操作，并保留手机远控共存。
+
+### Bug 修复
+
+**ZCode 3.16 在线会话控制**
+
+- 通过公共网关连接 ZCode 3.16，可以在手机连接期间更名、创建会话、发送消息和读取回复。
+- 使用时需要登录 ZCode 账号，并能连接官方远控服务；插件不要求手机扫码或保持在线。
+- 本机会话和历史查询继续独立于远控连接。
+
+### 其他改进
+
+- 更新安装、配置与排障说明，按应用版本区分连接条件；兼容实现见 `485cdc1`。
+
+> **本地模式限制**：ZCode 3.16 暂不支持 local-only；已支持的旧版本保留原有配置。
+
+> **安装限制**：ZCode 3.16 的网关连接需要单独配置，现有 Windows 自动安装命令仍使用旧版连接配置。
+
 ## [0.8.0] - 2026-10-18
 
 新增定时任务管理能力：查询、暂停/恢复，以及定时任务派发轮内恢复官方 Cron 工具调用的唤醒语法糖。
@@ -236,6 +256,7 @@
 仓库尚未建立版本标签，以下版本链接使用对应源码提交。
 
 <!-- 变更链接 -->
+[0.8.1]: https://github.com/ONEGAYI/ZCode-Plugins/compare/cbb4f7613c53a66bf0a2f6c62ba641587462f51f...485cdc1be1c1ee9ad356e682df1374fe41d6d5c0
 [0.7.2]: https://github.com/ONEGAYI/ZCode-Plugins/compare/cd747c3f59cb3d160da1f92f283c6ed4bca30102...bf4e6db5713ab622f6cbffccd06e952ede96951b
 [0.7.1]: https://github.com/ONEGAYI/ZCode-Plugins/compare/2e92187293caba3c2bf98077a8160b0ae95bb662...cd747c3f59cb3d160da1f92f283c6ed4bca30102
 [0.7.0]: https://github.com/ONEGAYI/ZCode-Plugins/compare/2d1e036cde4577cc65322380f536e2e0e8b8e99829a554050faea864c4936a1e37d2ca3f2...2e92187293caba3c2bf98077a8160b0ae95bb662
