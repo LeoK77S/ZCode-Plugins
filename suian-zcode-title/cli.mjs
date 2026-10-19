@@ -16,6 +16,19 @@ import {saveAuthorization as storeAuthorization,clearAuthorization} from "suian-
 import {readTitlePolicy,writeTitlePolicy} from "suian-zcode-common/title-policy.mjs";
 import {runDoctor} from "./doctor.mjs";
 
+// 同一时间只允许一个命名进程使用共享远控连接；并发 Stop 时排队等待，而不是立即失败。
+const LEASE_WAIT_MS=Number(process.env.OIL_ZCODE_TITLE_LEASE_WAIT_MS??30000),LEASE_POLL_MS=250;
+const acquireLease=async path=>{
+  const deadline=Date.now()+LEASE_WAIT_MS;
+  for(;;) {
+    try {return await open(path,"wx");}
+    catch(error) {
+      if(error.code!=="EEXIST")throw error;
+      if(Date.now()>=deadline)throw new Error("busy：另一个命名进程持有共享远控连接");
+      await new Promise(resolve=>setTimeout(resolve,LEASE_POLL_MS));
+    }
+  }
+};
 const args=process.argv.slice(2);
 if(args.includes("--help")||!args.length) {
    console.log("用法：node cli.mjs run [--apply] [--config 文件]\n      node cli.mjs doctor|models|probe|status|enable|disable|auth|unauth [--config 文件]\n      node cli.mjs lock|unlock|policy [--config 文件]（固定/解除固定/查询会话标题策略；先校验目标会话存在）\nstdin JSON：session_id、workspace_path（或 cwd）、可选 user_message_id。\n原 Host 调用统一走公共网关；请先按公共 skill 安装或重载。auth / unauth 保留为旧凭据管理入口，不参与网关调用。\n网关类失败弹原生 Toast（2 小时冷却），设 OIL_ZCODE_TITLE_DISABLE_TOAST=1 静音。");
@@ -58,8 +71,7 @@ if(args.includes("--help")||!args.length) {
     else {
       await mkdir(dataDir,{recursive:true});
       const requestedLeasePath=join(dataDir,"worker.lock");
-      try {lease=await open(requestedLeasePath,"wx");leasePath=requestedLeasePath;}
-      catch(error) {if(error.code==="EEXIST")throw new Error("busy：另一个命名进程持有共享远控连接");throw error;}
+      lease=await acquireLease(requestedLeasePath);leasePath=requestedLeasePath;
       await lease.writeFile(JSON.stringify({pid:process.pid,startedAt:new Date().toISOString()}));
       let result;
       if(command==="models") {

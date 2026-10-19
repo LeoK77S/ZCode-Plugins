@@ -225,4 +225,20 @@ test("run 双库标题不一致时以 index_title_mismatch 显式失败，不弹
     assert.equal(parsed.toast,undefined,"本地校验失败不弹 Toast");
   } finally {rmSync(root,{recursive:true});}
 });
+test("命名锁被占用时排队等待，超时才报 busy",()=>{
+  const root=mkdtempSync(join(tmpdir(),"z-title-lease-")),config=join(root,"config.json"),state=join(root,"state");
+  mkdirSync(state,{recursive:true});
+  writeFileSync(join(state,"worker.lock"),JSON.stringify({pid:999999,startedAt:new Date().toISOString()}));
+  try {
+    writeFileSync(config,JSON.stringify({dataDir:state,enabled:true,sessionDb:join(root,"missing.sqlite"),indexDb:join(root,"missing-index.sqlite"),gatewayConfigPath:join(root,"missing-gateway.json")}));
+    const started=Date.now();
+    const run=spawnSync(process.execPath,[cli,"run","--config",config],{
+      encoding:"utf8",input:JSON.stringify({session_id:"sess_fixture",cwd:"D:\\fixture"}),windowsHide:true,
+      env:{...process.env,OIL_ZCODE_TITLE_LEASE_WAIT_MS:"600",OIL_ZCODE_TITLE_DISABLE_TOAST:"1"}
+    });
+    const elapsed=Date.now()-started;
+    assert.ok(elapsed>=500,`应等待锁释放，实际 ${elapsed}ms`);
+    assert.match(run.stdout,/busy/);
+  } finally {rmSync(root,{recursive:true});}
+});
 
