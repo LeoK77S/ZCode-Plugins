@@ -38,9 +38,15 @@ export function recentSnapshot({session,messages},workspacePath) {
     const ids=new Map(messages.map(m=>[m.info.id,m]));
     const targetIndex=messages.findIndex(m=>m.info.id===revert.targetMessageID);
     if(!revert.keptMessageIDs&&targetIndex<0)throw new Error("回退目标不在持久化历史中");
-    const kept=revert.keptMessageIDs?revert.keptMessageIDs.map(id=>ids.get(id)).filter(Boolean):messages.slice(0,targetIndex);
+    // 3.16 的 conversation_rewind 用空数组表示回退点之前不保留任何消息，
+    // 并用 branchCutAfterMessageID 标出旧分支末尾；旧版则用 createdMessageID 指向回退通知。
+    const kept=Array.isArray(revert.keptMessageIDs)
+      ?(revert.keptMessageIDs.length?revert.keptMessageIDs.map(id=>ids.get(id)).filter(Boolean):[])
+      :messages.slice(0,targetIndex);
+    const cutIndex=revert.branchCutAfterMessageID?messages.findIndex(m=>m.info.id===revert.branchCutAfterMessageID):-1;
     const createdIndex=messages.findIndex(m=>m.info.id===revert.createdMessageID);
-    active=createdIndex>=0?[...kept,...messages.slice(createdIndex)]:kept;
+    const tail=cutIndex>=0?messages.slice(cutIndex+1):createdIndex>=0?messages.slice(createdIndex):[];
+    active=[...kept,...tail];
   }
   const users=[],byUser=new Map();
   for(const message of active) {

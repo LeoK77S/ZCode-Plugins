@@ -20,6 +20,15 @@ test("按真实用户输入合并多条助手，取三轮并排除内部提醒�
   const changed=recentSnapshot({session,messages:[...messages,m("u4","user","后续输入")]},"D:\\测试工程");
   assert.notEqual(changed.fingerprint,snap.fingerprint);
 });
+test("3.16 conversation_rewind：keptMessageIDs 为空时保留切点之后的新分支",()=>{
+  const messages=[m("u0","user","回退前的目标"),m("a0","assistant","旧回答","u0"),m("cut","assistant","旧分支末尾","u0"),m("u1","user","新分支输入"),m("a1","assistant","新分支回答","u1")];
+  const session={title:"原名",revert:{kind:"conversation_rewind",scope:"conversation",targetMessageID:"u0",branchCutAfterMessageID:"cut",branchGeneration:1,keptMessageIDs:[]}};
+  const snap=recentSnapshot({session,messages},"D:\\测试工程");
+  assert.equal(snap.turnCount,1);
+  assert.equal(snap.latestUserId,"u1");
+  assert.equal(snap.context.original_goal,"新分支输入");
+  assert.deepEqual(snap.context.recent_turns,[{id:"u1",messages:[{role:"user",text:"新分支输入"},{role:"assistant",text:"新分支回答"}]}]);
+});
 for (const sessionId of ['sess_fixture', 'session_316_fixture']) test(`SQLite 只读历史兼容 ${sessionId.split('_')[0]} 前缀，按 sequence 重建并校验工作区`,async()=>{
   const root=mkdtempSync(join(tmpdir(),"z-title-fixture-")),db=join(root,"fixture.sqlite"),sqliteBin=process.env.SQLITE_BIN||"sqlite3";
   try {
