@@ -32,6 +32,8 @@ accepted 仅表示提交，回复用 read_session；超时或部分失败先核�
 
 permission_mode 使用工具公开的规范值（build、plan、edit、auto、yolo）；build 是权限策略，不是构建任务标签。默认继承失败时服务在 warnings 中说明并用 Host 默认值，Agent 不擅自提高权限。
 
+3.16 用 get_current_session 核对当前项目与附加目录，再用 list_sessions 的 project_id 筛选同项目；workspace_path 只筛选执行目录，不能据同目录猜项目。start_session 在当前会话目录范围内默认继承项目与其余目录；指定不同 project_id（或 null 未归类）时不带原项目目录，additional_directories:[] 可明确不带附加目录。只有用户授权时才新增目录范围，不能用项目所有 roots 替代会话冻结范围。
+
 lock_title 默认 false，允许命名插件滚动更新并要求格式合规；true 阻止命名生成，不阻止用户显式改名。标题策略不会安装或启用自动命名。
 
 原 Host 写操作要求目标本地工作区已在所连 Desktop 打开。手机远端工作区忙时让位，不切走手机；共存结论需实际验收。

@@ -123,6 +123,40 @@ test('V2 首次心跳前本地插件即可附着，配对通知不能重复使�
   assert.ok(f.desktopMessages.some(message => message.type === 'pair_status_ack' && message.pair_status === 'matched'));
 });
 
+test('V2 多执行目录按各自会话归属附着，手机与插件仍共用一个 Host 桥', { timeout: 4000 }, async t => {
+  const { connectHost } = await import('../gateway-client.mjs');
+  const f = await fixture(t, 'matched', { gateway: { relayProtocolVersion: 2 } });
+  const dir = await mkdtemp(join(tmpdir(), 'zcode-project-rpc-'));
+  t.after(() => rm(dir, { recursive: true }));
+  const gatewayConfigPath = join(dir, 'config.json');
+  await writeFile(gatewayConfigPath, JSON.stringify({ version: 1, port: Number(new URL(f.gateway.url).port), control_token: 'fixture-rpc-token' }));
+  const attach = async (workspacePath, sessionId, actualPath = workspacePath) => {
+    const count = f.requests.length;
+    const pending = connectHost({ workspacePath, sessionId, gatewayConfigPath });
+    const observed = pending.then(value => ({ value }), error => ({ error }));
+    await until(() => f.requests.length > count);
+    const [header, body] = f.requests.at(-1);
+    assert.equal(header[3], 'getTaskMeta');
+    assert.equal(body[0].workspacePath, workspacePath);
+    f.respond([201, header[1]], { taskId: sessionId, workspacePath: actualPath });
+    return observed;
+  };
+  const a = (await attach(workspace, 'session_a')).value;
+  const b = (await attach('D:\\other', 'session_b')).value;
+  t.after(() => { a?.close(); b?.close(); });
+  assert.ok(a); assert.ok(b);
+  const wrong = await attach('D:\\other', 'session_a', workspace);
+  assert.match(wrong.error.message, /Session is not present/);
+  const ready = Promise.withResolvers();
+  f.phone.on('message', data => { const payload = JSON.parse(data).payload; if (payload?.zcode_type === 'workspace-bridge-ready') ready.resolve(payload); });
+  f.phone.send(JSON.stringify({ type: 'data', payload: { zcode_type: 'workspace-bridge-open', requestId: 'phone-project-open',
+    bridgeSessionId: 'phone-project-bridge', bridgeGeneration: 1, workspaceKey: 'D:\\other', taskId: 'session_b' } }));
+  assert.equal((await ready.promise).bridge.workspacePath, 'D:\\other');
+  assert.equal(f.bridgeOpens.length, 1);
+  assert.equal(f.relay.clients.size, 1);
+  assert.deepEqual(f.faults, []);
+});
+
 for (const relayProtocolVersion of [1, 2]) test(`relay V${relayProtocolVersion}：v4 手机与多个本地客户端分别握手后共用 Host 桥，后加入者及重连者仍可发信`, { timeout: 5000 }, async t => {
   const { connectHost } = await import('../gateway-client.mjs');
   for (const phoneFirst of [true, false, 'parallel']) {

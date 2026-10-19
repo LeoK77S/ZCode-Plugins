@@ -4,6 +4,7 @@ import {randomUUID} from 'node:crypto';
 import {WebSocketServer} from 'ws';
 import {startTerminalRelay} from './terminal-relay.mjs';
 import {createRpcBroker} from './rpc-broker.mjs';
+import {gatewayBuild} from './gateway-build.mjs';
 
 // 仅提供本机 RPC；不接收或代理 Desktop 的 relay 连接。
 export async function startTerminalGateway({port,instanceId,controlToken,upstreamUrl,deviceSid,deviceMid,getToken,bridgeTimeoutMs,WebSocketImpl,onError}) {
@@ -28,7 +29,7 @@ export async function startTerminalGateway({port,instanceId,controlToken,upstrea
   const http=createServer(async(request,response)=>{
     if(request.headers.origin!==undefined){response.writeHead(403).end();return;}
     if(request.method==='GET'&&request.url==='/health'){
-      response.writeHead(200,{'Content-Type':'application/json','Cache-Control':'no-store'}).end(JSON.stringify({service:'suian-zcode-gateway',version:1,instance_id:instanceId,mode:'terminal',connection_role:'terminal',desktop_connected:paired,desktop_ready:paired,upstream_connected:relay.socket.readyState===1,paired,upstream_paired:paired,local_clients:clients.size,rpc_protocol_version:1,...lastError?{last_error:lastError}:{}}));return;
+      response.writeHead(200,{'Content-Type':'application/json','Cache-Control':'no-store'}).end(JSON.stringify({service:'suian-zcode-gateway',version:1,build:gatewayBuild,instance_id:instanceId,mode:'terminal',connection_role:'terminal',desktop_connected:paired,desktop_ready:paired,upstream_connected:relay.socket.readyState===1,paired,upstream_paired:paired,local_clients:clients.size,rpc_protocol_version:1,...lastError?{last_error:lastError}:{}}));return;
     }
     if(request.method==='POST'&&request.url==='/shutdown'){
       if(request.headers.authorization!==`Bearer ${controlToken}`){response.writeHead(401).end();return;}

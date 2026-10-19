@@ -3,6 +3,8 @@ param(
     [ValidateSet('Install', 'Status', 'Remove', 'Restart')][string]$Action = 'Status',
     [ValidateRange(1, 65535)][int]$Port = 17329,
     [ValidateSet('relay', 'local-only')][string]$Mode = 'relay',
+    [ValidateSet(1, 2)][int]$RelayProtocolVersion,
+    [string]$ZcodeAppVersion = $env:ZCODE_APP_VERSION,
     [ValidateRange(1, 30)][int]$HealthTimeoutSec = 5,
     [string]$UpstreamUrl = 'wss://zcode.z.ai/ws',
     [string]$DataDir = (Join-Path $env:USERPROFILE '.zcode\tools\suian-zcode-gateway'),
@@ -20,6 +22,7 @@ if ($restarting -and $null -eq $config) { throw 'Shared gateway is not installed
 $runningPort = $Port
 $Mode = $Mode.ToLowerInvariant()
 $installedMode = 'relay'
+$installedProtocol = 1
 if ($null -ne $config) {
     if ($config.version -ne 1) { throw 'Unsupported gateway config version' }
     if (-not [int]::TryParse([string]$config.port, [ref]$runningPort) -or $runningPort -lt 1 -or $runningPort -gt 65535) { throw 'Installed gateway port must be an integer from 1 to 65535' }
@@ -28,6 +31,34 @@ if ($null -ne $config) {
     if ($config.PSObject.Properties['mode']) { $installedMode = $config.mode }
     if ($installedMode -cnotin @('relay', 'local-only')) { throw 'Invalid installed gateway mode' }
     if (-not $PSBoundParameters.ContainsKey('Mode')) { $Mode = $installedMode }
+    if ($config.PSObject.Properties['relay_protocol_version']) {
+        if ($config.relay_protocol_version -notin @(1, 2)) { throw 'Unsupported installed relay protocol version' }
+        $installedProtocol = [int]$config.relay_protocol_version
+    }
+}
+$protocolSource = 'installed_config'
+$applicationProtocol = $null
+if ($Action -ne 'Remove' -and $ZcodeAppVersion) {
+    if ($ZcodeAppVersion -notmatch '^(\d+)\.(\d+)\.(\d+)(?:\.\d+)?(?:\+[\w.-]+)?$' -or [int]$Matches[1] -lt 3) { throw 'Use the actual ZCode Desktop application version (for example 3.16.1), not the CLI version' }
+    $applicationProtocol = if ([int]$Matches[1] -gt 3 -or [int]$Matches[2] -ge 16) { 2 } else { 1 }
+}
+if ($PSBoundParameters.ContainsKey('RelayProtocolVersion')) {
+    $protocolSource = 'parameter'
+    if ($null -ne $applicationProtocol -and $RelayProtocolVersion -ne $applicationProtocol) { throw 'Relay protocol version conflicts with the ZCode Desktop application version' }
+} elseif ($null -ne $applicationProtocol) {
+    $RelayProtocolVersion = $applicationProtocol; $protocolSource = 'desktop_version'
+} else {
+    $RelayProtocolVersion = $installedProtocol
+    if ($null -eq $config) { $protocolSource = 'legacy_default' }
+}
+$officialV1 = @('wss://zcode.z.ai/ws', 'wss://zcode.chatglm.site/ws')
+$officialV2 = 'wss://zcode.z.ai/api/v1/remote/ws2'
+if (-not $PSBoundParameters.ContainsKey('UpstreamUrl') -and ($null -eq $config -or ($RelayProtocolVersion -ne $installedProtocol -and $config.upstream_url -in ($officialV1 + $officialV2)))) {
+    $UpstreamUrl = if ($RelayProtocolVersion -eq 2) { $officialV2 } else { $officialV1[0] }
+}
+if ($Action -in @('Install', 'Restart')) {
+    if ($Mode -eq 'local-only' -and $RelayProtocolVersion -eq 2) { throw 'ZCode 3.16 / relay V2 does not support local-only; use -Mode relay' }
+    if (($RelayProtocolVersion -eq 2 -and $UpstreamUrl -in $officialV1) -or ($RelayProtocolVersion -eq 1 -and $UpstreamUrl -eq $officialV2)) { throw 'Official upstream URL does not match the relay protocol version' }
 }
 $identity = [Security.Principal.WindowsIdentity]::GetCurrent()
 $taskName = 'suian-zcode-gateway-' + $identity.User.Value
@@ -48,6 +79,8 @@ function Read-GatewayHealth {
             $result = Invoke-RestMethod -Uri $healthUrl -TimeoutSec $HealthTimeoutSec -UseBasicParsing
             if (-not $result.PSObject.Properties['mode']) { Add-Member -InputObject $result -NotePropertyName mode -NotePropertyValue 'relay' }
             if ($result.mode -cnotin @('relay', 'local-only')) { throw 'Unknown running gateway mode' }
+            if (-not $result.PSObject.Properties['relay_protocol_version']) { Add-Member -InputObject $result -NotePropertyName relay_protocol_version -NotePropertyValue 1 }
+            if ($result.relay_protocol_version -notin @(1, 2)) { throw 'Unknown running relay protocol version' }
             return $result
         }
         catch [Net.WebException] {
@@ -55,6 +88,57 @@ function Read-GatewayHealth {
             if ($_.Exception.Status -ne [Net.WebExceptionStatus]::Timeout) { throw }
             if ($queryAttempt -eq 1) { throw "Gateway health check timed out twice ($HealthTimeoutSec seconds per attempt); running state is unknown" }
         }
+    }
+}
+
+function Get-LauncherArguments {
+    param([string]$NodePath)
+    $runFile = (Join-Path $PSScriptRoot 'run.ps1').Replace("'", "''")
+    $safeNode = $NodePath.Replace("'", "''")
+    $safeData = $DataDir.Replace("'", "''")
+    $launch = "& '$runFile' -NodePath '$safeNode' -DataDir '$safeData'"
+    $encoded = [Convert]::ToBase64String([Text.Encoding]::Unicode.GetBytes($launch))
+    return '//B //NoLogo "' + $launcherFile + '" ' + $encoded
+}
+
+function Get-GatewayUpgradeStatus {
+    param($InstalledConfig, $Health)
+    $expected = $null; $running = $null; $codeStatus = 'not_configured'; $pathMatches = $false
+    if ($null -ne $InstalledConfig) {
+        $currentNode = (Get-Command node -CommandType Application | Select-Object -First 1).Source
+        $buildJson = & $currentNode (Join-Path $PSScriptRoot 'gateway-build.mjs')
+        if ($LASTEXITCODE -ne 0) { throw 'Cannot determine the current gateway code fingerprint' }
+        $expected = $buildJson | ConvertFrom-Json
+        if ($null -eq $Health) { $codeStatus = 'unreachable' }
+        elseif (-not $Health.PSObject.Properties['build']) { $codeStatus = 'unknown' }
+        else {
+            $running = $Health.build
+            $codeStatus = if ($running.id -eq $expected.id) { 'current' } else { 'changed' }
+            $pathMatches = $InstalledConfig.gateway_root -eq $PSScriptRoot -and $running.root -eq $expected.root
+        }
+    }
+    $launcherUpdate = $false
+    if ($null -ne $InstalledConfig) {
+        $launcherUpdate = -not $vbsLauncher -or -not $taskRunning -or
+            @($task.Actions)[0].Arguments -cne (Get-LauncherArguments $currentNode) -or
+            -not (Test-Path -LiteralPath $launcherFile)
+        if (-not $launcherUpdate) {
+            $launcherUpdate = (Get-Content -LiteralPath $launcherFile -Raw -Encoding Unicode) -cne (Get-Content -LiteralPath (Join-Path $PSScriptRoot 'run.vbs') -Raw -Encoding UTF8)
+        }
+    }
+    $configuredProtocol = if ($null -ne $InstalledConfig -and $InstalledConfig.PSObject.Properties['relay_protocol_version']) { $InstalledConfig.relay_protocol_version } else { 1 }
+    $protocolUpdate = $null -ne $InstalledConfig -and ($configuredProtocol -ne $RelayProtocolVersion -or ($null -ne $Health -and $Health.relay_protocol_version -ne $RelayProtocolVersion))
+    $upstreamUpdate = $null -ne $InstalledConfig -and $InstalledConfig.upstream_url -ne $UpstreamUrl
+    $gatewayRestart = $null -ne $InstalledConfig -and ($codeStatus -ne 'current' -or -not $pathMatches -or $launcherUpdate -or $protocolUpdate -or $upstreamUpdate)
+    $desktopRestart = $null -ne $InstalledConfig -and $userRelay -ne $relayUrl
+    $desktopConnection = $null -ne $InstalledConfig -and ($null -eq $Health -or -not $Health.desktop_connected)
+    return [ordered]@{
+        expected_build=$expected; running_build=$running; code_status=$codeStatus; gateway_path_matches=$pathMatches
+        relay_protocol_version=$RelayProtocolVersion; protocol_source=$protocolSource; running_relay_protocol_version=$(if ($null -ne $Health) { $Health.relay_protocol_version } else { $null })
+        upstream_url=$UpstreamUrl; protocol_update_required=$protocolUpdate; upstream_update_required=$upstreamUpdate
+        launcher_update_required=$launcherUpdate; gateway_restart_required=$gatewayRestart
+        desktop_restart_required=$desktopRestart; desktop_connection_required=$desktopConnection
+        restart_required=($gatewayRestart -or $desktopRestart -or $desktopConnection)
     }
 }
 
@@ -100,16 +184,19 @@ if ($Action -eq 'Status') {
         if ($health.PSObject.Properties['upstream_paired']) { $upstreamPaired = $health.upstream_paired }
         if ($health.PSObject.Properties['local_clients']) { $localClients = $health.local_clients }
     }
-    [ordered]@{
+    $status = [ordered]@{
         ok=$true; action='status'; configured=($null -ne $config); relay_url=$relayUrl; health_url=$healthUrl
         mode=$(if ($null -ne $config) { $installedMode } else { $Mode }); desktop_ready=$(if ($null -ne $health -and $health.PSObject.Properties['desktop_ready']) { $health.desktop_ready } else { $null })
         user_env_matches=($null -ne $config -and $userRelay -eq $relayUrl); gateway_running=($null -ne $health)
         task_running=$taskRunning; health_status=$(if ($null -eq $config) { 'not_configured' } elseif ($null -eq $health) { 'unreachable' } else { 'reachable' })
-        vbs_launcher=$vbsLauncher; launcher_update_required=($null -ne $config -and (-not $vbsLauncher -or -not $taskRunning))
+        vbs_launcher=$vbsLauncher
         desktop_connected=($null -ne $health -and $health.desktop_connected); upstream_connected=($null -ne $health -and $health.upstream_connected)
         rpc_available=$rpcAvailable; upstream_paired=$upstreamPaired; local_clients=$localClients
-        paired=($null -ne $health -and $health.paired); restart_required=($null -ne $config -and ($null -eq $health -or -not $health.desktop_connected -or $userRelay -ne $relayUrl -or -not $vbsLauncher -or -not $taskRunning))
-    } | ConvertTo-Json -Compress
+        paired=($null -ne $health -and $health.paired)
+    }
+    $upgrade = Get-GatewayUpgradeStatus $config $health
+    foreach ($field in $upgrade.Keys) { $status[$field] = $upgrade[$field] }
+    $status | ConvertTo-Json -Depth 4 -Compress
     return
 }
 if ($Action -eq 'Remove') {
@@ -175,26 +262,21 @@ if ($null -ne $health) {
         if (-not $stopped.ok) { throw 'Gateway did not accept shutdown' }
         Wait-GatewayExit
         $health = $null
-    } elseif ($health.service -ne 'suian-zcode-gateway' -or $health.version -ne 1 -or $health.instance_id -ne $instanceId -or $health.upstream_url -ne $UpstreamUrl -or $runningPort -ne $Port -or $health.mode -ne $Mode) {
+    } elseif ($health.service -ne 'suian-zcode-gateway' -or $health.version -ne 1 -or $health.instance_id -ne $instanceId -or $health.upstream_url -ne $UpstreamUrl -or $runningPort -ne $Port -or $health.mode -ne $Mode -or $health.relay_protocol_version -ne $RelayProtocolVersion) {
         throw 'Running gateway differs from requested configuration; stop mobile remote control in ZCode and use Restart; keep ZCode open to finish the upgrade'
     }
 }
 $previousRelay = if ($null -ne $config) { $config.previous_user_relay } else { $userRelay }
 $controlToken = if ($null -ne $config) { $config.control_token } else { [Guid]::NewGuid().ToString('N') }
-$nextConfig = [ordered]@{ version=1; gateway_root=$PSScriptRoot; instance_id=$instanceId; port=$Port; upstream_url=$UpstreamUrl; mode=$Mode; previous_user_relay=$previousRelay; control_token=$controlToken }
+$nextConfig = [ordered]@{ version=1; gateway_root=$PSScriptRoot; instance_id=$instanceId; port=$Port; upstream_url=$UpstreamUrl; mode=$Mode; relay_protocol_version=$RelayProtocolVersion; previous_user_relay=$previousRelay; control_token=$controlToken }
 $healthUrl = "http://127.0.0.1:$Port/health"
 [IO.Directory]::CreateDirectory($DataDir) | Out-Null
 [IO.File]::WriteAllText($configFile, ($nextConfig | ConvertTo-Json), (New-Object Text.UTF8Encoding($false)))
 if ($null -eq $health) {
     # EncodedCommand 避免安装路径中的空格、中文及单引号经过多层 shell。
-    $runFile = (Join-Path $PSScriptRoot 'run.ps1').Replace("'", "''")
-    $safeNode = $nodePath.Replace("'", "''")
-    $safeData = $DataDir.Replace("'", "''")
-    $launch = "& '$runFile' -NodePath '$safeNode' -DataDir '$safeData'"
-    $encoded = [Convert]::ToBase64String([Text.Encoding]::Unicode.GetBytes($launch))
     $launcher = Get-Content -LiteralPath (Join-Path $PSScriptRoot 'run.vbs') -Raw -Encoding UTF8
     [IO.File]::WriteAllText($launcherFile, $launcher, [Text.Encoding]::Unicode)
-    $taskAction = New-ScheduledTaskAction -Execute $scriptHost -Argument ('//B //NoLogo "' + $launcherFile + '" ' + $encoded)
+    $taskAction = New-ScheduledTaskAction -Execute $scriptHost -Argument (Get-LauncherArguments $nodePath)
     $trigger = New-ScheduledTaskTrigger -AtLogOn -User $identity.Name
     $principal = New-ScheduledTaskPrincipal -UserId $identity.User.Value -LogonType Interactive -RunLevel Limited
     $settings = New-ScheduledTaskSettingsSet -ExecutionTimeLimit ([TimeSpan]::Zero) -RestartCount 3 -RestartInterval ([TimeSpan]::FromMinutes(1)) -MultipleInstances IgnoreNew -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries
@@ -207,9 +289,10 @@ if ($null -eq $health) {
             Start-Sleep -Milliseconds 250
         }
     }
-    if ($health.service -ne 'suian-zcode-gateway' -or $health.version -ne 1 -or $health.instance_id -ne $instanceId -or $health.upstream_url -ne $UpstreamUrl -or $health.mode -ne $Mode) { throw 'Gateway health check returned a different instance; user environment was not changed' }
+    if ($health.service -ne 'suian-zcode-gateway' -or $health.version -ne 1 -or $health.instance_id -ne $instanceId -or $health.upstream_url -ne $UpstreamUrl -or $health.mode -ne $Mode -or $health.relay_protocol_version -ne $RelayProtocolVersion) { throw 'Gateway health check returned a different instance or relay protocol; user environment was not changed' }
     $vbsLauncher = $true
     $taskRunning = $true
+    $task = Get-ScheduledTask | Where-Object { $_.TaskName -eq $taskName -and $_.TaskPath -eq '\' }
 }
 $skillDir = Join-Path $SkillsDir 'suian-zcode-common'
 if ($NativePlugin) {
@@ -230,4 +313,7 @@ if ($null -ne $config -and (Test-Path -LiteralPath $legacySkillFile)) {
 # 写入后通知 Explorer 等启动器；当前 Desktop 主进程仍需事后重开。
 New-ItemProperty -LiteralPath 'HKCU:\Environment' -Name $relayVariable -Value $relayUrl -PropertyType String -Force | Out-Null
 Send-EnvironmentChange
-[ordered]@{ ok=$true; action=$(if ($restarting) { 'restarted' } else { 'installed' }); mode=$Mode; relay_url=$relayUrl; health_url=$healthUrl; gateway_running=$true; task_running=$taskRunning; health_status='reachable'; desktop_connected=$health.desktop_connected; paired=$health.paired; vbs_launcher=$vbsLauncher; launcher_update_required=(-not $vbsLauncher -or -not $taskRunning); environment_broadcast='sent'; restart_required=(-not $health.desktop_connected -or -not $vbsLauncher -or -not $taskRunning) } | ConvertTo-Json -Compress
+$status = [ordered]@{ ok=$true; action=$(if ($restarting) { 'restarted' } else { 'installed' }); mode=$Mode; relay_url=$relayUrl; health_url=$healthUrl; gateway_running=$true; task_running=$taskRunning; health_status='reachable'; desktop_connected=$health.desktop_connected; paired=$health.paired; vbs_launcher=$vbsLauncher; environment_broadcast='sent' }
+$upgrade = Get-GatewayUpgradeStatus ([pscustomobject]$nextConfig) $health
+foreach ($field in $upgrade.Keys) { $status[$field] = $upgrade[$field] }
+$status | ConvertTo-Json -Depth 4 -Compress

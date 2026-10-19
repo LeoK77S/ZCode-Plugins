@@ -4,6 +4,28 @@
 
 ## [Unreleased]
 
+## [0.9.0] - 2026-10-19
+
+支持 ZCode 3.16 的项目多目录，并在工件打开时恢复此前保存的状态。多目录功能需要公共插件 suian-zcode-common 0.4.0 及以上版本。
+
+### 新功能
+
+**项目与会话目录**
+
+- 按项目精确筛选会话，区分使用同一目录的不同项目。
+- 当前会话自省提供项目和附加目录；新建会话默认继承来源会话的项目与目录，也可显式指定其他范围。
+- 保留旧版单目录调用和既有权限继承行为。
+
+### Bug 修复
+
+- 工件打开时先显示此前成功查询并保存的 PR／议题状态，再刷新网络结果，避免首屏短暂显示默认图标。
+
+### 其他改进
+
+- 搭配 common 0.4.0，安装和升级按 Desktop 应用版本选择 V1／V2；日常重载保留已有协议与用户配置。
+
+> **验证范围**：SDK、实际构建页面与最终边界专项已通过，分项证据见[多目录验证记录](./docs/multi-directory-validation.md)。多目录的原生侧栏、原生审批与实体手机组合仍待宿主验收。
+
 ## [0.8.1] - 2026-10-19
 
 搭配公共插件 suian-zcode-common 0.3.0，支持 ZCode 3.16 的核心会话操作，并保留手机远控共存。
@@ -256,6 +278,7 @@
 仓库尚未建立版本标签，以下版本链接使用对应源码提交。
 
 <!-- 变更链接 -->
+[0.9.0]: https://github.com/ONEGAYI/ZCode-Plugins/compare/13cd1fcf4f24c9d968f1e4235d299ea11ada4f14...761d06764c7fbdcc36f2c30a4b178af44d7b1d40
 [0.8.1]: https://github.com/ONEGAYI/ZCode-Plugins/compare/cbb4f7613c53a66bf0a2f6c62ba641587462f51f...485cdc1be1c1ee9ad356e682df1374fe41d6d5c0
 [0.7.2]: https://github.com/ONEGAYI/ZCode-Plugins/compare/cd747c3f59cb3d160da1f92f283c6ed4bca30102...bf4e6db5713ab622f6cbffccd06e952ede96951b
 [0.7.1]: https://github.com/ONEGAYI/ZCode-Plugins/compare/2e92187293caba3c2bf98077a8160b0ae95bb662...cd747c3f59cb3d160da1f92f283c6ed4bca30102

@@ -271,6 +271,38 @@ async function connect(t, f, options, capabilities, name = 'plain-client') {
 
 const appsCapability = () => ({ extensions: { 'io.modelcontextprotocol/ui': { mimeTypes: ['text/html;profile=mcp-app'] } } });
 
+test('工件最近状态跨服务实例保存在数据库，列表与详情先读旧快照且不触发网络', async t => {
+  const f = fixture(t), calls = [];
+  let clock = 100, merged = false;
+  const config = { ...f, now: () => clock, runGh: async args => {
+    calls.push(args);
+    return JSON.stringify(args[0] === 'pr' ? { ...OPEN_PR, state: merged ? 'MERGED' : 'OPEN' } : OPEN_ISSUE);
+  } };
+  const first = await connect(t, config, {}, appsCapability(), 'zcode');
+  await first.callTool({ name: 'set_artifacts', arguments: { expected_revision: 0, upsert: [
+    { kind: 'pr', ref: GH_REF, label: '实现 PR', purpose: '跟进' },
+    { kind: 'issue', ref: GH_ISSUE_REF, label: '议题', purpose: '跟进' }
+  ] }, _meta: { session_id: 'sess_alpha' } });
+  await first.callTool({ name: 'get_pr_statuses', arguments: { refs: [GH_REF], issue_refs: [GH_ISSUE_REF] } });
+  await first.close();
+  clock = 200000; merged = true;
+  const reopened = await connect(t, config, {}, appsCapability(), 'zcode');
+  const list = await reopened.callTool({ name: 'get_artifacts', arguments: {}, _meta: { session_id: 'sess_alpha' } });
+  assert.equal(list.isError, undefined);
+  assert.deepEqual(list.structuredContent.items.map(item => item.github_status), [
+    { status: 'open', additions: 12, deletions: 3, fetched_at: 100 },
+    { state: 'open', comments: 4, fetched_at: 100 }
+  ]);
+  const detail = await reopened.callTool({ name: 'get_artifacts', arguments: { ref: GH_REF }, _meta: { session_id: 'sess_alpha' } });
+  assert.equal(detail.structuredContent.item.github_status.status, 'open');
+  assert.equal(calls.length, 2, '读取列表与详情不发 GitHub 请求，过期快照也可用于首屏');
+  const fresh = await reopened.callTool({ name: 'get_pr_statuses', arguments: { refs: [GH_REF] } });
+  assert.equal(fresh.structuredContent.statuses[GH_REF].status, 'merged');
+  const updated = await reopened.callTool({ name: 'get_artifacts', arguments: {}, _meta: { session_id: 'sess_alpha' } });
+  assert.equal(updated.structuredContent.items[0].github_status.status, 'merged');
+  assert.equal(updated.structuredContent.revision, list.structuredContent.revision, '状态刷新不更改工件登记版本');
+});
+
 test('get_pr_statuses 是面板专用通道：普通客户端不可见，UI 客户端以 app 可见性启用', async t => {
   const f = fixture(t);
   const quiet = { fetchStatuses: async () => { throw new Error('普通客户端不应触达状态服务'); } };
@@ -287,6 +319,40 @@ test('get_pr_statuses 是面板专用通道：普通客户端不可见，UI 客�
   // 指向 get_artifacts 的表述用限定语义：会话详情仍查询原 Host（可能恢复会话并同步索引），不得标为"纯本地"
   assert.doesNotMatch(tool.description, /纯本地/, '不使用过宽的纯本地表述');
   assert.match(tool.description, /会话详情仍查询原 Host 实时状态/, '指明会话详情的原 Host 查询');
+});
+
+test('持久化缓存跨实例保留新鲜期与超时回退，明确失败后删除旧快照', async t => {
+  const f = fixture(t), gh = switchableGh({ ok: resolveGh(() => OPEN_PR), hang: hangGh(), fail: failGh('认证失效') });
+  let clock = 100;
+  const config = { ...f, now: () => clock, runGh: gh.runGh, timeoutMs: 25 };
+  const call = async () => (await (await connect(t, config, {}, appsCapability(), 'zcode'))
+    .callTool({ name: 'get_pr_statuses', arguments: { refs: [GH_REF] } })).structuredContent.statuses[GH_REF];
+  const first = await connect(t, config, {}, appsCapability(), 'zcode');
+  await first.callTool({ name: 'set_artifacts', arguments: { expected_revision: 0,
+    upsert: [{ kind: 'pr', ref: GH_REF, label: '实现 PR', purpose: '跟进' }] }, _meta: { session_id: 'sess_alpha' } });
+  await call();
+  clock = 200;
+  gh.use('fail');
+  assert.equal((await call()).status, 'open');
+  assert.equal(gh.calls.length, 1, '新实例也遵守成功时间戳的新鲜期');
+  clock = 200000; gh.use('hang');
+  assert.deepEqual(await call(), { status: 'open', additions: 12, deletions: 3, fetched_at: 100, stale: true, stale_reason: 'timeout' });
+  gh.use('fail');
+  assert.match((await call()).error, /^gh_failed:/);
+  const reopened = await connect(t, config, {}, appsCapability(), 'zcode');
+  const list = await reopened.callTool({ name: 'get_artifacts', arguments: {}, _meta: { session_id: 'sess_alpha' } });
+  assert.equal(list.structuredContent.items[0].github_status, undefined, '失败后新页面不能复活已清除的状态');
+  gh.use('hang');
+  assert.match((await call()).error, /^pr_status_timeout:/);
+});
+
+test('状态持久化失败直接报错，不伪装成 gh 拉取失败', async () => {
+  const service = createArtifactStatusService({ runGh: resolveGh(() => OPEN_PR), cache: {
+    get: () => undefined,
+    set: () => { throw new Error('fixture: SQLite write failed'); },
+    delete: () => { throw new Error('不应把写缓存失败当成 gh 失败后清库'); }
+  } });
+  await assert.rejects(service.fetchStatuses([GH_REF]), /fixture: SQLite write failed/);
 });
 
 test('get_pr_statuses 按透传 refs 返回逐条结果，单条错误不拖垮整体，服务异常整体报错', async t => {

@@ -7,6 +7,20 @@ const model = { provider_id: 'fixture', model_id: 'flash', reasoning_level: 'low
 const wrapped = text => `<delivered-by-other-session>\n<notice>\nThe message in this block was delivered by other zcode session or the system, instead of the user.\n</notice>\n${text}\n</delivered-by-other-session>`;
 const opening = text => `<created-by-other-session>\n<notice>\nYou are a new zcode session created by another zcode session or the system, instead of directly by the user.\n</notice>\n${text}\n</created-by-other-session>`;
 
+test('创建把项目与附加目录交给原 Host；旧调用不附加新协议字段', async () => {
+  const f = await fixture();
+  await f.controller.startSession({ workspace_path: workspace, message: '开始', project_id: 'project-fixture', additional_directories: ['D:/second'] });
+  assert.equal(f.calls.find(call => call.method === 'createTask').params[0].projectId, 'project-fixture');
+  assert.deepEqual(f.calls.find(call => call.method === 'createTask').params[0].additionalDirectories, ['D:/second']);
+  const old = await fixture();
+  await old.controller.startSession({ workspace_path: workspace, message: '开始' });
+  assert.equal(Object.hasOwn(old.calls.find(call => call.method === 'createTask').params[0], 'projectId'), false);
+  assert.equal(Object.hasOwn(old.calls.find(call => call.method === 'createTask').params[0], 'additionalDirectories'), false);
+  const legacyHost = await fixture({ bootstrap: {} });
+  await assert.rejects(legacyHost.controller.startSession({ workspace_path: workspace, message: '开始', additional_directories: ['D:/second'] }), /project_host_unsupported/);
+  assert.equal(legacyHost.calls.some(call => call.method === 'createTask'), false);
+});
+
 test('工件会话状态从原 Host snapshot 读取，限制历史返回量并释放连接，不发送提示词', async () => {
   const f = await fixture({ getTaskSnapshot: () => ({ meta: { taskId: 'sess_new', title: '正在执行', status: 'running', createdAt: 10, updatedAt: 20 }, runtime: { pendingPermissions: [{}] } }) });
   const status = await f.controller.getSessionStatus({ session_id: 'sess_new', workspace_path: workspace });
@@ -47,7 +61,7 @@ async function fixture(overrides = {}) {
     connect: async args => {
       const connection = { args, closed: false }; connections.push(connection);
       let helloIssued = false, boundClientId;
-      return { workspacePath: workspace, close: () => { connection.closed = true; }, call: async (channel, method, params) => {
+      return { workspacePath: workspace, bootstrap: overrides.bootstrap ?? { desktopAppVersion: '3.16.1' }, close: () => { connection.closed = true; }, call: async (channel, method, params) => {
         calls.push({ channel, method, params });
         if (method === 'helloConversationV4') {
           helloIssued = true;

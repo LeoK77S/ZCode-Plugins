@@ -17,6 +17,7 @@ for (const sessionId of ['sess_fixture', 'session_316_fixture']) test(`命名后
     "INSERT INTO part VALUES('p1','u1','sess_fixture',1,1,'"+JSON.stringify({type:"text",text:"改进编辑体验"})+"',1);"
   ].join("\n").replaceAll('sess_fixture',sessionId)]);
   execFileSync(sqliteBin,[indexDb,"CREATE TABLE tasks(task_id,workspace_path,title,archived,deleted,task_status);INSERT INTO tasks VALUES('sess_fixture','D:\\fixture','原名',0,0,'completed');".replaceAll('sess_fixture',sessionId)]);
+  execFileSync(sqliteBin,[indexDb,"ALTER TABLE tasks ADD COLUMN project_id; ALTER TABLE tasks ADD COLUMN execution_directories; UPDATE tasks SET project_id='project_fixture',execution_directories='[\"D:/other\"]';"]);
   const selection={providerId:"fixture-provider",modelId:"fixture-model",options:{reasoningLevel:"low"}},calls=[];
   const remote={
     call:async(channel,method,args)=>{
@@ -33,7 +34,9 @@ for (const sessionId of ['sess_fixture', 'session_316_fixture']) test(`命名后
     },close:()=>{}
   };
   try {
-    const backend=createBackend({event:{session_id:sessionId,workspace_path:workspacePath},config:{sessionDb,indexDb,sqliteBin},connect:async()=>remote,saveState:async()=>{},prompt:"命名规则"});
+    const backend=createBackend({event:{session_id:sessionId,cwd:"D:/other"},config:{sessionDb,indexDb,sqliteBin},connect:async args=>{
+      assert.equal(args.workspacePath,workspacePath,"浏览附加目录不改变会话的远控附着目录");return remote;
+    },saveState:async()=>{},prompt:"命名规则"});
     const before=await backend.read();
     assert.equal(before.turnCount,1);assert.equal(before.archived,false);
     await backend.generate(before.context,selection);
@@ -44,6 +47,7 @@ for (const sessionId of ['sess_fixture', 'session_316_fixture']) test(`命名后
     assert.equal(gen.args[0].messages[0].role,"system");
     assert.equal(calls.some(c=>["setModel","sendText","sendSession"].includes(c.method)),false);
     await backend.rename("新名称");
+    assert.equal(calls.find(c=>c.method==="renameTask").args[0].workspacePath,workspacePath);
     assert.equal((await backend.read()).title,"新名称");
     await assert.rejects(backend.generate(before.context,{...selection,options:{reasoningLevel:"invalid"}}),/档位/);
     backend.close();

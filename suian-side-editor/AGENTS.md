@@ -1,6 +1,6 @@
 # suian-side-editor — 独立侧栏文本编辑器
 
-当前版本 0.2.0 提供本机 UTF-8 文本编辑、保存、恢复与选区评论，登记原生市场并提供 `skills/setup/SKILL.md` 的依赖与公共包链接入口。共12张票；#42／46／47／48及完整并发#57保持open。H1/H2、目录／页签／保存、外部冲突和H4已有文本功能限定验证；评论原#47缺口、最终缓存／可见guest、完整首版及用户验收未通过。用户已接受的是发送边界尽力禁用风险，见`docs/adr/0005-temporary-comment-send-guard.md`，不等于豁免未观察受理后取消导致的A+B复活。
+当前版本 0.3.0 提供本机 UTF-8 文本编辑、保存、恢复、会话多目录切换与选区评论，登记原生市场并提供 `skills/setup/SKILL.md` 的依赖与公共包链接入口。共12张票；#42／46／47／48及完整并发#57保持open。H1/H2、目录／页签／保存、外部冲突和H4已有文本功能限定验证；评论原#47缺口、最终缓存／可见guest、完整首版及用户验收未通过。用户已接受的是发送边界尽力禁用风险，见`docs/adr/0005-temporary-comment-send-guard.md`，不等于豁免未观察受理后取消导致的A+B复活。
 
 2026-10-14 最终评论代码源`e77520d`／统一`f6b4257`复用SDK55、实际构建浏览器65及common98限定证据，两项可修P2（已观测证明保留、真实ChannelClient订阅释放）闭合。旧严格schema的Native失败保留，公开V4 A普通/B排队全文JSON与API审批通过仅属接口probe；最终f6新缓存／可见guest尚未执行。当前边界见[评论验证](docs/comment-guard-verification.md)顶部新记录；旧正文、JSON与首次失败不回写。
 
@@ -12,7 +12,7 @@ SE-05 已实现 schema 2 的会话恢复副本与独立回执；最终固定源 
 
 ## 范围与约定
 
-- 首版编辑当前本机工作区内已有的 UTF-8 文本文件。远程工作区和新建、重命名、删除文件另列后续特性；首版不包含 PPT 编辑。
+- 编辑当前会话允许的本机目录内已有的 UTF-8 文本；3.16 可在文件树上方切换执行／附加目录，冻结会话范围优先于项目 roots，各目录的页签与恢复副本隔离。远程工作区和新建、重命名、删除文件另列后续特性；首版不包含 PPT 编辑。
 - 编辑器使用插件内部界面和文件页签；选区评论进入当前主对话，模型回复留在主对话。不得扩展辅助问答或插件内聊天。
 - 当前评论采用已核公开会话状态尽力禁用全部提交入口、tooltip 与草稿保留；状态可能迟到、恢复可能早于 Renderer 清理的过渡风险已获用户接受。若用模型 running 保守代理，明确可能整个回复期间锁定，不能称为 admission pending；未知／断连不当空闲。完整原生并发完成后移除临时禁用。
 - 沿用根 AGENTS.md 和 CONTEXT.md。真实可复用的实现归 `../suian-zcode-common/`，本插件保留编辑、页签与评论业务；具体抽取边界在规格中明确，不因可能复用而提前创建通用框架。
@@ -28,6 +28,7 @@ SE-05 已实现 schema 2 的会话恢复副本与独立回执；最终固定源 
 - 设计澄清：`docs/design-discussion.md`。
 - 首版规格与票草稿：`docs/text-editor-spec.md`、`docs/text-editor-tickets.md`。
 - 实施证据与宿主预读：`docs/development-verification.md`、`docs/native-ui-binding-research.md`。
+- 多目录交互与隔离回归：[验证记录](../suian-zcode-app-mcp/docs/multi-directory-validation.md)；原生多目录组合待验。
 - 评论代码／夹具通过及 Native 待验的当前边界：[评论验证](docs/comment-guard-verification.md)。
 - 主对话上下文接口与安装包核对：`docs/main-composer-context-research.md`。
 - 已接受的架构决定：`docs/adr/`。
@@ -41,14 +42,15 @@ SE-05 已实现 schema 2 的会话恢复副本与独立回执；最终固定源 
 | .zcode-plugin/plugin.json / .mcp.json | session 侧栏声明、stdio 注册及宿主工作区的显式环境绑定 |
 | skills/setup/SKILL.md | 原生实际 rootPath／dataPath 核对、锁定依赖与 common 包链接；不启动公共远控网关 |
 | package.json / package-lock.json | 独立插件的精确运行依赖、测试和语法检查入口 |
-| cli.mjs / server.mjs | stdio 服务、app-only 工具与本地 UI 资源；可信工作区和宿主 session meta 验证 |
+| cli.mjs / server.mjs | stdio 服务、app-only 工具与本地 UI 资源；宿主 session meta 与每次目录选择验证，只读公共 project-context，评论仍绑定会话执行目录 |
 | text-files.mjs | 工作区边界、按层目录、UTF-8/BOM/换行特征、字节版本与拒绝旧基线的写回 |
-| text-resources.mjs | 首次可信受审读取登记的文本资源、按版本通知与释放；同一 MCP subscribe／unsubscribe 路由按 URI 分派文本和评论资源，资源请求无对话 meta |
+| text-resources.mjs | 首次可信受审读取登记的文本资源、按版本通知与释放；后续刷新重新核对原会话目录范围，失效则停止监测并返回错误快照；同一 MCP subscribe／unsubscribe 路由按 URI 分派文本和评论资源，资源请求无对话 meta |
 | comment-state.mjs | 可信评论状态资源；common快照状态代理、V4自有临时订阅／官方组装／当前分支分页；已观测批次证明、unknown与有界退订，不用legacy事件路线 |
 | editor-settings.mjs | 插件外置 SQLite schema 2、schema 1 无损迁移、模式事务与会话恢复副本、存储边界校验及独立回执 |
 | ui/editor-template.html / ui/editor.css / ui/editor.mjs | 页面结构和主题、目录树、CodeMirror 页签、手动／自动保存、打开文件版本检测及冲突确认 |
 | build-ui.mjs / ui/dist/ | 唯一本地 UI 构建入口、随插件返回的自包含 HTML 与第三方许可；不手改生成文件 |
 | tests/ | 公开 MCP/stdio 文件边界契约与实际资源浏览器烟测 |
+| tests/multi-root.test.mjs / tests/browser-multi-root.mjs | 多目录归属、撤销与 Windows 路径等价；实际构建目录切换、同名草稿、保存互斥、迟到资源及重开恢复 |
 | tests/comment-state.test.mjs | 可信双资源、V4分片／完整历史／独立受理证明、真实ChannelClient取消和晚ACK，精确本插件批次及普通正文隔离 |
 | tests/comment-host-fixture.mjs | V4 Host测试边界、官方encoder与真实ChannelClient pending／事件释放夹具，不连接Native |
 | tests/browser-comments.mjs | 实际构建选区快照与聚合、全部入口禁用／表单保留、正常／失败／排队受理及迟到回执契约；不代替 Native |

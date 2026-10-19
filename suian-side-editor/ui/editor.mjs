@@ -64,7 +64,7 @@ commentBody.addEventListener('input', renderComments);
 commentButton.addEventListener('click', () => {
   if (commentButton.disabled || !current) return;
   const { from, to } = view.state.selection.main;
-  commentDraft = { commentId: commentId(), sessionId: context.sessionId, workspacePath: context.workspacePath,
+  commentDraft = { commentId: commentId(), sessionId: context.sessionId, workspacePath: context.sessionWorkspacePath ?? context.workspacePath,
     path: current.sourcePath, title: current.relativePath.split('/').at(-1), startLine: view.state.doc.lineAt(from).number,
     endLine: view.state.doc.lineAt(to - 1).number, selectedText: view.state.sliceDoc(from, to), unsaved: isDirty(current) };
   document.getElementById('comment-location').textContent = `${commentDraft.path} · ${commentDraft.startLine}–${commentDraft.endLine} 行${commentDraft.unsaved ? ' · 包含未保存编辑' : ''}`;
@@ -93,6 +93,8 @@ const closeDialog = document.getElementById('close-dialog'), closeSave = documen
 const modeButton = document.getElementById('save-mode'), conflictBar = document.getElementById('conflict-bar');
 const reloadDialog = document.getElementById('reload-dialog');
 let context, view, current;
+const workspaceSelect = document.getElementById('workspace-select'), workspacePathLabel = document.getElementById('workspace-path');
+let switchingRoot = false, rootGeneration = 0, openingCount = 0;
 let saveMode = 'manual', settingsReady = false, settingsBusy = false, settingsError;
 const documents = [];
 let disposed = false, cancelResourceEvents;
@@ -101,6 +103,7 @@ const recoveryStatus = document.getElementById('recovery-status'), recoveryRetry
 function renderRecovery() {
   recoveryStatus.textContent = recoveryError ? `恢复副本失败：${recoveryError}` : !recoveryReady ? '正在读取恢复副本…' : recoveryRevision === recoveryAck ? '恢复副本已同步' : '恢复副本待同步…';
   recoveryRetry.hidden = !recoveryError;
+  updateWorkspaceSelection();
 }
 function recoveryChanged() {
   if (!recoveryReady || restoring || disposed) return;
@@ -115,6 +118,7 @@ function recoverySnapshot() {
 async function persistRecovery() {
   if (!recoveryReady || recoveryBusy || disposed || recoveryRevision === recoveryAck) return;
   clearTimeout(recoveryTimer); recoveryBusy = true;
+  renderRecovery();
   const revision = recoveryRevision, state = recoverySnapshot();
   try { await call('update_editor_state', { state }); recoveryAck = revision; recoveryError = undefined; }
   catch (error) { recoveryError = error.message; }
@@ -160,7 +164,7 @@ async function loadRecovery() {
     if (documents.length) activateFile(restored.get(state.currentPath));
     recoveryReady = true; recoveryError = undefined;
   } catch (error) { recoveryError = error.message; }
-  finally { restoring = false; document.body.inert = false; recoveryRetry.disabled = false; if (recoveryReady && normalized) recoveryChanged(); renderRecovery(); }
+  finally { restoring = false; document.body.inert = switchingRoot; recoveryRetry.disabled = false; if (recoveryReady && normalized) recoveryChanged(); renderRecovery(); }
 }
 recoveryRetry.addEventListener('click', async () => {
   if (recoveryReady) { recoveryError = undefined; renderRecovery(); await persistRecovery(); }
@@ -170,6 +174,7 @@ const lineBreaks = { crlf: '\r\n', cr: '\r', lf: '\n', none: '\n' };
 function showStatus(text, error = false) { statusText.textContent = text; status.classList.toggle('error', error); }
 function isDirty(file) { return file.text !== file.diskText; }
 function showFileStatus() {
+  updateWorkspaceSelection();
   renderComments();
   conflictBar.hidden = !(current?.blocked || current?.syncError);
   const busy = Boolean(current?.saving || current?.reloading);
@@ -183,6 +188,7 @@ function showFileStatus() {
 }
 function theme() { document.documentElement.dataset.theme = host.theme ?? 'light'; }
 async function call(name, args) {
+  if (context && name !== 'get_editor_comment_state') args = { workspace_root: context.workspaceRoot ?? context.workspacePath, ...args };
   const result = await host.callTool(name, args);
   if (result.isError) throw Object.assign(new Error(result.structuredContent?.error ?? result.content?.[0]?.text ?? '文件操作失败'), { code: result.structuredContent?.code });
   if (!result.structuredContent) throw new Error('工具响应缺少数据');
@@ -227,6 +233,7 @@ function renderTabs() {
     file.close.disabled = Boolean(file.saving);
     tabs.append(file.tabContainer);
   }
+  updateWorkspaceSelection();
 }
 function activateFile(file) {
   const previous = current;
@@ -257,6 +264,7 @@ function activateFile(file) {
 }
 let opening = Promise.resolve();
 function openFile(path, fixed = false) {
+  openingCount++; updateWorkspaceSelection();
   opening = opening.then(async () => {
     try {
       const existing = documents.find(file => file.relativePath === path);
@@ -275,7 +283,7 @@ function openFile(path, fixed = false) {
       activateFile(file);
       await subscribeFile(file);
     } catch (error) { showStatus(error.message, true); }
-  });
+  }).finally(() => { openingCount--; updateWorkspaceSelection(); });
   return opening;
 }
 function createEditorState(file, separator = lineBreaks[file.encoding.newline]) {
@@ -323,7 +331,7 @@ async function saveFile(file) {
   }
 }
 function cancelAuto(file) { clearTimeout(file.autoTimer); file.autoTimer = undefined; file.autoAfterSave = false; }
-function canAutoSave(file) { return settingsReady && !settingsBusy && saveMode === 'auto' && documents.includes(file) && file.subscribed && !file.syncError && !file.blocked && !file.reloading && isDirty(file); }
+function canAutoSave(file) { return !switchingRoot && settingsReady && !settingsBusy && saveMode === 'auto' && documents.includes(file) && file.subscribed && !file.syncError && !file.blocked && !file.reloading && isDirty(file); }
 function autoSave(file) {
   if (!canAutoSave(file)) return;
   if (file.saving) { file.autoAfterSave = true; return; }
@@ -334,6 +342,7 @@ function scheduleAuto(file, delay = 800) {
   if (canAutoSave(file)) file.autoTimer = setTimeout(() => { file.autoTimer = undefined; autoSave(file); }, delay);
 }
 function renderMode() {
+  updateWorkspaceSelection();
   modeButton.disabled = settingsBusy; modeButton.textContent = settingsReady ? saveMode === 'auto' ? '自动保存' : '手动保存' : '保存方式未确认';
   const error = document.getElementById('settings-error'); error.hidden = !settingsError; error.textContent = settingsError ?? '';
 }
@@ -494,7 +503,9 @@ closeSave.addEventListener('click', async () => {
   } finally { closeSave.disabled = false; }
 });
 async function loadDirectory(path, group) {
+  const generation = rootGeneration;
   const { entries } = await call('list_editor_directory', { path });
+  if (generation !== rootGeneration) return;
   for (const entry of entries) {
     const item = document.createElement('div'), row = document.createElement('button');
     row.className = 'tree-row'; row.dataset.path = entry.path; row.setAttribute('role', 'treeitem'); row.setAttribute('aria-label', entry.name);
@@ -521,6 +532,48 @@ async function loadDirectory(path, group) {
   }
 }
 let rootLoaded = false;
+function updateWorkspaceSelection() {
+  workspaceSelect.disabled = !context || switchingRoot || !recoveryReady || restoring || recoveryBusy || settingsBusy || openingCount > 0 || documents.some(file => file.saving || file.reloading);
+}
+function renderWorkspace() {
+  const roots = context.workspaceRoots ?? [context.workspacePath];
+  workspaceSelect.replaceChildren(...roots.map(path => {
+    const option = document.createElement('option'); option.value = path;
+    const name = path.split(/[\\/]/).filter(Boolean).at(-1) ?? path;
+    option.textContent = roots.filter(root => root.split(/[\\/]/).filter(Boolean).at(-1) === name).length > 1 ? path : name;
+    option.title = path; return option;
+  }));
+  workspaceSelect.value = context.workspaceRoot ?? context.workspacePath;
+  workspaceSelect.title = context.workspacePath;
+  workspacePathLabel.textContent = context.workspacePath; workspacePathLabel.title = context.workspacePath;
+  breadcrumb.textContent = context.workspacePath;
+  updateWorkspaceSelection();
+}
+async function switchWorkspace(root) {
+  if (root === (context.workspaceRoot ?? context.workspacePath)) return;
+  if (workspaceSelect.disabled) { workspaceSelect.value = context.workspaceRoot ?? context.workspacePath; return; }
+  switchingRoot = true; document.body.inert = true; updateWorkspaceSelection();
+  for (const file of documents) cancelAuto(file);
+  try {
+    await persistRecovery();
+    if (recoveryError) throw new Error('当前目录的恢复副本未保存，暂不能切换：' + recoveryError);
+    const next = await call('get_editor_context', { workspace_root: root });
+    for (const file of documents) stopResource(file);
+    documents.splice(0); tabs.replaceChildren(); view?.destroy(); view = undefined; current = undefined;
+    editor.hidden = true; empty.hidden = false; fileInfo.textContent = '';
+    context = next; rootGeneration++; tree.replaceChildren(); rootLoaded = false;
+    recoveryReady = false; recoveryRevision = 0; recoveryAck = 0; recoveryError = undefined; settingsReady = false;
+    renderWorkspace(); renderRecovery();
+    await loadRecovery(); await loadSettings();
+    folder.disabled = !recoveryReady;
+    if (!files.hidden && recoveryReady) { await loadDirectory('.', tree); rootLoaded = true; }
+  } catch (error) { workspaceSelect.value = context.workspaceRoot ?? context.workspacePath; showStatus(error.message, true); }
+  finally {
+    switchingRoot = false; document.body.inert = false; updateWorkspaceSelection();
+    for (const file of documents) scheduleAuto(file);
+  }
+}
+workspaceSelect.addEventListener('change', () => { void switchWorkspace(workspaceSelect.value); });
 folder.addEventListener('click', async () => {
   files.hidden = !files.hidden; folder.setAttribute('aria-expanded', String(!files.hidden));
   if (files.hidden || rootLoaded) return;
@@ -535,7 +588,7 @@ try {
   context = await call('get_editor_context', {});
   if (!host.hostCapabilities?.experimental?.['zcode/resourceSubscribe']) throw new Error('当前宿主不支持资源订阅，外部文件同步不可用');
   cancelResourceEvents = host.onResourceUpdated(uri => { if (uri === commentResource) void refreshCommentState(); const file = documents.find(item => item.resourceUri === uri); if (file) void refreshFile(file); });
-  document.getElementById('workspace-title').textContent = context.workspacePath.split(/[\\/]/).at(-1);
+  renderWorkspace();
   await loadRecovery(); folder.disabled = !recoveryReady; await loadSettings();
   void loadComments();
 } catch (error) { showStatus(error.message, true); }

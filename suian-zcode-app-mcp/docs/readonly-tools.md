@@ -24,12 +24,15 @@
 | `limit` | 1–200，默认 20；表示本页最多条数 |
 | `offset` | 非负整数，默认 0；下一页使用 `next_offset` |
 | `workspace_path` | 可选；省略时覆盖索引中的所有工作区。Windows 路径统一分隔符、大小写与尾部分隔符 |
+| `project_id` | 3.16 可选；按项目 ID 精确过滤，`null` 表示未归类。与目录过滤同时填写时按 AND 收窄；旧版索引显式使用该条件会报 `project_schema_unsupported` |
 | `query` | 可选；在标题或 ID 中匹配字面子串，ASCII 字母不区分大小写。`%`、`_` 和引号没有特殊搜索含义 |
 | `include_archived` | 默认 false；true 将归档项一起列出 |
 
 按 `pinned DESC, updated_at DESC, task_id, workspace_key` 排序：置顶会话排在最前，置顶段内部与非置顶段各自按更新时间从新到旧（对齐 Desktop 端"已置顶"分组的展示语义）。置顶状态在翻页期间变化时页边界会随之移动，沿用同一筛选条件续页即可，不跳页。返回 `source: local_tasks_index`、`sessions`、筛选后的 `total` 和 `next_offset`。时间戳是 Unix 毫秒。每项包含 ID、标题、工作区路径与 key、远端身份、provider、`permission_mode` 权限模式、持久化状态、时间和置顶/归档标记。
 
 这里的“所有工作区”指本机索引已经收录的工作区，不保证存在另一台设备的全部记录。分批查询时，其他进程新增或更新会话会改变 offset 排序；本版不冻结跨调用快照。
+
+3.16 列表行另带 `project_id` 和 `host_id`。同一路径可以属于不同项目，目录过滤不能代替项目过滤。
 
 ## 查看聊天
 
@@ -59,6 +62,8 @@
 返回 `source: local_cli_databases`、`session_id` 与双库汇集的字段：CLI 库的 `session_title`、`workspace_path`、`permission_mode`（权威来源，可能滞后于运行中的临时改动）；任务索引的 `index_title` 与未删除匹配行 `index_matches`（通常一行；跨工作区同 ID 时多行返回，自行判断）。
 
 只读本机双库，不连接网关，也不查询原 Host 实时状态。会话尚未落库（子代理上下文、`deferPersistence` 未落）时对应字段为 `null`、`index_matches` 为空数组，不当作错误。
+
+3.16 且本地索引唯一匹配时，另返回 `project_id`、`project_name`、`project_deleted` 和 `additional_directories`。附加目录优先读取会话已冻结的 `execution_directories`，包括空数组；仅未冻结时才使用所属项目的 roots。旧版、远端或归属不唯一时不补推本机目录范围。
 
 ## 列出定时任务
 

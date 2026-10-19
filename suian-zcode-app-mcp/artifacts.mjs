@@ -122,6 +122,24 @@ export function createArtifactStore({ artifactDbPath, sessionDbPath, indexDbPath
     finally { db.close(); }
   }
 
+  // 可选附加表：旧版工件库无需迁移；缓存不写入工件 items、revision 或历史快照。
+  function readStatus(db, key) {
+    if (!db?.prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name='artifact_status'").get()) return;
+    const row = db.prepare('SELECT snapshot FROM artifact_status WHERE cache_key=?').get(key);
+    return row ? JSON.parse(row.snapshot) : undefined;
+  }
+
+  function writeStatus(key, snapshot) {
+    const db = open(true);
+    try {
+      db.exec('CREATE TABLE IF NOT EXISTS artifact_status (cache_key TEXT PRIMARY KEY, snapshot TEXT NOT NULL)');
+      if (snapshot === undefined) db.prepare('DELETE FROM artifact_status WHERE cache_key=?').run(key);
+      else db.prepare('INSERT INTO artifact_status VALUES (?,?) ON CONFLICT(cache_key) DO UPDATE SET snapshot=excluded.snapshot').run(key, JSON.stringify(snapshot));
+      db.exec('COMMIT');
+    } catch (error) { db.exec('ROLLBACK'); throw error; }
+    finally { db.close(); }
+  }
+
   function update(db, sessionId, { expected_revision, upsert = [], remove = [] }) {
     const previous = storedState(db, sessionId);
     if (expected_revision !== undefined && previous.revision !== expected_revision) throw Object.assign(new Error('工件版本冲突，请 get_artifacts 后重新判断增量'), {
@@ -148,6 +166,15 @@ export function createArtifactStore({ artifactDbPath, sessionDbPath, indexDbPath
 
   return {
     initialize,
+    statusCache: {
+      get(key) {
+        const db = open();
+        try { return readStatus(db, key); }
+        finally { db?.close(); }
+      },
+      set: (key, snapshot) => writeStatus(key, snapshot),
+      delete: key => writeStatus(key),
+    },
     linkSessions({ creator, created, creatorLabel, createdLabel }) {
       initialize(creator);
       const db = open(true);
@@ -194,7 +221,12 @@ export function createArtifactStore({ artifactDbPath, sessionDbPath, indexDbPath
           const directed = item.session_link ? { ...item, session_direction:
             sessionId === item.session_link.creator ? 'outgoing' : sessionId === item.session_link.created ? 'incoming' : 'related' } : item;
           const title = directed.kind === 'session' ? titles.get(directed.ref) : null;
-          return title != null ? { ...directed, session_title: title } : directed;
+          const result = title != null ? { ...directed, session_title: title } : directed;
+          if (['pr', 'issue'].includes(result.kind)) {
+            const status = readStatus(db, JSON.stringify([result.kind, result.ref]));
+            if (status) result.github_status = status;
+          }
+          return result;
         });
         return { ...state, items, stats: artifactStats(items) };
       } finally { db?.close(); }
