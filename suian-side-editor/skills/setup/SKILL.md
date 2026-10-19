@@ -5,7 +5,9 @@ description: 初始化或升级 suian-side-editor 的锁定依赖与公共包链
 
 # 文本编辑器安装与升级
 
-适用于用户已选择的suian-side-editor 0.2.0。要求Node.js 24+、ZCode应用版本至少3.15.1，以及MCP Apps能力和可信会话归属。文本编辑可独立使用；选区评论另需既有网关与公开V4连接，采用尽力禁用。原#47缓存缺口、最终缓存／guest、完整首版与用户验收未通过，详见[当前边界](../../docs/comment-guard-verification.md)。
+适用于用户已选择的 suian-side-editor 0.2.0。要求 Node.js 24+、ZCode 应用版本至少 3.15.1，以及 MCP Apps 能力和可信会话归属。这些是运行条件，不代表后续应用版本均已通过兼容验证。
+
+文本编辑可独立使用。选区评论另需既有网关和桌面端远控连接，尚未完成 3.16 兼容验证，不能将公共网关 0.3.0 的在线共存结果视为评论兼容结论。3.16 暂不支持 local-only，详见[公共配置](../../../suian-zcode-common/skills/configuration/SKILL.md)。评论的尽力禁用保护仍有发送边界缺口，编辑器尚待完整首版验证与用户验收，详见[当前边界](../../docs/comment-guard-verification.md)。
 
 ## 确认实际安装位置
 

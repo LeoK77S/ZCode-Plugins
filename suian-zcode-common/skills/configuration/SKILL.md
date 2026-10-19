@@ -5,16 +5,18 @@ description: 修改 ZCode 公共网关的连接模式、端口或上游，保留
 
 # 公共连接配置
 
-原生根为 `${ZCODE_SKILL_DIR}/../..`；源码模式沿用已确定的根。先读[路径与数据](../paths.md)，执行 setup.ps1 -Action Status。
+原生根为 `${ZCODE_SKILL_DIR}/../..`；源码模式沿用已确定的根。先读[路径与数据](../paths.md)，确认 ZCode 应用版本，再执行 setup.ps1 -Action Status。CLI 版本不能代替应用版本。
 
-| 模式 | 条件与验证 |
+| 模式 | 版本范围与条件 |
 | --- | --- |
-| relay | 默认模式，连接官方上游并保留手机共存；开启远控须官方服务器可达，面板停在"启动中"即不可达 |
-| local-only | 官方服务器不可达或明确内网本机控制时选择；网关本机回应启动与心跳，不依赖外网，不支持手机页面，须验证 desktop_ready |
+| relay | 默认模式，连接官方上游并保留手机共存；公共插件 0.3.0 起支持 3.16 在线模式，需要已登录账号和可达的官方远控服务 |
+| local-only | 仅适用于已支持的旧版，已在 3.14.4 验证；不连接官方远控服务，不支持手机页面，须验证 desktop_ready；3.16 暂不可用 |
 
-已有配置保留 mode，旧配置缺少该字段按 relay 兼容。临时网络失败不自动切模式；需求不明且影响手机时先确认是否需要官方手机远控。远控面板停在"启动中"是官方服务器不可达的直接信号，先据此判断，再决定是否以 local-only 安装。
+已有配置保留 `mode`，缺少该字段时按 `relay` 兼容；缺少 `relay_protocol_version` 时使用 V1。临时网络失败不自动切换模式。面板停在“启动中”或显示失败时，先结合错误和日志核对登录、网络与版本配置，不能仅凭界面状态判定原因。
 
-首次 Install 可加 -Mode local-only、-Port {{port}} 或 -UpstreamUrl {{url}}；默认端口 17329，上游 wss://zcode.z.ai/ws。已有配置按 setup 的暂停远控流程 Restart，只传用户要求改变的字段；原生模式加 -NativePlugin。模式切换沿用本机地址与上游，便于恢复。
+3.16 使用公共插件 0.3.0 及以上版本，配置 `relay_protocol_version: 2`，上游为 `wss://zcode.z.ai/api/v1/remote/ws2`。现有 Windows 安装脚本尚未接入 V2 参数，不能只修改上游地址，也不能套用下面的默认安装命令。具体配置和已验证范围见[3.16 开发记录](../../../suian-zcode-app-mcp/docs/zcode-3.16-gateway-validation.md)。3.16 不支持以 local-only 回退。
+
+旧版首次 Install 可加 `-Mode local-only`、`-Port {{port}}` 或 `-UpstreamUrl {{url}}`；默认端口为 17329，V1 上游为 `wss://zcode.z.ai/ws`。已有配置按 setup 的暂停远控流程 Restart，只传用户要求改变的字段；原生模式加 `-NativePlugin`。切换本地模式前确认该应用版本在支持范围内，并说明手机连接将不可用。
 
 自定义网关数据目录时，命名与 MCP 配置的 gatewayConfigPath 必须指向同一公共 config.json，不传 control_token。
 
@@ -27,4 +29,4 @@ $env:ZCODE_WEB_REMOTE_CONTROL_RELAY_WS_URL = [Environment]::GetEnvironmentVariab
 Start-Process -FilePath "{{zcode_exe}}" -WindowStyle Hidden
 ```
 
-模型服务、登录和 GLM 额度仍需要各自服务可达，local-only 只解决 relay 依赖；手机可用性需实际验收。
+模型服务、登录和 GLM 额度仍需要各自服务可达。旧版本地模式只免除官方远控连接，不代表这些服务也可离线使用；手机可用性需实际验收。
