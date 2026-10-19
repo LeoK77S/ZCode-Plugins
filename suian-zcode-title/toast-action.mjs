@@ -7,7 +7,8 @@ import {buildFixPrompt} from "./toast.mjs";
 import {copyPromptAndOpenWorkspace} from "suian-zcode-common/notification-action.mjs";
 
 export function parseActionUri(uri) {
-  const match=/^suian-zcode-title:\/\/([a-z]+)$/i.exec(String(uri??""));
+  // Windows 协议激活会把 scheme://host 规范化为 scheme://host/，尾斜杠必须容忍。
+  const match=/^suian-zcode-title:\/\/([a-z]+)\/?$/i.exec(String(uri??""));
   return match?{action:match[1].toLowerCase()}:null;
 }
 

@@ -19,6 +19,19 @@ test("协议处理器解析 fix 动作：先复制提示词再打开默认工作
   assert.ok(did[0].copy.includes("修复 ZCode 自动命名插件"),"剪贴板收到排障提示词");
   assert.equal(did[1].open,"zcode://workspace/open?path="+encodeURIComponent(join(homedir(),".zcode","workspace","default")),"打开用户自带默认工作区，不随插件位置变化");
 });
+test("协议激活的尾斜杠 URI 仍解析为 fix 并复制提示词",async()=>{
+  const did=[];
+  const result=await runAction({
+    uri:"suian-zcode-title://fix/",
+    pluginRoot:"p",
+    dataDir:"d",
+    setClipboard:async text=>{did.push({copy:text});},
+    openWorkspace:async uri=>{did.push({open:uri});}
+  });
+  assert.deepEqual(result,{ok:true,action:"fix"});
+  assert.equal(did.length,2);
+  assert.ok(did[0].copy.includes("修复 ZCode 自动命名插件"));
+});
 test("协议处理器拒绝非法 URI 与未知动作",async()=>{
   const calls=[];
   const noop=async()=>{calls.push(1);};
