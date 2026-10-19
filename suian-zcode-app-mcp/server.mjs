@@ -34,7 +34,7 @@ export function createMcpServer(config, { controller, prStatus, reveal } = {}) {
   };
   server.registerTool('list_sessions', {
     title: '列出 ZCode 会话',
-    description: '读取本机会话索引，置顶优先、组内按更新时间降序。query 按标题或 ID 作字面子串搜索；默认排除归档与删除项。workspace_path 按执行目录筛选；3.16 的 project_id 按项目归属筛选，null 表示未归类，省略查询全部项目。按 next_offset 保持筛选条件续页。结果是持久化状态。',
+    description: '读取本机持久化会话索引，置顶优先；默认排除归档与删除项。query 按标题、ID 或目录作字面搜索，命中项目目录可找同项目会话。workspace_path 筛执行目录；project_id 筛项目，null 表示未归类。会话附加目录摘要最多 3 项；按 next_offset 续页。',
     inputSchema: z.object({
       limit: z.number().int().min(1).max(200).default(20),
       offset: z.number().int().min(0).default(0),
@@ -204,7 +204,7 @@ export function createMcpServer(config, { controller, prStatus, reveal } = {}) {
   }, respond('list_pinned_sessions', args => reader.listPinnedSessions(args)));
   server.registerTool('list_automations', {
     title: '列出 ZCode 定时任务',
-    description: '读取本机持久库，列出定时任务（automation）清单与调度状态：automationId、title、cronExpr、enabled、lifecycleStatus、nextRunAt、lastRunAt、runCount、recurring、maxRuns、scheduleRule、workspaceKey、workspacePath、targetTaskId（绑定的会话）。省略参数返回全部工作区；workspace_path / workspace_key 可选过滤。只读本机数据，离线可用。定时任务自动触发的轮次里官方 Cron 写工具不可用时，本工具仍可正常调用，可先据此定位目标任务的 automationId。',
+    description: '只读本机定时任务清单与持久化调度状态，离线可用；返回 automationId 供定位任务。省略参数查询全部工作区，workspace_path / workspace_key 可选过滤。定时任务触发的轮次中，官方 Cron 写工具不可用时仍可调用。',
     inputSchema: z.object({
       workspace_path: z.string().min(1).optional(),
       workspace_key: z.string().min(1).optional()

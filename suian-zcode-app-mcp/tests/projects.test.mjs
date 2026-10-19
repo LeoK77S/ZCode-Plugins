@@ -40,10 +40,69 @@ test('项目筛选以项目 ID 区分同目录的不同项目，当前会话公�
   assert.deepEqual(readFileSync(f.indexDbPath), before);
 });
 
+test('列表区分多目录项目与会话附加目录，摘要最多三项并明确截断', t => {
+  const f = projectFixture(t), reader = createSessionReader(f);
+  f.index.exec("INSERT INTO project_roots VALUES ('project-a','D:/gamma',2),('project-a','D:/delta',3),('project-a','D:/epsilon',4)");
+  f.index.prepare('UPDATE tasks SET execution_directories=? WHERE task_id=?')
+    .run(JSON.stringify(['D:/gamma', 'D:/delta', 'D:/epsilon', 'D:/frozen-only']), 'parent');
+  const before = readFileSync(f.indexDbPath);
+  const rows = reader.listSessions().sessions;
+  const parent = rows.find(row => row.session_id === 'parent');
+  assert.equal(parent.is_multi_workspace_project, true);
+  assert.equal(parent.additional_directories_count, 4);
+  assert.deepEqual(parent.additional_directories_preview, ['D:/gamma', 'D:/delta', 'D:/epsilon']);
+  assert.equal(parent.additional_directories_truncated, true);
+  const sibling = rows.find(row => row.session_id === 'sibling');
+  assert.equal(sibling.additional_directories_count, 4);
+  assert.deepEqual(sibling.additional_directories_preview, ['D:/alpha', 'D:/gamma', 'D:/delta']);
+  const other = rows.find(row => row.session_id === 'other');
+  assert.equal(other.is_multi_workspace_project, false);
+  assert.equal(other.additional_directories_count, 0);
+  assert.deepEqual(other.additional_directories_preview, []);
+  assert.equal(other.additional_directories_truncated, false);
+  assert.deepEqual(readFileSync(f.indexDbPath), before);
+  f.index.prepare('UPDATE tasks SET execution_directories=? WHERE task_id=?').run('[]', 'parent');
+  const frozenEmpty = reader.listSessions({ project_id: 'project-a' }).sessions.find(row => row.session_id === 'parent');
+  assert.equal(frozenEmpty.is_multi_workspace_project, true);
+  assert.equal(frozenEmpty.additional_directories_count, 0);
+  assert.deepEqual(frozenEmpty.additional_directories_preview, []);
+  assert.equal(frozenEmpty.additional_directories_truncated, false);
+});
+
+test('query 通过附加目录找到所属项目，先筛选再分页并保留项目与归档边界', t => {
+  const f = projectFixture(t), reader = createSessionReader(f);
+  f.index.exec("UPDATE tasks SET execution_directories='[]' WHERE task_id='parent'");
+  f.index.exec("INSERT INTO project_roots VALUES ('project-a','D:/third',2),('project-a','D:/fourth',3),('project-a','D:/beyond-preview',4)");
+  const before = readFileSync(f.indexDbPath);
+  const first = reader.listSessions({ query: 'BETA', limit: 1 });
+  assert.equal(first.total, 2);
+  assert.deepEqual(first.sessions.map(row => row.session_id), ['parent']);
+  assert.equal(first.next_offset, 1);
+  const next = reader.listSessions({ query: 'BETA', limit: 1, offset: first.next_offset });
+  assert.deepEqual(next.sessions.map(row => row.session_id), ['sibling']);
+  assert.equal(next.next_offset, null);
+  assert.equal(reader.listSessions({ query: 'beyond-preview' }).total, 2);
+  assert.equal(reader.listSessions({ query: 'd:\\BETA\\' }).total, 2);
+  assert.deepEqual(reader.listSessions({ query: 'beta', workspace_path: 'D:/alpha' }).sessions.map(row => row.session_id), ['parent']);
+  assert.equal(reader.listSessions({ query: 'beta', project_id: 'project-b' }).total, 0);
+  assert.deepEqual(readFileSync(f.indexDbPath), before);
+  f.index.prepare('UPDATE tasks SET execution_directories=? WHERE task_id=?').run('["D:/frozen-only"]', 'parent');
+  assert.equal(reader.listSessions({ query: 'frozen-only' }).total, 2);
+  f.index.prepare('UPDATE tasks SET project_id=NULL,execution_directories=? WHERE task_id=?').run('["D:/unclassified-extra"]', 'other');
+  assert.deepEqual(reader.listSessions({ query: 'unclassified-extra' }).sessions.map(row => row.session_id), ['other']);
+  f.index.exec("UPDATE tasks SET archived=1 WHERE task_id='sibling'");
+  assert.equal(reader.listSessions({ query: 'beta' }).total, 1);
+  assert.equal(reader.listSessions({ query: 'beta', include_archived: true }).total, 2);
+  f.index.exec("UPDATE tasks SET deleted=1 WHERE task_id='parent'");
+  assert.deepEqual(reader.listSessions({ query: 'beta', include_archived: true }).sessions.map(row => row.session_id), ['sibling']);
+});
+
 test('旧索引继续支持原有列表，显式项目筛选报告宿主索引不支持', t => {
   const f = fixture(t); f.task({ id: 'old' });
   const reader = createSessionReader(f);
   assert.equal(reader.listSessions().total, 1);
+  assert.equal(reader.listSessions({ query: 'WORK\\ALPHA' }).total, 1);
+  assert.equal(reader.listSessions().sessions[0].is_multi_workspace_project, undefined);
   assert.throws(() => reader.listSessions({ project_id: 'project-a' }), /project_schema_unsupported/);
 });
 
@@ -82,6 +141,10 @@ test('MCP 创建在会话范围内继承项目和目录，跨项目与显式未�
   assert.deepEqual(calls.at(-1).additional_directories, []);
   const listed = await client.callTool({ name: 'list_sessions', arguments: { project_id: 'project-b' } });
   assert.deepEqual(listed.structuredContent.sessions.map(row => row.session_id), ['other']);
+  assert.equal(listed.structuredContent.sessions[0].is_multi_workspace_project, false);
+  const searched = await client.callTool({ name: 'list_sessions', arguments: { query: 'beta' } });
+  assert.deepEqual(searched.structuredContent.sessions.map(row => row.session_id), ['parent', 'sibling']);
+  assert.deepEqual(searched.structuredContent.sessions[0].additional_directories_preview, ['D:/beta']);
   const current = await client.callTool({ name: 'get_current_session', arguments: {}, _meta: { session_id: 'parent' } });
   assert.equal(current.structuredContent.project_id, 'project-a');
   assert.deepEqual(current.structuredContent.additional_directories, ['D:/beta']);

@@ -14,7 +14,7 @@ export async function readHistory({dbPath,sessionId,workspacePath,sqliteBin="sql
     "UNION ALL SELECT 'part',id,message_id,sequence IS NULL,sequence,time_created,id,CASE WHEN json_extract(data,'$.type')='text' THEN data ELSE json_object('type',json_extract(data,'$.type'),'synthetic',json_extract(data,'$.synthetic'),'metadata',json_extract(data,'$.metadata')) END FROM part WHERE session_id="+quoted,
     "ORDER BY kind,message_id,missing_seq,sequence,time_created,sort_key; COMMIT;"
   ].join("\n");
-  const {stdout}=await promisify(execFile)(sqliteBin,["-readonly","-json",dbPath,sql],{encoding:"utf8",windowsHide:true,maxBuffer:32*1024*1024});
+  const {stdout}=await promisify(execFile)(sqliteBin,["-readonly","-json",dbPath,sql],{encoding:"utf8",windowsHide:true,maxBuffer:256*1024*1024});
   const rows=JSON.parse(stdout),sessionRow=rows.find(r=>r.kind==="session");
   if(!sessionRow)throw new Error("会话不在指定 SQLite 库中");
   const session=JSON.parse(sessionRow.data);

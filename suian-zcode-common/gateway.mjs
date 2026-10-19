@@ -12,6 +12,9 @@ import { gatewayBuild } from './gateway-build.mjs';
 export const OFFICIAL_RELAY = 'wss://zcode.z.ai/ws';
 export const OFFICIAL_RELAY_V2 = 'wss://zcode.z.ai/api/v1/remote/ws2';
 
+// V2 wire 时间戳一律为 Unix 秒；毫秒会被客户端 schema 拒绝并静默丢帧。
+const unixNow = () => Math.floor(Date.now() / 1000);
+
 // JSON 只用于观察路由字段；其他文本和二进制消息仍作为不透明数据转发。
 function envelope(data, isBinary) {
   if (isBinary) return;
@@ -103,7 +106,9 @@ export async function startGateway({ mode = 'relay', relayProtocolVersion = 1, u
         ...(connection.lastPairAck.terminal_sid === undefined ? {} : { terminal_sid: connection.lastPairAck.terminal_sid }) }
       : { ...connection.lastPairAck, pair_status }));
     const sendData = (socket, payload) => socket.send(JSON.stringify({ type: 'data', payload,
-      ...(relayProtocolVersion === 2 ? { [socket === desktop ? 'server_ts' : 'client_ts']: Math.floor(Date.now() / 1000) } : { client_ts: Date.now() }) }));
+      ...(mode === 'local-only'
+        ? { server_ts: unixNow() }
+        : relayProtocolVersion === 2 ? { [socket === desktop ? 'server_ts' : 'client_ts']: Math.floor(Date.now() / 1000) } : { client_ts: Date.now() }) }));
     connection.sendDesktop = payload => sendData(desktop, payload);
     connection.broker = createRpcBroker({ bootstrap: () => requestBootstrap(connection), bridgeTimeoutMs,
       sendDesktop: connection.sendDesktop, sendPhone: payload => { if (upstream?.readyState === WebSocket.OPEN) sendData(upstream, payload); } });
@@ -135,22 +140,25 @@ export async function startGateway({ mode = 'relay', relayProtocolVersion = 1, u
         if (!connection.authenticated) {
           if (message?.type === 'device_register_init' && typeof message.device_mid === 'string' && message.device_mid) {
             connection.deviceSid = 'd_local_' + randomUUID();
-            desktop.send(JSON.stringify({ type: 'device_register_ack', device_sid: connection.deviceSid, server_ts: Date.now() }));
+            desktop.send(JSON.stringify({ type: 'device_register_ack', device_sid: connection.deviceSid, server_ts: unixNow() }));
             return;
           }
-          if (message?.type !== 'auth_init' || message.role !== 'device' || typeof message.device_sid !== 'string' || !message.device_sid || (connection.deviceSid && message.device_sid !== connection.deviceSid)) {
+          // 3.16 起 V2 把角色绑定在 token 上，auth_init 不再携带 role；旧客户端的 role 仅作兼容。
+          if (message?.type !== 'auth_init' || (message.role !== undefined && message.role !== 'device') || typeof message.device_sid !== 'string' || !message.device_sid || (connection.deviceSid && message.device_sid !== connection.deviceSid)) {
             desktop.close(1008, 'Expected local Desktop handshake'); return;
           }
           connection.deviceSid = message.device_sid;
           connection.authenticated = true;
           connection.paired = true;
-          connection.lastPairAck = { type: 'auth_ack', pair_status: 'matched', server_ts: Date.now() };
+          // 客户端以 auth_ack.device_sid 校验握手归属，缺失会一直停在 authenticating。
+          connection.lastPairAck = { type: 'auth_ack', device_sid: connection.deviceSid, terminal_sid: '', pair_status: 'matched', server_ts: unixNow() };
           desktop.send(JSON.stringify(connection.lastPairAck));
           return;
         }
         if (message?.type === 'pair_status_query') {
-          if (message.device_sid !== connection.deviceSid) { desktop.close(1008, 'Local Desktop session mismatch'); return; }
-          desktop.send(JSON.stringify({ type: 'pair_status_ack', pair_status: 'matched', server_ts: Date.now() }));
+          // 心跳查询不携带 device_sid；旧客户端若带了仍校验。
+          if (message.device_sid !== undefined && message.device_sid !== connection.deviceSid) { desktop.close(1008, 'Local Desktop session mismatch'); return; }
+          desktop.send(JSON.stringify({ type: 'pair_status_ack', terminal_sid: '', pair_status: 'matched', server_ts: unixNow() }));
           return;
         }
       }
