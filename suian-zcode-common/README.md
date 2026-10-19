@@ -13,6 +13,8 @@
 
 安装和升级时，Agent 会按 Desktop 应用版本配置网关：3.16 使用 V2，旧版使用 V1；日常重载会保留已有协议与用户配置。具体方法与限制见[配置说明](./skills/configuration/SKILL.md)。
 
+0.4.2 修复 ZCode 3.16 手机端切换项目后新建任务、发送首条消息失败的问题，包含多根目录项目。手机与插件可以同时使用，旧版 ZCode 的配置和使用方式不变。
+
 0.4.1 修复 local-only 模式的握手兼容问题，3.16 的离线使用范围仍遵循上述限制。变更见 [PR #100](https://github.com/ONEGAYI/ZCode-Plugins/pull/100) 与补测集成 [PR #105](https://github.com/ONEGAYI/ZCode-Plugins/pull/105)。
 
 只有网关是常驻独立进程，其他模块由调用方按需使用。各插件保留自己的运行数据。
