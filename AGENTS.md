@@ -46,7 +46,7 @@ ZCode-Plugins/
 │   ├── ui/                 # 原生只读工件侧栏资源
 │   └── skills/             # setup / configuration / sessions / automations / artifacts / glm / debug
 │
-├── suian-side-editor/     # 本机文本编辑器 0.2.0；选区评论尽力保护，原#47缺口与Native待验
+├── suian-side-editor/     # 本机文本编辑器 0.3.0；多目录切换，选区评论尽力保护，原#47缺口与Native待验
 │   ├── AGENTS.md          # 本插件规则与文档入口
 │   ├── CLAUDE.md          # 导入 AGENTS.md
 │   ├── .zcode-plugin/     # 原生侧栏元信息与市场版本
