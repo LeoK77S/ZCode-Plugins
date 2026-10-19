@@ -46,7 +46,7 @@ async function boundContext(workspaceRoot, meta, indexDbPath, selectedRoot) {
 
 export function createMcpServer({ workspaceRoot = process.env.SUIAN_SIDE_EDITOR_WORKSPACE, dataPath = process.env.ZCODE_PLUGIN_DATA, zcodeAppVersion = process.env.ZCODE_APP_VERSION,
   hostConnector, indexDbPath, gatewayConfigPath = process.env.SUIAN_SIDE_EDITOR_GATEWAY_CONFIG } = {}) {
-  const server = new McpServer({ name: 'suian-side-editor', version: '0.2.0' });
+  const server = new McpServer({ name: 'suian-side-editor', version: '0.3.0' });
   const commentState = installCommentState(server, { hostConnector, gatewayConfigPath });
   const textResources = installTextResources(server, commentState, context =>
     boundContext(workspaceRoot, { session_id: context.sessionId }, indexDbPath, context.workspaceRoot));
