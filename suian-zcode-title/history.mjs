@@ -5,7 +5,7 @@ import {createHash} from "node:crypto";
 import {getConversationMessageProjectionPolicy} from "suian-zcode-common/vendor/projection.js";
 
 export async function readHistory({dbPath,sessionId,workspacePath,sqliteBin="sqlite3"}) {
-  if(!/^sess_[A-Za-z0-9_-]+$/.test(sessionId))throw new Error("无效会话 ID");
+  if(!/^sess(?:ion)?_[A-Za-z0-9_-]+$/.test(sessionId))throw new Error("无效会话 ID");
   const quoted="'"+sessionId+"'";
   const sql=[
     "PRAGMA query_only=ON; BEGIN;",

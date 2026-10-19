@@ -5,8 +5,9 @@
 ## 约定
 
 - 只有网关是常驻独立进程，其他能力是调用方导入的模块；提取代码不代表所有插件自动增加这些行为。
-- 网关只绑定 `127.0.0.1`，不读取远控链接或 ZCode 凭据、不记录消息体。本地工作区复用窗口 Host 的一个物理桥，隔离客户端 RPC 编号；共存声明必须区分隔离测试与真实手机验收。
+- 网关只绑定 `127.0.0.1`，不读取远控链接或 ZCode 凭据、不记录消息体。本地工作区复用窗口 Host 的一个物理桥，隔离客户端 RPC 编号；共存声明必须区分隔离测试与真实手机验收。实验性 terminal 模式通过调用方的 `getToken` 获取一次性终端 token，Desktop 直连官方 relay；同设备只允许一个 terminal，收到 KICKED 后停止连接，不自动争抢。
 - 默认 relay 模式保留官方鉴权与手机共存；显式 local-only 模式仅处理回环 Desktop 的注册、就绪和心跳，不连接官方 relay、不使用传入的 pass_hash，也不宣称官方身份已验证。本地 RPC 仍要求当前用户 control_token；设备入口信任本机进程，拒绝浏览器 Origin。旧配置无 mode 时按 relay 兼容，不因网络失败自动切换。
+- relay 的 `relayProtocolVersion`／配置 `relay_protocol_version` 缺省为 1；3.16 显式选择 2，转发 Desktop 一次性 token 与 MID，不另占 terminal。V2 消息严格区分 server_ts／client_ts，使用 Unix 秒；将 auth_ack 转成配对通知时不得带 device_sid。3.16 local-only 暂缓，旧模式测试不构成 3.16 离线证据。
 - 公共远控模块使用调用方提供的授权。DPAPI 明文只在进程内，保存位置由调用方的 `dataDir` 决定；不回显或复制凭据到公共配置。
 - Toast 的两小时冷却与互斥实现共用，状态范围由调用方的 `dataDir` 决定。协议、快捷方式和 AUMID 属于调用方，卸载一个插件不删除另一个身份。
 - 自动化测试必须注入通知显示、剪贴板及打开工作区的系统边界，不激活真实协议或打开 ZCode 确认框。
@@ -23,7 +24,8 @@
 
 | 路径 | 职责 |
 | --- | --- |
-| gateway.mjs | 唯一 relay 网关、同进程 bootstrap 分流及健康状态 |
+| gateway.mjs | 唯一 relay V1/V2 网关、一次性 token 转发、同进程 bootstrap 分流及健康状态 |
+| terminal-gateway.mjs / terminal-relay.mjs | 3.16 实验性独立终端网关、V2 token 建连、心跳及本机 RPC；授权提供方由调用方注入，未接入 Windows 安装流程 |
 | .zcode-plugin/plugin.json / link.mjs | 原生公共插件元信息、稳定公共入口和业务端 Node 包链接 |
 | skills/ | setup / configuration / debug，paths.md 统一位置与数据归属 |
 | rpc-broker.mjs | 单一 Host 桥、RPC 编号与 v4 握手身份映射、手机虚拟桥与本地客户端分流 |
@@ -48,6 +50,7 @@
 | SKILL.md / README.md | 源码兼容路由与公共模块接口，完整操作流程在对应 skills/ 技能 |
 | tests/ | 回环网关、隔离 Windows 配置、远控、DPAPI、通知、依赖完整性判定与不自举契约 |
 | tests/gateway-rpc.test.mjs / tests/plugin-link.test.mjs | 真实回环call／listen客户端隔离和释放、市场版本一致及独立缓存公共升级契约 |
+| tests/terminal-gateway.test.mjs / tests/terminal-relay.test.mjs | 3.16 终端握手与心跳、单桥复用、Host 会话查询、KICKED 及回环访问控制 |
 | experiments/ | 仅发合成 auth_init 的研究探针，不自动执行 |
 | package.json / package-lock.json | 固定 Node/ws 版本与测试入口 |
 | docs/ | 脱敏验证证据；历史与本次验证分开 |

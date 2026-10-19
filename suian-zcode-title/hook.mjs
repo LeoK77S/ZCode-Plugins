@@ -24,7 +24,7 @@ export async function dispatchStopEvent({payload,dataDir,pluginRoot,configPath,s
   if(payload.stop_hook_active===true)return{action:"skipped_stale"};
   const sessionId=payload.session_id??payload.sessionId;
   const workspacePath=payload.workspace_path??payload.cwd;
-  if(!/^sess_[A-Za-z0-9_-]+$/.test(sessionId??"")||!workspacePath)return{action:"ignored_invalid"};
+  if(!/^sess(?:ion)?_[A-Za-z0-9_-]+$/.test(sessionId??"")||!workspacePath)return{action:"ignored_invalid"};
   // Stop 触发瞬间宿主仍在持久化 turn 边界与任务状态，立即读快照必然指纹漂移成 stale；
   // 让出收尾窗口后再派发，保证 worker 读到的基线与复查一致。
   if(startDelayMs>0)await new Promise(resolve=>setTimeout(resolve,startDelayMs));
