@@ -55,6 +55,7 @@ export function installTextResources(server, commentState, validateContext) {
   server.server.setRequestHandler(SubscribeRequestSchema, async request => {
     if (commentState?.has(request.params.uri)) return commentState.subscribe(request.params.uri);
     const entry = lookup(request.params.uri); await refresh(entry);
+    entry.subscribed = true;
     if (entries.has(entry.uri) && entry.scopeValid && !entry.timer) monitor(entry);
     return {};
   });
@@ -66,7 +67,11 @@ export function installTextResources(server, commentState, validateContext) {
   return {
     register(context, data) {
       const existing = [...entries.values()].find(entry => entry.context.sessionId === context.sessionId && entry.sourcePath === data.sourcePath);
-      if (existing) { existing.context = context; existing.relativePath = data.relativePath; return { ...data, resourceUri: existing.uri }; }
+      if (existing) {
+        existing.context = context; existing.relativePath = data.relativePath; existing.scopeValid = true;
+        if (existing.subscribed && !existing.timer) monitor(existing);
+        return { ...data, resourceUri: existing.uri };
+      }
       const uri = `ui://suian-side-editor/text/${randomUUID()}`;
       const snapshot = diskSnapshot(data);
       entries.set(uri, { uri, context, snapshot, sourcePath: data.sourcePath, relativePath: data.relativePath, reading: Promise.resolve() });

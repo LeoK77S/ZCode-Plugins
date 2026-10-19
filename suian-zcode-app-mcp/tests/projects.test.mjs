@@ -92,4 +92,8 @@ test('MCP 创建在会话范围内继承项目和目录，跨项目与显式未�
   assert.equal((await start({})).isError, undefined, '归属不唯一时跳过目录继承，不阻断旧参数创建');
   assert.equal(calls.at(-1).project_id, undefined);
   assert.equal(calls.at(-1).additional_directories, undefined);
+  f.index.exec("UPDATE tasks SET deleted=1 WHERE workspace_key='duplicate'");
+  assert.equal((await start({})).isError, undefined, '唯一有效归属不能被另一条已删除记录阻断');
+  assert.equal(calls.at(-1).project_id, 'project-a');
+  assert.deepEqual(calls.at(-1).additional_directories, ['D:/beta']);
 });

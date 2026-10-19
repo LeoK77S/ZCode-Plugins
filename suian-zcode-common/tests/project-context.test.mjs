@@ -41,6 +41,8 @@ test('远端 Host、错项目 Host 与同 ID 多归属明确拒绝', t => {
   f.db.exec("UPDATE projects SET host_id='local'; INSERT INTO tasks SELECT task_id,'key-b',workspace_path,workspace_identity,root_path,host_id,project_id,execution_directories,deleted FROM tasks");
   assert.throws(f.read, { code: 'ambiguous_session' });
   assert.equal(readProjectContext({ indexDbPath: f.indexDbPath, sessionId: 'session', workspaceKey: 'key-a' }).workspacePath, 'D:/alpha');
+  f.db.exec("UPDATE tasks SET deleted=1 WHERE workspace_key='key-b'");
+  assert.equal(f.read().workspacePath, 'D:/alpha', '已删除归属不使唯一有效会话变成歧义');
 });
 
 test('相对目录、删除的会话与损坏目录 JSON 不得获得本机目录权限', t => {

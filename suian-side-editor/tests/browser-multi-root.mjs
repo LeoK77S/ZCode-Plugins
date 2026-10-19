@@ -105,4 +105,13 @@ test('工作区下拉切换目录，左上角显示路径，两个目录的同�
   await reopened.getByRole('button', { name: '文件列表', exact: true }).click();
   await reopened.getByRole('combobox', { name: '切换工作区' }).selectOption(second);
   await reopened.waitForFunction(() => !document.body.inert && document.querySelector('.cm-content')?.textContent === 'BBB draft-B');
+  db.prepare('UPDATE tasks SET execution_directories=?').run('[]');
+  await reopened.locator('#conflict-bar').waitFor({ state: 'visible' });
+  assert.equal(await reopened.getByRole('textbox', { name: '文件正文', exact: true }).textContent(), 'BBB draft-B');
+  db.prepare('UPDATE tasks SET execution_directories=NULL').run();
+  await reopened.locator('#reload-file').click();
+  await reopened.locator('#reload-confirm').click();
+  await reopened.waitForFunction(() => document.querySelector('.cm-content')?.textContent === 'BBB');
+  await writeFile(join(second, 'same.txt'), 'BBB after reauthorisation');
+  await reopened.waitForFunction(() => document.querySelector('.cm-content')?.textContent === 'BBB after reauthorisation', null, { timeout: 3500 });
 });

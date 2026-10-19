@@ -41,6 +41,10 @@
 - review-boundaries-red.log：撤销附加目录后旧资源仍能读到新正文，来源归属歧义则创建失败。资源刷新改为重新核对原会话目录，失效时返回错误、停止监测；唯一来源 ID 的目录归属不唯一时跳过继承。
 - revoked-notification-red.log：主动读取撤销状态会先停止监测，从而吞掉给已订阅页面的通知。通知条件改用刷新前是否已订阅，错误快照仍能通知页面。
 
-修正后复用首轮有效回归记录，只重跑受影响范围：43 项 SDK 契约通过（review-sdk-final.log）；29 项资源／恢复浏览器契约通过（review-browser-green.log），并对最终资源通知改动补跑目录切换与资源同步用例（review-browser-final.log）。语法与 diff 检查另留在 review-syntax.log。所有记录退出码均为 0；未因提交、审查阶段切换重复完整回归。
+修正后复用首轮有效回归记录，只重跑受影响范围：43 项 SDK 契约通过（review-sdk-final.log）；29 项资源／恢复浏览器契约通过（review-browser-green.log），并对资源通知改动补跑 8 项目录切换与资源同步用例（review-browser-final.log）。语法与 diff 检查另留在 review-syntax.log。上述修复后检查均以退出码 0 完成；未因提交、审查阶段切换重复完整回归。
+
+定向复核又核实两项相邻场景：有效来源记录旁仍有已删除记录时，下层误报歧义；目录撤销后重新授权、确认重读，原页面认为仍已订阅，但服务端没有恢复监测。deleted-origin-red.log、deleted-context-red.log 与 reauthorisation-red.log 分别保留首次失败。MCP 现向下传递已确认的 workspace_key；公共读取忽略已删除旁支，但全为删除记录时仍拒绝。资源保留订阅意图，重新受审登记成功后恢复监测。
+
+这些修正后，MCP 查询／创建 49 项通过（deleted-origin-green.log），资源 SDK 7 项通过（reauthorisation-sdk.log），包括真实撤销、重读和后续外改的浏览器 12 项通过（reauthorisation-green.log）；公共读取最终调整后再运行项目／目录相关 12 项，通过记录在 deleted-context-green.log。以上均退出码 0。
 
 本轮使用临时 SQLite、回环协议夹具和实际构建页面；没有修改 Desktop、sources、用户真实数据库或运行配置。多目录的原生侧栏、原生审批与实体手机组合尚待宿主验收；这些夹具通过结果不代替真机结果。既有 3.16 选区评论限制保留。

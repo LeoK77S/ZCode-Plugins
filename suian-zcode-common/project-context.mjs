@@ -13,12 +13,15 @@ export function readProjectContext({ indexDbPath, sessionId, workspacePath, work
   const db = new DatabaseSync(indexDbPath, { readOnly: true, timeout: 2000 });
   try {
     db.exec('BEGIN');
-    const rows = db.prepare('SELECT * FROM tasks WHERE task_id=?' + (workspaceKey === undefined ? '' : ' AND workspace_key=?'))
+    const matches = db.prepare('SELECT * FROM tasks WHERE task_id=?' + (workspaceKey === undefined ? '' : ' AND workspace_key=?'))
       .all(sessionId, ...(workspaceKey === undefined ? [] : [workspaceKey]));
+    const rows = matches.filter(row => row.deleted !== 1);
     if (rows.length > 1) throw fail('ambiguous_session', '会话对应多个工作区，请提供 workspace_key');
     const row = rows[0];
-    if (!row) return legacy; // 尚未首发落库的会话只有启动绑定。
-    if (row.deleted === 1) throw fail('session_not_found', '会话已删除，不能取得目录权限');
+    if (!row) {
+      if (matches.length) throw fail('session_not_found', '会话已删除，不能取得目录权限');
+      return legacy; // 尚未首发落库的会话只有启动绑定。
+    }
     if (!Object.hasOwn(row, 'project_id')) {
       if (row.workspace_identity) throw fail('remote_workspace_unavailable', '本机插件不能把远端目录作为本机目录');
       return { ...legacy, workspacePath: row.workspace_path };
