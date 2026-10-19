@@ -113,7 +113,7 @@ https://github.com/ONEGAYI/ZCode-Plugins.git
 
 | 工具 | 用途 |
 | --- | --- |
-| `list_sessions` | 按项目、名称或 ID 查找会话，置顶优先列出最近会话，也可以包含归档项 |
+| `list_sessions` | 按项目、名称、ID 或目录查找会话；显示多目录项目标记和最多 3 个附加目录，置顶优先，也可包含归档项 |
 | `read_session` | 读取指定会话最近的聊天，向前翻阅更早内容 |
 | `get_current_session` | 查看发起当前工具调用的会话信息 |
 | `rename_session` | 将指定会话改为新的名称 |

@@ -310,15 +310,15 @@ test('get_pr_statuses 是面板专用通道：普通客户端不可见，UI 客�
   const listed = await plain.listTools();
   assert.equal(listed.tools.some(tool => tool.name === 'get_pr_statuses'), false, '默认禁用：模型侧契约保持十九个工具');
   const ui = await connect(t, f, { prStatus: quiet }, appsCapability(), 'zcode');
-  const tool = (await ui.listTools()).tools.find(tool => tool.name === 'get_pr_statuses');
+  const uiTools = (await ui.listTools()).tools;
+  const tool = uiTools.find(tool => tool.name === 'get_pr_statuses');
   assert.ok(tool, 'UI 能力协商成功后启用');
   assert.equal(tool._meta?.ui?.surface, 'artifacts');
   assert.equal(tool._meta?.ui?.resourceUri, 'ui://suian-zcode-app-mcp/artifacts.html');
   assert.deepEqual(tool._meta?.ui?.visibility, ['app']);
   assert.equal(tool.annotations.readOnlyHint, true);
-  // 指向 get_artifacts 的表述用限定语义：会话详情仍查询原 Host（可能恢复会话并同步索引），不得标为"纯本地"
-  assert.doesNotMatch(tool.description, /纯本地/, '不使用过宽的纯本地表述');
-  assert.match(tool.description, /会话详情仍查询原 Host 实时状态/, '指明会话详情的原 Host 查询');
+  const get = uiTools.find(tool => tool.name === 'get_artifacts');
+  assert.match(get.description, /可能恢复会话并同步索引/, '会话详情的副作用由 get_artifacts 自身说明');
 });
 
 test('持久化缓存跨实例保留新鲜期与超时回退，明确失败后删除旧快照', async t => {
