@@ -88,4 +88,8 @@ test('MCP 创建在会话范围内继承项目和目录，跨项目与显式未�
   const count = calls.length;
   assert.equal((await start({ additional_directories: ['relative/path'] })).isError, true);
   assert.equal(calls.length, count);
+  f.index.exec("INSERT INTO tasks (workspace_key,task_id,host_id,workspace_path,root_path,project_id) VALUES ('duplicate','parent','local','D:/beta','D:/beta','project-a')");
+  assert.equal((await start({})).isError, undefined, '归属不唯一时跳过目录继承，不阻断旧参数创建');
+  assert.equal(calls.at(-1).project_id, undefined);
+  assert.equal(calls.at(-1).additional_directories, undefined);
 });

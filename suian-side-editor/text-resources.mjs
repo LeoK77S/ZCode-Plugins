@@ -6,7 +6,7 @@ import { readTextFile, fileFailure } from './text-files.mjs';
 const diskSnapshot = data => ({ text: data.text, encoding: data.encoding, version: data.version });
 
 // 资源请求没有 ZCode 对话 meta；只查首次受审工具已经登记的关联，不从 URI 解析文件路径。
-export function installTextResources(server, commentState) {
+export function installTextResources(server, commentState, validateContext) {
   const entries = new Map();
   function lookup(uri) {
     const entry = entries.get(uri);
@@ -15,11 +15,15 @@ export function installTextResources(server, commentState) {
   }
   function refresh(entry) {
     entry.reading = entry.reading.then(async () => {
-      let snapshot;
+      let snapshot, scopeValid = false;
       try {
-        const data = await readTextFile(entry.context, entry.relativePath, entry.sourcePath);
+        const context = await validateContext(entry.context);
+        scopeValid = true;
+        const data = await readTextFile(context, entry.relativePath, entry.sourcePath);
         snapshot = diskSnapshot(data);
       } catch (error) { snapshot = fileFailure(error); }
+      entry.scopeValid = scopeValid;
+      if (!entry.scopeValid) { clearTimeout(entry.timer); entry.timer = undefined; }
       const changed = JSON.stringify(snapshot) !== JSON.stringify(entry.snapshot);
       entry.snapshot = snapshot;
       return changed;
@@ -32,7 +36,7 @@ export function installTextResources(server, commentState) {
         const changed = await refresh(entry);
         if (!entries.has(entry.uri)) return;
         if (changed) await server.server.sendResourceUpdated({ uri: entry.uri });
-        if (entries.has(entry.uri)) monitor(entry);
+        if (entries.has(entry.uri) && entry.scopeValid) monitor(entry);
       } catch (error) {
         entry.timer = undefined;
         console.error(`文件资源通知发送失败，监测已停止（${entry.uri}）：${error.message}`);
@@ -43,14 +47,15 @@ export function installTextResources(server, commentState) {
   server.server.registerCapabilities({ resources: { subscribe: true } });
   server.registerResource('opened-text', new ResourceTemplate('ui://suian-side-editor/text/{id}', {}),
     { title: '已打开文本的只读快照', mimeType: 'application/json' }, async uri => {
-      const entry = lookup(uri.href); const changed = await refresh(entry);
-      if (changed && entry.timer && entries.has(entry.uri)) await server.server.sendResourceUpdated({ uri: entry.uri });
+      const entry = lookup(uri.href), monitoring = Boolean(entry.timer);
+      const changed = await refresh(entry);
+      if (changed && monitoring && entries.has(entry.uri)) await server.server.sendResourceUpdated({ uri: entry.uri });
       return { contents: [{ uri: uri.href, mimeType: 'application/json', text: JSON.stringify(entry.snapshot) }] };
     });
   server.server.setRequestHandler(SubscribeRequestSchema, async request => {
     if (commentState?.has(request.params.uri)) return commentState.subscribe(request.params.uri);
     const entry = lookup(request.params.uri); await refresh(entry);
-    if (entries.has(entry.uri) && !entry.timer) monitor(entry);
+    if (entries.has(entry.uri) && entry.scopeValid && !entry.timer) monitor(entry);
     return {};
   });
   server.server.setRequestHandler(UnsubscribeRequestSchema, async request => {
@@ -61,7 +66,7 @@ export function installTextResources(server, commentState) {
   return {
     register(context, data) {
       const existing = [...entries.values()].find(entry => entry.context.sessionId === context.sessionId && entry.sourcePath === data.sourcePath);
-      if (existing) return { ...data, resourceUri: existing.uri };
+      if (existing) { existing.context = context; existing.relativePath = data.relativePath; return { ...data, resourceUri: existing.uri }; }
       const uri = `ui://suian-side-editor/text/${randomUUID()}`;
       const snapshot = diskSnapshot(data);
       entries.set(uri, { uri, context, snapshot, sourcePath: data.sourcePath, relativePath: data.relativePath, reading: Promise.resolve() });

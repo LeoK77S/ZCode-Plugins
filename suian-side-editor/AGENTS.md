@@ -44,7 +44,7 @@ SE-05 已实现 schema 2 的会话恢复副本与独立回执；最终固定源 
 | package.json / package-lock.json | 独立插件的精确运行依赖、测试和语法检查入口 |
 | cli.mjs / server.mjs | stdio 服务、app-only 工具与本地 UI 资源；宿主 session meta 与每次目录选择验证，只读公共 project-context，评论仍绑定会话执行目录 |
 | text-files.mjs | 工作区边界、按层目录、UTF-8/BOM/换行特征、字节版本与拒绝旧基线的写回 |
-| text-resources.mjs | 首次可信受审读取登记的文本资源、按版本通知与释放；同一 MCP subscribe／unsubscribe 路由按 URI 分派文本和评论资源，资源请求无对话 meta |
+| text-resources.mjs | 首次可信受审读取登记的文本资源、按版本通知与释放；后续刷新重新核对原会话目录范围，失效则停止监测并返回错误快照；同一 MCP subscribe／unsubscribe 路由按 URI 分派文本和评论资源，资源请求无对话 meta |
 | comment-state.mjs | 可信评论状态资源；common快照状态代理、V4自有临时订阅／官方组装／当前分支分页；已观测批次证明、unknown与有界退订，不用legacy事件路线 |
 | editor-settings.mjs | 插件外置 SQLite schema 2、schema 1 无损迁移、模式事务与会话恢复副本、存储边界校验及独立回执 |
 | ui/editor-template.html / ui/editor.css / ui/editor.mjs | 页面结构和主题、目录树、CodeMirror 页签、手动／自动保存、打开文件版本检测及冲突确认 |

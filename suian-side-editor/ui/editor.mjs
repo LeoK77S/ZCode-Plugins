@@ -118,6 +118,7 @@ function recoverySnapshot() {
 async function persistRecovery() {
   if (!recoveryReady || recoveryBusy || disposed || recoveryRevision === recoveryAck) return;
   clearTimeout(recoveryTimer); recoveryBusy = true;
+  renderRecovery();
   const revision = recoveryRevision, state = recoverySnapshot();
   try { await call('update_editor_state', { state }); recoveryAck = revision; recoveryError = undefined; }
   catch (error) { recoveryError = error.message; }

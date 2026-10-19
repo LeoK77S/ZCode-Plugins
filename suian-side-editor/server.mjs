@@ -48,7 +48,8 @@ export function createMcpServer({ workspaceRoot = process.env.SUIAN_SIDE_EDITOR_
   hostConnector, indexDbPath, gatewayConfigPath = process.env.SUIAN_SIDE_EDITOR_GATEWAY_CONFIG } = {}) {
   const server = new McpServer({ name: 'suian-side-editor', version: '0.2.0' });
   const commentState = installCommentState(server, { hostConnector, gatewayConfigPath });
-  const textResources = installTextResources(server, commentState);
+  const textResources = installTextResources(server, commentState, context =>
+    boundContext(workspaceRoot, { session_id: context.sessionId }, indexDbPath, context.workspaceRoot));
   async function run(extra, action, selectedRoot) {
     try {
       const data = await action(await boundContext(workspaceRoot, extra._meta, indexDbPath, selectedRoot));

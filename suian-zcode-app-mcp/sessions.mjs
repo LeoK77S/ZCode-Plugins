@@ -36,7 +36,7 @@ export function createSessionReader({ indexDbPath, sessionDbPath }) {
       try {
         if (!taskColumnsFor(index).includes('project_id')) return undefined;
         const matches = index.prepare('SELECT host_id FROM tasks WHERE task_id=? AND deleted=0').all(session_id);
-        if (matches.length === 1 && matches[0].host_id !== 'local') return undefined;
+        if (matches.length !== 1 || matches[0].host_id !== 'local') return undefined;
         return readProjectContext({ indexDbPath, sessionId: session_id });
       } finally { index.close(); }
     },

@@ -5,6 +5,7 @@ import { mkdtemp, mkdir, writeFile, rm } from 'node:fs/promises';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { connect } from './fixtures.mjs';
+import { ResourceUpdatedNotificationSchema } from '@modelcontextprotocol/sdk/types.js';
 
 test('当前会话登记的附加目录可选择，同名文件和未登记目录保持隔离', async t => {
   const dir = await mkdtemp(join(tmpdir(), 'side-multiroot-'));
@@ -39,7 +40,15 @@ test('当前会话登记的附加目录可选择，同名文件和未登记目�
     assert.equal(normalized.structuredContent.workspaceRoot, indexedPath);
     assert.equal(normalized.structuredContent.workspacePath, first);
   }
+  const notifications = [];
+  client.setNotificationHandler(ResourceUpdatedNotificationSchema, notification => notifications.push(notification.params.uri));
+  await client.subscribeResource({ uri: b.structuredContent.resourceUri });
   db.prepare('UPDATE tasks SET execution_directories=?').run('[]');
   const revoked = await call('read_editor_text', { path: 'same.txt', workspace_root: second });
   assert.equal(revoked.isError, true, '冻结为空附加目录时，不能用项目目录扩大执行范围');
+  await writeFile(join(second, 'same.txt'), 'content after revocation');
+  const resource = JSON.parse((await client.readResource({ uri: b.structuredContent.resourceUri })).contents[0].text);
+  assert.equal(resource.text, undefined, '已登记资源也不能继续读取撤销目录的新正文');
+  assert.equal(resource.code, 'workspace_not_allowed');
+  assert.ok(notifications.includes(b.structuredContent.resourceUri), '主动读取撤销状态也通知已订阅页面，不能抢先吞掉更新');
 });

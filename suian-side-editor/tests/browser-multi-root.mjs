@@ -29,11 +29,16 @@ test('工作区下拉切换目录，左上角显示路径，两个目录的同�
   const page = await browser.newPage({ viewport: { width: 1100, height: 760 } });
   const errors = []; page.on('pageerror', error => errors.push(error.message));
   const saveGate = Promise.withResolvers(), saveStarted = Promise.withResolvers();
+  const recoveryGate = Promise.withResolvers(), recoveryStarted = Promise.withResolvers();
   const resourceGate = Promise.withResolvers(), resourceStarted = Promise.withResolvers();
-  let holdResource = false;
-  t.after(() => { saveGate.resolve(); resourceGate.resolve(); });
+  let holdResource = false, holdRecovery = false;
+  t.after(() => { saveGate.resolve(); recoveryGate.resolve(); resourceGate.resolve(); });
   const invoke = async (name, args) => {
     if (name === 'save_editor_text') { saveStarted.resolve(); await saveGate.promise; }
+    if (name === 'update_editor_state' && holdRecovery) {
+      holdRecovery = false; recoveryStarted.resolve(); await recoveryGate.promise;
+      return { isError: true, structuredContent: { error: 'fixture recovery write failed' } };
+    }
     return client.callTool({ name, arguments: args, _meta: { session_id: 'session_ui' } });
   };
   await page.exposeFunction('editorCall', invoke);
@@ -50,7 +55,15 @@ test('工作区下拉切换目录，左上角显示路径，两个目录的同�
   const select = page.getByRole('combobox', { name: '切换工作区' });
   await page.getByRole('treeitem', { name: 'same.txt', exact: true }).click();
   const content = page.getByRole('textbox', { name: '文件正文', exact: true });
+  holdRecovery = true;
   await content.click(); await page.keyboard.press('Control+End'); await page.keyboard.type(' draft-A');
+  await recoveryStarted.promise;
+  assert.equal(await select.isDisabled(), true, '自动恢复副本请求已在途时必须禁用目录切换');
+  recoveryGate.resolve();
+  await page.waitForFunction(() => !document.querySelector('#workspace-select').disabled);
+  await page.getByText('恢复副本失败：fixture recovery write failed', { exact: true }).waitFor();
+  assert.equal(await page.locator('#workspace-path').textContent(), first);
+  assert.equal(await content.textContent(), 'AAA draft-A', '失败副本回执后仍保留原目录和未保存正文');
   await select.selectOption(second);
   await page.waitForFunction(path => document.querySelector('#workspace-path').textContent === path && !document.body.inert, second);
   await page.getByRole('treeitem', { name: 'same.txt', exact: true }).click();
