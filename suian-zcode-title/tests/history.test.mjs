@@ -52,6 +52,16 @@ test("超过 32 MiB 的真实 SQLite 历史完整读取，命名摘要仍截取�
   assert.deepEqual(snapshot.context.recent_turns[0].messages,[{role:"user",text:"BEGIN:"+"x".repeat(1194)}]);
   assert.deepEqual([sessionDb,indexDb].map(path=>createHash("sha256").update(readFileSync(path)).digest("hex")),before);
 });
+
+test("3.16 conversation_rewind：keptMessageIDs 为空时保留切点之后的新分支",()=>{
+  const messages=[m("u0","user","回退前的目标"),m("a0","assistant","旧回答","u0"),m("cut","assistant","旧分支末尾","u0"),m("u1","user","新分支输入"),m("a1","assistant","新分支回答","u1")];
+  const session={title:"原名",revert:{kind:"conversation_rewind",scope:"conversation",targetMessageID:"u0",branchCutAfterMessageID:"cut",branchGeneration:1,keptMessageIDs:[]}};
+  const snap=recentSnapshot({session,messages},"D:\\测试工程");
+  assert.equal(snap.turnCount,1);
+  assert.equal(snap.latestUserId,"u1");
+  assert.equal(snap.context.original_goal,"新分支输入");
+  assert.deepEqual(snap.context.recent_turns,[{id:"u1",messages:[{role:"user",text:"新分支输入"},{role:"assistant",text:"新分支回答"}]}]);
+});
 for (const sessionId of ['sess_fixture', 'session_316_fixture']) test(`SQLite 只读历史兼容 ${sessionId.split('_')[0]} 前缀，按 sequence 重建并校验工作区`,async()=>{
   const root=mkdtempSync(join(tmpdir(),"z-title-fixture-")),db=join(root,"fixture.sqlite"),sqliteBin=process.env.SQLITE_BIN||"sqlite3";
   try {

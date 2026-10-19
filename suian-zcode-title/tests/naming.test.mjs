@@ -227,3 +227,31 @@ test('理由的普通英文词尾不误判成密钥或凭据字段', async () =>
     assert.equal(result.reason, reason); assert.equal(result.status, 'renamed');
   }
 });
+
+test('模型把 JSON 包进代码围栏时仍能解析', async () => {
+  const box = fixture();
+  box.backend.generate = async () => { box.generations++; return { text: '```json\n' + JSON.stringify(candidate) + '\n```', finishReason: 'stop' }; };
+  const result = await runNaming({ backend: box.backend, selection, state: {}, apply: true });
+  assert.equal(result.status, 'renamed');
+  assert.equal(box.snapshot.title, candidate.title);
+  assert.equal(box.generations, 1);
+});
+
+test('模型输出非 JSON 时重试一次；连续失败才报错', async () => {
+  const box = fixture();
+  box.backend.generate = async () => {
+    box.generations++;
+    return box.generations === 1
+      ? { text: '我先分析一下……', finishReason: 'stop' }
+      : { text: JSON.stringify(candidate), finishReason: 'stop' };
+  };
+  const result = await runNaming({ backend: box.backend, selection, state: {}, apply: true });
+  assert.equal(result.status, 'renamed');
+  assert.equal(box.generations, 2);
+
+  const box2 = fixture();
+  box2.backend.generate = async () => { box2.generations++; return { text: '不是 JSON', finishReason: 'stop' }; };
+  await assert.rejects(runNaming({ backend: box2.backend, selection, state: {}, apply: true }), /合法 JSON/);
+  assert.equal(box2.generations, 2);
+  assert.equal(box2.renames, 0);
+});

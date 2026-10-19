@@ -140,7 +140,8 @@ if(args.includes("--help")||!args.length) {
       if(error.reasonCode==="auth_link_rejected"&&dataDir) {
         try {await clearAuthorization({dataDir});failure.authCleared=true;}catch{}
       }
-      if(command==="run"&&dataDir) {
+      // workspace 未在桌面窗口打开时 RPC 会失败，这是单会话的常见状态，不该弹全局「命名暂停」。
+      if(command==="run"&&dataDir&&failure.reasonCode!=="gateway_rpc_failed") {
         if(process.env.OIL_ZCODE_TITLE_DISABLE_TOAST==="1")failure.toast="disabled";
         else {
           try {

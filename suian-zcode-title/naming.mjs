@@ -7,10 +7,17 @@ function titleFormatError(title) {
   if(/[\p{Cc}\p{Cf}\u0060|@]|\p{Extended_Pictographic}/u.test(body)||/[A-Za-z]:[\\/]|\\\\|https?:\/\/|\/Users\/|sk-/i.test(title))return "标题包含不允许的格式或私人信息";
   return null;
 }
+function parseModelJson(text) {
+  const raw=String(text??"").trim();
+  // 部分模型会把 JSON 包进 markdown 代码围栏，剥离后再解析。
+  const fenced=raw.match(/^```(?:json)?\s*([\s\S]*?)\s*```$/i);
+  try {return JSON.parse(fenced?fenced[1]:raw);}
+  catch(error) {throw Object.assign(new Error("命名输出不是合法 JSON"),{code:"invalid_model_json",cause:error});}
+}
 function candidateFrom(result,currentTitle,requireFormat=false) {
   if(result.finishReason!=="stop")throw new Error("模型结束原因不是正常完成");
   if(result.toolCalls?.length)throw new Error("命名模型返回了工具调用");
-  const value=JSON.parse(result.text);
+  const value=parseModelJson(result.text);
   if(Object.keys(value).sort().join(",")!=="action,reason,title"||!["keep","rename"].includes(value.action)||typeof value.title!=="string"||typeof value.reason!=="string")throw new Error("命名输出字段无效");
   if(/https?:\/\/|\b(?:device_)?(?:sid|hash|mid)["']?\s*[=:]|\bsk-|[A-Za-z]:[\\/]|\\\\|\/Users\//i.test(value.reason))throw new Error("命名理由包含不允许的链接、凭据或私人路径");
   if(value.action==="keep"&&!requireFormat)return{...value,title:currentTitle};
@@ -51,11 +58,15 @@ export async function runNaming({backend,selection,state={},apply=false,eventUse
   let generated=await backend.generate(context,selection),candidate;
   try {candidate=candidateFrom(generated,before.title,requireFormat);}
   catch(error) {
-    if(error.code!=="invalid_keep_title")throw error;
+    // 模型偶发输出非 JSON 时重试一次；原标题不合规时用带反馈的上下文重试一次。
+    const retryContext=error.code==="invalid_model_json"?context
+      :error.code==="invalid_keep_title"?{...context,title_format_feedback:"原标题不符合规范，不能 keep；请返回 rename 与合法的类别 对象｜目标标题"}
+      :null;
+    if(!retryContext)throw error;
     const firstUsage=generated.usage;
-    generated=await backend.generate({...context,title_format_feedback:"原标题不符合规范，不能 keep；请返回 rename 与合法的类别 对象｜目标标题"},selection);
+    generated=await backend.generate(retryContext,selection);
     if(firstUsage&&generated.usage)generated.usage=Object.fromEntries(Object.keys(generated.usage).map(key=>[key,(firstUsage[key]??0)+generated.usage[key]]));
-    candidate=candidateFrom(generated,before.title,true);
+    candidate=candidateFrom(generated,before.title,error.code==="invalid_keep_title");
   }
   const result={status:"preview",action:candidate.action,title:candidate.title,reason:candidate.reason,usage:generated.usage,selectedTurns:before.context.recent_turns.length};
   if(!apply)return result;
