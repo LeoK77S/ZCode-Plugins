@@ -9,6 +9,8 @@
 
 安装和升级时，Agent 会按 Desktop 应用版本配置网关：3.16 使用 V2，旧版使用 V1；日常重载会保留已有协议与用户配置。具体方法与限制见[公共网关配置说明](../suian-zcode-common/skills/configuration/SKILL.md)。
 
+0.1.5 修复长会话历史较大时的读取失败，摘要长度和命名规则保持不变。变更见 [PR #100](https://github.com/ONEGAYI/ZCode-Plugins/pull/100) 与补测集成 [PR #105](https://github.com/ONEGAYI/ZCode-Plugins/pull/105)。
+
 ## 一眼看出每个会话在做什么
 
 | 原来的标题 | 自动命名后 |
