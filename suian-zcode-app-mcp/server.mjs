@@ -34,7 +34,7 @@ export function createMcpServer(config, { controller, prStatus, reveal } = {}) {
   };
   server.registerTool('list_sessions', {
     title: '列出 ZCode 会话',
-    description: '读取本机会话索引，置顶优先、组内按更新时间降序。query 按标题或 ID 作字面子串搜索；默认排除归档与删除项。workspace_path 按执行目录筛选；3.16 的 project_id 按项目归属筛选，null 表示未归类，省略查询全部项目。按 next_offset 保持筛选条件续页。结果是持久化状态。',
+    description: '读取本机持久化会话索引，置顶优先；默认排除归档与删除项。query 按标题、ID 或目录作字面搜索，命中项目目录可找同项目会话。workspace_path 筛执行目录；project_id 筛项目，null 表示未归类。会话附加目录摘要最多 3 项；按 next_offset 续页。',
     inputSchema: z.object({
       limit: z.number().int().min(1).max(200).default(20),
       offset: z.number().int().min(0).default(0),

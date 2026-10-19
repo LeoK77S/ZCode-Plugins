@@ -27,7 +27,7 @@
 
 ## 规格与开票入口
 
-- 多目录：list_sessions 按 project_id 精确筛选；sessionProject 只查索引供 start_session 继承会话冻结范围，CLI 权限继承仍独立。旧调用保持单目录，远端元信息不变成本机文件权限；见[验证记录](docs/multi-directory-validation.md)。
+- 多目录：list_sessions 按 project_id 精确筛选，目录搜索可定位所属项目；项目多目录标记与会话附加目录摘要分开，摘要最多 3 项并给出总数和截断标记。sessionProject 只查索引供 start_session 继承会话冻结范围，CLI 权限继承仍独立。旧调用保持单目录，远端元信息不变成本机文件权限；见[验证记录](docs/multi-directory-validation.md)。
 
 - 本项目沿用根 [CONTEXT.md](../CONTEXT.md) 与本目录 `docs/adr/` 的术语和决策，见 [领域文档入口](docs/agents/domain.md)。
 - 开票使用当前仓库 GitHub Issues。先完成本地规格与票草稿，发布须有用户明确授权；票的依赖须同时表达宿主能力条件，见 [开票约定](docs/agents/issue-tracker.md)。
