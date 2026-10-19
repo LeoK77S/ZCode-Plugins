@@ -27,6 +27,8 @@
 
 ## 规格与开票入口
 
+- 多目录：list_sessions 按 project_id 精确筛选；sessionProject 只查索引供 start_session 继承会话冻结范围，CLI 权限继承仍独立。旧调用保持单目录，远端元信息不变成本机文件权限；见[验证记录](docs/multi-directory-validation.md)。
+
 - 本项目沿用根 [CONTEXT.md](../CONTEXT.md) 与本目录 `docs/adr/` 的术语和决策，见 [领域文档入口](docs/agents/domain.md)。
 - 开票使用当前仓库 GitHub Issues。先完成本地规格与票草稿，发布须有用户明确授权；票的依赖须同时表达宿主能力条件，见 [开票约定](docs/agents/issue-tracker.md)。
 - 工件 demo 的两项工具、可累积摘要、历史断点快照和原生只读侧栏已在本地实施。完整版唯一投影继续等待上游。实施范围见 [demo 规格](docs/artifact-zone-spec.md)，开发与宿主限制见 [开发验证](docs/artifact-demo-verification.md)，历史研究见 [分叉核查](docs/artifact-host-fork-audit.md)，公开票同步状态和依赖见 [开票索引](docs/artifact-zone-tickets.md)。真实模型评估和用户验收不能用技术夹具代替。
@@ -55,6 +57,7 @@
 | control.mjs | 原 Host 改名读回、指定模型与权限模式创建、消息包装、v4 可选投递策略与提交回执、compact 维护命令与受理回执、归档保护与复原、置顶写与索引读回确认、定时任务启停（zcode-agent setAutomationEnabled + 同 scope listAutomations 读回确认，workspace_key 透传归属标识）；改名/创建后双库标题复核，分叉时回执 warnings；按调用释放连接 |
 | glm.mjs | GLM 个人套餐额度/卡片投影、确认后重置与同次尝试回执；共用 controller 远控互斥 |
 | sessions.mjs | 只读索引查询、会话定位、历史投影与分页；list_sessions 置顶优先排序，置顶列表查询与之同源；list_automations 直读同库 automations 表（官方 camelCase 投影、脏 scheduleRule 容忍）；sessionTitle 轻量双库标题读取供复核，sessionMode 读取 CLI 会话库权限供继承与首发后确认（不用索引或创建响应的 mode）；sessionOverview 汇集发起会话双库自省字段供 get_current_session，两库无行时字段可空 |
+| tests/projects.test.mjs | 3.16 项目精确筛选、只读冻结目录、自省、创建继承与显式范围覆盖，旧版和远端元信息兼容 |
 | package.json / package-lock.json | package.json 提供插件和运行时自报版本；原生清单与锁文件同步版本，固定依赖与测试入口 |
 | CHANGELOG.md | 本插件的版本变更记录、预览限制和对应源码链接 |
 | mcp.config.example.json | MCP 客户端连接示例 |

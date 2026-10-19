@@ -14,3 +14,8 @@ svg.file-icon,svg.tree-file{width:17px;height:19px;fill:none;stroke:currentColor
 #settings-error{padding:6px 12px;color:var(--error);font-size:12px;overflow-wrap:anywhere}
 dialog{max-width:calc(100% - 24px);width:420px;border:1px solid var(--line);border-radius:14px;background:var(--surface);color:var(--ink);padding:20px}dialog::backdrop{background:#0006}dialog h2{font-size:16px;margin:0 0 12px}dialog p{overflow-wrap:anywhere}.dialog-actions{display:flex;justify-content:flex-end;gap:7px;margin-top:20px}.dialog-actions button{border:1px solid var(--line);border-radius:8px;padding:6px 10px}.dialog-error{font-size:12px;color:var(--error)}
 #comment-status{padding:3px 12px;font-size:12px;color:var(--muted);overflow-wrap:anywhere}#comment-body{display:block;width:100%;resize:vertical;background:var(--bg);color:var(--ink);border:1px solid var(--line);border-radius:6px;padding:8px;font:inherit}#comment-selection-text{max-height:160px;overflow:auto;white-space:pre-wrap;overflow-wrap:anywhere;background:var(--bg);padding:8px;font-size:12px}
+/* 当前目录与文件路径分行显示；文件树入口只切换宿主登记的目录。 */
+.location{flex:1;min-width:0}
+#workspace-path{font-size:12px;line-height:1.5;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#workspace-select{width:100%;min-width:0;padding:7px 10px;border:1px solid var(--line);border-radius:7px;background:var(--bg);color:var(--ink);font:inherit;cursor:pointer}
+#workspace-select:disabled{cursor:wait;opacity:.65}

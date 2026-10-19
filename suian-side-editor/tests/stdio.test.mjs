@@ -16,7 +16,7 @@ test('真实 stdio 进程按专属 env 隔离两个工作区；同一 cwd 不决
     const workspaceRoot = join(root, id); await mkdir(workspaceRoot); await writeFile(join(workspaceRoot, 'test.txt'), `workspace-${id}`);
     const client = new Client({ name: 'zcode', version: '0.16.9' }, { capabilities: apps });
     const transport = new StdioClientTransport({ command: process.execPath, args: [fileURLToPath(new URL('../cli.mjs', import.meta.url))], cwd: root,
-      env: { SUIAN_SIDE_EDITOR_WORKSPACE: workspaceRoot, ZCODE_APP_VERSION: '3.15.1' }, stderr: 'pipe' });
+      env: { SUIAN_SIDE_EDITOR_WORKSPACE: workspaceRoot, SUIAN_SIDE_EDITOR_INDEX_DB: join(root, 'isolated-index.sqlite'), ZCODE_APP_VERSION: '3.15.1' }, stderr: 'pipe' });
     try {
       await client.connect(transport);
       const result = await client.callTool({ name: 'read_editor_text', arguments: { path: 'test.txt' }, _meta: { session_id: `session-${id}` } });

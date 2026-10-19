@@ -140,8 +140,13 @@ export function createSessionController({ reader, gatewayConfigPath, connect = c
           ...(warnings.length ? { warnings } : {}) };
       });
     },
-    async startSession({ workspace_path, title, message, model, lock_title = false, creator, originWarning, permissionMode, permissionWarning, onCreated }) {
+    async startSession({ workspace_path, title, message, model, project_id, additional_directories, lock_title = false, creator, originWarning, permissionMode, permissionWarning, onCreated }) {
       return attached({ workspacePath: workspace_path }, async remote => {
+        if (project_id !== undefined || additional_directories !== undefined) {
+          const [major, minor] = (remote.bootstrap.desktopAppVersion ?? '').split('.').map(Number);
+          if (!(major > 3 || major === 3 && minor >= 16))
+            throw new Error('project_host_unsupported: 项目与附加目录需要 ZCode Desktop 3.16 或更新版本，尚未创建会话');
+        }
         let modelSelection;
         if (model) {
           const view = await remote.call('model-selection', 'getView', []);
@@ -152,6 +157,8 @@ export function createSessionController({ reader, gatewayConfigPath, connect = c
             ...(model.reasoning_level ? { options: { reasoningLevel: model.reasoning_level } } : {}) };
         }
         const meta = await remote.call('zcode-task', 'createTask', [{ workspacePath: remote.workspacePath,
+          ...(project_id === undefined ? {} : { projectId: project_id }),
+          ...(additional_directories === undefined ? {} : { additionalDirectories: additional_directories }),
           ...(modelSelection ? { modelSelection } : {}), ...(permissionMode ? { mode: permissionMode } : {}), deferPersistenceUntilFirstPrompt: true }]);
         if (!meta.taskId) throw new Error('create_not_confirmed: 原 Host 创建响应缺少 taskId');
         const result = { source: 'original_host', session_id: meta.taskId, workspace_path: meta.workspacePath, title: meta.title,

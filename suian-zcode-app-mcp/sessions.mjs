@@ -1,5 +1,6 @@
 import { DatabaseSync } from 'node:sqlite';
 import { win32 } from 'node:path';
+import { readProjectContext } from 'suian-zcode-common/project-context.mjs';
 import { getConversationMessageProjectionPolicy } from 'suian-zcode-common/vendor/projection.js';
 
 function openReadOnly(path) {
@@ -10,6 +11,7 @@ function openReadOnly(path) {
 
 const taskColumns = `task_id AS session_id, title, workspace_path, workspace_key,
   workspace_identity, provider, mode AS permission_mode, task_status AS status, created_at, updated_at, pinned, archived`;
+const taskColumnsFor = db => taskColumns + (db.prepare('PRAGMA table_info(tasks)').all().some(column => column.name === 'project_id') ? ', project_id, host_id' : '');
 const taskItem = row => ({ ...row, pinned: !!row.pinned, archived: !!row.archived });
 
 // automations 行映射对齐官方 rowToAutomation：布尔真实化、可空字段统一 null；
@@ -29,6 +31,15 @@ const normalizeWorkspace = path => win32.normalize(path).replaceAll('\\', '/').r
 
 export function createSessionReader({ indexDbPath, sessionDbPath }) {
   return {
+    sessionProject({ session_id }) {
+      const index = openReadOnly(indexDbPath);
+      try {
+        if (!taskColumnsFor(index).includes('project_id')) return undefined;
+        const matches = index.prepare('SELECT host_id FROM tasks WHERE task_id=? AND deleted=0').all(session_id);
+        if (matches.length === 1 && matches[0].host_id !== 'local') return undefined;
+        return readProjectContext({ indexDbPath, sessionId: session_id });
+      } finally { index.close(); }
+    },
     sessionTitle({ session_id }) {
       // 复核用轻量读取：只查两库标题。session_title 为 null 表示 CLI 库尚无该会话行（deferPersistence 未落）。
       // index_title 在跨工作区同 task_id 时取任意行，仅供诊断展示；分叉判定只用 session_title（CLI 库主键无歧义）
@@ -58,10 +69,12 @@ export function createSessionReader({ indexDbPath, sessionDbPath }) {
     // 跨工作区同 task_id 的多行按 workspace_key 排序全部返回，交调用方判断；index_title 取首行，与 sessionTitle 的诊断语义一致。
     sessionOverview({ session_id }) {
       const index = openReadOnly(indexDbPath);
-      let indexMatches;
+      let indexMatches, project;
       try {
-        indexMatches = index.prepare(`SELECT ${taskColumns} FROM tasks WHERE task_id=? AND deleted=0
+        indexMatches = index.prepare(`SELECT ${taskColumnsFor(index)} FROM tasks WHERE task_id=? AND deleted=0
           ORDER BY workspace_key`).all(session_id).map(taskItem);
+        if (indexMatches.length === 1 && indexMatches[0].host_id === 'local')
+          project = readProjectContext({ indexDbPath, sessionId: session_id, workspaceKey: indexMatches[0].workspace_key });
       } finally { index.close(); }
       const db = openReadOnly(sessionDbPath);
       let sessionTitle = null, workspacePath = null, permissionMode = null;
@@ -70,12 +83,19 @@ export function createSessionReader({ indexDbPath, sessionDbPath }) {
         if (row) ({ title: sessionTitle, directory: workspacePath, mode: permissionMode } = row);
       } finally { db.close(); }
       return { session_title: sessionTitle, index_title: indexMatches.length ? indexMatches[0].title : null,
-        workspace_path: workspacePath, permission_mode: permissionMode, index_matches: indexMatches };
+        workspace_path: workspacePath, permission_mode: permissionMode, index_matches: indexMatches,
+        ...(project ? { project_id: project.projectId, project_name: project.projectName,
+          project_deleted: project.projectDeleted, additional_directories: project.additionalDirectories } : {}) };
     },
-    listSessions({ limit = 20, offset = 0, workspace_path, query, include_archived = false } = {}) {
+    listSessions({ limit = 20, offset = 0, workspace_path, project_id, query, include_archived = false } = {}) {
       const db = openReadOnly(indexDbPath);
       try {
         const conditions = ['deleted=0'], args = [];
+        const columns = taskColumnsFor(db);
+        if (project_id !== undefined) {
+          if (!columns.includes('project_id')) throw new Error('project_schema_unsupported: 当前宿主索引不支持项目筛选');
+          conditions.push('project_id IS ?'); args.push(project_id);
+        }
         if (!include_archived) conditions.push('archived=0');
         if (workspace_path !== undefined) {
           db.function('normalize_workspace', normalizeWorkspace);
@@ -89,7 +109,7 @@ export function createSessionReader({ indexDbPath, sessionDbPath }) {
         const where = conditions.join(' AND ');
         const total = db.prepare(`SELECT COUNT(*) AS n FROM tasks WHERE ${where}`).get(...args).n;
         // 置顶优先展示（对齐 Desktop 端置顶区语义），置顶段内部与非置顶段各自按更新时间倒序
-        const sessions = db.prepare(`SELECT ${taskColumns} FROM tasks WHERE ${where}
+        const sessions = db.prepare(`SELECT ${columns} FROM tasks WHERE ${where}
           ORDER BY pinned DESC, updated_at DESC, task_id, workspace_key LIMIT ? OFFSET ?`).all(...args, limit, offset).map(taskItem);
         const next = offset + sessions.length;
         return { source: 'local_tasks_index', sessions, total, next_offset: next < total ? next : null };
@@ -108,7 +128,7 @@ export function createSessionReader({ indexDbPath, sessionDbPath }) {
         }
         const where = conditions.join(' AND ');
         const total = db.prepare(`SELECT COUNT(*) AS n FROM tasks WHERE ${where}`).get(...args).n;
-        const sessions = db.prepare(`SELECT ${taskColumns} FROM tasks WHERE ${where}
+        const sessions = db.prepare(`SELECT ${taskColumnsFor(db)} FROM tasks WHERE ${where}
           ORDER BY updated_at DESC, task_id, workspace_key LIMIT ? OFFSET ?`).all(...args, limit, offset).map(taskItem);
         const next = offset + sessions.length;
         return { source: 'local_tasks_index', sessions, total, next_offset: next < total ? next : null };
@@ -126,7 +146,7 @@ export function createSessionReader({ indexDbPath, sessionDbPath }) {
           conditions.push('normalize_workspace(workspace_path)=?');
           args.push(normalizeWorkspace(workspace_path));
         }
-        return db.prepare(`SELECT ${taskColumns} FROM tasks WHERE ${conditions.join(' AND ')}`).all(...args).map(taskItem);
+        return db.prepare(`SELECT ${taskColumnsFor(db)} FROM tasks WHERE ${conditions.join(' AND ')}`).all(...args).map(taskItem);
       } finally { db.close(); }
     },
     // 定时任务清单：直读 automations 表（官方任务索引同库），只读、离线可用；
@@ -155,7 +175,7 @@ export function createSessionReader({ indexDbPath, sessionDbPath }) {
       try {
         const keyFilter = workspace_key === undefined ? '' : ' AND workspace_key=?';
         const args = workspace_key === undefined ? [session_id] : [session_id, workspace_key];
-        const rows = index.prepare(`SELECT ${taskColumns} FROM tasks WHERE task_id=? AND deleted=0${keyFilter}`).all(...args);
+        const rows = index.prepare(`SELECT ${taskColumnsFor(index)} FROM tasks WHERE task_id=? AND deleted=0${keyFilter}`).all(...args);
         if (!rows.length) throw new Error('session_not_found: 任务索引中没有该会话，或它已删除');
         if (rows.length > 1) throw new Error('ambiguous_session: 此 ID 属于多个工作区，请使用列表返回的 workspace_key');
         task = taskItem(rows[0]);

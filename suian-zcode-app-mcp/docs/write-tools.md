@@ -51,6 +51,10 @@ node "{{plugin_root}}/cli.mjs" --save-authorization
 
 `start_session`：必填 `workspace_path` 和上述二选一正文输入。创建方 ID 由服务自动识别，不接受 `creator` 输入。`title` 仅为新会话初始名称，可省略；独立 `lock_title` 默认 false。`model` 可省略，交给 Host 默认模型。指定时需 `provider_id`、`model_id`，可选 `reasoning_level`，先在当前 Host 模型目录验证，不猜 provider ID。
 
+3.16 支持可选 `project_id` 和 `additional_directories`。省略时，目标执行目录属于发起会话的执行／附加目录范围，便继承项目及其余目录；来源不唯一、远端、项目已删除或目标在范围之外时不继承。会话冻结的附加目录优先于项目 roots，空数组也有效。项目／目录数据损坏时在创建前明确报错，不猜权限。
+
+显式 `project_id:null` 表示未归类；改为其他项目时不带入原项目附加目录，由 Host 校验项目。显式 `additional_directories:[]` 表示不带附加目录；非空项必须是用户授权的绝对目录。参数转交原 Host 的 `projectId`／`additionalDirectories`，插件不直接写会话索引。旧版原有调用不增加这些字段；显式使用或继承多目录参数但 Host 未提供 3.16 版本能力时，创建前报 `project_host_unsupported`。提交回执不把请求参数冒充持久化确认，项目归属可随后用会话查询核对。
+
 `permission_mode` 可选 `build`（变更前确认，可能逐次询问）/`plan`/`edit`/`auto`/`yolo` 五档，是权限策略而非开发任务类型。正常派发省略该参数；仅在用户明确指定权限模式时填写，不能因“实施代码”“构建”或“等待首肯合并”选择 `build`。合并授权边界写入开局正文，不用权限模式代替。显式请求 `yolo` 等高权限档位需用户授权，已有明确授权不重复询问。
 
 显式模式透传宿主 `createTask`；缺省仅从发起会话 CLI 库的 `session.permission.mode` 继承。确认新会话权限也读取同一个 CLI 字段，不使用任务索引或创建响应的 `mode`。来源冲突时不继承，由来源警告说明。CLI 会话不存在、权限缺失或非规范值、库缺失或繁忙等继承探测异常时不传 `mode`，新会话使用 Host 默认权限；回执附 `permission_not_inherited` 警告及 `observed_modes` 原始取值（探测异常时无该字段）。
