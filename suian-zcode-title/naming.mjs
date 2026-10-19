@@ -59,7 +59,7 @@ export async function runNaming({backend,selection,state={},apply=false,eventUse
   try {candidate=candidateFrom(generated,before.title,requireFormat);}
   catch(error) {
     // 模型偶发输出非 JSON 时重试一次；原标题不合规时用带反馈的上下文重试一次。
-    const retryContext=error.code==="invalid_model_json"?context
+    const retryContext=error.code==="invalid_model_json"?{...context,title_format_feedback:[context.title_format_feedback,"上次输出不是 JSON。只输出一个 JSON 对象：{\"action\":\"keep\"或\"rename\",\"title\":\"...\",\"reason\":\"...\"}，不要输出解释、Markdown 或代码围栏。"].filter(Boolean).join("；")}
       :error.code==="invalid_keep_title"?{...context,title_format_feedback:"原标题不符合规范，不能 keep；请返回 rename 与合法的类别 对象｜目标标题"}
       :null;
     if(!retryContext)throw error;
