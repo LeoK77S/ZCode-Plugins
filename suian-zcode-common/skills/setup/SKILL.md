@@ -11,7 +11,7 @@ description: 安装、升级或移除 ZCode 公共网关，建立业务插件共
 
 先从桌面端的应用信息或实际启动程序确认 ZCode 应用版本，随包 CLI 的版本不能代替应用版本。
 
-**公共插件 0.3.0 起支持 ZCode 3.16 在线模式**，手机共存和核心会话操作已通过验证。现有 Windows 安装脚本尚未接入 V2 配置参数，以下 Install/Restart 默认流程仍用于旧版配置，不能据此在 3.16 上完成部署。具体配置与验证边界见[configuration](../configuration/SKILL.md)。仅准备业务插件依赖和公共包链接时，仍可执行对应步骤。
+**公共插件 0.3.0 起支持 ZCode 3.16 在线模式**，手机共存和核心会话操作已通过验证。安装器按 Desktop 应用版本选择协议：3.16 使用 V2，旧版使用 V1。宿主提供 ZCODE_APP_VERSION 时可自动读取；在外部 Shell 中调用时，使用 -ZcodeAppVersion 传入已核实的应用版本。具体配置与验证边界见[configuration](../configuration/SKILL.md)。
 
 ## 远控开关操作
 
@@ -30,10 +30,10 @@ node "{{common_root}}/link.mjs" --plugin-root "{{business_root}}"
 ```
 
 4. 按业务 setup 技能运行安装器 --check-only。只有命名需要 sqlite3 CLI 的只读 JSON 能力。失败先补齐依赖，不注册不可用的服务。
-5. 执行 setup.ps1 -Action Status，未安装才 Install。原生模式为 Install/Restart 加 -NativePlugin；源码模式不加，保留旧全局技能入口：
+5. 执行 setup.ps1 -Action Status -ZcodeAppVersion {{app_version}}，未安装才 Install。版本来自前面的实际 Desktop 核对；不要依赖外部 Shell 未必具备的宿主环境。原生模式为 Install/Restart 加 -NativePlugin；源码模式不加，保留旧全局技能入口：
 
 ```powershell
-powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "{{common_root}}/setup.ps1" -Action Install -NativePlugin
+powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "{{common_root}}/setup.ps1" -Action Install -ZcodeAppVersion "{{app_version}}" -NativePlugin
 ```
 
 Install 复用唯一当前用户登录任务，以隐藏 VBS → PowerShell → Node 启动并监督网关。健康检查通过后才写用户级 ZCODE_WEB_REMOTE_CONTROL_RELAY_WS_URL 并广播变更。保留网关数据、端口、令牌和原环境备份，不另建 common 的第二个任务。原生模式不复制全局技能，只移除归属匹配的旧公共技能。
@@ -48,9 +48,9 @@ Install 复用唯一当前用户登录任务，以隐藏 VBS → PowerShell → 
 
 更新后重装公共与 MCP 的锁定依赖，再刷新 link.mjs 的公共入口和所有已安装业务端链接。刷新链接不会重载运行中的网关或 MCP。
 
-从新公共根执行 Status，核对 code_status、gateway_path_matches 与 gateway_restart_required。代码已变化、目录不匹配或旧进程没有指纹时安排安全重载；不要用 health.version 或仅有的连接正常来判断已加载新代码。只修改文档或 skill 时，代码指纹不变；是否重开 Desktop 看环境变更与实际连接，不能仅凭 restart_required 汇总标志决定。
+从新公共根执行 Status -ZcodeAppVersion {{app_version}}，核对 code_status、gateway_path_matches、protocol_update_required、upstream_update_required 与 gateway_restart_required。代码已变化、目录不匹配、协议待升级或旧进程没有指纹时安排安全重载；不要用 health.version 或仅有的连接正常来判断已加载新代码。只修改文档或 skill 时，代码指纹不变；是否重开 Desktop 看环境变更与实际连接，不能仅凭 restart_required 汇总标志决定。
 
-需要重载网关时，等插件调用收尾，请用户只暂停 ZCode 的移动端远控，保留 ZCode 与当前 Agent 完成升级。Status 确认 desktop_connected:false 后 Restart，原生模式加 -NativePlugin。脚本等待网关和启动器退出后才更新任务，保留已有配置。业务安装器同时更新通知脚本的代码路径。
+需要重载网关时，等插件调用收尾，请用户只暂停 ZCode 的移动端远控，保留 ZCode 与当前 Agent 完成升级。Status 确认 desktop_connected:false 后执行 Restart -ZcodeAppVersion {{app_version}}，原生模式加 -NativePlugin。脚本等待网关和启动器退出后才更新任务，保留端口、控制令牌、原环境备份及自定义上游；应用升级时同步协议与官方地址。单纯重载且未提供新版本时，保留已配置协议。业务安装器同时更新通知脚本的代码路径。
 
 网关经 Restart 生效；地址未变且原窗口已连接正确网关时，重新开启远控即可。首次接入或改变启动环境时，先交付本机配置与待验证报告，最后请用户保存工作、择时从托盘退出并重开 ZCode，再开启远控。重连后继续业务模型、探活及临时暂停的恢复，不能把待恢复项当作升级完成。
 

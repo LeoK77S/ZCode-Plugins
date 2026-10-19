@@ -7,7 +7,7 @@
 >
 > **ZCode 3.16 暂不支持 local-only 本地模式**。在 3.16 上使用网关相关功能，需要登录 ZCode 账号，并能连接官方远控服务。插件不要求手机扫码或保持在线。
 
-ZCode 3.16 的网关连接需要单独配置，现有 Windows 自动安装命令仍使用旧版连接配置。具体方法与限制见[公共网关配置说明](./suian-zcode-common/skills/configuration/SKILL.md)。
+安装和升级时，Agent 会按 Desktop 应用版本配置网关：3.16 使用 V2，旧版使用 V1；日常重载会保留已有协议与用户配置。具体方法与限制见[公共网关配置说明](./suian-zcode-common/skills/configuration/SKILL.md)。
 
 给 ZCode 做的插件与公共工具集合。ZCode 是智谱推出的 Agentic Coding 工具（桌面端 + CLI），这个仓库放会话自动命名插件、会话 MCP、本机侧栏文本编辑器，以及业务插件共用的基础能力。
 

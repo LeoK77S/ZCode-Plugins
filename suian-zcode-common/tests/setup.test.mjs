@@ -4,9 +4,13 @@ import { mkdtemp, mkdir, writeFile, readFile, rm, stat } from 'node:fs/promises'
 import { tmpdir } from 'node:os';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { execFile } from 'node:child_process';
+import { execFile, spawn } from 'node:child_process';
 import { promisify } from 'node:util';
 import { createHash } from 'node:crypto';
+import { createServer } from 'node:net';
+import { once } from 'node:events';
+import { createInterface } from 'node:readline';
+import WebSocket, { WebSocketServer } from 'ws';
 import { gatewayBuild } from '../gateway-build.mjs';
 
 const setup = fileURLToPath(new URL('../setup.ps1', import.meta.url));
@@ -15,10 +19,11 @@ const nativeExec = promisify(execFile);
 
 // 只替换 Windows 系统边界，真实执行 setup.ps1 与临时目录内的文件读写。
 const systemFixture = String.raw`
-param([string]$Script, [string]$Action, [string]$DataDir, [string]$SkillsDir, [string]$StateFile, [int]$HealthTimeoutSec, [int]$Port, [string]$Mode, [switch]$NativePlugin)
+param([string]$Script, [string]$Action, [string]$DataDir, [string]$SkillsDir, [string]$StateFile, [int]$HealthTimeoutSec, [int]$Port, [string]$Mode, [int]$RelayProtocolVersion, [string]$ZcodeAppVersion, [string]$UpstreamUrl, [switch]$NativePlugin)
 $ErrorActionPreference = 'Stop'
 [Console]::OutputEncoding = New-Object System.Text.UTF8Encoding($false)
 $global:fixture = Get-Content -LiteralPath $StateFile -Raw | ConvertFrom-Json
+$env:ZCODE_APP_VERSION = $global:fixture.app_version_env
 function Save-Fixture { [IO.File]::WriteAllText($StateFile, ($global:fixture | ConvertTo-Json -Depth 20), (New-Object Text.UTF8Encoding($false))) }
 function Add-Type {
     param([string]$TypeDefinition)
@@ -69,6 +74,7 @@ function Invoke-RestMethod {
     if ($global:fixture.health -eq 'failure') { throw 'fixture: 网关启动失败' }
     $config = Get-Content -LiteralPath (Join-Path $DataDir 'config.json') -Raw | ConvertFrom-Json
     if (([Uri]$Uri).Port -ne $config.port) { throw [Net.WebException]::new('fixture: wrong health port', [Net.WebExceptionStatus]::ConnectFailure) }
+    if ($global:fixture.real_health) { return Microsoft.PowerShell.Utility\Invoke-RestMethod @PSBoundParameters }
     if ($Method -eq 'Post') {
         if ($Headers.Authorization -ne ('Bearer ' + $config.control_token)) { throw '控制令牌错误' }
         $global:fixture.shutdowns++; $global:fixture.draining=($global:fixture.shutdown_health_reads -gt 0); $global:fixture.health_available=$global:fixture.draining; if ($null -ne $global:fixture.task) { $global:fixture.task.State='Ready' }; Save-Fixture
@@ -85,15 +91,21 @@ function Invoke-RestMethod {
     Save-Fixture
     $id = if ($global:fixture.health -eq 'foreign') { 'foreign-instance' } else { $config.instance_id }
     $mode = if ($config.PSObject.Properties['mode']) { $config.mode } else { 'relay' }
+    $protocol = if ($config.PSObject.Properties['relay_protocol_version']) { $config.relay_protocol_version } else { 1 }
+    if ($null -ne $global:fixture.health_protocol) { $protocol = $global:fixture.health_protocol }
     $reply = [pscustomobject]@{ service='suian-zcode-gateway'; version=1; instance_id=$id; upstream_url=$config.upstream_url; mode=$mode; desktop_connected=$global:fixture.desktop; desktop_ready=$global:fixture.desktop; upstream_connected=$false; paired=$false; rpc_protocol_version=1; upstream_paired=$false; local_clients=0 }
     if ($null -ne $global:fixture.build) { Add-Member -InputObject $reply -NotePropertyName build -NotePropertyValue $global:fixture.build }
-    if ($global:fixture.legacy_health) { $reply.PSObject.Properties.Remove('mode'); $reply.PSObject.Properties.Remove('desktop_ready') }
+    Add-Member -InputObject $reply -NotePropertyName relay_protocol_version -NotePropertyValue $protocol
+    if ($global:fixture.legacy_health) { $reply.PSObject.Properties.Remove('mode'); $reply.PSObject.Properties.Remove('desktop_ready'); $reply.PSObject.Properties.Remove('relay_protocol_version') }
     return $reply
 }
 $params = @{ Action=$Action; DataDir=$DataDir; SkillsDir=$SkillsDir }
 if ($PSBoundParameters.ContainsKey('HealthTimeoutSec')) { $params.HealthTimeoutSec=$HealthTimeoutSec }
 if ($PSBoundParameters.ContainsKey('Port')) { $params.Port=$Port }
 if ($PSBoundParameters.ContainsKey('Mode')) { $params.Mode=$Mode }
+if ($PSBoundParameters.ContainsKey('RelayProtocolVersion')) { $params.RelayProtocolVersion=$RelayProtocolVersion }
+if ($PSBoundParameters.ContainsKey('ZcodeAppVersion')) { $params.ZcodeAppVersion=$ZcodeAppVersion }
+if ($PSBoundParameters.ContainsKey('UpstreamUrl')) { $params.UpstreamUrl=$UpstreamUrl }
 if ($NativePlugin) { $params.NativePlugin=$true }
 & $Script @params
 `;
@@ -105,16 +117,170 @@ async function fixture(t, overrides = {}) {
   const script = join(root, 'Windows 边界 fixture.ps1');
   const dataDir = join(root, '公共 data');
   const skillsDir = join(root, 'skills');
-  const initial = { relay: 'wss://previous.example/ws', task: null, registrations: 0, starts: 0, shutdowns: 0, health: 'ready', build: gatewayBuild, desktop: false, legacy_health: false, health_min_timeout: 0, timeouts_left: 0, health_requests: 0, http_attempts: 0, health_available: false, draining: false, shutdown_health_reads: 0, broadcasts: [], broadcast_fail: false, broadcast_declaration: null, unregister_fail: false, ...overrides };
+  const initial = { relay: 'wss://previous.example/ws', app_version_env: null, task: null, registrations: 0, starts: 0, shutdowns: 0, health: 'ready', health_protocol: null, real_health: false, build: gatewayBuild, desktop: false, legacy_health: false, health_min_timeout: 0, timeouts_left: 0, health_requests: 0, http_attempts: 0, health_available: false, draining: false, shutdown_health_reads: 0, broadcasts: [], broadcast_fail: false, broadcast_declaration: null, unregister_fail: false, ...overrides };
   await writeFile(stateFile, JSON.stringify(initial));
   await writeFile(script, '\uFEFF' + systemFixture);
-  const run = async (action, { healthTimeoutSec, port, mode, nativePlugin } = {}) => {
-    const { stdout } = await nativeExec('powershell.exe', ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File', script, '-Script', setup, '-Action', action, '-DataDir', dataDir, '-SkillsDir', skillsDir, '-StateFile', stateFile, ...(healthTimeoutSec === undefined ? [] : ['-HealthTimeoutSec', String(healthTimeoutSec)]), ...(port === undefined ? [] : ['-Port', String(port)]), ...(mode === undefined ? [] : ['-Mode', mode]), ...(nativePlugin ? ['-NativePlugin'] : [])], { windowsHide: true });
+  const run = async (action, { healthTimeoutSec, port, mode, nativePlugin, relayProtocolVersion, zcodeAppVersion, upstreamUrl } = {}) => {
+    const { stdout } = await nativeExec('powershell.exe', ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File', script, '-Script', setup, '-Action', action, '-DataDir', dataDir, '-SkillsDir', skillsDir, '-StateFile', stateFile, ...(healthTimeoutSec === undefined ? [] : ['-HealthTimeoutSec', String(healthTimeoutSec)]), ...(port === undefined ? [] : ['-Port', String(port)]), ...(mode === undefined ? [] : ['-Mode', mode]), ...(relayProtocolVersion === undefined ? [] : ['-RelayProtocolVersion', String(relayProtocolVersion)]), ...(zcodeAppVersion === undefined ? [] : ['-ZcodeAppVersion', zcodeAppVersion]), ...(upstreamUrl === undefined ? [] : ['-UpstreamUrl', upstreamUrl]), ...(nativePlugin ? ['-NativePlugin'] : [])], { windowsHide: true });
     return JSON.parse(stdout.trim());
   };
   const state = async () => JSON.parse(await readFile(stateFile, 'utf8'));
   return { root, stateFile, dataDir, skillsDir, run, state };
 }
+
+test('3.16 首次安装按宿主应用版本自动选择 V2 和新版官方地址', { skip: process.platform !== 'win32' }, async t => {
+  const f = await fixture(t, { app_version_env: '3.16.1' });
+  const result = await f.run('Install');
+  const config = JSON.parse(await readFile(join(f.dataDir, 'config.json'), 'utf8'));
+  assert.equal(config.relay_protocol_version, 2);
+  assert.equal(config.upstream_url, 'wss://zcode.z.ai/api/v1/remote/ws2');
+  assert.equal(result.relay_protocol_version, 2);
+  assert.equal(result.running_relay_protocol_version, 2);
+  assert.equal(result.protocol_update_required, false);
+});
+
+test('3.16 外部安装按应用版本自动配置；Restart 无版本信息时保留 V2 和用户配置', { skip: process.platform !== 'win32' }, async t => {
+  const f = await fixture(t), configFile = join(f.dataDir, 'config.json');
+  const installed = await f.run('Install', { zcodeAppVersion: '3.16.1.8093', upstreamUrl: 'wss://relay.fixture.test/custom', nativePlugin: true });
+  assert.equal(installed.protocol_source, 'desktop_version');
+  const before = JSON.parse(await readFile(configFile, 'utf8'));
+  const restarted = await f.run('Restart', { nativePlugin: true });
+  const after = JSON.parse(await readFile(configFile, 'utf8'));
+  assert.equal(after.relay_protocol_version, 2);
+  assert.deepEqual(after, before, '未指定变更时保留全部已知配置');
+  assert.equal(restarted.relay_protocol_version, 2);
+  assert.equal(restarted.protocol_source, 'installed_config');
+  assert.equal(restarted.protocol_update_required, false);
+});
+
+test('升级 3.16 时 Status 报协议待更新，暂停远控后 Restart 迁移旧官方地址并保留备份和令牌', { skip: process.platform !== 'win32' }, async t => {
+  for (const previousUpstream of ['wss://zcode.z.ai/ws', 'wss://zcode.chatglm.site/ws']) {
+    const f = await fixture(t, { app_version_env: '3.15.1' }), configFile = join(f.dataDir, 'config.json');
+    await f.run('Install');
+    const old = JSON.parse(await readFile(configFile, 'utf8'));
+    delete old.relay_protocol_version; old.upstream_url = previousUpstream;
+    await writeFile(configFile, JSON.stringify(old));
+    const oldBytes = await readFile(configFile, 'utf8');
+    const state = await f.state(); state.app_version_env = '3.16.1'; state.desktop = true;
+    await writeFile(f.stateFile, JSON.stringify(state));
+    const pending = await f.run('Status');
+    assert.equal(pending.code_status, 'current');
+    assert.equal(pending.relay_protocol_version, 2);
+    assert.equal(pending.running_relay_protocol_version, 1);
+    assert.equal(pending.protocol_update_required, true);
+    assert.equal(pending.upstream_update_required, true);
+    assert.equal(pending.gateway_restart_required, true);
+    assert.equal(await readFile(configFile, 'utf8'), oldBytes);
+    await assert.rejects(f.run('Install'), /use Restart/);
+    await assert.rejects(f.run('Restart'), /Stop mobile remote control/);
+    assert.equal(await readFile(configFile, 'utf8'), oldBytes);
+    assert.equal((await f.state()).shutdowns, 0);
+    state.desktop = false; await writeFile(f.stateFile, JSON.stringify(state));
+    const restarted = await f.run('Restart');
+    const updated = JSON.parse(await readFile(configFile, 'utf8'));
+    assert.equal(updated.relay_protocol_version, 2);
+    assert.equal(updated.upstream_url, 'wss://zcode.z.ai/api/v1/remote/ws2');
+    for (const key of ['port', 'mode', 'control_token', 'previous_user_relay']) assert.equal(updated[key], old[key]);
+    assert.equal(restarted.protocol_update_required, false);
+    assert.equal(restarted.upstream_update_required, false);
+  }
+});
+
+test('旧版按 V1 安装；显式版本覆盖宿主变量，回退旧版时同步官方地址', { skip: process.platform !== 'win32' }, async t => {
+  const f = await fixture(t, { app_version_env: '3.16.1' }), configFile = join(f.dataDir, 'config.json');
+  const old = await f.run('Install', { zcodeAppVersion: '3.15.1' });
+  assert.equal(old.relay_protocol_version, 1);
+  assert.equal(old.upstream_url, 'wss://zcode.z.ai/ws');
+  await f.run('Restart');
+  assert.equal(JSON.parse(await readFile(configFile, 'utf8')).relay_protocol_version, 2);
+  const downgraded = await f.run('Restart', { zcodeAppVersion: '3.15.1' });
+  assert.equal(downgraded.relay_protocol_version, 1);
+  assert.equal(downgraded.upstream_url, 'wss://zcode.z.ai/ws');
+});
+
+test('协议、版本或旧官方地址冲突，以及 3.16 local-only，均在写配置与停网关前拒绝', { skip: process.platform !== 'win32' }, async t => {
+  const f = await fixture(t);
+  for (const [options, error] of [
+    [{ zcodeAppVersion: '0.16.9' }, /actual ZCode Desktop application version/],
+    [{ zcodeAppVersion: 'unknown' }, /actual ZCode Desktop application version/],
+    [{ zcodeAppVersion: '3.16.1', relayProtocolVersion: 1 }, /conflicts/],
+    [{ zcodeAppVersion: '3.15.1', relayProtocolVersion: 2 }, /conflicts/],
+    [{ zcodeAppVersion: '3.16.1', mode: 'local-only' }, /does not support local-only/],
+    [{ relayProtocolVersion: 2, upstreamUrl: 'wss://zcode.z.ai/ws' }, /does not match/],
+    [{ relayProtocolVersion: 1, upstreamUrl: 'wss://zcode.z.ai/api/v1/remote/ws2' }, /does not match/],
+  ]) {
+    await assert.rejects(f.run('Install', options), error);
+    await assert.rejects(stat(join(f.dataDir, 'config.json')), { code: 'ENOENT' });
+    const state = await f.state();
+    assert.equal(state.registrations + state.starts + state.shutdowns + state.broadcasts.length, 0);
+  }
+});
+
+test('实际 health 协议不符会报告重载，首次启动协议未生效时不写 Desktop 环境', { skip: process.platform !== 'win32' }, async t => {
+  const f = await fixture(t, { desktop: true });
+  await f.run('Install', { relayProtocolVersion: 2 });
+  const state = await f.state(); state.health_protocol = 1;
+  await writeFile(f.stateFile, JSON.stringify(state));
+  const status = await f.run('Status');
+  assert.equal(status.relay_protocol_version, 2);
+  assert.equal(status.running_relay_protocol_version, 1);
+  assert.equal(status.protocol_update_required, true);
+  assert.equal(status.gateway_restart_required, true);
+  const wrong = await fixture(t, { app_version_env: '3.16.1', health_protocol: 1 });
+  await assert.rejects(wrong.run('Install'), /different instance or relay protocol/);
+  assert.equal((await wrong.state()).relay, 'wss://previous.example/ws');
+  assert.equal((await wrong.state()).broadcasts.length, 0);
+});
+
+test('安装生成的 V1/V2 配置可直接启动真实 Node CLI，Status 读取真实健康接口确认版本与代码', { skip: process.platform !== 'win32', timeout: 15000 }, async t => {
+  const relay = new WebSocketServer({ host: '127.0.0.1', port: 0 });
+  await once(relay, 'listening');
+  t.after(() => { for (const socket of relay.clients) socket.terminate(); relay.close(); });
+  for (const [appVersion, protocol] of [['3.15.1', 1], ['3.16.1', 2]]) {
+    const portProbe = createServer(); portProbe.listen(0, '127.0.0.1'); await once(portProbe, 'listening');
+    const port = portProbe.address().port;
+    await new Promise(resolve => portProbe.close(resolve));
+    const f = await fixture(t, { app_version_env: appVersion });
+    await f.run('Install', { port, upstreamUrl: `ws://127.0.0.1:${relay.address().port}/ws` });
+    const child = spawn(process.execPath, [join(gatewayRoot, 'gateway.mjs'), '--config', join(f.dataDir, 'config.json')], { windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'] });
+    const exited = once(child, 'exit');
+    t.after(async () => { if (child.exitCode === null && child.signalCode === null) { child.kill(); await exited; } });
+    let stderr = ''; child.stderr.on('data', chunk => { stderr += chunk; });
+    const lines = createInterface({ input: child.stdout });
+    const [line] = await Promise.race([once(lines, 'line'), exited.then(([code]) => { throw new Error(`网关提前退出 ${code}: ${stderr}`); })]);
+    lines.close();
+    const { relay_url, health_url } = JSON.parse(line);
+    const connected = once(relay, 'connection');
+    const desktop = new WebSocket(relay_url + (protocol === 2 ? '?token=fixture-token&mid=fixture-mid' : ''));
+    t.after(() => desktop.terminate());
+    await once(desktop, 'open');
+    const [upstream] = await connected;
+    const forwarded = once(upstream, 'message');
+    desktop.send(JSON.stringify({ type: 'auth_init', device_sid: 'd_setup-fixture', client_ts: protocol === 2 ? Math.floor(Date.now() / 1000) : Date.now(), ...(protocol === 1 ? { role: 'device', pass_hash: 'fixture' } : {}) }));
+    assert.equal(JSON.parse((await forwarded)[0]).type, 'auth_init');
+    const authenticated = once(desktop, 'message');
+    upstream.send(JSON.stringify({ type: 'auth_ack', pair_status: 'waiting', server_ts: protocol === 2 ? Math.floor(Date.now() / 1000) : Date.now() }));
+    await authenticated;
+    const health = await (await fetch(health_url)).json();
+    assert.equal(health.relay_protocol_version, protocol);
+    assert.equal(health.desktop_ready, true);
+    assert.equal(health.build.id, gatewayBuild.id);
+    const state = await f.state(); state.real_health = true;
+    await writeFile(f.stateFile, JSON.stringify(state));
+    const status = await f.run('Status');
+    assert.equal(status.code_status, 'current');
+    assert.equal(status.running_relay_protocol_version, protocol);
+    assert.equal(status.protocol_update_required, false);
+    assert.equal(status.gateway_restart_required, false);
+    assert.equal(status.restart_required, false);
+    assert.equal(stderr, '');
+    const closed = once(desktop, 'close'); desktop.close(); await closed;
+    const config = JSON.parse(await readFile(join(f.dataDir, 'config.json'), 'utf8'));
+    const stopped = await fetch(health_url.replace('/health', '/shutdown'), { method: 'POST', headers: { Authorization: 'Bearer ' + config.control_token } });
+    assert.equal(stopped.status, 200);
+    assert.equal((await exited)[0], 0);
+  }
+});
 
 test('Status 识别已连接网关加载的旧代码，并区分网关重载与 Desktop 重开', { skip: process.platform !== 'win32' }, async t => {
   const f = await fixture(t, { desktop: true });

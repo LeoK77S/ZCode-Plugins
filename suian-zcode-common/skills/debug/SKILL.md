@@ -7,7 +7,7 @@ description: 诊断 ZCode 公共网关、启动任务、Desktop、上游和手�
 
 原生根为 `${ZCODE_SKILL_DIR}/../..`；源码模式沿用已确定的根。先读[路径与数据](../paths.md)，固定启动目录、启动方式和实际公共根，确认 ZCode 应用版本后再执行 Status。CLI 版本不能代替应用版本。
 
-**公共插件 0.3.0 起支持 ZCode 3.16 在线模式，local-only 暂不可用**。在线模式需要已登录账号、可达的官方远控服务和 V2 配置；现有 Windows 默认安装流程尚未接入 V2。先按[configuration](../configuration/SKILL.md)核对版本与配置，不能建议通过切换本地模式解决 3.16 连接失败。
+**公共插件 0.3.0 起支持 ZCode 3.16 在线模式，local-only 暂不可用**。在线模式需要已登录账号、可达的官方远控服务和 V2 配置。执行 Status 时用 -ZcodeAppVersion 传入已核实的 Desktop 应用版本，核对 relay_protocol_version、running_relay_protocol_version、protocol_update_required 和 upstream_update_required；protocol_source 为 legacy_default 时表示没有版本依据，不能据此判断 3.16 配置正确。先按[configuration](../configuration/SKILL.md)核对版本与配置，不能建议通过切换本地模式解决 3.16 连接失败。
 
 | 层次 | 证据 |
 | --- | --- |

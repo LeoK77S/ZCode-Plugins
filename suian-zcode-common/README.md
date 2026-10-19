@@ -11,7 +11,7 @@
 >
 > **3.16 暂不支持 local-only 本地模式**。在 3.16 上使用网关相关功能，需要登录 ZCode 账号，并能连接官方远控服务。插件不要求手机扫码或保持在线。
 
-ZCode 3.16 的网关连接需要单独配置，现有 Windows 自动安装命令仍使用旧版连接配置。具体方法与限制见[配置说明](./skills/configuration/SKILL.md)。
+安装和升级时，Agent 会按 Desktop 应用版本配置网关：3.16 使用 V2，旧版使用 V1；日常重载会保留已有协议与用户配置。具体方法与限制见[配置说明](./skills/configuration/SKILL.md)。
 
 只有网关是常驻独立进程，其他模块由调用方按需使用。各插件保留自己的运行数据。
 
@@ -78,23 +78,25 @@ UI 判定要求客户端名为 `zcode`、应用版本至少为 3.15.1，且 MCP 
 
 ## Agent 配置入口
 
-**以下自动安装步骤适用于旧版 ZCode 的既有网关配置**。3.16 的 Windows 自动安装流程尚未完成适配，不能使用这些默认参数完成 3.16 安装。
+**安装器按 Desktop 应用版本自动选择协议**。宿主提供 `ZCODE_APP_VERSION` 时可直接读取；在外部 Shell 中执行时，用 `-ZcodeAppVersion` 指定已核实的应用版本。下面以 3.16.1 为例；旧版传入对应版本即可。
 
 读取 [SKILL.md](./SKILL.md)，按完整流程操作。需要 Windows、Node.js 24+，依赖固定为 ws 8.22.0：
 
 ```powershell
 npm ci --ignore-scripts --no-audit --no-fund
-powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File .\setup.ps1 -Action Status
-powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File .\setup.ps1 -Action Install
+powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File .\setup.ps1 -Action Status -ZcodeAppVersion 3.16.1
+powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File .\setup.ps1 -Action Install -ZcodeAppVersion 3.16.1
 ```
 
 Install 通过 `wscript.exe` 的 VBS 启动桥立即启动当前用户的登录任务，验证健康接口后写用户级 `ZCODE_WEB_REMOTE_CONTROL_RELAY_WS_URL`，并广播环境变更，默认 `ws://127.0.0.1:17329/ws`。默认数据目录 `~/.zcode/tools/suian-zcode-gateway` 由两个插件共用，路径为兼容旧安装保留；公共 skill 现在部署到 `~/.zcode/skills/suian-zcode-common`。重复安装复用运行中的实例和原始环境备份。
 
 **先完成安装或升级，最后才安排应用重启**。Agent 留在当前 ZCode 会话里完成源码、依赖、插件配置和本机检查；首次接入或修改启动地址也遵循这个顺序。该变量在 Desktop 主进程启动时读取，因此这两种情况需要用户在配置完成后择时重开，连接验证留到重开后继续。放在 Hook 或 MCP 子进程的环境中无法切换 Desktop。具体启动命令与验证方法统一见 [公共 skill](./SKILL.md)。
 
-Install 可指定 `-Port {{port}}` 和 `-UpstreamUrl {{relay_url}}`。未指定时保留已配置值；上游默认为 `wss://zcode.z.ai/ws`。另一 endpoint 使用 `wss://zcode.chatglm.site/ws`，由实际 endpoint 选择，不能当作自动故障切换。Install 遇到不同运行配置时明确失败，避免悄悄切断远控。
+Install 可指定 `-Port {{port}}`、`-UpstreamUrl {{relay_url}}` 和 `-RelayProtocolVersion`。3.16 自动使用 V2 与 `wss://zcode.z.ai/api/v1/remote/ws2`，旧版使用 V1 与 `wss://zcode.z.ai/ws`；协议与已知应用版本或官方地址冲突时明确报错。没有应用版本信息时，已有安装保留协议，首次安装沿用 V1 默认值并报告 `protocol_source:legacy_default`，不能据此确认适合 3.16。Install 遇到不同运行配置时要求使用 Restart，不切断已有远控。
 
-更新常驻代码或迁移旧目录时，用 `setup.ps1 -Action Restart` 重载。用户先在 ZCode 内暂停移动端远控，Agent 确认 `desktop_connected:false` 后用本机 Shell 执行，应用与当前会话保留。脚本等待旧网关和启动器退出，再更新同一任务，保留端口、上游、控制令牌和原环境备份。更换端口用 Restart 的 `-Port {{port}}`，先停旧端口实例再启动新端口。地址未变且原窗口已连接正确网关时，重新开启远控即可；仅更新文档、skill 或业务配置，无需重载网关。
+更新常驻代码或迁移旧目录时，用 `setup.ps1 -Action Restart` 重载。用户先在 ZCode 内暂停移动端远控，Agent 确认 `desktop_connected:false` 后用本机 Shell 执行，应用与当前会话保留。脚本等待旧网关和启动器退出，再更新同一任务；未指定协议变更时保留协议、端口、自定义上游、控制令牌和原环境备份。应用升级到 3.16 时加 `-ZcodeAppVersion 3.16.1`，脚本会同时将旧 V1 官方地址迁移到 V2；原配置为 local-only 时还需明确加 `-Mode relay`。
+
+更换端口用 Restart 的 `-Port {{port}}`，先停旧端口实例再启动新端口。地址未变且原窗口已连接正确网关时，重新开启远控即可；仅更新文档、skill 或业务配置，无需重载网关。
 
 VBS 使用 `Run(..., 0, True)` 隐藏 PowerShell，并等待子进程、返回真实退出码；PowerShell 再等待隐藏 Node。这使任务保持运行，并保留非零退出后每分钟重试、最多三次的设置。运行用 `gateway-launch.vbs` 部署在公共数据目录，避免让常驻 WScript 使用 Git 工作树中的模板。当前版本的模板为 `run.vbs`。
 
@@ -112,6 +114,9 @@ Remove 只在用户要求移除公共网关时执行，先完整退出 ZCode。�
 | --- | --- |
 | `code_status` | `current` 表示指纹相同，`changed` 表示代码已变化，`unknown` 表示旧网关未提供指纹；另有 `unreachable`、`not_configured` |
 | `running_build` / `expected_build` | 运行时与当前文件的指纹、目录及插件版本 |
+| `relay_protocol_version` / `running_relay_protocol_version` | 本次要求的协议与健康接口报告的实际协议；旧健康接口没有协议字段时按 V1 读取 |
+| `protocol_source` | 协议来自应用版本、显式参数、已有配置或旧版默认值；分别为 `desktop_version`、`parameter`、`installed_config`、`legacy_default` |
+| `protocol_update_required` / `upstream_update_required` | 已配置或正在运行的协议、已配置上游与本次要求不匹配，需要安全重载 |
 | `gateway_restart_required` | 网关需要启动或重载，包括代码、安装目录、启动链不匹配的情况 |
 | `launcher_update_required` | 任务入口、参数、VBS 内容需要更新，或任务未运行 |
 | `desktop_restart_required` | 用户环境与目标网关地址不同，配置完成后需重开 Desktop；false 不证明已运行应用继承了最新环境 |

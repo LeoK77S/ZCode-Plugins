@@ -7,7 +7,7 @@
 >
 > **3.16 暂不支持 local-only 本地模式**。在 3.16 上使用自动命名，需要登录 ZCode 账号，并能连接官方远控服务。
 
-ZCode 3.16 的网关连接需要单独配置，现有 Windows 自动安装命令仍使用旧版连接配置。具体方法与限制见[公共网关配置说明](../suian-zcode-common/skills/configuration/SKILL.md)。
+安装和升级时，Agent 会按 Desktop 应用版本配置网关：3.16 使用 V2，旧版使用 V1；日常重载会保留已有协议与用户配置。具体方法与限制见[公共网关配置说明](../suian-zcode-common/skills/configuration/SKILL.md)。
 
 ## 一眼看出每个会话在做什么
 

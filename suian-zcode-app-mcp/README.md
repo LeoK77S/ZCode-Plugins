@@ -9,7 +9,7 @@
 >
 > **3.16 暂不支持 local-only 本地模式**。在 3.16 上进行会话控制和套餐查询，需要登录 ZCode 账号，并能连接官方远控服务。本机会话与历史查询不依赖远控。
 
-ZCode 3.16 的网关连接需要单独配置，现有 Windows 自动安装命令仍使用旧版连接配置。具体方法与限制见[公共网关配置说明](../suian-zcode-common/skills/configuration/SKILL.md)。
+安装和升级时，Agent 会按 Desktop 应用版本配置网关：3.16 使用 V2，旧版使用 V1；日常重载会保留已有协议与用户配置。具体方法与限制见[公共网关配置说明](../suian-zcode-common/skills/configuration/SKILL.md)。
 
 安装到 ZCode 或其他支持 MCP 的客户端后，直接告诉 Agent 想完成什么，它会调用相应工具。
 
