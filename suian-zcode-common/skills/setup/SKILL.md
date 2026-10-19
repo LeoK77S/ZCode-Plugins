@@ -48,6 +48,8 @@ Install 复用唯一当前用户登录任务，以隐藏 VBS → PowerShell → 
 
 更新后重装公共与 MCP 的锁定依赖，再刷新 link.mjs 的公共入口和所有已安装业务端链接。刷新链接不会重载运行中的网关或 MCP。
 
+从新公共根执行 Status，核对 code_status、gateway_path_matches 与 gateway_restart_required。代码已变化、目录不匹配或旧进程没有指纹时安排安全重载；不要用 health.version 或仅有的连接正常来判断已加载新代码。只修改文档或 skill 时，代码指纹不变；是否重开 Desktop 看环境变更与实际连接，不能仅凭 restart_required 汇总标志决定。
+
 需要重载网关时，等插件调用收尾，请用户只暂停 ZCode 的移动端远控，保留 ZCode 与当前 Agent 完成升级。Status 确认 desktop_connected:false 后 Restart，原生模式加 -NativePlugin。脚本等待网关和启动器退出后才更新任务，保留已有配置。业务安装器同时更新通知脚本的代码路径。
 
 网关经 Restart 生效；地址未变且原窗口已连接正确网关时，重新开启远控即可。首次接入或改变启动环境时，先交付本机配置与待验证报告，最后请用户保存工作、择时从托盘退出并重开 ZCode，再开启远控。重连后继续业务模型、探活及临时暂停的恢复，不能把待恢复项当作升级完成。

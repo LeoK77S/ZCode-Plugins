@@ -13,12 +13,15 @@ description: 诊断 ZCode 公共网关、启动任务、Desktop、上游和手�
 | --- | --- |
 | 配置与环境 | configured、user_env_matches；不回显完整 config |
 | 网关 | gateway_running、health_status、mode、rpc_available |
+| 代码与安装位置 | code_status、running_build、expected_build、gateway_path_matches；不以 health.version 判断插件版本 |
 | 启动任务 | task_running、vbs_launcher、launcher_update_required；Ready 不代表已停止 |
 | Desktop | desktop_connected、desktop_ready；TCP 连入不等于原 Host 就绪 |
 | 官方链路 | upstream_connected、upstream_paired；仅在已支持旧版的 local-only 模式中，上游 false 属正常 |
 | 配对与调用 | paired、local_clients；paired 不能证明手机身份或手机仍在线 |
 
 健康检查默认单次 5 秒，只对超时重试一次；连续超时报未知。必要时用 -HealthTimeoutSec {{seconds}}，不以历史 LastTaskResult 代替当前健康证据。
+
+更新后必须从新公共根执行 Status。gateway_restart_required 表示网关代码、目录或启动链需要更新；code_status 为 unknown 表示旧进程未提供指纹，不能报告已加载最新代码。desktop_restart_required 只报告用户环境与目标地址不匹配；desktop_connection_required 单独报告未连接。restart_required 是汇总，不能一律解释为退出 Desktop；false 也不能替代业务验收。
 
 网关可达但任务未运行时修复启动链，不另开实例。任务运行而健康不可达时先读数据目录中的 gateway.error.log 等启动日志；Restart/Remove 会拒绝在未知状态下修改配置。缺少 rpc_available 可能是旧进程，按[setup](../setup/SKILL.md)安全重载，不回退官方独立 terminal。
 

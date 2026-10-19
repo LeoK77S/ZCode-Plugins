@@ -1,5 +1,18 @@
 import assert from 'node:assert/strict';
 
+// 调用方使用真实 SQLite/MCP 连接，并延迟状态通道回执，检查网络完成前的首屏。
+export async function verifyArtifactCachedStatus(page, { releaseStatuses }) {
+  await page.locator('#status').filter({ hasText: '已更新' }).waitFor();
+  await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+  assert.equal(await page.locator('.entry[data-kind="pr"] > .icon').getAttribute('data-icon'), 'pr-merged', '首屏应直接显示数据库中的最近 PR 状态');
+  assert.equal(await page.locator('.entry[data-kind="issue"] > .icon').getAttribute('data-icon'), 'issue-closed', '首屏应直接显示数据库中的最近议题状态');
+  assert.equal(await page.locator('.entry .additions').textContent(), '+12');
+  assert.equal(await page.locator('.entry .issue-meta').textContent(), '4');
+  await releaseStatuses();
+  await page.locator('.entry[data-kind="pr"] > .icon[data-state="open"]').waitFor();
+  await page.locator('.entry[data-kind="issue"] > .icon[data-state="open"]').waitFor();
+}
+
 // 使用真实浏览器与 MCP 工具连接执行；调用方提供 page 和已注入 window.zcode 的正式 HTML。
 export async function verifyArtifactPage(page) {
   await page.locator('#status').filter({ hasText: '已更新' }).waitFor();

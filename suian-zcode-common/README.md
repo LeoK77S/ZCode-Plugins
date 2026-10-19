@@ -106,7 +106,19 @@ Remove 只在用户要求移除公共网关时执行，先完整退出 ZCode。�
 
 健康请求默认每次等 5 秒，仅超时时重试一次；需要调整时使用 `-HealthTimeoutSec {{seconds}}`（1–30）。`health_status` 区分未配置、可达和连接失败（`not_configured` / `reachable` / `unreachable`）。连续超时明确报运行状态未知，不输出一个成功的 `gateway_running:false` 来代替；其他错误照实报出。移除与重载直接检查网关，不依赖任务是否 Running；停止后须等 HTTP 监听与旧启动器都结束才改配置。
 
-`vbs_launcher` 表示任务是否使用 VBS。`launcher_update_required` 表示旧入口待切换或任务已结束、未继续监督存活网关；需要恢复时先暂停 ZCode 内的移动端远控，再执行 Restart，保留当前会话。安装会复用仍存活的网关，避免再开一个进程。`restart_required` 是尚未就绪的汇总标志，远控暂停时也为 true，不能据此一律要求退出应用。
+**Status 会比较运行代码与当前安装代码**。网关在启动时固定代码指纹；更新文件后，运行中的健康接口仍报告原指纹。Status 同时核对安装目录、任务参数与 VBS 内容，只修改文档、skill 或业务配置不会改变网关代码指纹。旧网关没有指纹时，`code_status` 为 `unknown`，需要重载后才能确认代码版本；健康接口的 `version:1` 是协议版本，不能代替插件版本。
+
+| 字段 | 含义 |
+| --- | --- |
+| `code_status` | `current` 表示指纹相同，`changed` 表示代码已变化，`unknown` 表示旧网关未提供指纹；另有 `unreachable`、`not_configured` |
+| `running_build` / `expected_build` | 运行时与当前文件的指纹、目录及插件版本 |
+| `gateway_restart_required` | 网关需要启动或重载，包括代码、安装目录、启动链不匹配的情况 |
+| `launcher_update_required` | 任务入口、参数、VBS 内容需要更新，或任务未运行 |
+| `desktop_restart_required` | 用户环境与目标网关地址不同，配置完成后需重开 Desktop；false 不证明已运行应用继承了最新环境 |
+| `desktop_connection_required` | Desktop 尚未连接网关，需结合远控面板检查；单凭未连接不能断言必须重开应用 |
+| `restart_required` | 上述网关、Desktop 环境或连接事项的汇总标志，不能据此一律要求退出应用 |
+
+`vbs_launcher` 只表示任务使用 VBS，不保证脚本路径正确。需要重载时，先暂停 ZCode 内的移动端远控，再执行 Restart，保留当前会话；重开远控后再次检查 Status。
 
 | 接口 | 范围 |
 | --- | --- |

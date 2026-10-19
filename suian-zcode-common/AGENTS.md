@@ -25,12 +25,13 @@
 | 路径 | 职责 |
 | --- | --- |
 | gateway.mjs | 唯一 relay V1/V2 网关、一次性 token 转发、同进程 bootstrap 分流及健康状态 |
+| gateway-build.mjs | 启动时固定网关、协议与 ws 执行依赖及启动链的代码指纹；提供当前磁盘版本供 Status 比较，文档不参与 |
 | terminal-gateway.mjs / terminal-relay.mjs | 3.16 实验性独立终端网关、V2 token 建连、心跳及本机 RPC；授权提供方由调用方注入，未接入 Windows 安装流程 |
 | .zcode-plugin/plugin.json / link.mjs | 原生公共插件元信息、稳定公共入口和业务端 Node 包链接 |
 | skills/ | setup / configuration / debug，paths.md 统一位置与数据归属 |
 | rpc-broker.mjs | 单一 Host 桥、RPC 编号与 v4 握手身份映射、手机虚拟桥与本地客户端分流 |
 | gateway-client.mjs | 插件默认 connectHost/probeHost，本地配置与鉴权、RPC call／listen 附着、原事件参数与释放语义及明确失败 |
-| setup.ps1 / run.ps1 / run.vbs | 用户任务、变量、公共 skill；无窗口监督启动、安全重载与恢复 |
+| setup.ps1 / run.ps1 / run.vbs | 用户任务、变量、公共 skill；代码与安装路径比对、无窗口监督启动、安全重载与恢复，区分网关重载和 Desktop 环境／连接事项 |
 | remote.mjs | 官方 relay 鉴权、workspace bridge、Channel RPC 与分层探活 |
 | auth-store.mjs | 调用方数据目录内的当前用户 DPAPI 授权存取 |
 | title-policy.mjs | 当前用户跨插件的会话锁定策略：MCP 写入，命名插件读取 |

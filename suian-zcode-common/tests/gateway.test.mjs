@@ -33,7 +33,10 @@ test('健康入口区分网关、设备连接和配对，拒绝浏览器连接�
   const healthUrl = gateway.url.replace('ws:', 'http:').replace('/ws', '/health');
   const response = await fetch(healthUrl);
   assert.equal(response.status, 200);
-  assert.deepEqual(await response.json(), {
+  const health = await response.json();
+  assert.match(health.build.id, /^[a-f0-9]{64}$/);
+  assert.deepEqual(health, {
+    build: health.build,
     service: 'suian-zcode-gateway', version: 1, instance_id: 'fixture-installation', mode: 'relay',
     upstream_url: `ws://127.0.0.1:${relay.address().port}/ws`,
     desktop_connected: true, desktop_ready: true, upstream_connected: true, paired: true,

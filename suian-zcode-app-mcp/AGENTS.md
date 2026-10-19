@@ -42,10 +42,10 @@
 | server.mjs | MCP 工具注册、参数校验与结构化响应 |
 | tool-result.mjs | 当前 ZCode 的关键状态简报与完整结构化结果，避免文本重复承载完整 JSON |
 | caller.mjs | 每次请求的发起会话定位：MCP 元数据优先，trace_id 与工具名只读匹配本地调用记录 |
-| artifacts.mjs | 插件 SQLite 的当前状态、CAS、服务记录时间、双向创建关系、不可变快照和幂等分叉初始化；每次读取不缓存，session 条目附带按任务索引实时反查的会话列表名称（session_title），不写回存储；可选 notify 钩子在实际写入事务 COMMIT 后触发变更信号 |
+| artifacts.mjs | 插件 SQLite 的当前状态、CAS、服务记录时间、双向创建关系、不可变快照和幂等分叉初始化；每次读取工件登记与 session_title；可选 artifact_status 表持久化 PR/议题成功快照，读取时附加 github_status，不写回登记、revision 或历史快照；可选 notify 钩子在工件实际写入事务 COMMIT 后触发变更信号 |
 | artifact-host.mjs | 只读宿主消息的原始 Stop 断点与隐藏 forkOrigin，不用时间或父最新状态猜测 |
 | artifact-tools.mjs / artifact-ui.mjs | 当前调用者唯一定位、get 列表/详情与 set 注册（写入经 notify 钩子推送变更信号）、面板专用 PR/议题状态与本机定位工具（默认禁用，UI 能力协商成功后仅 app 可见；状态经同一工具两分支一次往返，定位仅收 ref、命中当前会话 file 条目才执行），以及调用公共 UI 能力判定后启用的页面资源 |
-| artifact-status.mjs | 面板专用 PR/议题状态拉取服务：gh 子进程与超时上限、per-ref 成功时间戳缓存（PR 与议题共用机制，仅子命令与字段不同）、新鲜期命中不起子进程、超时沿用旧数据标 stale、失败或非 GitHub 域名逐条错误并清缓存 |
+| artifact-status.mjs | 面板专用 PR/议题状态拉取服务：gh 子进程与超时上限，正式服务使用工件库持久化成功快照；新鲜期命中不起子进程、超时沿用旧数据标 stale、失败逐条报错并清缓存；存储错误直接报错 |
 | artifact-reveal.mjs | 面板专用本机定位服务：执行前 stat 探测（缺失拒绝、其它错误降级文件语义）、按平台构造 explorer/open/xdg-open 命令（win32 退出码 0/1 均视为已启动）、预检与命令共用整体期限（stat 悬挂按超时回报，迟到结果不启动打开）、无法启动或超时按失败回报 |
 | artifact-resources.mjs | 单一信号资源 suian-artifacts://current（list/read 与 resources/subscribe/unsubscribe）；read 按请求上下文尽力解析会话，实际写入后向已订阅 URI 推送 notifications/resources/updated，页面只当信号、数据走 get_artifacts |
 | artifact-hook.mjs / hooks/hooks.json | 同步 SessionStart 初始化、UserPromptSubmit 简略摘要和 Stop 断点快照 |

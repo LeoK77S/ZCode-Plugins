@@ -24,7 +24,7 @@ export function registerArtifactTools(server, config, { controller, prStatus, re
     }
   }
   const getTool = server.registerTool('get_artifacts', {
-    description: '读取当前会话最新工件 revision、完整条目与统计；提交时摘要可能已过时。无 ref 查列表：省略分页参数返回全部，传 offset/limit 则按 next_offset 续页。精确 ref 查详情，不可混用分页。session_title 是当前索引名称，label 是登记标注。file 条目附带实时探测标记 is_directory/missing，其它探测错误按存在处理。session 详情每次查询原 Host，可能恢复会话并同步索引；失败看 session.error，不以旧状态代替。',
+    description: '读取当前会话最新工件 revision、完整条目与统计；提交时摘要可能已过时。无 ref 查列表：省略分页参数返回全部，传 offset/limit 则按 next_offset 续页。精确 ref 查详情，不可混用分页。session_title 是当前索引名称，label 是登记标注。PR/议题的可选 github_status 是数据库中最近成功查询的快照，fetched_at 为成功时间，不代表实时状态；读取不触发 GitHub 请求。file 条目附带实时探测标记 is_directory/missing，其它探测错误按存在处理。session 详情每次查询原 Host，可能恢复会话并同步索引；失败看 session.error，不以旧状态代替。',
     inputSchema: z.object({ ref: text.optional(), offset: z.number().int().nonnegative().optional(), limit: z.number().int().min(1).max(200).optional() }).strict()
       .refine(args => args.ref === undefined || args.offset === undefined && args.limit === undefined, '详情 ref 不能与列表分页参数混用'),
     annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: true }
@@ -66,10 +66,10 @@ export function registerArtifactTools(server, config, { controller, prStatus, re
   // 面板专用 PR/议题状态通道：拉取只挂在面板标准刷新时机，模型侧 get_artifacts 不产生网络副作用。
   // 注册后立即禁用，UI 能力协商成功（artifact-ui）后以 visibility=['app'] 启用，普通客户端不可见；
   // PR 与议题共用同一工具与同一次调用（refs/issue_refs 两个分支），面板单次刷新只需一次往返。
-  const statusService = prStatus ?? createArtifactStatusService(config);
+  const statusService = prStatus ?? createArtifactStatusService({ ...config, cache: store.statusCache });
   const statusTool = server.registerTool('get_pr_statuses', {
     title: '查询 GitHub PR/议题实时状态（工件面板）',
-    description: '工件面板专用通道：经本机 gh CLI 实时拉取 GitHub PR 与议题状态，按 ref 逐条返回。refs 走 PR 分支（gh pr view），返回 {status, additions, deletions, fetched_at}，status 由 state/isDraft/mergeable 归并为 open/draft/conflict/merged/closed（merged、closed 优先于冲突，冲突优先于草稿）；issue_refs 走议题分支（gh issue view），返回 {state, comments, fetched_at}，state 为 open/closed，comments 为不含主帖的评论数。内存缓存 per-ref 带成功时间戳，新鲜期内直接命中；拉取超时沿用旧数据并附 stale/stale_reason，无旧数据、gh 失败或非 GitHub 链接时该 ref 返回 error，不影响其它条目。读取工件清单与详情请用 get_artifacts（不触发本通道的 GitHub PR/议题状态拉取；会话详情仍查询原 Host 实时状态，可能恢复会话并同步索引）；本工具仅在工件面板可用的客户端启用。',
+    description: '工件面板专用通道：经本机 gh CLI 实时拉取 GitHub PR 与议题状态，按 ref 逐条返回。refs 走 PR 分支（gh pr view），返回 {status, additions, deletions, fetched_at}，status 由 state/isDraft/mergeable 归并为 open/draft/conflict/merged/closed（merged、closed 优先于冲突，冲突优先于草稿）；issue_refs 走议题分支（gh issue view），返回 {state, comments, fetched_at}，state 为 open/closed，comments 为不含主帖的评论数。数据库缓存 per-ref 带成功时间戳，重建服务后保留，新鲜期内直接命中；拉取超时沿用旧数据并附 stale/stale_reason，无旧数据、gh 失败或非 GitHub 链接时该 ref 返回 error，不影响其它条目。读取工件清单与详情请用 get_artifacts（不触发本通道的 GitHub PR/议题状态拉取；会话详情仍查询原 Host 实时状态，可能恢复会话并同步索引）；本工具仅在工件面板可用的客户端启用。',
     inputSchema: z.object({
       refs: z.array(text).min(1).max(200).optional(),
       issue_refs: z.array(text).min(1).max(200).optional()

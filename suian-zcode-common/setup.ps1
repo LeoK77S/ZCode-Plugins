@@ -58,6 +58,52 @@ function Read-GatewayHealth {
     }
 }
 
+function Get-LauncherArguments {
+    param([string]$NodePath)
+    $runFile = (Join-Path $PSScriptRoot 'run.ps1').Replace("'", "''")
+    $safeNode = $NodePath.Replace("'", "''")
+    $safeData = $DataDir.Replace("'", "''")
+    $launch = "& '$runFile' -NodePath '$safeNode' -DataDir '$safeData'"
+    $encoded = [Convert]::ToBase64String([Text.Encoding]::Unicode.GetBytes($launch))
+    return '//B //NoLogo "' + $launcherFile + '" ' + $encoded
+}
+
+function Get-GatewayUpgradeStatus {
+    param($InstalledConfig, $Health)
+    $expected = $null; $running = $null; $codeStatus = 'not_configured'; $pathMatches = $false
+    if ($null -ne $InstalledConfig) {
+        $currentNode = (Get-Command node -CommandType Application | Select-Object -First 1).Source
+        $buildJson = & $currentNode (Join-Path $PSScriptRoot 'gateway-build.mjs')
+        if ($LASTEXITCODE -ne 0) { throw 'Cannot determine the current gateway code fingerprint' }
+        $expected = $buildJson | ConvertFrom-Json
+        if ($null -eq $Health) { $codeStatus = 'unreachable' }
+        elseif (-not $Health.PSObject.Properties['build']) { $codeStatus = 'unknown' }
+        else {
+            $running = $Health.build
+            $codeStatus = if ($running.id -eq $expected.id) { 'current' } else { 'changed' }
+            $pathMatches = $InstalledConfig.gateway_root -eq $PSScriptRoot -and $running.root -eq $expected.root
+        }
+    }
+    $launcherUpdate = $false
+    if ($null -ne $InstalledConfig) {
+        $launcherUpdate = -not $vbsLauncher -or -not $taskRunning -or
+            @($task.Actions)[0].Arguments -cne (Get-LauncherArguments $currentNode) -or
+            -not (Test-Path -LiteralPath $launcherFile)
+        if (-not $launcherUpdate) {
+            $launcherUpdate = (Get-Content -LiteralPath $launcherFile -Raw -Encoding Unicode) -cne (Get-Content -LiteralPath (Join-Path $PSScriptRoot 'run.vbs') -Raw -Encoding UTF8)
+        }
+    }
+    $gatewayRestart = $null -ne $InstalledConfig -and ($codeStatus -ne 'current' -or -not $pathMatches -or $launcherUpdate)
+    $desktopRestart = $null -ne $InstalledConfig -and $userRelay -ne $relayUrl
+    $desktopConnection = $null -ne $InstalledConfig -and ($null -eq $Health -or -not $Health.desktop_connected)
+    return [ordered]@{
+        expected_build=$expected; running_build=$running; code_status=$codeStatus; gateway_path_matches=$pathMatches
+        launcher_update_required=$launcherUpdate; gateway_restart_required=$gatewayRestart
+        desktop_restart_required=$desktopRestart; desktop_connection_required=$desktopConnection
+        restart_required=($gatewayRestart -or $desktopRestart -or $desktopConnection)
+    }
+}
+
 function Wait-GatewayExit {
     for ($stopAttempt = 0; $stopAttempt -lt 40; $stopAttempt++) {
         $exitingTask = Get-ScheduledTask | Where-Object { $_.TaskName -eq $taskName -and $_.TaskPath -eq '\' }
@@ -100,16 +146,19 @@ if ($Action -eq 'Status') {
         if ($health.PSObject.Properties['upstream_paired']) { $upstreamPaired = $health.upstream_paired }
         if ($health.PSObject.Properties['local_clients']) { $localClients = $health.local_clients }
     }
-    [ordered]@{
+    $status = [ordered]@{
         ok=$true; action='status'; configured=($null -ne $config); relay_url=$relayUrl; health_url=$healthUrl
         mode=$(if ($null -ne $config) { $installedMode } else { $Mode }); desktop_ready=$(if ($null -ne $health -and $health.PSObject.Properties['desktop_ready']) { $health.desktop_ready } else { $null })
         user_env_matches=($null -ne $config -and $userRelay -eq $relayUrl); gateway_running=($null -ne $health)
         task_running=$taskRunning; health_status=$(if ($null -eq $config) { 'not_configured' } elseif ($null -eq $health) { 'unreachable' } else { 'reachable' })
-        vbs_launcher=$vbsLauncher; launcher_update_required=($null -ne $config -and (-not $vbsLauncher -or -not $taskRunning))
+        vbs_launcher=$vbsLauncher
         desktop_connected=($null -ne $health -and $health.desktop_connected); upstream_connected=($null -ne $health -and $health.upstream_connected)
         rpc_available=$rpcAvailable; upstream_paired=$upstreamPaired; local_clients=$localClients
-        paired=($null -ne $health -and $health.paired); restart_required=($null -ne $config -and ($null -eq $health -or -not $health.desktop_connected -or $userRelay -ne $relayUrl -or -not $vbsLauncher -or -not $taskRunning))
-    } | ConvertTo-Json -Compress
+        paired=($null -ne $health -and $health.paired)
+    }
+    $upgrade = Get-GatewayUpgradeStatus $config $health
+    foreach ($field in $upgrade.Keys) { $status[$field] = $upgrade[$field] }
+    $status | ConvertTo-Json -Depth 4 -Compress
     return
 }
 if ($Action -eq 'Remove') {
@@ -187,14 +236,9 @@ $healthUrl = "http://127.0.0.1:$Port/health"
 [IO.File]::WriteAllText($configFile, ($nextConfig | ConvertTo-Json), (New-Object Text.UTF8Encoding($false)))
 if ($null -eq $health) {
     # EncodedCommand 避免安装路径中的空格、中文及单引号经过多层 shell。
-    $runFile = (Join-Path $PSScriptRoot 'run.ps1').Replace("'", "''")
-    $safeNode = $nodePath.Replace("'", "''")
-    $safeData = $DataDir.Replace("'", "''")
-    $launch = "& '$runFile' -NodePath '$safeNode' -DataDir '$safeData'"
-    $encoded = [Convert]::ToBase64String([Text.Encoding]::Unicode.GetBytes($launch))
     $launcher = Get-Content -LiteralPath (Join-Path $PSScriptRoot 'run.vbs') -Raw -Encoding UTF8
     [IO.File]::WriteAllText($launcherFile, $launcher, [Text.Encoding]::Unicode)
-    $taskAction = New-ScheduledTaskAction -Execute $scriptHost -Argument ('//B //NoLogo "' + $launcherFile + '" ' + $encoded)
+    $taskAction = New-ScheduledTaskAction -Execute $scriptHost -Argument (Get-LauncherArguments $nodePath)
     $trigger = New-ScheduledTaskTrigger -AtLogOn -User $identity.Name
     $principal = New-ScheduledTaskPrincipal -UserId $identity.User.Value -LogonType Interactive -RunLevel Limited
     $settings = New-ScheduledTaskSettingsSet -ExecutionTimeLimit ([TimeSpan]::Zero) -RestartCount 3 -RestartInterval ([TimeSpan]::FromMinutes(1)) -MultipleInstances IgnoreNew -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries
@@ -210,6 +254,7 @@ if ($null -eq $health) {
     if ($health.service -ne 'suian-zcode-gateway' -or $health.version -ne 1 -or $health.instance_id -ne $instanceId -or $health.upstream_url -ne $UpstreamUrl -or $health.mode -ne $Mode) { throw 'Gateway health check returned a different instance; user environment was not changed' }
     $vbsLauncher = $true
     $taskRunning = $true
+    $task = Get-ScheduledTask | Where-Object { $_.TaskName -eq $taskName -and $_.TaskPath -eq '\' }
 }
 $skillDir = Join-Path $SkillsDir 'suian-zcode-common'
 if ($NativePlugin) {
@@ -230,4 +275,7 @@ if ($null -ne $config -and (Test-Path -LiteralPath $legacySkillFile)) {
 # 写入后通知 Explorer 等启动器；当前 Desktop 主进程仍需事后重开。
 New-ItemProperty -LiteralPath 'HKCU:\Environment' -Name $relayVariable -Value $relayUrl -PropertyType String -Force | Out-Null
 Send-EnvironmentChange
-[ordered]@{ ok=$true; action=$(if ($restarting) { 'restarted' } else { 'installed' }); mode=$Mode; relay_url=$relayUrl; health_url=$healthUrl; gateway_running=$true; task_running=$taskRunning; health_status='reachable'; desktop_connected=$health.desktop_connected; paired=$health.paired; vbs_launcher=$vbsLauncher; launcher_update_required=(-not $vbsLauncher -or -not $taskRunning); environment_broadcast='sent'; restart_required=(-not $health.desktop_connected -or -not $vbsLauncher -or -not $taskRunning) } | ConvertTo-Json -Compress
+$status = [ordered]@{ ok=$true; action=$(if ($restarting) { 'restarted' } else { 'installed' }); mode=$Mode; relay_url=$relayUrl; health_url=$healthUrl; gateway_running=$true; task_running=$taskRunning; health_status='reachable'; desktop_connected=$health.desktop_connected; paired=$health.paired; vbs_launcher=$vbsLauncher; environment_broadcast='sent' }
+$upgrade = Get-GatewayUpgradeStatus ([pscustomobject]$nextConfig) $health
+foreach ($field in $upgrade.Keys) { $status[$field] = $upgrade[$field] }
+$status | ConvertTo-Json -Depth 4 -Compress

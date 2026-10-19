@@ -7,6 +7,7 @@ import { fileURLToPath } from 'node:url';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { createHash } from 'node:crypto';
+import { gatewayBuild } from '../gateway-build.mjs';
 
 const setup = fileURLToPath(new URL('../setup.ps1', import.meta.url));
 const gatewayRoot = dirname(setup);
@@ -85,6 +86,7 @@ function Invoke-RestMethod {
     $id = if ($global:fixture.health -eq 'foreign') { 'foreign-instance' } else { $config.instance_id }
     $mode = if ($config.PSObject.Properties['mode']) { $config.mode } else { 'relay' }
     $reply = [pscustomobject]@{ service='suian-zcode-gateway'; version=1; instance_id=$id; upstream_url=$config.upstream_url; mode=$mode; desktop_connected=$global:fixture.desktop; desktop_ready=$global:fixture.desktop; upstream_connected=$false; paired=$false; rpc_protocol_version=1; upstream_paired=$false; local_clients=0 }
+    if ($null -ne $global:fixture.build) { Add-Member -InputObject $reply -NotePropertyName build -NotePropertyValue $global:fixture.build }
     if ($global:fixture.legacy_health) { $reply.PSObject.Properties.Remove('mode'); $reply.PSObject.Properties.Remove('desktop_ready') }
     return $reply
 }
@@ -103,7 +105,7 @@ async function fixture(t, overrides = {}) {
   const script = join(root, 'Windows 边界 fixture.ps1');
   const dataDir = join(root, '公共 data');
   const skillsDir = join(root, 'skills');
-  const initial = { relay: 'wss://previous.example/ws', task: null, registrations: 0, starts: 0, shutdowns: 0, health: 'ready', desktop: false, legacy_health: false, health_min_timeout: 0, timeouts_left: 0, health_requests: 0, http_attempts: 0, health_available: false, draining: false, shutdown_health_reads: 0, broadcasts: [], broadcast_fail: false, broadcast_declaration: null, unregister_fail: false, ...overrides };
+  const initial = { relay: 'wss://previous.example/ws', task: null, registrations: 0, starts: 0, shutdowns: 0, health: 'ready', build: gatewayBuild, desktop: false, legacy_health: false, health_min_timeout: 0, timeouts_left: 0, health_requests: 0, http_attempts: 0, health_available: false, draining: false, shutdown_health_reads: 0, broadcasts: [], broadcast_fail: false, broadcast_declaration: null, unregister_fail: false, ...overrides };
   await writeFile(stateFile, JSON.stringify(initial));
   await writeFile(script, '\uFEFF' + systemFixture);
   const run = async (action, { healthTimeoutSec, port, mode, nativePlugin } = {}) => {
@@ -113,6 +115,69 @@ async function fixture(t, overrides = {}) {
   const state = async () => JSON.parse(await readFile(stateFile, 'utf8'));
   return { root, stateFile, dataDir, skillsDir, run, state };
 }
+
+test('Status 识别已连接网关加载的旧代码，并区分网关重载与 Desktop 重开', { skip: process.platform !== 'win32' }, async t => {
+  const f = await fixture(t, { desktop: true });
+  await f.run('Install');
+  const current = await f.run('Status');
+  assert.equal(current.code_status, 'current');
+  assert.equal(current.gateway_restart_required, false);
+  assert.equal(current.desktop_restart_required, false);
+  assert.equal(current.restart_required, false);
+  const state = await f.state();
+  state.build.id = '0'.repeat(64);
+  await writeFile(f.stateFile, JSON.stringify(state));
+  const outdated = await f.run('Status');
+  assert.equal(outdated.code_status, 'changed');
+  assert.equal(outdated.gateway_restart_required, true);
+  assert.equal(outdated.desktop_restart_required, false);
+  assert.equal(outdated.restart_required, true);
+  assert.equal(outdated.running_build.id, state.build.id);
+  assert.equal(outdated.expected_build.id, gatewayBuild.id);
+});
+
+test('Status 检查启动任务的实际脚本路径，wscript 正在运行仍不能代替路径核对', { skip: process.platform !== 'win32' }, async t => {
+  const f = await fixture(t, { desktop: true });
+  await f.run('Install');
+  const state = await f.state();
+  const args = state.task.Actions.Arguments;
+  const encoded = args.match(/([A-Za-z0-9+/=]+)$/)[1];
+  const oldLaunch = Buffer.from(encoded, 'base64').toString('utf16le').replace(join(gatewayRoot, 'run.ps1'), 'D:\\old-cache\\run.ps1');
+  state.task.Actions.Arguments = args.slice(0, -encoded.length) + Buffer.from(oldLaunch, 'utf16le').toString('base64');
+  await writeFile(f.stateFile, JSON.stringify(state));
+  const status = await f.run('Status');
+  assert.equal(status.code_status, 'current');
+  assert.equal(status.vbs_launcher, true);
+  assert.equal(status.launcher_update_required, true);
+  assert.equal(status.gateway_restart_required, true);
+  assert.equal(status.desktop_restart_required, false);
+  assert.equal(status.restart_required, true);
+});
+
+test('Status 不把旧 health 当作最新代码，也不把远控未连接直接等同 Desktop 必须重开', { skip: process.platform !== 'win32' }, async t => {
+  const f = await fixture(t, { desktop: true, build: null });
+  const installed = await f.run('Install');
+  assert.equal(installed.code_status, 'unknown');
+  assert.equal(installed.gateway_restart_required, true);
+  const unknown = await f.run('Status');
+  assert.equal(unknown.running_build, null);
+  assert.equal(unknown.code_status, 'unknown');
+  assert.equal(unknown.gateway_restart_required, true);
+  assert.equal(unknown.restart_required, true);
+  const state = await f.state(); state.build = gatewayBuild; state.desktop = false;
+  await writeFile(f.stateFile, JSON.stringify(state));
+  const disconnected = await f.run('Status');
+  assert.equal(disconnected.gateway_restart_required, false);
+  assert.equal(disconnected.desktop_restart_required, false);
+  assert.equal(disconnected.desktop_connection_required, true);
+  assert.equal(disconnected.restart_required, true);
+  state.build = { ...gatewayBuild, root: 'D:\\old-cache' }; state.desktop = true;
+  await writeFile(f.stateFile, JSON.stringify(state));
+  const wrongRoot = await f.run('Status');
+  assert.equal(wrongRoot.code_status, 'current');
+  assert.equal(wrongRoot.gateway_path_matches, false);
+  assert.equal(wrongRoot.gateway_restart_required, true);
+});
 
 test('原生公共初始化不复制全局技能，只清理归属匹配的旧技能', { skip: process.platform !== 'win32' }, async t => {
   const f=await fixture(t),skillFile=join(f.skillsDir,'suian-zcode-common','SKILL.md');
