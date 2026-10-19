@@ -11,7 +11,7 @@
 <header>
   <nav id="tabs" role="tablist" aria-label="打开的文件"></nav>
   <div class="toolbar">
-    <div id="breadcrumb" aria-label="文件路径">文本编辑器</div>
+    <div class="location"><div id="workspace-path" aria-label="当前工作区路径"></div><div id="breadcrumb" aria-label="文件路径">文本编辑器</div></div>
     <div class="actions">
       <button id="comment-selection" class="save-button" disabled title="先选择文件正文">评论选区</button>
       <button id="save-mode" class="save-mode" aria-label="保存方式" disabled title="切换手动或自动保存">正在读取方式…</button>
@@ -28,7 +28,7 @@
 <div class="workspace">
   <main id="main"><div id="editor-frame"><div id="empty">从文件列表选择文本</div><div id="editor" hidden></div></div></main>
   <aside id="files" aria-label="工作区文件" hidden>
-    <div id="workspace-title"></div>
+    <div id="workspace-title"><select id="workspace-select" aria-label="切换工作区" disabled></select></div>
     <div id="tree" role="tree" aria-label="文件目录"></div>
   </aside>
 </div>

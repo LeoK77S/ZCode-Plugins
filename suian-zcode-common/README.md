@@ -9,9 +9,9 @@
 >
 > **从 0.3.0 起支持 ZCode 3.16 在线模式**，手机与插件可以同时连接。
 >
-> **3.16 暂不支持 local-only 本地模式**。在 3.16 上使用网关相关功能，需要登录 ZCode 账号，并能连接官方远控服务。插件不要求手机扫码或保持在线。
+> **ZCode 3.16 无法在离线模式使用网关相关功能**，先联网开启远控再断网的情况除外。首次开启或重新启动远控时，需要登录 ZCode 账号并连接官方远控服务。插件不要求手机扫码或保持在线。
 
-ZCode 3.16 的网关连接需要单独配置，现有 Windows 自动安装命令仍使用旧版连接配置。具体方法与限制见[配置说明](./skills/configuration/SKILL.md)。
+安装和升级时，Agent 会按 Desktop 应用版本配置网关：3.16 使用 V2，旧版使用 V1；日常重载会保留已有协议与用户配置。具体方法与限制见[配置说明](./skills/configuration/SKILL.md)。
 
 只有网关是常驻独立进程，其他模块由调用方按需使用。各插件保留自己的运行数据。
 
@@ -28,7 +28,7 @@ flowchart LR
 
 ## 内网机器：只连接本机
 
-**以下本地模式说明不适用于 ZCode 3.16**。local-only 已在 ZCode 3.14.4 上验证；其他旧版本仍需分别核对兼容性。该模式供无法访问官方远控服务的机器连接当前窗口，不提供手机连接。已有安装不会因断网自动切换模式。
+**ZCode 3.16 无法在离线模式使用网关相关功能**，先联网开启远控再断网的情况除外。以下 local-only 安装说明只适用于已验证的旧版：目前已在 ZCode 3.14.4 上验证，其他旧版本仍需分别核对兼容性。该模式供无法访问官方远控服务的机器连接当前窗口，不提供手机连接。已有安装不会因断网自动切换模式。
 
 在已支持的版本上，让 Agent 按[公共 skill](./SKILL.md) 配置 local-only。首次安装先完成插件配置和本机检查，最后再重开 ZCode 生效。之后仍需在桌面端的移动端远程控制面板开启服务，无需手机扫码。已有安装切换模式时，先在面板内点击“停止”，再执行 `setup.ps1 -Action Restart -Mode local-only`，完成后重新开启远控。
 
@@ -54,6 +54,7 @@ npm ci 后运行 link.mjs，将稳定运行入口链接到本公共根，再把�
 | rpc-broker.mjs | 一个本地 Host 桥；客户端 RPC 编号、订阅及手机虚拟桥分流 |
 | auth-store.mjs | `saveAuthorization({dataDir,url})`、`loadAuthorization({dataDir})`、`clearAuthorization({dataDir})` |
 | title-policy.mjs | MCP 写入、命名插件读取的独立锁定策略；默认在 `~/.zcode/tools/suian-zcode-common/session-titles` |
+| project-context.mjs | `readProjectContext({indexDbPath,sessionId,workspacePath,workspaceKey})`：只读会话的项目、执行及附加目录，冻结会话范围优先；侧栏编辑器与 MCP 共用，不改变网关或执行目录 |
 | notifications.mjs | `notifyOnce({dataDir,title,message,reasonCode,appId,actionUri})`；保留两小时冷却、跨进程互斥及显示失败结果 |
 | notification-action.mjs | `copyPromptAndOpenWorkspace({prompt,dataDir})`：复制调用方提示词后打开用户默认工作区；仅用户点击后执行 |
 | notification-install.mjs | `installToastAssets()` / `removeToastAssets()`：接收调用方的 protocol、appId、shortcutName、description、pluginRoot、dataDir |
@@ -78,23 +79,25 @@ UI 判定要求客户端名为 `zcode`、应用版本至少为 3.15.1，且 MCP 
 
 ## Agent 配置入口
 
-**以下自动安装步骤适用于旧版 ZCode 的既有网关配置**。3.16 的 Windows 自动安装流程尚未完成适配，不能使用这些默认参数完成 3.16 安装。
+**安装器按 Desktop 应用版本自动选择协议**。宿主提供 `ZCODE_APP_VERSION` 时可直接读取；在外部 Shell 中执行时，用 `-ZcodeAppVersion` 指定已核实的应用版本。下面以 3.16.1 为例；旧版传入对应版本即可。
 
 读取 [SKILL.md](./SKILL.md)，按完整流程操作。需要 Windows、Node.js 24+，依赖固定为 ws 8.22.0：
 
 ```powershell
 npm ci --ignore-scripts --no-audit --no-fund
-powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File .\setup.ps1 -Action Status
-powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File .\setup.ps1 -Action Install
+powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File .\setup.ps1 -Action Status -ZcodeAppVersion 3.16.1
+powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File .\setup.ps1 -Action Install -ZcodeAppVersion 3.16.1
 ```
 
 Install 通过 `wscript.exe` 的 VBS 启动桥立即启动当前用户的登录任务，验证健康接口后写用户级 `ZCODE_WEB_REMOTE_CONTROL_RELAY_WS_URL`，并广播环境变更，默认 `ws://127.0.0.1:17329/ws`。默认数据目录 `~/.zcode/tools/suian-zcode-gateway` 由两个插件共用，路径为兼容旧安装保留；公共 skill 现在部署到 `~/.zcode/skills/suian-zcode-common`。重复安装复用运行中的实例和原始环境备份。
 
 **先完成安装或升级，最后才安排应用重启**。Agent 留在当前 ZCode 会话里完成源码、依赖、插件配置和本机检查；首次接入或修改启动地址也遵循这个顺序。该变量在 Desktop 主进程启动时读取，因此这两种情况需要用户在配置完成后择时重开，连接验证留到重开后继续。放在 Hook 或 MCP 子进程的环境中无法切换 Desktop。具体启动命令与验证方法统一见 [公共 skill](./SKILL.md)。
 
-Install 可指定 `-Port {{port}}` 和 `-UpstreamUrl {{relay_url}}`。未指定时保留已配置值；上游默认为 `wss://zcode.z.ai/ws`。另一 endpoint 使用 `wss://zcode.chatglm.site/ws`，由实际 endpoint 选择，不能当作自动故障切换。Install 遇到不同运行配置时明确失败，避免悄悄切断远控。
+Install 可指定 `-Port {{port}}`、`-UpstreamUrl {{relay_url}}` 和 `-RelayProtocolVersion`。3.16 自动使用 V2 与 `wss://zcode.z.ai/api/v1/remote/ws2`，旧版使用 V1 与 `wss://zcode.z.ai/ws`；协议与已知应用版本或官方地址冲突时明确报错。没有应用版本信息时，已有安装保留协议，首次安装沿用 V1 默认值并报告 `protocol_source:legacy_default`，不能据此确认适合 3.16。Install 遇到不同运行配置时要求使用 Restart，不切断已有远控。
 
-更新常驻代码或迁移旧目录时，用 `setup.ps1 -Action Restart` 重载。用户先在 ZCode 内暂停移动端远控，Agent 确认 `desktop_connected:false` 后用本机 Shell 执行，应用与当前会话保留。脚本等待旧网关和启动器退出，再更新同一任务，保留端口、上游、控制令牌和原环境备份。更换端口用 Restart 的 `-Port {{port}}`，先停旧端口实例再启动新端口。地址未变且原窗口已连接正确网关时，重新开启远控即可；仅更新文档、skill 或业务配置，无需重载网关。
+更新常驻代码或迁移旧目录时，用 `setup.ps1 -Action Restart` 重载。用户先在 ZCode 内暂停移动端远控，Agent 确认 `desktop_connected:false` 后用本机 Shell 执行，应用与当前会话保留。脚本等待旧网关和启动器退出，再更新同一任务；未指定协议变更时保留协议、端口、自定义上游、控制令牌和原环境备份。应用升级到 3.16 时加 `-ZcodeAppVersion 3.16.1`，脚本会同时将旧 V1 官方地址迁移到 V2；原配置为 local-only 时还需明确加 `-Mode relay`。
+
+更换端口用 Restart 的 `-Port {{port}}`，先停旧端口实例再启动新端口。地址未变且原窗口已连接正确网关时，重新开启远控即可；仅更新文档、skill 或业务配置，无需重载网关。
 
 VBS 使用 `Run(..., 0, True)` 隐藏 PowerShell，并等待子进程、返回真实退出码；PowerShell 再等待隐藏 Node。这使任务保持运行，并保留非零退出后每分钟重试、最多三次的设置。运行用 `gateway-launch.vbs` 部署在公共数据目录，避免让常驻 WScript 使用 Git 工作树中的模板。当前版本的模板为 `run.vbs`。
 
@@ -106,7 +109,22 @@ Remove 只在用户要求移除公共网关时执行，先完整退出 ZCode。�
 
 健康请求默认每次等 5 秒，仅超时时重试一次；需要调整时使用 `-HealthTimeoutSec {{seconds}}`（1–30）。`health_status` 区分未配置、可达和连接失败（`not_configured` / `reachable` / `unreachable`）。连续超时明确报运行状态未知，不输出一个成功的 `gateway_running:false` 来代替；其他错误照实报出。移除与重载直接检查网关，不依赖任务是否 Running；停止后须等 HTTP 监听与旧启动器都结束才改配置。
 
-`vbs_launcher` 表示任务是否使用 VBS。`launcher_update_required` 表示旧入口待切换或任务已结束、未继续监督存活网关；需要恢复时先暂停 ZCode 内的移动端远控，再执行 Restart，保留当前会话。安装会复用仍存活的网关，避免再开一个进程。`restart_required` 是尚未就绪的汇总标志，远控暂停时也为 true，不能据此一律要求退出应用。
+**Status 会比较运行代码与当前安装代码**。网关在启动时固定代码指纹；更新文件后，运行中的健康接口仍报告原指纹。Status 同时核对安装目录、任务参数与 VBS 内容，只修改文档、skill 或业务配置不会改变网关代码指纹。旧网关没有指纹时，`code_status` 为 `unknown`，需要重载后才能确认代码版本；健康接口的 `version:1` 是协议版本，不能代替插件版本。
+
+| 字段 | 含义 |
+| --- | --- |
+| `code_status` | `current` 表示指纹相同，`changed` 表示代码已变化，`unknown` 表示旧网关未提供指纹；另有 `unreachable`、`not_configured` |
+| `running_build` / `expected_build` | 运行时与当前文件的指纹、目录及插件版本 |
+| `relay_protocol_version` / `running_relay_protocol_version` | 本次要求的协议与健康接口报告的实际协议；旧健康接口没有协议字段时按 V1 读取 |
+| `protocol_source` | 协议来自应用版本、显式参数、已有配置或旧版默认值；分别为 `desktop_version`、`parameter`、`installed_config`、`legacy_default` |
+| `protocol_update_required` / `upstream_update_required` | 已配置或正在运行的协议、已配置上游与本次要求不匹配，需要安全重载 |
+| `gateway_restart_required` | 网关需要启动或重载，包括代码、安装目录、启动链不匹配的情况 |
+| `launcher_update_required` | 任务入口、参数、VBS 内容需要更新，或任务未运行 |
+| `desktop_restart_required` | 用户环境与目标网关地址不同，配置完成后需重开 Desktop；false 不证明已运行应用继承了最新环境 |
+| `desktop_connection_required` | Desktop 尚未连接网关，需结合远控面板检查；单凭未连接不能断言必须重开应用 |
+| `restart_required` | 上述网关、Desktop 环境或连接事项的汇总标志，不能据此一律要求退出应用 |
+
+`vbs_launcher` 只表示任务使用 VBS，不保证脚本路径正确。需要重载时，先暂停 ZCode 内的移动端远控，再执行 Restart，保留当前会话；重开远控后再次检查 Status。
 
 | 接口 | 范围 |
 | --- | --- |

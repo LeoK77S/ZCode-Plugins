@@ -12,9 +12,19 @@ description: 修改 ZCode 公共网关的连接模式、端口或上游，保留
 | relay | 默认模式，连接官方上游并保留手机共存；公共插件 0.3.0 起支持 3.16 在线模式，需要已登录账号和可达的官方远控服务 |
 | local-only | 仅适用于已支持的旧版，已在 3.14.4 验证；不连接官方远控服务，不支持手机页面，须验证 desktop_ready；3.16 暂不可用 |
 
-已有配置保留 `mode`，缺少该字段时按 `relay` 兼容；缺少 `relay_protocol_version` 时使用 V1。临时网络失败不自动切换模式。面板停在“启动中”或显示失败时，先结合错误和日志核对登录、网络与版本配置，不能仅凭界面状态判定原因。
+已有配置保留 `mode`，缺少该字段时按 `relay` 兼容；缺少 `relay_protocol_version` 时按 V1 读取。临时网络失败不自动切换模式。面板停在“启动中”或显示失败时，先结合错误和日志核对登录、网络与版本配置，不能仅凭界面状态判定原因。
 
-3.16 使用公共插件 0.3.0 及以上版本，配置 `relay_protocol_version: 2`，上游为 `wss://zcode.z.ai/api/v1/remote/ws2`。现有 Windows 安装脚本尚未接入 V2 参数，不能只修改上游地址，也不能套用下面的默认安装命令。具体配置和已验证范围见[3.16 开发记录](../../../suian-zcode-app-mcp/docs/zcode-3.16-gateway-validation.md)。3.16 不支持以 local-only 回退。
+**安装器按 Desktop 应用版本自动选择协议与官方地址**。`-ZcodeAppVersion {{app_version}}` 优先于宿主的 `ZCODE_APP_VERSION`；3.16 及以上选择 V2 和 `wss://zcode.z.ai/api/v1/remote/ws2`，旧版选择 V1。外部 Shell 没有宿主变量时，先核实实际 Desktop 版本，再显式传入，不能传随包 CLI 的版本。Status、Install、Restart 使用同样的版本参数。
+
+未提供应用版本时，已有安装保留协议；旧配置没有协议字段时按 V1 兼容。首次安装也保留旧版 V1 默认行为，`protocol_source:legacy_default` 表示尚未按 Desktop 版本选择，不能据此确认适合 3.16。Agent 在首次安装或应用升级时必须传入已核实版本。可用 `-RelayProtocolVersion 1|2` 显式指定协议；与已知 Desktop 版本冲突、官方地址与协议不匹配，或 V2 配合 local-only 时，脚本在修改配置前报错。
+
+**Restart 保留协议，应用升级时迁移官方地址**。提供 3.16 应用版本后，旧 V1 官方地址会自动迁移到 V2；其他情况下保留已有上游，自定义地址不被替换。端口、控制令牌与原环境备份继续保留。暂停远控后执行，例如：
+
+```powershell
+powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "{{common_root}}/setup.ps1" -Action Restart -ZcodeAppVersion 3.16.1 -NativePlugin
+```
+
+原配置为 local-only 而应用升级到 3.16 时，还需明确加 `-Mode relay`。3.16 仍不支持 local-only。协议与真机共存的历史验证见[3.16 开发记录](../../../suian-zcode-app-mcp/docs/zcode-3.16-gateway-validation.md)，不能将隔离安装测试当作用户真机验收。
 
 旧版首次 Install 可加 `-Mode local-only`、`-Port {{port}}` 或 `-UpstreamUrl {{url}}`；默认端口为 17329，V1 上游为 `wss://zcode.z.ai/ws`。已有配置按 setup 的暂停远控流程 Restart，只传用户要求改变的字段；原生模式加 `-NativePlugin`。切换本地模式前确认该应用版本在支持范围内，并说明手机连接将不可用。
 

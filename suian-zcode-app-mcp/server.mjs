@@ -6,12 +6,13 @@ import { resolveCaller } from './caller.mjs';
 import { registerArtifactTools } from './artifact-tools.mjs';
 import { toolResult } from './tool-result.mjs';
 import { readFile } from 'node:fs/promises';
-import { extname, isAbsolute } from 'node:path';
+import { extname, isAbsolute, win32 } from 'node:path';
 import packageMetadata from './package.json' with { type: 'json' };
 
 const annotations = { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false };
 // 上游 ZCodeTaskMode 六档中的五档 canonical 值（autoEdit 是 build 的旧别名，映射后不单独暴露）
 const PERMISSION_MODES = new Set(['build', 'plan', 'edit', 'auto', 'yolo']);
+const normalizeWorkspace = path => win32.normalize(path).replaceAll('\\', '/').replace(/\/$/, '').toLowerCase();
 
 async function messageInput(args) {
   const { message_file, ...input } = args;
@@ -33,11 +34,12 @@ export function createMcpServer(config, { controller, prStatus, reveal } = {}) {
   };
   server.registerTool('list_sessions', {
     title: '列出 ZCode 会话',
-    description: '读取本机会话索引，置顶优先、组内按更新时间降序。query 按标题或 ID 作字面子串搜索；默认排除归档与删除项。省略 workspace_path 查询全部工作区；按 next_offset 保持筛选条件续页。结果是持久化状态。',
+    description: '读取本机持久化会话索引，置顶优先；默认排除归档与删除项。query 按标题、ID 或目录作字面搜索，命中项目目录可找同项目会话。workspace_path 筛执行目录；project_id 筛项目，null 表示未归类。会话附加目录摘要最多 3 项；按 next_offset 续页。',
     inputSchema: z.object({
       limit: z.number().int().min(1).max(200).default(20),
       offset: z.number().int().min(0).default(0),
       workspace_path: z.string().min(1).optional(),
+      project_id: z.string().min(1).nullable().optional(),
       query: z.string().optional(),
       include_archived: z.boolean().default(false)
     }).strict(),
@@ -56,7 +58,7 @@ export function createMcpServer(config, { controller, prStatus, reveal } = {}) {
   }, respond('read_session', args => reader.readSession(args)));
   server.registerTool('get_current_session', {
     title: '获取当前会话信息',
-    description: '只读识别本次请求的发起会话，返回 ID、本机标题、权限与工作区信息。无参数；识别失败报错，冲突候选不可当作已确认来源。未落库字段可为空；持久化信息可能滞后，不查询原 Host 实时状态。',
+    description: '只读识别本次请求的发起会话，返回 ID、本机标题、权限与执行目录；3.16 还返回项目归属和附加目录。无参数；识别失败报错，冲突候选不可当作已确认来源。未落库字段可为空；持久化信息可能滞后，不查询原 Host 实时状态。',
     inputSchema: z.object({}).strict(),
     annotations
   }, async (_args, extra) => {
@@ -89,6 +91,9 @@ export function createMcpServer(config, { controller, prStatus, reveal } = {}) {
     title: '启动 ZCode 会话',
     description: '按用户授权在网关连接的 Desktop 已打开的本地工作区创建独立会话并发送开局消息。服务自动识别来源，来源不是授权、不接受手填来源 ID；冲突附 warnings，缺失或损坏时报错。title 仅命名新会话；lock_title=true 阻止自动命名。accepted 仅表示提交，回复用 read_session；部分失败先核查返回 ID，不盲目重试。',
     inputSchema: z.object({ workspace_path: nonempty, title: nonempty.optional(), lock_title: z.boolean().default(false), ...messageFields,
+      project_id: nonempty.nullable().optional().describe('3.16 项目 ID；null 表示未归类。省略时，目标在发起会话目录范围内则继承项目。跨项目仅按用户明确要求填写。'),
+      additional_directories: z.array(nonempty.refine(isAbsolute, '必须是绝对目录路径')).optional()
+        .describe('3.16 附加执行目录。省略且沿用原项目时继承发起会话目录范围；空数组表示不带附加目录。新增目录须有用户授权，不以项目全部目录替代会话冻结范围。'),
       model: z.object({ provider_id: nonempty, model_id: nonempty, reasoning_level: nonempty.optional() }).strict().optional(),
       permission_mode: z.enum(['build', 'plan', 'edit', 'auto', 'yolo']).optional().describe('正常省略以继承父会话 CLI 权限，失败用 Host 默认并告警；仅用户明确指定时填写。build=变更前确认，非构建任务类型；plan=规划，edit=自动编辑，auto=Host 自动策略，yolo=完全访问。不得为等待合并批准改为 build，显式提权须用户授权。') }).strict()
       .refine(oneMessage, 'message 与 message_file 必须且只能填写一个').meta(messageSchemaMeta),
@@ -96,6 +101,17 @@ export function createMcpServer(config, { controller, prStatus, reveal } = {}) {
   }, respond('start_session', async (args, extra) => {
     const input = await messageInput(args);
     const origin = resolveCaller({ meta: extra._meta, sessionDbPath: config.sessionDbPath, toolName: 'start_session' });
+    if (origin.sessionId && (args.project_id === undefined || args.additional_directories === undefined)) {
+      const parent = reader.sessionProject({ session_id: origin.sessionId });
+      if (parent && !parent.projectDeleted && parent.workspacePath) {
+        const roots = [parent.workspacePath, ...parent.additionalDirectories];
+        if (roots.some(path => normalizeWorkspace(path) === normalizeWorkspace(args.workspace_path))) {
+          if (args.project_id === undefined) input.project_id = parent.projectId;
+          if (args.additional_directories === undefined && (args.project_id === undefined || args.project_id === parent.projectId))
+            input.additional_directories = roots.filter(path => normalizeWorkspace(path) !== normalizeWorkspace(args.workspace_path));
+        }
+      }
+    }
     // 缺省继承发起者当前权限：仅来源唯一时读 CLI 会话库；来源冲突由 originWarning 说明，不再叠加权限警告。
     // 探测异常（库缺失/繁忙/迁移）与读不到一样视为无法核实，回落 Host 默认而非阻断创建
     let permissionMode, permissionWarning;
@@ -188,7 +204,7 @@ export function createMcpServer(config, { controller, prStatus, reveal } = {}) {
   }, respond('list_pinned_sessions', args => reader.listPinnedSessions(args)));
   server.registerTool('list_automations', {
     title: '列出 ZCode 定时任务',
-    description: '读取本机持久库，列出定时任务（automation）清单与调度状态：automationId、title、cronExpr、enabled、lifecycleStatus、nextRunAt、lastRunAt、runCount、recurring、maxRuns、scheduleRule、workspaceKey、workspacePath、targetTaskId（绑定的会话）。省略参数返回全部工作区；workspace_path / workspace_key 可选过滤。只读本机数据，离线可用。定时任务自动触发的轮次里官方 Cron 写工具不可用时，本工具仍可正常调用，可先据此定位目标任务的 automationId。',
+    description: '只读本机定时任务清单与持久化调度状态，离线可用；返回 automationId 供定位任务。省略参数查询全部工作区，workspace_path / workspace_key 可选过滤。定时任务触发的轮次中，官方 Cron 写工具不可用时仍可调用。',
     inputSchema: z.object({
       workspace_path: z.string().min(1).optional(),
       workspace_key: z.string().min(1).optional()

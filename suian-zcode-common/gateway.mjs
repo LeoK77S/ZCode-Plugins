@@ -7,6 +7,7 @@ import { readFile } from 'node:fs/promises';
 import WebSocket, { WebSocketServer } from 'ws';
 import { createRpcBroker } from './rpc-broker.mjs';
 import { startTerminalGateway } from './terminal-gateway.mjs';
+import { gatewayBuild } from './gateway-build.mjs';
 
 export const OFFICIAL_RELAY = 'wss://zcode.z.ai/ws';
 export const OFFICIAL_RELAY_V2 = 'wss://zcode.z.ai/api/v1/remote/ws2';
@@ -39,7 +40,7 @@ export async function startGateway({ mode = 'relay', relayProtocolVersion = 1, u
     }
     if (request.method !== 'GET' || request.url !== '/health') { response.writeHead(404).end(); return; }
     response.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }).end(JSON.stringify({
-      service: 'suian-zcode-gateway', version: 1, instance_id: instanceId, upstream_url: upstreamUrl, mode, relay_protocol_version: relayProtocolVersion,
+      service: 'suian-zcode-gateway', version: 1, build: gatewayBuild, instance_id: instanceId, upstream_url: upstreamUrl, mode, relay_protocol_version: relayProtocolVersion,
       desktop_connected: active?.desktop.readyState === WebSocket.OPEN,
       desktop_ready: active?.authenticated ?? false,
       upstream_connected: active?.upstream?.readyState === WebSocket.OPEN,

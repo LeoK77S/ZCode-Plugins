@@ -27,6 +27,8 @@
 
 ## 规格与开票入口
 
+- 多目录：list_sessions 按 project_id 精确筛选，目录搜索可定位所属项目；项目多目录标记与会话附加目录摘要分开，摘要最多 3 项并给出总数和截断标记。sessionProject 只查索引供 start_session 继承会话冻结范围，CLI 权限继承仍独立。旧调用保持单目录，远端元信息不变成本机文件权限；见[验证记录](docs/multi-directory-validation.md)。
+
 - 本项目沿用根 [CONTEXT.md](../CONTEXT.md) 与本目录 `docs/adr/` 的术语和决策，见 [领域文档入口](docs/agents/domain.md)。
 - 开票使用当前仓库 GitHub Issues。先完成本地规格与票草稿，发布须有用户明确授权；票的依赖须同时表达宿主能力条件，见 [开票约定](docs/agents/issue-tracker.md)。
 - 工件 demo 的两项工具、可累积摘要、历史断点快照和原生只读侧栏已在本地实施。完整版唯一投影继续等待上游。实施范围见 [demo 规格](docs/artifact-zone-spec.md)，开发与宿主限制见 [开发验证](docs/artifact-demo-verification.md)，历史研究见 [分叉核查](docs/artifact-host-fork-audit.md)，公开票同步状态和依赖见 [开票索引](docs/artifact-zone-tickets.md)。真实模型评估和用户验收不能用技术夹具代替。
@@ -42,10 +44,10 @@
 | server.mjs | MCP 工具注册、参数校验与结构化响应 |
 | tool-result.mjs | 当前 ZCode 的关键状态简报与完整结构化结果，避免文本重复承载完整 JSON |
 | caller.mjs | 每次请求的发起会话定位：MCP 元数据优先，trace_id 与工具名只读匹配本地调用记录 |
-| artifacts.mjs | 插件 SQLite 的当前状态、CAS、服务记录时间、双向创建关系、不可变快照和幂等分叉初始化；每次读取不缓存，session 条目附带按任务索引实时反查的会话列表名称（session_title），不写回存储；可选 notify 钩子在实际写入事务 COMMIT 后触发变更信号 |
+| artifacts.mjs | 插件 SQLite 的当前状态、CAS、服务记录时间、双向创建关系、不可变快照和幂等分叉初始化；每次读取工件登记与 session_title；可选 artifact_status 表持久化 PR/议题成功快照，读取时附加 github_status，不写回登记、revision 或历史快照；可选 notify 钩子在工件实际写入事务 COMMIT 后触发变更信号 |
 | artifact-host.mjs | 只读宿主消息的原始 Stop 断点与隐藏 forkOrigin，不用时间或父最新状态猜测 |
 | artifact-tools.mjs / artifact-ui.mjs | 当前调用者唯一定位、get 列表/详情与 set 注册（写入经 notify 钩子推送变更信号）、面板专用 PR/议题状态与本机定位工具（默认禁用，UI 能力协商成功后仅 app 可见；状态经同一工具两分支一次往返，定位仅收 ref、命中当前会话 file 条目才执行），以及调用公共 UI 能力判定后启用的页面资源 |
-| artifact-status.mjs | 面板专用 PR/议题状态拉取服务：gh 子进程与超时上限、per-ref 成功时间戳缓存（PR 与议题共用机制，仅子命令与字段不同）、新鲜期命中不起子进程、超时沿用旧数据标 stale、失败或非 GitHub 域名逐条错误并清缓存 |
+| artifact-status.mjs | 面板专用 PR/议题状态拉取服务：gh 子进程与超时上限，正式服务使用工件库持久化成功快照；新鲜期命中不起子进程、超时沿用旧数据标 stale、失败逐条报错并清缓存；存储错误直接报错 |
 | artifact-reveal.mjs | 面板专用本机定位服务：执行前 stat 探测（缺失拒绝、其它错误降级文件语义）、按平台构造 explorer/open/xdg-open 命令（win32 退出码 0/1 均视为已启动）、预检与命令共用整体期限（stat 悬挂按超时回报，迟到结果不启动打开）、无法启动或超时按失败回报 |
 | artifact-resources.mjs | 单一信号资源 suian-artifacts://current（list/read 与 resources/subscribe/unsubscribe）；read 按请求上下文尽力解析会话，实际写入后向已订阅 URI 推送 notifications/resources/updated，页面只当信号、数据走 get_artifacts |
 | artifact-hook.mjs / hooks/hooks.json | 同步 SessionStart 初始化、UserPromptSubmit 简略摘要和 Stop 断点快照 |
@@ -55,6 +57,7 @@
 | control.mjs | 原 Host 改名读回、指定模型与权限模式创建、消息包装、v4 可选投递策略与提交回执、compact 维护命令与受理回执、归档保护与复原、置顶写与索引读回确认、定时任务启停（zcode-agent setAutomationEnabled + 同 scope listAutomations 读回确认，workspace_key 透传归属标识）；改名/创建后双库标题复核，分叉时回执 warnings；按调用释放连接 |
 | glm.mjs | GLM 个人套餐额度/卡片投影、确认后重置与同次尝试回执；共用 controller 远控互斥 |
 | sessions.mjs | 只读索引查询、会话定位、历史投影与分页；list_sessions 置顶优先排序，置顶列表查询与之同源；list_automations 直读同库 automations 表（官方 camelCase 投影、脏 scheduleRule 容忍）；sessionTitle 轻量双库标题读取供复核，sessionMode 读取 CLI 会话库权限供继承与首发后确认（不用索引或创建响应的 mode）；sessionOverview 汇集发起会话双库自省字段供 get_current_session，两库无行时字段可空 |
+| tests/projects.test.mjs | 3.16 项目精确筛选、只读冻结目录、自省、创建继承与显式范围覆盖，旧版和远端元信息兼容 |
 | package.json / package-lock.json | package.json 提供插件和运行时自报版本；原生清单与锁文件同步版本，固定依赖与测试入口 |
 | CHANGELOG.md | 本插件的版本变更记录、预览限制和对应源码链接 |
 | mcp.config.example.json | MCP 客户端连接示例 |

@@ -63,6 +63,13 @@ let selectedRef, detailRequest = 0, currentDetail = null;
 // 面板状态通道（get_pr_statuses）最近一次结果，按条目类型分桶：
 // PR：ref -> {status,additions,deletions,fetched_at[,stale]}；议题：ref -> {state,comments,fetched_at[,stale]}；出错均为 {error}
 let prStatuses = {}, issueStatuses = {};
+function restoreStatuses(items) {
+  for (const item of items) {
+    const bucket = item.kind === 'pr' ? prStatuses : item.kind === 'issue' ? issueStatuses : null;
+    // 只初始化尚未查询的条目，避免列表重绘时覆盖本页较新的回执或明确错误。
+    if (bucket && item.github_status && !Object.hasOwn(bucket, item.ref)) bucket[item.ref] = item.github_status;
+  }
+}
 const display = item => item.session_title ?? item.label;
 function element(tag, className, text) {
   const node = document.createElement(tag); node.className = className; node.textContent = text; return node;
@@ -205,6 +212,7 @@ async function get(args) {
   return result.structuredContent;
 }
 function render(state) {
+  restoreStatuses(state.items);
   const openKinds = new Set(groups.children.length
     ? [...groups.children].filter(group => group.open).map(group => group.dataset.kind) : Object.keys(names));
   revision.textContent = '当前会话 · 共 ' + state.stats.total + ' 条';
@@ -240,6 +248,7 @@ function field(list, name, value, className = '') {
   row.append(element('dt', '', name), content); list.append(row);
 }
 function renderDetail(detail) {
+  restoreStatuses([detail.item]);
   const item = detail.item, title = element('div', 'detail-title', '');
   const prStatus = item.kind === 'pr' ? prStatuses[item.ref] : undefined;
   const usable = prStatus && !prStatus.error;

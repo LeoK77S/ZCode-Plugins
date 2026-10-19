@@ -59,19 +59,18 @@ function runGhProcess(args, { signal }) {
 }
 
 /**
- * 面板专用状态拉取服务：per-ref 内存缓存带成功时间戳，新鲜期内命中缓存不起子进程。
+ * 面板专用状态拉取服务：per-ref 缓存带成功时间戳；正式服务注入工件库缓存，新鲜期内不起子进程。
  * PR（gh pr view）与议题（gh issue view）共用同一套缓存、超时与出错分类，仅子命令、字段与快照形状不同。
  * 超时沿用旧数据并标记 stale（stale_reason=timeout），无旧数据按出错处理；gh 失败清空该 ref
  * 缓存并返回逐条 error。拉取只在面板标准刷新时机经 get_pr_statuses 到达，模型侧 get_artifacts 不经过本模块。
  */
 export function createArtifactStatusService({
-  runGh = runGhProcess, now = Date.now, timeoutMs = 5000, freshMs = 60000, maxConcurrent = 6
+  runGh = runGhProcess, now = Date.now, timeoutMs = 5000, freshMs = 60000, maxConcurrent = 6, cache = new Map()
 } = {}) {
-  // PR 与议题的 ref 可能是同一 URL，两分支快照形状不同；缓存与在途键必须带规格维度隔离，
+  // PR 与议题的 ref 可能是同一 URL，两分支快照形状不同；缓存与在途键必须带类别隔离，
   // 仅靠 ref 本身无法区分 PR（gh pr view）与议题（gh issue view）的结果
-  const cacheKey = (spec, ref) => spec.code + '\u0000' + ref;
-  const cache = new Map();   // `${spec.code}\u0000${ref}` -> 快照
-  const inFlight = new Map(); // `${spec.code}\u0000${ref}` -> 进行中的拉取 Promise（结果共享，超时不缓存）
+  const cacheKey = (spec, ref) => JSON.stringify([spec.command, ref]);
+  const inFlight = new Map(); // [类别, ref] 的 JSON 键 -> 进行中的拉取 Promise（结果共享，超时不缓存）
 
   // 拉取规格：同一机制下区分 gh 子命令、JSON 字段、错误码前缀与快照构造
   const SPECS = {
@@ -91,14 +90,11 @@ export function createArtifactStatusService({
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), timeoutMs);
     const attempt = (async () => {
+      let data;
       try {
         const stdout = await runGh([spec.command, 'view', ref, '--json', spec.fields], { signal: controller.signal });
-        let data;
         try { data = JSON.parse(stdout); }
         catch { throw new Error('gh 返回的不是有效 JSON'); }
-        const snapshot = { ...spec.build(data), fetched_at: now() };
-        cache.set(key, snapshot);
-        return snapshot;
       } catch (error) {
         if (controller.signal.aborted) {
           // 超时：有旧数据沿用（标记 stale），没有则按出错处理
@@ -108,10 +104,12 @@ export function createArtifactStatusService({
         }
         cache.delete(key);
         return { error: `gh_failed: ${error.message}` };
-      } finally { inFlight.delete(key); }
-    })();
+      }
+      const snapshot = { ...spec.build(data), fetched_at: now() };
+      cache.set(key, snapshot);
+      return snapshot;
+    })().finally(() => { clearTimeout(timer); inFlight.delete(key); });
     inFlight.set(key, attempt);
-    void attempt.finally(() => clearTimeout(timer)).catch(() => undefined);
     return attempt;
   }
 
