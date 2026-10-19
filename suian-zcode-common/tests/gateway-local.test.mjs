@@ -28,16 +28,29 @@ test('本地模式处理注册、启动与心跳，不连接官方上游且客�
   const registration = JSON.parse((await registered)[0]);
   assert.equal(registration.type, 'device_register_ack');
   assert.match(registration.device_sid, /^d_local_/);
+  // 3.16 起 auth_init 不再携带 role，且客户端只认 device_sid 与自身一致的 auth_ack。
   const acknowledged = once(desktop, 'message');
-  desktop.send(JSON.stringify({ type: 'auth_init', role: 'device', device_sid: registration.device_sid }));
-  assert.equal(JSON.parse((await acknowledged)[0]).pair_status, 'matched');
+  desktop.send(JSON.stringify({ type: 'auth_init', device_sid: registration.device_sid }));
+  const authAck = JSON.parse((await acknowledged)[0]);
+  assert.equal(authAck.type, 'auth_ack');
+  assert.equal(authAck.device_sid, registration.device_sid);
+  assert.equal(authAck.pair_status, 'matched');
+  // V2 wire 时间戳为 Unix 秒；毫秒值会被客户端 schema 拒绝。
+  assert.ok(Number.isInteger(authAck.server_ts) && authAck.server_ts <= 253402300799);
+  assert.ok(Math.abs(authAck.server_ts - Math.floor(Date.now() / 1000)) < 60);
   for (let i = 0; i < 3; i++) {
     const heartbeat = once(desktop, 'message');
-    desktop.send(JSON.stringify({ type: 'pair_status_query', device_sid: registration.device_sid }));
+    // 心跳查询同样不再携带 device_sid。
+    desktop.send(JSON.stringify({ type: 'pair_status_query' }));
     const reply = JSON.parse((await heartbeat)[0]);
     assert.equal(reply.type, 'pair_status_ack');
     assert.equal(reply.pair_status, 'matched');
+    assert.ok(reply.server_ts <= 253402300799);
   }
+  // 旧客户端仍带 role 与 device_sid 时保持兼容。
+  const legacyHeartbeat = once(desktop, 'message');
+  desktop.send(JSON.stringify({ type: 'pair_status_query', device_sid: registration.device_sid }));
+  assert.equal(JSON.parse((await legacyHeartbeat)[0]).pair_status, 'matched');
   const peer = new WebSocket(gateway.url.replace('/ws', '/rpc'), { headers: { Authorization: 'Bearer fixture-only-token' } });
   t.after(() => peer.terminate());
   await once(peer, 'open');
@@ -53,7 +66,7 @@ test('本地模式处理注册、启动与心跳，不连接官方上游且客�
 });
 
 test('本地模式在设备就绪前拒绝 RPC，不接受 terminal 角色或不匹配的注册标识', { timeout: 3000 }, async t => {
-  for (const invalid of ['terminal', 'wrong-registration']) {
+  for (const invalid of ['terminal', 'wrong-registration', 'missing-role-mismatch']) {
     const gateway = await startGateway({ mode: 'local-only', upstreamUrl: 'ws://127.0.0.1:1/ws', controlToken: 'fixture-boundary-token' });
     t.after(() => gateway.close());
     const desktop = new WebSocket(gateway.url);
@@ -62,13 +75,16 @@ test('本地模式在设备就绪前拒绝 RPC，不接受 terminal 角色或不
     const peer = new WebSocket(gateway.url.replace('/ws', '/rpc'), { headers: { Authorization: 'Bearer fixture-boundary-token' } });
     t.after(() => peer.terminate());
     assert.equal((await once(peer, 'close'))[0], 1013);
-    if (invalid === 'wrong-registration') {
+    if (invalid !== 'terminal') {
       const registered = once(desktop, 'message');
       desktop.send(JSON.stringify({ type: 'device_register_init', device_mid: 'fixture-boundary' }));
       await registered;
     }
     const closed = once(desktop, 'close');
-    desktop.send(JSON.stringify({ type: 'auth_init', role: invalid === 'terminal' ? 'terminal' : 'device', device_sid: 'd_other' }));
+    const handshake = invalid === 'missing-role-mismatch'
+      ? { type: 'auth_init', device_sid: 'd_other' }
+      : { type: 'auth_init', role: invalid === 'terminal' ? 'terminal' : 'device', device_sid: 'd_other' };
+    desktop.send(JSON.stringify(handshake));
     assert.equal((await closed)[0], 1008);
     const health = await (await fetch(gateway.url.replace('ws:', 'http:').replace('/ws', '/health'))).json();
     assert.equal(health.desktop_ready, false);
@@ -91,8 +107,10 @@ test('实际网关 CLI 从配置加载本地模式，关闭的上游不影响设
   t.after(() => desktop.terminate());
   await once(desktop, 'open');
   const ack = once(desktop, 'message');
-  desktop.send(JSON.stringify({ type: 'auth_init', role: 'device', device_sid: 'd_fixture-cli' }));
-  assert.equal(JSON.parse((await ack)[0]).pair_status, 'matched');
+  desktop.send(JSON.stringify({ type: 'auth_init', device_sid: 'd_fixture-cli' }));
+  const cliAck = JSON.parse((await ack)[0]);
+  assert.equal(cliAck.pair_status, 'matched');
+  assert.equal(cliAck.device_sid, 'd_fixture-cli');
   const health = await (await fetch(health_url)).json();
   assert.equal(health.mode, 'local-only');
   assert.equal(health.desktop_ready, true);
