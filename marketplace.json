@@ -9,7 +9,7 @@
     },
     {
       "name": "suian-zcode-title",
-      "version": "0.1.4",
+      "version": "0.1.5",
       "source": "./suian-zcode-title",
       "description": "会话 Stop 后自动命名、模型配置与标题保护",
       "dependencies": ["suian-zcode-common"]

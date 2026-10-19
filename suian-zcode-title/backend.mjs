@@ -15,7 +15,7 @@ export function createBackend({event,config,saveState,prompt,connect=connectHost
   // 换过工作区/目录的会话两者不一致；索引行 workspace_path 作次选，payload 最后兜底。
   let resolvedWorkspace=null;
   const queryJson=async(db,sql)=> {
-    const {stdout}=await promisify(execFile)(config.sqliteBin??"sqlite3",["-readonly","-json",db,sql],{encoding:"utf8",windowsHide:true});
+    const {stdout}=await promisify(execFile)(config.sqliteBin??"sqlite3",["-readonly","-json",db,sql],{encoding:"utf8",windowsHide:true,maxBuffer:256*1024*1024});
     return stdout.trim()?JSON.parse(stdout):[];
   };
   // 索引行每次现查：rename 前后 title 会变化，不能缓存
