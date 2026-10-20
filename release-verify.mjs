@@ -88,6 +88,11 @@ const TEXT_SUFFIXES = new Set(['.mjs', '.cjs', '.js', '.json', '.md', '.html', '
 const MAX_SCAN_BYTES = 2 * 1024 * 1024;
 // 允许与 common 逐字节一致的文件（PKG-01/04 契约：薄定位器单一源码；许可文本各包同源）。
 const COMMON_INLINE_PATH_ALLOWLIST = new Set(['locate.mjs', 'LICENSE']);
+// 只排除 common 清单中已确认的第三方许可/声明，业务任意 licenses/* 仍参与摘要比对。
+const COMMON_LEGAL_FILES = new Set([
+  'vendor/LICENSE-ZCode', 'vendor/LICENSE-zod', 'vendor/NOTICE-ZCode-current.md',
+  'vendor/NOTICE.md', 'licenses/ws-LICENSE', 'node_modules/ws/LICENSE',
+]);
 
 async function readJson(path) {
   return JSON.parse(await readFile(path, 'utf8'));
@@ -249,7 +254,7 @@ export async function verifyReleaseDir({ releaseDir, pluginName, expectedVersion
       // 内联判定以"内容逐字节副本"为准：摘要命中即视为把 common 实现搬进了业务包；
       // 仅路径同名而内容不同不属于内联（业务自有文件恰与公共文件同名）。
       const commonImplementations = commonRelease.files
-        .filter(file => !COMMON_INLINE_PATH_ALLOWLIST.has(file.path) && file.path !== '.zcode-plugin/plugin.json')
+        .filter(file => !COMMON_INLINE_PATH_ALLOWLIST.has(file.path) && !COMMON_LEGAL_FILES.has(file.path) && file.path !== '.zcode-plugin/plugin.json')
         .map(file => ({ path: file.path, sha256: file.sha256 }));
       const commonDigests = new Set(commonImplementations.map(item => item.sha256));
       for (const file of files) {

@@ -2,7 +2,7 @@
 // 敏感文件混入、摘要错误——在有缺陷的组装目录上必须以明确 code 失败；合法目录通过。
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtemp, rm } from 'node:fs/promises';
+import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -131,6 +131,34 @@ test('公共内联白名单：薄定位器 locate.mjs 允许与 common 逐字节
     commonReleaseDir: commonCommon.dir,
   });
   assert.equal(result.ok, true, JSON.stringify(result.problems));
+});
+
+test('第三方许可可各包保留，但把 common 实现改名为许可证仍须拒绝', async t => {
+  const license = (await readFile(new URL('../suian-zcode-common/vendor/LICENSE-zod', import.meta.url), 'utf8')).replaceAll('\r\n', '\n');
+  const implementation = '// shared implementation, not a license\n';
+  const common = await stage({
+    pluginName: 'suian-zcode-common', version: '0.4.2',
+    omit: ['dist/cli.mjs'],
+    files: { 'vendor/LICENSE-zod': license, 'dist/client.mjs': implementation },
+  });
+  t.after(() => rm(common.dir, { recursive: true, force: true }));
+  for (const copiedImplementation of [false, true]) {
+    const business = await stage({
+      ...titleShape,
+      files: {
+        ...titleShape.files, 'skills/setup/SKILL.md': '# title setup\n',
+        'licenses/zod-LICENSE': license,
+        ...(copiedImplementation ? { 'licenses/fake-LICENSE': implementation } : {}),
+      },
+    });
+    t.after(() => rm(business.dir, { recursive: true, force: true }));
+    const result = await verifyReleaseDir({
+      releaseDir: business.dir, pluginName: 'suian-zcode-title', commonReleaseDir: common.dir,
+    });
+    assert.deepEqual(result.problems.filter(problem => problem.code === 'common_inline').map(problem => problem.path),
+      copiedImplementation ? ['licenses/fake-LICENSE'] : []);
+    assert.equal(result.ok, !copiedImplementation, JSON.stringify(result.problems));
+  }
 });
 
 test('失败契约：敏感文件混入——凭据、日志、数据与 node_modules 必须拒绝', async t => {
