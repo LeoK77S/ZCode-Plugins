@@ -5,7 +5,7 @@ description: 核对 suian-side-editor 正式包安装位置、公共依赖定位
 
 # 文本编辑器安装与升级
 
-适用于用户已选择的 suian-side-editor 0.3.0。要求 Node.js 24+、ZCode 应用版本至少 3.15.1，以及 MCP Apps 能力和可信会话归属。这些是运行条件，不代表后续应用版本均已通过兼容验证。
+适用于用户已选择的 suian-side-editor 0.4.0。要求 Node.js 24+、ZCode 应用版本至少 3.15.1，以及 MCP Apps 能力和可信会话归属。这些是运行条件，不代表后续应用版本均已通过兼容验证。
 
 正式发布包自带 MCP SDK、zod 与实际构建的编辑器页面：**原生安装或更新后即可使用文本编辑，不需要 npm 安装、公共包链接或 UI 构建**。公共实现由已安装的 suian-zcode-common 按 PKG-01 契约定位加载；市场安装依赖时会一并安装公共插件。
 
