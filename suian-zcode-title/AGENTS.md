@@ -76,9 +76,9 @@ node .\cli.mjs policy --config .\config.local.json      # 只读查询目标会�
 | history.mjs | 历史重建、回退分支、最近三轮整理与指纹；投影策略经公共客户端契约加载 |
 | common-access.mjs / release-layout.mjs | 公共客户端契约薄适配（定位、兼容声明、锚点优先级）与源码/发布双模式布局解析（发布根由上级 release.json 判定） |
 | ../suian-zcode-common/locate.mjs | 薄定位器单一源码；构建时作为业务包唯一允许的 common 输入分发进产物 |
-| toast.mjs / toast-action.mjs | 命名失败文案、排障提示词与自有协议动作；系统通知、冷却和剪贴板交给公共层 |
+| toast.mjs / toast-action.mjs | 命名失败文案、排障提示词模板（部署时外置到数据目录）与自有协议调试入口；部署链走公共缓存外执行器，系统通知、冷却和剪贴板交给公共层 |
 | install.mjs | 安装命令入口（薄）：参数解析与退出码；复用逻辑在 installer.mjs |
-| installer.mjs | 安装与通知身份共享实现：sqlite3 检查、Toast 资产、Hook 与技能副本（命令入口间禁止互相导入，避免 bundle 内联复制主模块判定） |
+| installer.mjs | 安装与通知身份共享实现：sqlite3 检查、共享 Toast 稳定运行时与外置身份登记、提示词模板部署、Hook 与技能副本（命令入口间禁止互相导入，避免 bundle 内联复制主模块判定） |
 | build-release.mjs | 发布目录构建：esbuild 四入口进 dist/、资源组装、release.json 与构建输入记录；构建期断言仅薄定位器来自 common |
 | .zcode-plugin/plugin.json / hooks/hooks.json | 原生元信息与异步 Stop；发布构建把 Stop 命令改指 dist/hook.mjs，native 初始化不重复全局注册 |
 | skills/ | setup / configuration / control / debug，paths.md 统一路径与数据说明 |

@@ -5,14 +5,15 @@
 // 本钩子及其导入链（depcheck/notifications/notification-install/cooldown/windows）只用 Node 内置模块，
 // 且全部为 common 包内相对导入——不经 node_modules 解析，依赖全丢时仍可运行并报警。
 import { readFile, writeFile, rename, mkdir, appendFile } from 'node:fs/promises';
-import { join, dirname, resolve } from 'node:path';
+import { join, resolve } from 'node:path';
 import { homedir } from 'node:os';
 import { randomUUID } from 'node:crypto';
-import { fileURLToPath, pathToFileURL } from 'node:url';
+import { pathToFileURL } from 'node:url';
 import { scanSuianPlugins } from './depcheck.mjs';
 import { buildToastMessage } from './depcheck-prompt.mjs';
 import { notifyOnce } from './notifications.mjs';
 import { installToastAssets, buildVbsContent } from './notification-install.mjs';
+import { toastRootFor } from './toast-runtime.mjs';
 import { fileShell } from './windows.mjs';
 
 export const TOAST_IDENTITY = {
@@ -24,28 +25,33 @@ export const TOAST_IDENTITY = {
 export const TOAST_TITLE = 'suian 插件依赖不完整';
 export const TOAST_REASON_CODE = 'dependency-incomplete';
 
-const pluginRoot = dirname(fileURLToPath(import.meta.url));
-
 export function resolveDataDir(env = process.env) {
   if (env.ZCODE_PLUGIN_DATA) return join(env.ZCODE_PLUGIN_DATA, 'state');
   return join(homedir(), '.zcode', 'suian-zcode-common');
 }
 
-// Toast 身份归调用方：common 首次报警前确保自己的协议/AppID/快捷方式已注册。
-// 幂等判据是 vbs 内容与注册表协议键双重校验——仅凭 appid 缓存会在 common 升级后
-// 指向旧版本缓存路径（按钮运行旧逻辑），或身份被外部清理后静默失声。
-export async function ensureToastIdentity({ dataDir, pluginRoot, install = installToastAssets, shell = fileShell }) {
-  const desiredVbs = buildVbsContent({ nodeExe: process.execPath, toastActionPath: join(pluginRoot, 'toast-action.mjs'), dataDir, protocol: TOAST_IDENTITY.protocol });
+// Toast 身份归调用方：common 首次报警前确保自己的协议/AppID/快捷方式已注册，
+// 并保证共享 Toast 运行时（缓存外执行器）已部署。幂等判据是转发 vbs 内容、外置身份描述
+// 与注册表协议键三重校验——仅凭 appid 缓存会在 common 升级后指向旧版本缓存路径（按钮运行
+// 旧逻辑），或身份被外部清理后静默失声。
+export async function ensureToastIdentity({ dataDir, homeDir = process.env.SUIAN_DEPCHECK_HOME || homedir(), install = installToastAssets, shell = fileShell }) {
+  const toastRoot = toastRootFor(homeDir);
+  const desiredVbs = buildVbsContent({ protocol: TOAST_IDENTITY.protocol, launcherPath: join(toastRoot, 'launch.vbs') });
   let vbsMatches = false;
   try { vbsMatches = (await readFile(join(dataDir, 'toast-launch.vbs'), 'utf8')) === desiredVbs; }
   catch (error) { if (error.code !== 'ENOENT') throw error; }
   if (vbsMatches) {
-    try {
-      await shell.run('reg.exe', ['query', `HKCU\\Software\\Classes\\${TOAST_IDENTITY.protocol}`, '/ve']);
-      return { action: 'cached' };
-    } catch { /* 协议键缺失（被外部清理），落到重装自愈 */ }
+    let identityPresent = false;
+    try { identityPresent = JSON.parse(await readFile(join(toastRoot, 'identities', `${TOAST_IDENTITY.protocol}.json`), 'utf8'))?.protocol === TOAST_IDENTITY.protocol; }
+    catch (error) { if (error.code !== 'ENOENT' && !(error instanceof SyntaxError)) throw error; }
+    if (identityPresent) {
+      try {
+        await shell.run('reg.exe', ['query', `HKCU\\Software\\Classes\\${TOAST_IDENTITY.protocol}`, '/ve']);
+        return { action: 'cached' };
+      } catch { /* 协议键缺失（被外部清理），落到重装自愈 */ }
+    }
   }
-  await install({ pluginRoot, dataDir, ...TOAST_IDENTITY });
+  await install({ dataDir, homeDir, ...TOAST_IDENTITY });
   return { action: 'installed' };
 }
 
@@ -69,7 +75,7 @@ const defaultNotify = ({ dataDir, message }) => notifyOnce({
 // SUIAN_DEPCHECK_HOME 仅供测试与人工诊断覆盖扫描根；生产路径走宿主真实用户目录。
 const defaultScan = () => scanSuianPlugins({ homeDir: process.env.SUIAN_DEPCHECK_HOME || undefined });
 
-export async function runDepcheckHook({ payload, dataDir, scan = defaultScan, ensureIdentity = ({ dataDir: dir }) => ensureToastIdentity({ dataDir: dir, pluginRoot }), notify = defaultNotify, persist = persistLastResult }) {
+export async function runDepcheckHook({ payload, dataDir, scan = defaultScan, ensureIdentity = ({ dataDir: dir }) => ensureToastIdentity({ dataDir: dir }), notify = defaultNotify, persist = persistLastResult }) {
   if (!payload || typeof payload !== 'object') return { action: 'ignored_invalid' };
   if (payload.stop_hook_active === true) return { action: 'skipped_stale' };
   const result = await scan();
