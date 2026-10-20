@@ -4,7 +4,7 @@ import { mkdtemp, mkdir, writeFile, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { runDoctor } from '../doctor.mjs';
-import { buildHookCommand } from '../install.mjs';
+import { buildHookCommand } from '../installer.mjs';
 
 test('doctor 读取已安装 Stop Hook，配置就绪不表示已经真实触发', async t => {
   const root = await mkdtemp(join(tmpdir(), 'z-title-doctor-'));
