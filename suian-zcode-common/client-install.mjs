@@ -3,3 +3,4 @@
 export { checkRuntime } from './prerequisites.mjs';
 export { fileShell } from './windows.mjs';
 export { buildVbsContent, buildProtocolCommand, ensureToastAppId, installToastAssets, removeToastAssets } from './notification-install.mjs';
+export { toastRootFor, deployToastRuntime, registerToastIdentity, removeToastIdentity, checkToastRuntime } from './toast-runtime.mjs';

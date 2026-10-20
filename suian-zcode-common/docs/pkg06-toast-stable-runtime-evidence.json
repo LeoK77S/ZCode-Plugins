@@ -1,0 +1,42 @@
+{
+  "ticket": "#118 PKG-06",
+  "baseline": "30c0bc4（feat/shared-runtime-release，含 PKG-01+PKG-02）",
+  "integrationBaseline": "8fce407（feat/shared-runtime-release，合并时 tip 含 PKG-03+PKG-05）",
+  "verifiedAt": "2026-10-20",
+  "tdd": {
+    "red": [
+      { "suite": "common tests/toast-runtime.test.mjs + tests/toast-executor.test.mjs", "exitCode": 1, "note": "toast-runtime.mjs / toast-executor.mjs 缺失，模块加载失败；缓存外部署、执行器与身份契约先行失败", "log": ".scratch/red-common.log（不入库）" },
+      { "suite": "common tests/depcheck-hook.test.mjs / notification-install.test.mjs / common-client-contract.test.mjs / release-build.test.mjs", "exitCode": 1, "result": "40 项中 10 项失败", "note": "旧 vbs 契约嵌缓存内 toast-action.mjs、INSTALL_EXPORTS 集合缺新契约、发布清单缺 toast-executor.mjs；合并统计 tests 40 / pass 30 / fail 10", "log": ".scratch/red-common.log（不入库）" },
+      { "suite": "title tests/install.test.mjs + tests/toast-action.test.mjs", "exitCode": 1, "note": "installer.mjs / toast.mjs 未导出 TOAST_TEMPLATE_FILE、deployToastTemplate、resolveTitleInstallRoot 等，测试加载失败（2/2 文件）", "log": ".scratch/red-title.log（不入库）" }
+    ],
+    "green": [
+      { "suite": "common 六个契约文件（toast-runtime / toast-executor / notification-install / depcheck-hook / common-client-contract / release-build）", "exitCode": 0, "result": "55/55", "log": ".scratch/green4-common.log（不入库）" },
+      { "suite": "title 全量", "exitCode": 0, "result": "95/95", "log": ".scratch/green2-title.log（不入库）" }
+    ]
+  },
+  "regression": {
+    "common": { "exitCode": 0, "result": "220/220 通过（基线 187 + 本票新增 15 + PKG-05 新增 18）", "log": ".scratch/final-common2.log（不入库）" },
+    "title": { "exitCode": 0, "result": "95/95 通过", "log": ".scratch/final-title2.log（不入库）" },
+    "suian-zcode-app-mcp": { "exitCode": 1, "result": "174/178 通过；2 项工具描述断言失败经 git stash 在纯基线 30c0bc4 复现为同样失败（基线既有，PKG-03 域）；另 2 个测试文件因 Windows 临时目录 rename EPERM 加载失败，单独重跑 41/41 全绿（环境 flake）", "log": ".scratch/final-appmcp2.log + baseline-check-appmcp.log + retry-artifacts.log（不入库）" },
+    "suian-side-editor": { "exitCode": 1, "result": "55/56 通过；ui-resource 失败经 git stash 在纯基线 30c0bc4 复现为同样失败（基线既有，PKG-04 域；本地 build-ui 后失败不变）", "log": ".scratch/final-editor2.log + baseline-check-editor.log（不入库）" }
+  },
+  "acceptance": {
+    "旧缓存删除后仍可用": "同时删除 fixture 世界全部插件缓存目录并悬空 runtime 链接后，已部署执行器对两个身份仍完成诊断/模板渲染、复制修复提示并打开工作区；执行器源码经契约断言只含 node: 内置导入（自包含）",
+    "稳定入口与活动记录": "调用方 vbs 只转发缓存外 launch.vbs；部署流程暂存 → node --check 校验 → 切换 executor/launch → 原子提交 active-toast.json；校验失败时旧执行器与活动记录原样保留且错误信息原样上抛；内容一致重复部署 unchanged",
+    "现场解析当前安装": "title://fix 点击时读安装记录插入当前条目根（重装换根后提示词只含新根）；common://fix 现场重扫，依赖修复前后提示词分别反映缺失与复查通过",
+    "身份与数据边界": "身份描述缺失（identity_missing）、协议不符（identity_mismatch）、title 外置模板缺失（template_missing）分别明确失败且不复制任何提示；common 身份不受 title 身份缺失影响，不默认采用另一插件数据",
+    "协议与注入": "URI 只接受 suian-zcode-common://fix 与 suian-zcode-title://fix（查询串/路径/其他协议/未知动作全部拒绝）；VBS 层以已知常量精确比对后再拼接命令行，运行参数不存在自由拼接输入；自动测试全部注入通知、注册表、剪贴板、打开工作区与命令调用（进程内拦截计数为零 + 子进程 --import 拦截），不激活真实协议不打开 ZCode",
+    "卸载边界": "removeToastAssets 只删自身协议键、快捷方式、vbs、AppID 缓存与外置身份，保留共享执行器/启动器/另一身份；title 卸载补外置模板清理；网关运行目录不触碰",
+    "安装检查": "checkToastRuntime 报告部署（executor/launcher/活动记录）、各身份登记、外置模板存在性与 reg.exe 实际协议命令目标；仅 AppID 缓存存在而部署缺失时判定不健康；title install --check-only 输出该报告",
+    "真实文件入口": "launch.vbs、转发 vbs、身份描述、外置模板均为真实临时文件；执行器以子进程公开入口运行（退出码/stdout JSON/身份 dataDir 日志 jsonl 均断言）"
+  },
+  "integration": {
+    "merge": "bbb395e 合并 feat/shared-runtime-release(8fce407) 得 a1e322d，无文件冲突；PKG-05 的 active-toast.json 探针与本票活动记录路径已对齐（tools/suian-zcode-common/active-toast.json），网关与 Toast 活动记录为两个独立文件互不触碰",
+    "postMerge": "合并后 common 220/220、title 95/95 复跑通过"
+  },
+  "incidentalNotes": [
+    "app-mcp 在 merge 后需重装依赖（PKG-03 新增 esbuild devDependency），已 npm ci 并重建 suian-zcode-common junction",
+    "app-mcp 两个工具描述断言与 editor ui-resource 断言为基线既有失败，已用 git stash 在纯基线复现确认与本票无关，未在本票修改（分属 PKG-03/PKG-04 范围）"
+  ],
+  "notCovered": "真实按钮点击、剪贴板实机写入与官方确认框属 PKG-09 人工验收；真实注册表协议键、开始菜单快捷方式与 wscript 双层 VBS 转发链未在自动测试中激活；版本与市场清单未动（随正式集成统一定版）"
+}

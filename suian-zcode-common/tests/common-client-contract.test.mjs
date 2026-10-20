@@ -19,7 +19,7 @@ const RUNTIME_EXPORTS = [
   'v4ConversationRowsRangeResultSchema', 'PROTOCOL_V4_LIMITS', 'measureTopicNotificationEnvelopeBytes',
   'encodeTopicWireFrames',
 ];
-const INSTALL_EXPORTS = ['checkRuntime', 'fileShell', 'buildVbsContent', 'buildProtocolCommand', 'ensureToastAppId', 'installToastAssets', 'removeToastAssets'];
+const INSTALL_EXPORTS = ['checkRuntime', 'fileShell', 'buildVbsContent', 'buildProtocolCommand', 'ensureToastAppId', 'installToastAssets', 'removeToastAssets', 'toastRootFor', 'deployToastRuntime', 'registerToastIdentity', 'removeToastIdentity', 'checkToastRuntime'];
 
 let stagingPromise;
 function staging() {

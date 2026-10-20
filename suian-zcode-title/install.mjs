@@ -6,7 +6,7 @@ import {homedir} from "node:os";
 import {pathToFileURL} from "node:url";
 import {parseArgs} from "node:util";
 import {resolvePluginLayout} from "./release-layout.mjs";
-import {installPlugin,removeStopHook,removeSkill,removeToastAssets,PROTOCOL} from "./installer.mjs";
+import {installPlugin,removeStopHook,removeSkill,removeToastAssets,removeToastTemplate,defaultShell,PROTOCOL} from "./installer.mjs";
 
 export * from "./installer.mjs";
 
@@ -23,9 +23,12 @@ if(isMain) {
   const run=remove
     ?async()=>{
       const hook=values["native-plugin"]?{action:"plugin_managed"}:await removeStopHook({pluginRoot,entrySubdir:layout.entrySubdir,configFile});
-      const toast=await removeToastAssets({dataDir});
+      // 卸载只清理归属匹配的自有资产：协议键、快捷方式、vbs、AppID 缓存与外置身份/模板；
+      // 共享 Toast 运行目录、common 身份与网关不受影响。
+      await removeToastAssets({dataDir,homeDir:homedir()});
+      await removeToastTemplate({dataDir,shell:defaultShell});
       const skill=values["native-plugin"]?{action:"plugin_managed"}:await removeSkill({skillFile:join(homedir(),".zcode","skills",PROTOCOL,"SKILL.md")});
-      return{ok:true,actions:{hook:hook.action,toast:"removed",skill:skill.action}};
+      return{ok:true,actions:{hook:hook.action,toast:"removed",template:"removed",skill:skill.action}};
     }
     :()=>installPlugin({pluginRoot,entrySubdir:layout.entrySubdir,dataDir,configPath:values.config?resolve(values.config):undefined,checkOnly:values["check-only"],nativePlugin:values["native-plugin"],legacyRoot:values["legacy-root"]?resolve(values["legacy-root"]):undefined,commonRoot:values["common-root"]?resolve(values["common-root"]):undefined,installedPlugins:values["installed-plugins"]?resolve(values["installed-plugins"]):undefined});
   run()

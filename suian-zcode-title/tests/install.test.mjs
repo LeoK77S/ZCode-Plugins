@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import {installToastAssets,removeToastAssets,ensureToastAppId,installStopHook,removeStopHook,buildHookCommand,installSkill,removeSkill,installPlugin,AUMID,PROTOCOL} from "../installer.mjs";
+import {installToastAssets,removeToastAssets,ensureToastAppId,installStopHook,removeStopHook,buildHookCommand,installSkill,removeSkill,installPlugin,deployToastTemplate,removeToastTemplate,AUMID,PROTOCOL,TOAST_TEMPLATE_FILE} from "../installer.mjs";
 
 import {buildVbsContent,buildProtocolCommand} from "../../suian-zcode-common/notification-install.mjs";
 import {mkdtemp,writeFile,stat,rm} from "node:fs/promises";
@@ -11,39 +11,45 @@ import {execFile} from "node:child_process";
 import {promisify} from "node:util";
 
 const makeShell=()=>{
-  const state={files:new Map(),reg:[],ps:[],removed:[]};
+  const state={files:new Map(),reg:[],ps:[],removed:[],runs:[]};
   return {
     mkdir:async()=>{},
     state,
-    run:async(cmd,args)=>{state.reg.push({cmd,args});return"";},
+    run:async(cmd,args)=>{state.runs.push({cmd,args});if(args[0]==="add")state.reg.push({cmd,args});return"";},
     ps:async script=>{state.ps.push(script);},
     writeText:async(path,text)=>{state.files.set(path,text);},
     readText:async path=>{if(!state.files.has(path))throw Object.assign(new Error("ENOENT"),{code:"ENOENT"});return state.files.get(path);},
-    remove:async path=>{state.removed.push(path);state.files.delete(path);}
+    remove:async path=>{state.removed.push(path);state.files.delete(path);},
+    rename:async(from,to)=>{if(!state.files.has(from))throw Object.assign(new Error("ENOENT"),{code:"ENOENT"});state.files.set(to,state.files.get(from));state.files.delete(from);},
+    stat:async path=>state.files.has(path)?{isFile:true}:null
   };
 };
-test("vbs 桥与协议命令行按路径参数生成",()=>{
-  const vbs=buildVbsContent({nodeExe:"C:\\Program Files\\nodejs\\node.exe",toastActionPath:"D:\\t\\toast-action.mjs",dataDir:"D:\\t\\.local"});
-  assert.ok(vbs.includes("C:\\Program Files\\nodejs\\node.exe"));
-  assert.ok(vbs.includes("D:\\t\\toast-action.mjs"));
-  assert.ok(vbs.includes("D:\\t\\.local"));
+test("vbs 桥与协议命令行：调用方 vbs 只转发到稳定启动器，只放行本协议 fix",()=>{
+  const toastRoot=join("H:\\toast-home",".zcode","tools","suian-zcode-common","toast");
+  const vbs=buildVbsContent({protocol:PROTOCOL,launcherPath:join(toastRoot,"launch.vbs")});
+  assert.ok(vbs.includes(join(toastRoot,"launch.vbs")),"必须引用缓存外稳定启动器");
+  assert.ok(vbs.includes(`If uri <> "${PROTOCOL}://fix" Then WScript.Quit 1`),"URI 采用精确白名单比对，运行参数不进入自由拼接");
   assert.ok(vbs.includes("WScript.Arguments(0)"),"%1 传入的 URI 必须转发");
   assert.ok(vbs.includes(", 0, False"),"必须以隐藏窗口运行");
+  assert.ok(!vbs.includes("toast-action.mjs"),"不得引用版本缓存内的命令入口");
+  assert.ok(!vbs.includes("node.exe"),"转发桥不直接引用 Node 路径");
   assert.equal(buildProtocolCommand({vbsPath:"D:\\t\\.local\\toast-launch.vbs"}),'wscript.exe "D:\\t\\.local\\toast-launch.vbs" "%1"');
 });
 test("安装幂等：重复安装不重写一致的 vbs，AUMID 固定自建",async()=>{
   const shell=makeShell();
-  const options={pluginRoot:"D:\\t",dataDir:"D:\\t\\.local",nodeExe:"C:\\node.exe",shell};
+  const options={dataDir:"D:\\t\\.local",protocol:PROTOCOL,appId:AUMID,shortcutName:"ZCode 自动命名插件.lnk",description:"ZCode Stop 自动命名",homeDir:"H:\\toast-home",nodeExe:"C:\\node.exe",shell};
   const first=await installToastAssets(options);
   assert.equal(first.actions.vbs,"written");
   assert.equal(first.appId,AUMID);
   assert.ok(shell.state.ps[0].includes(AUMID),"快捷方式脚本必须设置自建 AUMID");
   assert.ok(shell.state.ps[0].includes("Start Menu"),"快捷方式必须落在开始菜单");
   assert.ok(shell.state.ps[0].includes("SHGetPropertyStoreFromParsingName"),"通过属性存储写入 AUMID");
+  assert.ok(!shell.state.ps[0].includes("D:\\plugins"),"快捷方式工作目录不得指向版本缓存");
   const second=await installToastAssets(options);
   assert.equal(second.actions.vbs,"unchanged","内容一致时不得重写");
   assert.equal(second.appId,AUMID);
   assert.equal(shell.state.reg.length,6,"两次安装共 3 条注册表键 × 2 次");
+  assert.equal(shell.state.runs.filter(run=>run.args[0]==="--check").length,1,"共享执行器只校验部署一次");
 });
 test("ensureToastAppId 恒定返回自建 AUMID 并落盘缓存",async()=>{
   const shell=makeShell();
@@ -84,10 +90,10 @@ test("Stop Hook 安装幂等且保留他人条目，卸载只删自己的",async
 });
 test("卸载移除协议键、vbs、AUMID 缓存与开始菜单快捷方式",async()=>{
   const shell=makeShell();
-  await removeToastAssets({dataDir:"D:\\t\\.local",shell});
+  await removeToastAssets({dataDir:"D:\\t\\.local",protocol:PROTOCOL,shortcutName:"ZCode 自动命名插件.lnk",homeDir:"H:\\toast-home",shell});
   assert.ok(shell.state.removed.includes("D:\\t\\.local\\toast-launch.vbs"));
   assert.ok(shell.state.removed.includes("D:\\t\\.local\\toast-appid.txt"));
-  assert.ok(shell.state.reg.some(r=>r.args[1]===`HKCU\\Software\\Classes\\${PROTOCOL}`&&r.args[0]==="delete"),"必须删除自有协议键");
+  assert.ok(shell.state.runs.some(r=>r.args[1]===`HKCU\\Software\\Classes\\${PROTOCOL}`&&r.args[0]==="delete"),"必须删除自有协议键");
   assert.ok(shell.state.ps.some(s=>s.includes("Remove-Item")),"必须删除开始菜单快捷方式");
 });
 test("技能副本由安装器部署：注入本机插件根，幂等，卸载清理",async()=>{
@@ -120,6 +126,7 @@ test('原生初始化只安装通知资产和外置配置，不重复写全局 H
   assert.equal(config.enabled,false,'首次初始化必须等待用户选择模型');
   assert.equal(config.registration,'native');
   assert.equal(config.dataDir,dataDir);
+  assert.ok(shell.state.files.has(join(dataDir,TOAST_TEMPLATE_FILE)),'Toast 提示词模板必须外置部署到数据目录');
   await installPlugin({pluginRoot,dataDir,configPath,nativePlugin:true,shell});
   assert.equal(JSON.parse(shell.state.files.get(configPath)).enabled,false,'重复安装不能解除首次配置的暂停状态');
 });
@@ -180,7 +187,20 @@ test('原生通知安装沿用外置配置的自定义状态目录', async () =>
   await installPlugin({pluginRoot,dataDir:'D:\\native-data\\state',configPath,nativePlugin:true,shell});
   assert.equal(JSON.parse(shell.state.files.get(configPath)).dataDir,'custom-state');
   assert.ok(shell.state.files.has(join(resolve('D:\\native-data','custom-state'),'toast-launch.vbs')));
+  assert.ok(shell.state.files.has(join(resolve('D:\\native-data','custom-state'),TOAST_TEMPLATE_FILE)),'模板与 vbs 同落在自定义状态目录');
   assert.equal(shell.state.files.has('D:\\native-data\\state\\toast-launch.vbs'),false);
+});
+
+test('模板部署幂等且内容保留占位，卸载移除外置模板',async()=>{
+  const shell=makeShell();
+  const dataDir='D:\\t\\.local';
+  const first=await deployToastTemplate({dataDir,shell});
+  assert.equal(first.action,'written');
+  const deployed=shell.state.files.get(join(dataDir,TOAST_TEMPLATE_FILE));
+  assert.ok(deployed.includes('{{plugin_root}}'),'外置模板保留占位，点击时才解析当前根');
+  assert.equal((await deployToastTemplate({dataDir,shell})).action,'unchanged');
+  await removeToastTemplate({dataDir,shell});
+  assert.ok(shell.state.removed.includes(join(dataDir,TOAST_TEMPLATE_FILE)));
 });
 
 test("CLI 缺少 sqlite3 时先报依赖错误，不安装通知资产或 Hook",async t=>{

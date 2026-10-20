@@ -3,9 +3,10 @@
 // 命令入口模块（cli.mjs、install.mjs、hook.mjs、toast-action.mjs）之间禁止互相导入——
 // esbuild 内联会把入口的 ESM 主模块判定复制进其他 bundle，导致一个进程执行两份主逻辑。
 // 本模块不包含任何主模块判定，可安全内联。
-import {join,dirname,resolve} from "node:path";
-import {homedir} from "node:os";
-import {commonInstaller,commonAnchorOptions,registryPathFromDataPath} from "./common-access.mjs";
+import { join, dirname, resolve } from "node:path";
+import { homedir } from "node:os";
+import { commonInstaller, commonAnchorOptions, registryPathFromDataPath } from "./common-access.mjs";
+import { deployToastTemplate, removeToastTemplate, TOAST_TEMPLATE_FILE } from "./toast.mjs";
 
 export const PROTOCOL="suian-zcode-title";
 export const AUMID="SUIAN.SuianZcodeTitle.Toast";
@@ -16,11 +17,12 @@ const SHORTCUT_NAME="ZCode 自动命名插件.lnk";
 const lazyFileShell=new Proxy({},{get(_target,method){return async (...args)=>{const {fileShell}=await commonInstaller();return fileShell[method](...args);};}});
 export const defaultShell=lazyFileShell;
 
-const notificationIdentity={protocol:PROTOCOL,appId:AUMID,shortcutName:SHORTCUT_NAME,description:"ZCode Stop 自动命名（suian-zcode-title）"};
-// 公共安装期入口（checkRuntime、通知资产）经客户端契约按需加载。
+const notificationIdentity={protocol:PROTOCOL,appId:AUMID,shortcutName:SHORTCUT_NAME,description:"ZCode Stop 自动命名（suian-zcode-title）",templateFile:TOAST_TEMPLATE_FILE};
+// 公共安装期入口（checkRuntime、Toast 资产与稳定运行时）经客户端契约按需加载。
 export const installToastAssets=async options=>{const {installToastAssets:install}=await commonInstaller();return install({...options,...notificationIdentity});};
-export const removeToastAssets=async options=>{const {removeToastAssets:remove}=await commonInstaller();return remove({...options,...notificationIdentity});};
+export const removeToastAssets=async options=>{const {removeToastAssets:remove}=await commonInstaller();return remove({...options,protocol:PROTOCOL,shortcutName:SHORTCUT_NAME});};
 export const ensureToastAppId=async options=>{const {ensureToastAppId:ensure}=await commonInstaller();return ensure({...options,appId:AUMID});};
+export {deployToastTemplate, removeToastTemplate, TOAST_TEMPLATE_FILE};
 
 // 技能副本部署：模板中的锚点注释替换为本机插件根绝对路径，
 // 让 Agent 从技能文档直接定位执行程序，不必依赖克隆位置约定
@@ -88,7 +90,7 @@ export async function removeStopHook({pluginRoot,entrySubdir="",configFile,shell
   return{action:"removed"};
 }
 
-export async function installPlugin({pluginRoot,entrySubdir="",dataDir,configPath,checkOnly=false,nativePlugin=false,legacyRoot,shell=defaultShell,commonRoot,installedPlugins}) {
+export async function installPlugin({pluginRoot,entrySubdir="",dataDir,configPath,checkOnly=false,nativePlugin=false,legacyRoot,shell=defaultShell,commonRoot,installedPlugins,homeDir=homedir()}) {
   const activeConfigPath=configPath??(nativePlugin?join(dirname(dataDir),"config.json"):join(pluginRoot,"config.local.json"));
   let config=nativePlugin?{enabled:false}:{};
   try {config=JSON.parse(await shell.readText(activeConfigPath));}
@@ -97,7 +99,12 @@ export async function installPlugin({pluginRoot,entrySubdir="",dataDir,configPat
   const anchor=commonAnchorOptions({commonRoot,installedPlugins,config});
   const {checkRuntime}=await commonInstaller(anchor);
   const dependencies=await checkRuntime({sqliteBin:config.sqliteBin??process.env.SQLITE_BIN??"sqlite3",run:shell.run});
-  if(checkOnly)return{ok:true,action:"checked",dependencies};
+  if(checkOnly) {
+    // 安装检查报告 Toast 稳定部署、外置模板与实际协议目标，不凭 AppID 缓存判定健康。
+    const {checkToastRuntime}=await commonInstaller(anchor);
+    const toast=await checkToastRuntime({homeDir,protocols:[PROTOCOL],shell});
+    return{ok:true,action:"checked",dependencies,toast};
+  }
   if(nativePlugin) {
     config={...config,registration:"native",dataDir:config.dataDir??dataDir};
     // 把可用的安装记录路径写进外置配置，供无宿主注入的后续 CLI 定位 common（不硬编码 common 安装位置）。
@@ -108,15 +115,17 @@ export async function installPlugin({pluginRoot,entrySubdir="",dataDir,configPat
   }
   const toastDataDir=nativePlugin?resolve(dirname(activeConfigPath),process.env.OIL_ZCODE_TITLE_DATA??config.dataDir):dataDir;
   // Toast 桥与快捷方式落在命令入口目录：发布模式下 bundle 位于发布根的 dist/。
-  const toast=await installToastAssets({pluginRoot:entrySubdir?join(pluginRoot,entrySubdir):pluginRoot,dataDir:toastDataDir,shell});
+  const toast=await installToastAssets({dataDir:toastDataDir,shell,homeDir});
+  // 排障提示词模板部署到 title 外置数据目录：公共执行器点击时读取，不依赖版本缓存。
+  const template=await deployToastTemplate({dataDir:toastDataDir,shell});
   const configFile=join(homedir(),".zcode","cli","config.json"),skillFile=join(homedir(),".zcode","skills",PROTOCOL,"SKILL.md");
   if(nativePlugin&&legacyRoot) {
     await removeStopHook({pluginRoot:legacyRoot,configFile,shell});
     let previous;
-    try {previous=await shell.readText(skillFile);}catch(error){if(error.code!=="ENOENT")throw error;}
+    try {previous=await shell.readText(skillFile);}catch(error) {if(error.code!=="ENOENT")throw error;}
     if(previous?.includes(`**本机插件根**：\`${legacyRoot}\``))await removeSkill({skillFile,shell});
   }
   const hook=nativePlugin?{action:"plugin_managed"}:await installStopHook({pluginRoot,entrySubdir,configFile,shell});
   const skill=nativePlugin?{action:"plugin_managed"}:await installSkill({pluginRoot,skillFile,shell});
-  return{ok:true,appId:toast.appId,dependencies,actions:{...toast.actions,hook:hook.action,skill:skill.action}};
+  return{ok:true,appId:toast.appId,dependencies,actions:{...toast.actions,template:template.action,hook:hook.action,skill:skill.action}};
 }
