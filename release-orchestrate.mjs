@@ -24,7 +24,10 @@ const sortedObject = value => Object.fromEntries(Object.entries(value).sort(([le
 
 export const PLUGIN_ORDER = ['suian-zcode-common', 'suian-zcode-title', 'suian-zcode-app-mcp', 'suian-side-editor'];
 const INPUT_SUFFIXES = ['.mjs', '.cjs', '.js', '.json', '.ps1', '.vbs', '.md', '.html', '.css'];
-const EXCLUDED_SEGMENTS = new Set(['node_modules', '.scratch', 'tests', 'docs', 'experiments', '.git', '.zcode-plugin']);
+const INPUT_NAMES = new Set(['LICENSE']); // 无后缀必备打包输入，不能逃出复用/漂移判定
+// .zcode-plugin/plugin.json 与 LICENSE 是四包 build-release 的实际组装输入（verify 列为必备、
+// 版本三方一致基准），排除它们会让纯版本 bump 以 exit 0 复用陈旧 ZIP。
+const EXCLUDED_SEGMENTS = new Set(['node_modules', '.scratch', 'tests', 'docs', 'experiments', '.git']);
 export const RECORD_NAME = 'release-record.json';
 export const CANDIDATE_NAME = 'marketplace.candidate.json';
 
@@ -41,7 +44,7 @@ async function scanSourceInputs(dir, base = dir) {
     if (EXCLUDED_SEGMENTS.has(entry.name)) continue;
     const path = join(dir, entry.name);
     if (entry.isDirectory()) Object.assign(inputs, await scanSourceInputs(path, base));
-    else if (entry.isFile() && INPUT_SUFFIXES.some(suffix => entry.name.endsWith(suffix))) {
+    else if (entry.isFile() && (INPUT_SUFFIXES.some(suffix => entry.name.endsWith(suffix)) || INPUT_NAMES.has(entry.name))) {
       inputs[toPosix(relative(base, path))] = sha256(await readFile(path));
     }
   }
@@ -237,7 +240,11 @@ export async function buildReleaseArtifacts({
 export async function gateCommitInputs({ repoRoot, record, outDir, commit }) {
   const problems = [];
   const drifted = [];
-  if (commit && record.commit !== commit) problems.push({ code: 'commit_mismatch', expected: record.commit, actual: commit });
+  // 规格 9.2：提交身份变化不阻止复用（构建后又提交属正常）；commit 仅供人工核对，
+  // 真正的门禁是下面的源输入摘要与 ZIP 摘要。
+  const commitNote = commit && record.commit !== commit
+    ? { record: record.commit, head: commit }
+    : null;
   for (const [plugin, pluginRecord] of Object.entries(record.plugins ?? {})) {
     const current = await scanSourceInputs(join(resolve(repoRoot), plugin));
     const recorded = record.sourceInputs?.[plugin] ?? {};
@@ -254,7 +261,7 @@ export async function gateCommitInputs({ repoRoot, record, outDir, commit }) {
       problems.push({ code: 'zip_missing', plugin });
     }
   }
-  return { ok: problems.length === 0 && drifted.length === 0, drifted, problems };
+  return { ok: problems.length === 0 && drifted.length === 0, drifted, problems, commitNote };
 }
 
 export { scanSourceInputs };
@@ -288,7 +295,7 @@ export async function main(argv = process.argv.slice(2)) {
 
   if (command === 'gate') {
     const record = JSON.parse(await readFile(join(outDir, RECORD_NAME), 'utf8'));
-    const result = await gateCommitInputs({ repoRoot, record, outDir });
+    const result = await gateCommitInputs({ repoRoot, record, outDir, commit: await resolveDefaultCommit(repoRoot) });
     console.log(JSON.stringify({ ...result, recordCommit: record.commit }, null, 2));
     process.exitCode = result.ok ? 0 : 1;
     return;

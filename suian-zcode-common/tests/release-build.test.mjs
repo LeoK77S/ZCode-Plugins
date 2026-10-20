@@ -32,6 +32,18 @@ test('发布目录组装：客户端产物、许可与元数据齐备且无 node
   assert.ok(!entries.some(entry => entry.name === 'node_modules'), '发布目录不得携带 node_modules');
 });
 
+test('重复构建清空输出目录：陈旧文件不残留、不计入 release.json 清单', async t => {
+  const out = await mkdtemp(join(tmpdir(), 'pkg01-clean-'));
+  t.after(() => rm(out, { recursive: true, force: true }));
+  const releaseDir = join(out, 'release');
+  await mkdir(join(releaseDir, 'stale-dir'), { recursive: true });
+  await writeFile(join(releaseDir, 'stale-file.txt'), 'old');
+  const { release } = await buildRelease({ root: commonRoot, outDir: releaseDir });
+  const names = await readdir(releaseDir);
+  assert.ok(!names.includes('stale-file.txt') && !names.includes('stale-dir'), '陈旧文件必须被清空');
+  assert.ok(!release.files.some(file => file.path.startsWith('stale')), '陈旧文件不得进入 release.json 清单');
+});
+
 test('自包含：产物在无 node_modules 的独立目录可直接导入且导出完整', async t => {
   const { out, releaseDir } = await buildTo(commonRoot, 'pkg01-self-');
   t.after(() => rm(out, { recursive: true, force: true }));

@@ -9,7 +9,7 @@ import { deflateRawSync, inflateRawSync, crc32 } from 'node:zlib';
 import { mkdir, readFile, readdir, rm, writeFile } from 'node:fs/promises';
 import { dirname, join, relative, resolve, sep } from 'node:path';
 
-export const ZIP_EPOCH_DOS_DATE = 0x5c41; // 2026-01-01（(2026-1980)<<9 | 1<<5 | 1）
+export const ZIP_EPOCH_DOS_DATE = 0x5c21; // 2026-01-01（(2026-1980)<<9 | 1<<5 | 1）
 export const ZIP_EPOCH_DOS_TIME = 0x0000; // 00:00:00
 
 const LOCAL_HEADER_SIG = 0x04034b50;

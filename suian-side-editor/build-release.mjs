@@ -7,7 +7,7 @@ import { build, version as esbuildVersion } from 'esbuild';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { createHash } from 'node:crypto';
-import { cp, mkdir, readFile, readdir, writeFile } from 'node:fs/promises';
+import { cp, mkdir, readFile, readdir, rm, writeFile } from 'node:fs/promises';
 import { dirname, join, relative, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { parseArgs } from 'node:util';
@@ -74,6 +74,10 @@ export async function buildEditorRelease({ root = defaultRoot, outDir, skipUiBui
   // 唯一 UI 构建入口产出实际页面；本脚本不手改生成 HTML。
   if (!skipUiBuild) await run(process.execPath, ['build-ui.mjs'], { cwd: root, windowsHide: true });
 
+  // 构建前清空输出目录：残留旧文件会进入 release.json 清单与 buildId，重复构建必须幂等。
+  const staleEntries = await readdir(outDir, { withFileTypes: true }).catch(() => []);
+  if (staleEntries.some(entry => entry.name === '.git')) throw new Error('输出目录包含 .git，疑似误传仓库路径，拒绝清空');
+  if (staleEntries.length > 0) await rm(outDir, { recursive: true, force: true });
   await mkdir(outDir, { recursive: true });
   const result = await build({
     absWorkingDir: root,

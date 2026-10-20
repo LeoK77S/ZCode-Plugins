@@ -206,6 +206,26 @@ test('门禁：输入未漂移时绑定提交通过；源文件被改后报告�
   assert.deepEqual(dirty.drifted.map(item => item.plugin), ['suian-zcode-app-mcp']);
 });
 
+test('门禁：仅修改 .zcode-plugin/plugin.json（纯版本 bump）也必须报告漂移，不得复用陈旧 ZIP', async t => {
+  const world = await makeWorld();
+  const outDir = await mkdtemp(join(tmpdir(), 'pkg07-gate-bump-'));
+  t.after(() => rm(world.root, { recursive: true, force: true }));
+  t.after(() => rm(outDir, { recursive: true, force: true }));
+  const options = {
+    repoRoot: world.root, outDir, builders: world.builders, resolveCommit: world.resolveCommit,
+    marketplace: world.marketplace, releaseTag: 'plugins-1.0.0', baseUrl: 'https://github.com/o/r/releases/download',
+  };
+  const built = await buildReleaseArtifacts(options);
+  const clean = await gateCommitInputs({ repoRoot: world.root, record: built.record, outDir });
+  assert.equal(clean.ok, true, JSON.stringify(clean.drifted));
+  const manifestDir = join(world.root, 'suian-zcode-title', '.zcode-plugin');
+  await mkdir(manifestDir, { recursive: true });
+  await writeFile(join(manifestDir, 'plugin.json'), '{"name":"suian-zcode-title","version":"0.1.6"}\n');
+  const dirty = await gateCommitInputs({ repoRoot: world.root, record: built.record, outDir });
+  assert.equal(dirty.ok, false, 'plugin.json 是实际组装输入，纯版本变化必须触发重建');
+  assert.ok(dirty.drifted.some(item => item.path === '.zcode-plugin/plugin.json' && item.plugin === 'suian-zcode-title'));
+});
+
 test('版本统一检查：合成树与市场版本不一致只报告，不修改文件', async t => {
   const world = await makeWorld();
   const outDir = await mkdtemp(join(tmpdir(), 'pkg07-vcheck-'));

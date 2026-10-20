@@ -5,8 +5,11 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
+import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 
-import { runReleasePipeline, PIPELINE_STAGES } from '../release-github.mjs';
+import { runReleasePipeline, PIPELINE_STAGES, createGithubRestApi } from '../release-github.mjs';
 
 const shaOf = char => char.repeat(64);
 const contentSha = content => createHash('sha256').update(content).digest('hex');
@@ -203,4 +206,22 @@ test('市场就绪：发布完成后核对候选条目 URL/摘要与资产一致
 
 test('阶段常量暴露完整顺序，供编排器与文档引用', () => {
   assert.deepEqual(PIPELINE_STAGES, ['draft', 'upload', 'verify-download', 'publish', 'market-ready']);
+});
+
+test('真实 REST 适配器：uploadAsset 从 zipPath 读盘上传，缺载荷拒绝而非静默空资产', async t => {
+  const outDir = await mkdtemp(join(tmpdir(), 'pkg07-gh-real-'));
+  t.after(() => rm(outDir, { recursive: true, force: true }));
+  const zipPath = join(outDir, 'p.zip');
+  const content = Buffer.from('zip-bytes');
+  await writeFile(zipPath, content);
+  const seen = [];
+  const api = createGithubRestApi({
+    owner: 'o', repo: 'r', token: 't',
+    fetchImpl: async (url, init = {}) => { seen.push({ url, body: init.body }); return { ok: true, status: 201, json: async () => ({ id: 1 }) }; },
+  });
+  await api.uploadAsset({ id: 9 }, { name: 'p.zip', zipPath });
+  assert.equal(seen.length, 1);
+  assert.ok(seen[0].url.includes('/releases/9/assets?name=p.zip'));
+  assert.ok(Buffer.compare(seen[0].body, content) === 0, '上传体必须来自 zipPath 读盘，不得是空 Buffer');
+  await assert.rejects(() => api.uploadAsset({ id: 9 }, { name: 'p.zip' }), /readBytes\/bytes\/zipPath/);
 });

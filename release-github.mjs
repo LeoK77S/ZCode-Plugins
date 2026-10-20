@@ -4,6 +4,7 @@
 // 顺序强制（规格 9.3）：草稿资产齐全 -> 匿名公开下载核验 -> 公开（先预发布）->
 // 市场就绪报告；未完成下载核验不得公开，市场切换须另行授权。已发布资产不删除重传；
 // 上传结果未知时先读取远端现状再续作，不盲重传；不能覆盖现有未知内容。
+import { readFile } from 'node:fs/promises';
 import { validateMarketplaceEntry } from './release-marketplace.mjs';
 
 export const PIPELINE_STAGES = ['draft', 'upload', 'verify-download', 'publish', 'market-ready'];
@@ -157,12 +158,15 @@ export function createGithubRestApi({ owner, repo, token, fetchImpl = fetch }) {
       if (typeof asset.digest === 'string' && asset.digest.startsWith('sha256:')) return asset.digest.slice('sha256:'.length);
       return null; // 无摘要视为未知内容，交由编排器拒绝覆盖
     },
-    async uploadAsset(release, { name, readBytes }) {
-      const bytes = readBytes ?? Buffer.alloc(0);
+    async uploadAsset(release, { name, readBytes, bytes, zipPath }) {
+      // 载荷契约：编排器传 zipPath（从发布记录读盘），测试注入 readBytes/bytes；
+      // 三者皆缺是调用方错误，静默上传空资产比报错更危险。
+      const body = readBytes ?? bytes ?? (zipPath ? await readFile(zipPath) : null);
+      if (body == null) throw new Error(`uploadAsset(${name}) 需要 readBytes/bytes/zipPath 之一`);
       return request(`https://uploads.github.com/repos/${owner}/${repo}/releases/${release.id}/assets?name=${encodeURIComponent(name)}`, {
         method: 'POST',
         headers: { 'content-type': 'application/zip' },
-        body: bytes,
+        body,
       });
     },
     async updateRelease(release, patch) {

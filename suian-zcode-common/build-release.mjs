@@ -2,7 +2,7 @@
 // 构建输入记录与 release.json 都只描述实际进入发布目录的文件；文件清单不含 release.json 自身。
 import { build, version as esbuildVersion } from 'esbuild';
 import { createHash } from 'node:crypto';
-import { cp, mkdir, readFile, readdir, writeFile } from 'node:fs/promises';
+import { cp, mkdir, readFile, readdir, rm, writeFile } from 'node:fs/promises';
 import { dirname, join, relative, resolve, sep } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { parseArgs } from 'node:util';
@@ -48,6 +48,10 @@ export async function buildRelease({ root = defaultRoot, outDir } = {}) {
   if (!outDir) throw new Error('缺少 --out <dir>');
   root = resolve(root);
   outDir = resolve(outDir);
+  // 构建前清空输出目录：残留旧文件会进入 release.json 清单与 buildId，重复构建必须幂等。
+  const staleEntries = await readdir(outDir, { withFileTypes: true }).catch(() => []);
+  if (staleEntries.some(entry => entry.name === '.git')) throw new Error('输出目录包含 .git，疑似误传仓库路径，拒绝清空');
+  if (staleEntries.length > 0) await rm(outDir, { recursive: true, force: true });
   const distDir = join(outDir, 'dist');
   await mkdir(distDir, { recursive: true });
 

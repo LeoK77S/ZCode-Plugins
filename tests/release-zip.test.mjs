@@ -51,6 +51,10 @@ test('时间戳与排序固定：central directory 全部条目使用固定 DOS 
   for (const entry of entries) {
     assert.equal(entry.dosTime, ZIP_EPOCH_DOS_TIME, `${entry.path} 时间必须固定`);
     assert.equal(entry.dosDate, ZIP_EPOCH_DOS_DATE, `${entry.path} 日期必须固定`);
+    // DOS date 解码（year<<9|month<<5|day）防常量与注释再次漂移：0x5c41 曾被误标为 2026-01-01。
+    assert.equal(1980 + (entry.dosDate >> 9), 2026, `${entry.path} 年`);
+    assert.equal((entry.dosDate >> 5) & 0xf, 1, `${entry.path} 月`);
+    assert.equal(entry.dosDate & 0x1f, 1, `${entry.path} 日`);
   }
 });
 
