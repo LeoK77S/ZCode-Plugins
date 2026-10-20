@@ -24,7 +24,7 @@ const sha256 = async path => createHash('sha256').update(await readFile(path)).d
 test('发布目录组装：客户端产物、许可与元数据齐备且无 node_modules', async t => {
   const { out, releaseDir } = await buildTo(commonRoot, 'pkg01-build-');
   t.after(() => rm(out, { recursive: true, force: true }));
-  for (const file of ['dist/client.mjs', 'dist/client-install.mjs', 'release.json', 'toast-executor.mjs', 'LICENSE', 'vendor/LICENSE-ZCode', 'vendor/NOTICE-ZCode-current.md', 'vendor/LICENSE-zod', 'vendor/NOTICE.md', 'vendor/conversation-wire.sources.json', 'licenses/ws-LICENSE', '.zcode-plugin/plugin.json']) {
+  for (const file of ['dist/client.mjs', 'dist/client-install.mjs', 'release.json', 'toast-executor.mjs', 'LICENSE', 'vendor/LICENSE-ZCode', 'vendor/NOTICE-ZCode-current.md', 'vendor/LICENSE-zod', 'vendor/NOTICE.md', 'vendor/conversation-wire.sources.json', 'licenses/ws-LICENSE', '.zcode-plugin/plugin.json', 'skills/setup/SKILL.md', 'skills/configuration/SKILL.md', 'skills/debug/SKILL.md']) {
     await assert.doesNotReject(() => readFile(join(releaseDir, file)), `发布目录缺 ${file}`);
   }
   assert.equal((await readdir(join(releaseDir, 'dist'))).length, 2);

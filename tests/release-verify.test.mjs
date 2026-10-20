@@ -78,7 +78,7 @@ test('失败契约：公共代码重复内联——业务目录含 common 实现
   // 构造 common 发布目录（最小形状），再构造"内联了 common dist/client.mjs"的业务目录。
   const commonCommon = await stage({
     pluginName: 'suian-zcode-common', version: '0.4.2', packageName: 'suian-zcode-common',
-    omit: ['dist/cli.mjs', 'skills/setup/SKILL.md'],
+    omit: ['dist/cli.mjs'],
     files: {
       'dist/client.mjs': '// common client implementation\n',
       'dist/client-install.mjs': '// common client-install implementation\n',
@@ -109,7 +109,7 @@ test('失败契约：公共代码重复内联——业务目录含 common 实现
 test('公共内联白名单：薄定位器 locate.mjs 允许与 common 逐字节一致，不算内联', async t => {
   const commonCommon = await stage({
     pluginName: 'suian-zcode-common', version: '0.4.2', packageName: 'suian-zcode-common',
-    omit: ['dist/cli.mjs', 'skills/setup/SKILL.md'],
+    omit: ['dist/cli.mjs'],
     files: { 'dist/client.mjs': '// impl\n', 'locate.mjs': '// thin locator\n' },
     releaseOverrides: release => ({ ...release, entries: { client: 'dist/client.mjs' } }),
   });
@@ -119,6 +119,8 @@ test('公共内联白名单：薄定位器 locate.mjs 允许与 common 逐字节
     files: {
       'cli.mjs': '// cli\n', 'common-client.mjs': '// adapter\n', 'locate.mjs': '// thin locator\n',
       'ui/dist/editor.html': '<html></html>\n', '.mcp.json': '{}\n',
+      // 各包技能内容本不相同；fixture 默认值与 common 相同会被内联检测按逐字节副本正确拒绝。
+      'skills/setup/SKILL.md': '# editor setup skill\n',
     },
     releaseOverrides: release => ({ ...release, entries: { cli: 'cli.mjs' } }),
   });

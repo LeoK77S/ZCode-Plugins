@@ -37,6 +37,7 @@ async function buildFakeRelease(outDir, plugin, repoRoot) {
         'vendor/LICENSE-zod': `${plugin} zod MIT\n`, 'vendor/NOTICE.md': `${plugin} notice\n`,
         'vendor/conversation-wire.sources.json': `{"plugin":"${plugin}"}\n`,
         'licenses/ws-LICENSE': `${plugin} ws MIT\n`,
+        'skills/setup/SKILL.md': `# ${plugin} setup skill\n`,
       },
       entries: { client: 'dist/client.mjs', 'client-install': 'dist/client-install.mjs' },
     },

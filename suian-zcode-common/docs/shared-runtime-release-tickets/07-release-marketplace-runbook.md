@@ -71,7 +71,7 @@ node release-orchestrate.mjs marketplace --tag <tag> --base-url <base-url> --out
 
 ## 6. 已知边界与遗留
 
-- **common 发布目录不含 skills**：规格第 6 节期望 common ZIP 覆盖 skills；PKG-01 现实现未复制 skills 目录，且 skills 内容本身待 PKG-08 按"发布入口"改造。`release-verify.mjs` 的 common profile 暂不强制 skills，待 08 票改造后收紧。除此之外，其余必备资源（入口、vendor、许可、隐藏清单）均已强制。
+- **common 发布目录不含 skills**（已收紧，不再是遗留）：PKG-08 完成技能改造后，`suian-zcode-common/build-release.mjs` 已复制 `skills/` 进发布目录，`release-verify.mjs` 的 common profile 强制 `skills` 目录存在。
 - **正式公开下载与目标宿主验证**：由已授权的 PKG-09 执行；本票脚本全部通过不代表发行已完成。
 - **side-editor 的 `locate.mjs`**：与 common 单一源码逐字节一致（PKG-04 契约），内联检测白名单放行；title/app-mcp 不携带独立定位器（经 bundle 内薄适配）。
 

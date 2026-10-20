@@ -34,9 +34,7 @@ export const PLUGIN_PROFILES = {
       'vendor/NOTICE.md', 'vendor/conversation-wire.sources.json',
       'licenses/ws-LICENSE',
     ],
-    requiredDirs: [],
-    // 已知差异：规格第 6 节要求 common 发布包含 skills；PKG-01 现实现未复制 skills，
-    // 内容随 08 票 setup 同步改造，此处不擅自放宽也不额外要求（见发布 runbook 遗留问题）。
+    requiredDirs: ['skills'],
   },
   'suian-zcode-title': {
     requiredFiles: [
