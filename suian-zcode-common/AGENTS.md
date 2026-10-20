@@ -1,6 +1,6 @@
 # suian-zcode-common — 公共基础能力
 
-业务插件共用本目录的网关、远控协议、DPAPI、通知和消息投影。0.1.2 新增向后兼容的 Channel 监听入口与固定官方 V4 decoder；0.2.0 新增 Stop 依赖完整性钩子（depcheck）：按安装清单校验各 suian 插件缓存的 npm 依赖与公共包 junction，缺失时 Toast 提醒并提供复制修复提示词的按钮。公共层不导入任何插件，调用方保留业务规则、通知文案、协议身份与配置数据。
+业务插件共用本目录的网关、远控协议、DPAPI、通知和消息投影。0.1.2 新增向后兼容的 Channel 监听入口与固定官方 V4 decoder；0.2.0 新增 Stop 依赖完整性钩子（depcheck）。PKG-08 起 depcheck 按发布契约判定：release.json 逐文件完整性、发布身份与 common API 兼容，不再检查生产 node_modules 或 junction（旧源码缓存形态报 release_missing，指向原生重装/更新）；修复提示词引导原生重新安装或更新，不是 npm。公共层不导入任何插件，调用方保留业务规则、通知文案、协议身份与配置数据。
 
 ## 约定
 
@@ -33,7 +33,8 @@
 | gateway-deploy.mjs | 网关运行闭包部署（PKG-05）：deployments/<buildId> 真实副本与逐文件摘要、launchers 稳定启动器安装、active-gateway.json 原子切换（独立于 Toast 记录）、部署校验与 CLI（--deploy/--status/--activate 等） |
 | gateway-launcher.ps1 | 稳定启动器模板（复制到 launchers/run.ps1）：读活动网关记录启动部署目录的网关，等待子进程并传回退出码；缺失记录或部署时以退出码 3/4 明确失败 |
 | terminal-gateway.mjs / terminal-relay.mjs | 3.16 实验性独立终端网关、V2 token 建连、心跳及本机 RPC；授权提供方由调用方注入，未接入 Windows 安装流程 |
-| .zcode-plugin/plugin.json / link.mjs | 原生公共插件元信息、稳定公共入口和业务端 Node 包链接 |
+| .zcode-plugin/plugin.json | 原生公共插件元信息 |
+| link.mjs | 源码开发工具：稳定公共入口和业务端 Node 包链接；正式安装、技能与诊断不依赖它 |
 | skills/ | setup / configuration / debug，paths.md 统一位置与数据归属 |
 | rpc-broker.mjs | 单一 Host 桥、RPC 编号与 v4 握手身份映射、手机虚拟桥与本地客户端分流 |
 | gateway-client.mjs | 插件默认 connectHost/probeHost，本地配置与鉴权、RPC call／listen 附着、原事件参数与释放语义及明确失败 |
@@ -46,9 +47,11 @@
 | client.mjs / client-install.mjs | 公共客户端运行期与安装期入口（PKG-01）：再导出三消费者实际使用的公共 API，第一代 commonApiVersion 为 1；导入无副作用，安装期函数独立入口避免运行期携带安装器 |
 | locate.mjs | 薄定位器（单一源码，构建时分发到业务包）：按完整插件身份从安装记录定位 common，锚点优先级与失败分类见 docs/client-contract.md；进程内首次加载固定 common 根 |
 | build-release.mjs | 发布目录构建（PKG-01）：esbuild 多入口打包（ws 与 vendor 内联）、许可组装、release.json 与 buildId、发布目录外的构建输入记录；npm run build:release -- --out <dir> |
-| depcheck.mjs | suian 系列插件依赖完整性扫描：安装清单、npm 生产依赖与两级公共包链接判定 |
-| depcheck-hook.mjs / hooks/hooks.json | Stop 钩子入口与原生注册（async 不阻塞）；--scan-only 手动复查 |
-| depcheck-prompt.mjs | Toast 摘要与修复提示词模板（缺失清单、缓存根、setup 修复步骤） |
+| depcheck.mjs | suian 系列插件发布契约扫描（PKG-08）：release.json 逐文件摘要、身份、common API 兼容与最低版本；遗留 runtime 链接只报告状态不判损坏 |
+| depcheck-hook.mjs / hooks/hooks.json | Stop 钩子入口与原生注册（async 不阻塞）；--scan-only 手动复查（只读不落盘） |
+| depcheck-prompt.mjs | Toast 摘要与修复提示词模板（缺失清单、缓存根、原生重装/更新步骤） |
+| migration.mjs | PKG-08 迁移状态链：captureLegacyState 记录旧开关与路径（不含凭据），restoreLegacyState 只补缺失字段恢复开关；CLI --capture/--restore |
+| legacy-cleanup.mjs | PKG-08 旧链接清理：归属核对（runtime/业务端 junction 指向 common）后只删链接本身；--inspect 出计划、--apply 执行，真实目录与他人目标保留 |
 | toast-action.mjs | Toast 按钮协议入口：重扫后复制修复提示词并打开默认工作区 |
 | notification-action.mjs | 复制调用方提示词、打开固定默认工作区 |
 | notification-install.mjs | 按调用方身份安装/移除协议桥、快捷方式与 AUMID |
@@ -63,6 +66,8 @@
 | tests/gateway-rpc.test.mjs / tests/plugin-link.test.mjs | 真实回环call／listen客户端隔离和释放、市场版本一致及独立缓存公共升级契约 |
 | tests/gateway-deploy.test.mjs / tests/stable-launcher.test.mjs | PKG-05 部署契约（内容指纹、自包含回环、运行中健康不冒充磁盘新代码）与稳定启动器（旧任务参数依赖已删除缓存的红色证明、缓存删除后仍可启动、活动记录切换部署、中文空格路径） |
 | tests/terminal-gateway.test.mjs / tests/terminal-relay.test.mjs | 3.16 终端握手与心跳、单桥复用、Host 会话查询、KICKED 及回环访问控制 |
+| tests/depcheck.test.mjs / tests/depcheck-hook.test.mjs / tests/toast-executor.test.mjs | PKG-08 发布契约扫描：无 node_modules 发布产物不再误判（红色证明在案）、缺文件/错身份/API 不兼容检出、Hook 通知链与缓存外执行器快照对齐 |
+| tests/migration.test.mjs / tests/legacy-cleanup.test.mjs | PKG-08 迁移链：开关与路径记录（不含令牌）、恢复不覆盖自定义字段、端到端记录→清理→部署→恢复；链接清理归属核对、只删链接、真实目录与他人目标保留 |
 | experiments/ | 仅发合成 auth_init 的研究探针，不自动执行 |
 | package.json / package-lock.json | 固定 Node/ws 版本与测试入口 |
 | docs/ | [共享运行时与 Release 规格](docs/shared-runtime-release-spec.md)、[开票索引](docs/shared-runtime-release-tickets.md)及脱敏验证证据；历史与本次验证分开 |
