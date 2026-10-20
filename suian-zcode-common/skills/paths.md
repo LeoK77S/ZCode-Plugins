@@ -12,6 +12,6 @@
 
 depcheck（依赖完整性 Stop 钩子）的数据在宿主插件数据目录的 `state` 子目录（原生模式即 `~/.zcode/cli/plugins/data/suian-zcode-common@suian-zcode-plugins/state`；无宿主数据目录时回退 `~/.zcode/suian-zcode-common`）：`depcheck-last.json` 最近一次扫描结果、`hook.log.jsonl` / `toast-action-log.jsonl` 运行日志、`toast-launch.vbs` / `toast-appid.txt` / `toast-cooldown.json` / `toast.lock` 通知身份与冷却状态。诊断用 `SUIAN_DEPCHECK_HOME` 环境变量可覆盖扫描根，仅限测试与人工排查。
 
-共享 Toast 稳定运行时在 `~/.zcode/tools/suian-zcode-common/toast`（与网关运行目录分离）：`executor.mjs` 缓存外公共执行器（旧通知点击不依赖插件缓存）、`launch.vbs` 稳定启动器（URI 精确白名单）、`toast-active.json` 活动 Toast 记录、`identities/<protocol>.json` 各调用方外置身份描述（title 的排障提示词模板随身份外置在其数据目录）。协议激活链为：注册表命令 → 调用方数据目录 `toast-launch.vbs`（转发桥）→ 稳定启动器 → 公共执行器。执行器更新经安装流程暂存校验后切换活动记录，失败保留旧部署，不重启网关。
+共享 Toast 稳定运行时在 `~/.zcode/tools/suian-zcode-common`（与网关部署目录分离）：`toast/executor.mjs` 缓存外公共执行器（旧通知点击不依赖插件缓存）、`toast/launch.vbs` 稳定启动器（URI 精确白名单）、`active-toast.json` 活动 Toast 记录（共享运行根直下；网关移除以其为探针保留部署目录）、`toast/identities/<protocol>.json` 各调用方外置身份描述（title 的排障提示词模板随身份外置在其数据目录）。协议激活链为：注册表命令 → 调用方数据目录 `toast-launch.vbs`（转发桥）→ 稳定启动器 → 公共执行器。执行器更新经安装流程暂存校验后切换活动记录，失败保留旧部署，不重启网关。
 
 源码安装也要在 npm ci 后运行 link.mjs；npm 清理 node_modules 会移除业务端链接，需重新建立。目录链接不会复制模块。

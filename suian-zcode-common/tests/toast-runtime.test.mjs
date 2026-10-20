@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { join } from 'node:path';
 import {
-  toastRootFor, deployToastRuntime, registerToastIdentity, removeToastIdentity,
+  toastRootFor, activeToastRecordFor, deployToastRuntime, registerToastIdentity, removeToastIdentity,
   checkToastRuntime, buildForwardVbs, buildStableLauncherVbs,
 } from '../toast-runtime.mjs';
 
@@ -40,6 +40,7 @@ const makeShell = () => {
 const HOME = 'H:\\toast-home';
 const NODE = 'C:\\Program Files\\nodejs\\node.exe';
 
+const activeRecord = activeToastRecordFor(HOME);
 const deployedWorld = (shell, { executorText = '// executor v1' } = {}) =>
   deployToastRuntime({ homeDir: HOME, nodeExe: NODE, executorText, shell });
 
@@ -49,9 +50,10 @@ test('部署稳定运行时：executor/launch/活动记录落位，均不引用�
   assert.equal(result.action, 'deployed');
   const toastRoot = toastRootFor(HOME);
   assert.equal(toastRoot, join(HOME, '.zcode', 'tools', 'suian-zcode-common', 'toast'));
+  assert.equal(activeRecord, join(HOME, '.zcode', 'tools', 'suian-zcode-common', 'active-toast.json'), '活动记录固定在共享运行根直下，与 PKG-05 网关移除探针对齐');
   const executor = shell.files.get(join(toastRoot, 'executor.mjs'));
   const launcher = shell.files.get(join(toastRoot, 'launch.vbs'));
-  const active = JSON.parse(shell.files.get(join(toastRoot, 'toast-active.json')));
+  const active = JSON.parse(shell.files.get(activeRecord));
   assert.equal(executor, '// executor v1');
   assert.ok(launcher.includes(NODE), '稳定启动器引用安装上下文提供的 Node 路径');
   assert.ok(launcher.includes(join(toastRoot, 'executor.mjs')), '稳定启动器引用缓存外活动执行器');
@@ -78,7 +80,7 @@ test('暂存校验失败保留原活动执行器与活动记录，错误不隐�
   const shell = makeShell();
   await deployedWorld(shell);
   const toastRoot = toastRootFor(HOME);
-  const activeBefore = shell.files.get(join(toastRoot, 'toast-active.json'));
+  const activeBefore = shell.files.get(activeRecord);
   const executorBefore = shell.files.get(join(toastRoot, 'executor.mjs'));
   const originalRun = shell.run;
   shell.run = async (cmd, args) => {
@@ -90,18 +92,18 @@ test('暂存校验失败保留原活动执行器与活动记录，错误不隐�
     /node --check 失败/,
   );
   assert.equal(shell.files.get(join(toastRoot, 'executor.mjs')), executorBefore, '校验失败不得替换活动执行器');
-  assert.equal(shell.files.get(join(toastRoot, 'toast-active.json')), activeBefore, '校验失败不得切换活动记录');
+  assert.equal(shell.files.get(activeRecord), activeBefore, '校验失败不得切换活动记录');
 });
 
 test('重复部署幂等：内容一致时 unchanged，不重写活动记录', async () => {
   const shell = makeShell();
   await deployedWorld(shell);
   const toastRoot = toastRootFor(HOME);
-  const activeBefore = shell.files.get(join(toastRoot, 'toast-active.json'));
+  const activeBefore = shell.files.get(activeRecord);
   const checksBefore = shell.runs.filter(run => run.args[0] === '--check').length;
   const again = await deployToastRuntime({ homeDir: HOME, nodeExe: NODE, executorText: '// executor v1', shell });
   assert.equal(again.action, 'unchanged');
-  assert.equal(shell.files.get(join(toastRoot, 'toast-active.json')), activeBefore);
+  assert.equal(shell.files.get(activeRecord), activeBefore);
   assert.equal(shell.runs.filter(run => run.args[0] === '--check').length, checksBefore, '幂等路径不再执行校验命令');
 });
 

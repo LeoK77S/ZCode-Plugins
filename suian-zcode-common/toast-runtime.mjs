@@ -1,10 +1,10 @@
 // 共享 Toast 稳定运行时（PKG-06）：把 Toast 执行器部署到版本缓存之外的固定目录，
 // 让旧通知的按钮点击不依赖 common 或 title 的插件缓存仍可诊断并复制修复提示。
-// 布局（<homeDir>/.zcode/tools/suian-zcode-common/toast，与网关运行目录分离，互不重启）：
-//   executor.mjs       活动执行器（自包含单文件，本包 toast-executor.mjs 的部署快照）
-//   launch.vbs         稳定启动器（URI 精确白名单后以隐藏窗口运行活动执行器）
-//   toast-active.json  活动 Toast 记录（部署切换的提交点，也是安装检查的依据）
-//   identities/        各调用方外置身份描述（卸载时只清理归属匹配的自身文件）
+// 布局（<homeDir>/.zcode/tools/suian-zcode-common/，与网关部署目录分离，互不重启）：
+//   toast/executor.mjs    活动执行器（自包含单文件，本包 toast-executor.mjs 的部署快照）
+//   toast/launch.vbs      稳定启动器（URI 精确白名单后以隐藏窗口运行活动执行器）
+//   active-toast.json     活动 Toast 记录（共享运行根直下；部署切换的提交点，PKG-05 网关移除探针）
+//   toast/identities/     各调用方外置身份描述（卸载时只清理归属匹配的自身文件）
 // 本模块只用 Node 内置模块：挂在 depcheck-hook 自举链与 client-install 安装链上。
 import { readFile } from 'node:fs/promises';
 import { statSync } from 'node:fs';
@@ -17,6 +17,13 @@ export const TOAST_PROTOCOLS = ['suian-zcode-common', 'suian-zcode-title'];
 
 export function toastRootFor(homeDir) {
   return join(homeDir, '.zcode', 'tools', 'suian-zcode-common', 'toast');
+}
+
+// 活动 Toast 记录固定在共享运行根（tools/suian-zcode-common）直下、文件名 active-toast.json：
+// PKG-05 的网关移除以此文件为探针，Toast 记录存在时保留网关部署目录（gateway-deploy.mjs 同注）。
+// Toast 与网关的活动记录是两个独立文件，互不触碰、互不重启。
+export function activeToastRecordFor(homeDir) {
+  return join(homeDir, '.zcode', 'tools', 'suian-zcode-common', 'active-toast.json');
 }
 
 const vbsQuote = value => String(value).replace(/"/g, '""');
@@ -74,7 +81,7 @@ export async function deployToastRuntime({ homeDir, nodeExe = process.execPath, 
   const toastRoot = toastRootFor(homeDir);
   const executorPath = join(toastRoot, 'executor.mjs');
   const launcherPath = join(toastRoot, 'launch.vbs');
-  const activePath = join(toastRoot, 'toast-active.json');
+  const activePath = activeToastRecordFor(homeDir);
   await shell.mkdir(toastRoot);
 
   const desiredLauncher = buildStableLauncherVbs({ nodeExe, executorPath });
@@ -120,7 +127,7 @@ export async function deployToastRuntime({ homeDir, nodeExe = process.execPath, 
     nodeExe,
     deployedAt: now().toISOString(),
   };
-  const activeTmp = join(toastRoot, `.toast-active.tmp-${randomUUID()}`);
+  const activeTmp = join(toastRoot, `.active-toast.tmp-${randomUUID()}`);
   await shell.writeText(activeTmp, JSON.stringify(active, null, 2) + '\n');
   await shell.rename(activeTmp, activePath);
   return { action: 'deployed', toastRoot };
@@ -155,7 +162,7 @@ export async function removeToastIdentity({ homeDir, protocol, shell = fileShell
 // 不以 AppID 缓存为健康依据——缓存与部署是两回事。
 export async function checkToastRuntime({ homeDir, protocols = TOAST_PROTOCOLS, shell = fileShell }) {
   const toastRoot = toastRootFor(homeDir);
-  const active = await parseOptionalJson(shell, join(toastRoot, 'toast-active.json'));
+  const active = await parseOptionalJson(shell, activeToastRecordFor(homeDir));
   const executorPresent = (await shell.stat(join(toastRoot, 'executor.mjs')))?.isFile === true;
   const launcherPresent = (await shell.stat(join(toastRoot, 'launch.vbs')))?.isFile === true;
   const identities = {};
