@@ -29,7 +29,10 @@ test('发布目录组装：客户端产物、许可与元数据齐备且无 node
   }
   assert.equal((await readdir(join(releaseDir, 'dist'))).length, 2);
   const entries = await readdir(releaseDir, { withFileTypes: true });
-  assert.ok(!entries.some(entry => entry.name === 'node_modules'), '发布目录不得携带 node_modules');
+  // node_modules 仅允许携带网关运行闭包的 ws 运行库，不得混入其他依赖或业务包。
+  assert.ok(entries.some(entry => entry.name === 'node_modules'), '网关闭包要求发布目录携带 node_modules/ws');
+  assert.deepEqual(await readdir(join(releaseDir, 'node_modules')), ['ws'], '发布目录 node_modules 仅允许 ws');
+  assert.deepEqual((await readdir(join(releaseDir, 'node_modules', 'ws'))).sort(), ['LICENSE', 'index.js', 'lib', 'package.json', 'wrapper.mjs'], 'ws 运行库文件集合固定');
 });
 
 test('重复构建清空输出目录：陈旧文件不残留、不计入 release.json 清单', async t => {
@@ -42,6 +45,22 @@ test('重复构建清空输出目录：陈旧文件不残留、不计入 release
   const names = await readdir(releaseDir);
   assert.ok(!names.includes('stale-file.txt') && !names.includes('stale-dir'), '陈旧文件必须被清空');
   assert.ok(!release.files.some(file => file.path.startsWith('stale')), '陈旧文件不得进入 release.json 清单');
+});
+
+test('发布目录满足网关部署闭包与管理链：作为 sourceRoot 可完成部署与校验', async t => {
+  const { out, releaseDir } = await buildTo(commonRoot, 'pkg01-deploy-');
+  t.after(() => rm(out, { recursive: true, force: true }));
+  // 管理链：Stop 钩子入口、depcheck 三件、宿主安装器与稳定启动器、源码兼容路由技能。
+  for (const file of ['depcheck-hook.mjs', 'depcheck.mjs', 'depcheck-prompt.mjs', 'hooks/hooks.json', 'gateway-deploy.mjs', 'setup.ps1', 'run.ps1', 'run.vbs', 'gateway-launcher.ps1', 'SKILL.md']) {
+    await assert.doesNotReject(() => readFile(join(releaseDir, file)), `发布目录缺管理链文件 ${file}`);
+  }
+  // 网关运行闭包：发布根作为 gateway-deploy 的 sourceRoot 必须可直接部署并校验。
+  const { deployGatewayRuntime, verifyDeployment, ensureLaunchers } = await import('../gateway-deploy.mjs');
+  const toolsRoot = join(out, 'tools');
+  const deployed = await deployGatewayRuntime({ sourceRoot: releaseDir, toolsRoot });
+  assert.equal(deployed.alreadyPresent, false);
+  await verifyDeployment({ toolsRoot, buildId: deployed.buildId });
+  await ensureLaunchers({ sourceRoot: releaseDir, toolsRoot });
 });
 
 test('自包含：产物在无 node_modules 的独立目录可直接导入且导出完整', async t => {

@@ -71,7 +71,7 @@ node release-orchestrate.mjs marketplace --tag <tag> --base-url <base-url> --out
 
 ## 6. 已知边界与遗留
 
-- **common 发布目录不含 skills**（已收紧，不再是遗留）：PKG-08 完成技能改造后，`suian-zcode-common/build-release.mjs` 已复制 `skills/` 进发布目录，`release-verify.mjs` 的 common profile 强制 `skills` 目录存在。
+- **common 发布目录覆盖面**（评审后收紧）：除 dist 双入口、vendor 许可与 skills 外，发布根现在完整携带网关运行闭包（gateway/terminal 源、vendor 运行件、`node_modules/ws` 运行库，按 `gateway-deploy.mjs` 清单 from 原位落位，可直接作为部署 sourceRoot）与宿主管理链（depcheck 三件、`hooks/hooks.json`、`setup.ps1`/`run.ps1`/`run.vbs`/`gateway-launcher.ps1`、`SKILL.md`）；`release-verify` 的 common profile 逐项强制。`node_modules` 仅对 common 的 ws 运行库豁免，业务包零豁免。
 - **正式公开下载与目标宿主验证**：由已授权的 PKG-09 执行；本票脚本全部通过不代表发行已完成。
 - **side-editor 的 `locate.mjs`**：与 common 单一源码逐字节一致（PKG-04 契约），内联检测白名单放行；title/app-mcp 不携带独立定位器（经 bundle 内薄适配）。
 

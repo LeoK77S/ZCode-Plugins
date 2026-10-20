@@ -28,7 +28,7 @@
 - 字段：`formatVersion: 1`、`pluginName`/`packageName`（区分插件身份与包名）、`pluginVersion`、`buildId`、`commonApiVersion: 1`、`entries`（client / client-install）、`files`（逐文件 sha256，不含 release.json 自身）。
 - `buildId` = 输入摘要（构建输入清单 + 配置）与输出摘要的联合哈希；同输入构建可复现。构建输入记录写至发布目录之外（`build-inputs.json`）。
 - 构建命令：`npm run build:release -- --out <dir>`（esbuild 已锁 0.28.2，target node24；ws 与 vendor 内联进产物，可选原生加速包 external）。
-- 产物目录含 dist 双入口、LICENSE、vendor 许可与溯源文件（NOTICE.md、conversation-wire.sources.json）、licenses/ws-LICENSE、.zcode-plugin 清单与 release.json；不含 node_modules。
+- 产物目录含 dist 双入口、LICENSE、vendor 许可与溯源文件（NOTICE.md、conversation-wire.sources.json）、licenses/ws-LICENSE、.zcode-plugin 清单、skills/、release.json，以及宿主管理链（depcheck 三件 + hooks/hooks.json + setup.ps1/run.ps1/run.vbs/gateway-launcher.ps1/gateway-deploy.mjs/SKILL.md）与网关运行闭包（gateway/terminal 源、vendor 运行件、node_modules/ws 运行库按部署清单 from 原位落位——发布根可直接作为 `gateway-deploy.mjs` 的 sourceRoot）。`node_modules` 下仅允许 ws 运行库，业务包零豁免。
 
 ## 业务迁移指引（后续票）
 

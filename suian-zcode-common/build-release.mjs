@@ -6,11 +6,18 @@ import { cp, mkdir, readFile, readdir, rm, writeFile } from 'node:fs/promises';
 import { dirname, join, relative, resolve, sep } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { parseArgs } from 'node:util';
+import { gatewayRuntimeManifest } from './gateway-deploy.mjs';
 
 const toPosix = path => path.split(sep).join('/');
 const defaultRoot = dirname(fileURLToPath(import.meta.url));
 const ENTRIES = { client: 'client.mjs', 'client-install': 'client-install.mjs' };
 const DIST_ENTRIES = { client: 'dist/client.mjs', 'client-install': 'dist/client-install.mjs' };
+// 随包分发的管理链文件（相对源根路径）：hooks.json 的 Stop 命令、depcheck 修复链、
+// setup/run 安装器与稳定启动器、setup.ps1 读取的源码兼容路由技能。
+const MANAGEMENT_STATIC = [
+  'depcheck.mjs', 'depcheck-hook.mjs', 'depcheck-prompt.mjs', 'hooks/hooks.json',
+  'gateway-deploy.mjs', 'setup.ps1', 'run.ps1', 'run.vbs', 'gateway-launcher.ps1', 'SKILL.md',
+];
 
 // esbuild 的 esm 产物中 __require shim 在 ESM 作用域没有 require 可用，ws 的 CJS 路径会
 // 在模块求值阶段抛 Dynamic require；注入真实 createRequire（与官方 node-repl-host 构建同法）。
@@ -79,6 +86,19 @@ export async function buildRelease({ root = defaultRoot, outDir } = {}) {
   await cp(join(root, '.zcode-plugin'), join(outDir, '.zcode-plugin'), { recursive: true });
   // 技能随包分发（规格第 6 节）：ZIP 源安装后宿主从包内加载，不依赖源码仓库。
   await cp(join(root, 'skills'), join(outDir, 'skills'), { recursive: true });
+  // 网关运行闭包：以 gateway-deploy 的清单为单一权威（gateway/terminal 源、vendor 运行件、ws 运行库）。
+  // 部署器按 from 路径从 sourceRoot 读文件，发布根必须按 from 原位提供整个闭包。
+  const gatewayRuntime = await gatewayRuntimeManifest(root);
+  for (const item of gatewayRuntime) {
+    if (item.from === '.zcode-plugin/plugin.json') continue;
+    await mkdir(dirname(join(outDir, item.from)), { recursive: true });
+    await cp(join(root, item.from), join(outDir, item.from));
+  }
+  // 管理链：Stop 钩子（depcheck 三件 + hooks.json）、宿主安装器（setup/run/启动器/部署器）与源码兼容路由技能。
+  for (const name of MANAGEMENT_STATIC) {
+    await mkdir(dirname(join(outDir, name)), { recursive: true });
+    await cp(join(root, name), join(outDir, name));
+  }
   // Toast 执行器以源文件原样分发（部署快照不参与 bundle，运行期由 client-install 读取后部署）。
   await cp(join(root, 'toast-executor.mjs'), join(outDir, 'toast-executor.mjs'));
   await mkdir(join(outDir, 'vendor'), { recursive: true });

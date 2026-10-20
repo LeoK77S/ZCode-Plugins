@@ -33,8 +33,17 @@ export const PLUGIN_PROFILES = {
       'vendor/LICENSE-ZCode', 'vendor/NOTICE-ZCode-current.md', 'vendor/LICENSE-zod',
       'vendor/NOTICE.md', 'vendor/conversation-wire.sources.json',
       'licenses/ws-LICENSE',
+      // 网关运行闭包与宿主管理链（规格第 6 节）：缺失则 ZIP 安装后 Stop 钩子、
+      // depcheck 修复链与网关部署物理不可用。
+      'gateway.mjs', 'rpc-broker.mjs', 'terminal-gateway.mjs', 'terminal-relay.mjs',
+      'gateway-build.mjs', 'gateway-deploy.mjs',
+      'vendor/remote-shared.js', 'vendor/channelClient.js',
+      'node_modules/ws/index.js', 'node_modules/ws/package.json',
+      'depcheck.mjs', 'depcheck-hook.mjs', 'depcheck-prompt.mjs', 'hooks/hooks.json',
+      'setup.ps1', 'run.ps1', 'run.vbs', 'gateway-launcher.ps1', 'SKILL.md',
     ],
-    requiredDirs: ['skills'],
+    requiredDirs: ['skills', 'node_modules/ws/lib', 'vendor'],
+    allowedPrefixes: ['node_modules/ws/', 'node_modules/ws'],
   },
   'suian-zcode-title': {
     requiredFiles: [
@@ -158,14 +167,18 @@ export async function verifyReleaseDir({ releaseDir, pluginName, expectedVersion
   }
 
   const digestByPath = new Map();
+  // common 独有豁免：网关运行闭包要求 node_modules/ws 运行库原位随包（gateway-deploy 按 from 读盘）。
+  // 业务包零豁免，node_modules 全禁不变。
+  const allowedPrefixes = profile?.allowedPrefixes ?? [];
+  const isAllowed = path => allowedPrefixes.some(prefix => path === prefix || path.startsWith(prefix));
   for (const file of files) {
     const { path, full } = file;
     digestByPath.set(path, null); // 摘要惰性计算并缓存
     const segments = path.split('/');
-    if (segments.some(segment => FORBIDDEN_SEGMENTS.has(segment))) {
+    if (!isAllowed(path) && segments.some(segment => FORBIDDEN_SEGMENTS.has(segment))) {
       add('forbidden_present', path, `发布目录不得包含 ${path}`);
     }
-    if (FORBIDDEN_FILENAMES.has(segments.at(-1))) {
+    if (!isAllowed(path) && FORBIDDEN_FILENAMES.has(segments.at(-1))) {
       add('forbidden_present', path, `发布目录不得携带开发/锁文件 ${path}`);
     }
     if (classifySensitive(path)) {
