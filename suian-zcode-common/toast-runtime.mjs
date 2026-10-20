@@ -113,7 +113,12 @@ export async function deployToastRuntime({ homeDir, nodeExe = process.execPath, 
   try {
     await shell.rename(stagingExecutor, executorPath);
   } catch (error) {
-    if (backedUp) await shell.rename(backup, executorPath).catch(() => {});
+    // 回滚失败不静默吞掉：保留备份并明确报出，最坏情况下活动执行器丢失也不隐藏现场。
+    if (backedUp) {
+      await shell.rename(backup, executorPath).catch(rollbackError => {
+        throw new Error(`Toast 执行器切换失败（${error.message}），且回滚失败（${rollbackError.message}）；备份保留于 ${backup}`);
+      });
+    }
     throw error;
   }
   if (backedUp) await shell.remove(backup).catch(() => {});

@@ -41,6 +41,9 @@ function readGatewaySnapshot(configRead) {
 }
 
 // 记录旧安装的关键状态。recordPath 建议放在版本缓存之外的私有目录；重复执行幂等覆盖。
+// 字段用途：titleEnabled/titleEnabledDefined 参与 restore 恢复；titleModel 与 gateway.mode/port
+// 仅为迁移证据记录（供人工或后续核对步骤比对），当前 restoreLegacyState 不消费它们——
+// 配置文件本身不被迁移改写，模型等用户数据靠"不碰文件"保留，而非按记录重放。
 export async function captureLegacyState({ legacyRoot, titleConfigPath, gatewayConfigPath, recordPath, now = () => new Date() }) {
   if (!recordPath) throw new Error('captureLegacyState 需要 recordPath');
   const titleRead = titleConfigPath ? await readJsonOptional(resolve(titleConfigPath)) : { status: 'missing', value: null };

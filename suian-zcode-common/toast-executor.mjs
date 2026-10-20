@@ -121,9 +121,10 @@ async function inspectLegacyRuntimeLink(runtimeRoot) {
   return present.isSymbolicLink() ? 'symlink' : 'directory';
 }
 
-async function scanSuianPlugins({ pluginsFile, homeDir }) {
+export async function scanSuianPlugins({ pluginsFile, homeDir = homedir(), toolsRoot } = {}) {
   const resolvedPluginsFile = pluginsFile ?? join(homeDir, '.zcode', 'cli', 'plugins', 'installed_plugins.json');
-  const runtimeRoot = join(homeDir, '.zcode', 'tools', COMMON_PACKAGE, 'runtime');
+  const resolvedToolsRoot = toolsRoot ?? join(homeDir, '.zcode', 'tools');
+  const runtimeRoot = join(resolvedToolsRoot, COMMON_PACKAGE, 'runtime');
   const result = { ok: true, skipped: null, checkedAt: new Date().toISOString(), runtimeRoot, legacyRuntimeLink: null, plugins: [], issues: [] };
   const manifestRead = await readJsonAt(resolvedPluginsFile);
   if (manifestRead.status !== 'ok') {
@@ -137,6 +138,9 @@ async function scanSuianPlugins({ pluginsFile, homeDir }) {
   }
   const entries = pickSuianEntries(manifest);
   const commonEntry = entries.find(entry => entry?.name === COMMON_PACKAGE) ?? null;
+  // 与 depcheck.mjs 同构：common 基准必须经 checkReleaseDirectory 的身份与逐文件摘要校验后
+  // 才参与兼容判定；裸读 release.json 会在 common 损坏/身份不符时给出错误结论。
+  const commonReleases = new Map();
   for (const entry of entries) {
     const name = entry.name;
     const installPath = typeof entry.installPath === 'string' ? entry.installPath : null;
@@ -154,15 +158,17 @@ async function scanSuianPlugins({ pluginsFile, homeDir }) {
     if (release) {
       record.buildId = release.buildId;
       record.releaseVersion = release.pluginVersion;
+      if (name === COMMON_PACKAGE && typeof release.commonApiVersion === 'number') {
+        commonReleases.set(installPath, release);
+      }
     }
   }
   const anyConsumer = result.plugins.some(record => record.name !== COMMON_PACKAGE && record.dependsOnCommon);
   if (anyConsumer && !commonEntry) {
     result.issues.push({ plugin: COMMON_PACKAGE, code: 'common_not_installed', detail: '业务插件声明依赖 suian-zcode-common，但清单中没有它的安装条目' });
   } else if (anyConsumer && typeof commonEntry.installPath === 'string') {
-    const commonReleaseRead = await readJsonAt(join(commonEntry.installPath, 'release.json'));
-    const commonRelease = commonReleaseRead.status === 'ok' ? commonReleaseRead.value : null;
-    if (commonRelease && releaseShapeOk(commonRelease) && typeof commonRelease.commonApiVersion === 'number') {
+    const commonRelease = commonReleases.get(commonEntry.installPath) ?? null;
+    if (commonRelease) {
       for (const record of result.plugins) {
         if (record.name === COMMON_PACKAGE || !record.dependsOnCommon || !record.installPath) continue;
         const releaseRead = await readJsonAt(join(record.installPath, 'release.json'));
@@ -210,7 +216,7 @@ const versionOf = (result, plugin) => {
 
 const REINSTALL_CODES = new Set(['cache_missing', 'plugin_files_missing', 'release_missing', 'release_invalid', 'identity_mismatch', 'file_missing', 'file_digest_mismatch']);
 
-function buildFixPrompt(result) {
+export function buildFixPrompt(result) {
   if (!result.issues.length) {
     return `suian-zcode-common 依赖检查刚刚复查通过，所有已安装 suian 系列插件的发布包完整性与公共 API 兼容性均正常，无需修复。`;
   }
