@@ -97,44 +97,47 @@ export async function deployToastRuntime({ homeDir, nodeExe = process.execPath, 
     return { action: 'unchanged', toastRoot };
   }
 
-  const stagingDir = join(toastRoot, `.staging-${randomUUID()}`);
-  const stagingExecutor = join(stagingDir, 'executor.mjs');
-  await shell.mkdir(stagingDir);
+  const stagingExecutor = join(toastRoot, `.executor.staging-${randomUUID()}.mjs`);
   await shell.writeText(stagingExecutor, executorText);
   // 暂存校验通过后才允许切换；失败时活动部署与活动记录保持原样
   await shell.run(checkNode, ['--check', stagingExecutor]);
 
   const backup = join(toastRoot, `.executor.old-${randomUUID()}`);
+  const activeTmp = join(toastRoot, `.active-toast.tmp-${randomUUID()}`);
   let backedUp = false;
+  let executorInstalled = false, launcherChanged = false;
   if (currentExecutor !== null) {
     await shell.rename(executorPath, backup);
     backedUp = true;
   }
   try {
     await shell.rename(stagingExecutor, executorPath);
+    executorInstalled = true;
+    if (currentLauncher !== desiredLauncher) {
+      launcherChanged = true;
+      await shell.writeText(launcherPath, desiredLauncher);
+    }
+    const active = {
+      formatVersion: 1, executor: 'executor.mjs', launcher: 'launch.vbs',
+      nodeExe, deployedAt: now().toISOString(),
+    };
+    await shell.writeText(activeTmp, JSON.stringify(active, null, 2) + '\n');
+    await shell.rename(activeTmp, activePath);
   } catch (error) {
-    // 回滚失败不静默吞掉：保留备份并明确报出，最坏情况下活动执行器丢失也不隐藏现场。
-    if (backedUp) {
-      await shell.rename(backup, executorPath).catch(rollbackError => {
-        throw new Error(`Toast 执行器切换失败（${error.message}），且回滚失败（${rollbackError.message}）；备份保留于 ${backup}`);
-      });
+    // 活动记录是最后的提交点；此前失败必须恢复实际被 VBS 执行的文件。
+    try {
+      if (executorInstalled) await shell.remove(executorPath);
+      if (backedUp) await shell.rename(backup, executorPath);
+      if (launcherChanged) {
+        if (currentLauncher === null) await shell.remove(launcherPath);
+        else await shell.writeText(launcherPath, currentLauncher);
+      }
+    } catch (rollbackError) {
+      throw new Error(`Toast 执行器切换失败（${error.message}），且回滚失败（${rollbackError.message}）；备份位置 ${backup}`);
     }
     throw error;
   }
-  if (backedUp) await shell.remove(backup).catch(() => {});
-  try { await shell.remove(stagingDir); } catch { /* 暂存目录残留不影响运行 */ }
-
-  if (currentLauncher !== desiredLauncher) await shell.writeText(launcherPath, desiredLauncher);
-  const active = {
-    formatVersion: 1,
-    executor: 'executor.mjs',
-    launcher: 'launch.vbs',
-    nodeExe,
-    deployedAt: now().toISOString(),
-  };
-  const activeTmp = join(toastRoot, `.active-toast.tmp-${randomUUID()}`);
-  await shell.writeText(activeTmp, JSON.stringify(active, null, 2) + '\n');
-  await shell.rename(activeTmp, activePath);
+  if (backedUp) await shell.remove(backup);
   return { action: 'deployed', toastRoot };
 }
 

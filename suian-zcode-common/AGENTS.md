@@ -46,7 +46,7 @@
 | notifications.mjs / cooldown.mjs | Toast 显示、XML、两小时冷却、跨进程显示互斥 |
 | client.mjs / client-install.mjs | 公共客户端运行期与安装期入口（PKG-01）：再导出三消费者实际使用的公共 API，第一代 commonApiVersion 为 1；导入无副作用，安装期函数独立入口避免运行期携带安装器 |
 | locate.mjs | 薄定位器（单一源码，构建时分发到业务包）：按完整插件身份从安装记录定位 common，锚点优先级与失败分类见 docs/client-contract.md；进程内首次加载固定 common 根 |
-| build-release.mjs | 发布目录构建（PKG-01）：esbuild 多入口打包（ws 与 vendor 内联）、许可组装、release.json 与 buildId、发布目录外的构建输入记录；npm run build:release -- --out <dir> |
+| build-release.mjs | 发布目录构建（PKG-01）：客户端双入口及诊断/迁移/旧链接清理管理入口分别自包含打包（ws 与 vendor 内联）、许可组装、release.json 与 buildId、发布目录外的构建输入记录；npm run build:release -- --out <dir> |
 | depcheck.mjs | suian 系列插件发布契约扫描（PKG-08）：release.json 逐文件摘要、身份、common API 兼容与最低版本；遗留 runtime 链接只报告状态不判损坏 |
 | depcheck-hook.mjs / hooks/hooks.json | Stop 钩子入口与原生注册（async 不阻塞）；--scan-only 手动复查（只读不落盘） |
 | depcheck-prompt.mjs | Toast 摘要与修复提示词模板（缺失清单、缓存根、原生重装/更新步骤） |

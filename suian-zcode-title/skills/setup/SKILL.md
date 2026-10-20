@@ -12,8 +12,8 @@ description: 初始化、升级或卸载 ZCode 自动命名，配置外置数据
 3. 原生数据来自插件清单。按 paths.md 确定实际状态目录 {{state_dir}}，首次默认 {{data_path}}/state；已有有效外部自定义目录沿用。已有源码安装按下方迁移步骤转存配置和状态；首次配置保持暂停，不采用示例模型。仅检查通过后初始化：
 
 ```powershell
-node "{{plugin_root}}/install.mjs" "{{state_dir}}" --native-plugin --config "{{data_path}}/config.json" --check-only
-node "{{plugin_root}}/install.mjs" "{{state_dir}}" --native-plugin --config "{{data_path}}/config.json"
+node "{{command_dir}}/install.mjs" "{{state_dir}}" --native-plugin --config "{{data_path}}/config.json" --installed-plugins "{{installed_plugins_json}}" --check-only
+node "{{command_dir}}/install.mjs" "{{state_dir}}" --native-plugin --config "{{data_path}}/config.json" --installed-plugins "{{installed_plugins_json}}"
 ```
 
 仅配置文件不存在时新建 enabled:false 的外置配置，等待首次模型选择与核验后启用。已有配置保留原开关、模型选择和自定义字段；省略 enabled 时继续默认启用，不能因原生安装或重复安装而暂停。Hook 与技能由宿主管理，安装器只配置通知资产，不重复写全局注册。
@@ -35,4 +35,4 @@ node "{{plugin_root}}/install.mjs" "{{state_dir}}" --native-plugin --config "{{d
 
 原生安装按公共 setup 通过原生管理器更新，再从插件清单获取新路径；源码安装才更新原仓库。原生更新无需重装依赖或修链，以实际状态目录与配置运行同一安装命令，更新通知 VBS 的代码路径。保留配置、状态、授权和原暂停状态；若升级需要临时暂停，记录原开关并按第 4、5 步恢复。常驻网关升级只按公共 setup 处理。
 
-原生卸载通知资产用 node install.mjs {{state_dir}} --native-plugin --remove，再通过原生管理器停用或卸载本插件。源码模式不加 native 标志，安装器同时移除自有全局 Hook 与技能。保留业务状态和公共网关；明确要求恢复直连时才调用公共 Remove。
+原生卸载通知资产用 `node "{{command_dir}}/install.mjs" "{{state_dir}}" --native-plugin --remove --installed-plugins "{{installed_plugins_json}}"`，再通过原生管理器停用或卸载本插件。源码模式不加 native 标志，安装器同时移除自有全局 Hook 与技能。保留业务状态和公共网关；明确要求恢复直连时才调用公共 Remove。

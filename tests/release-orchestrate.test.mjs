@@ -46,6 +46,7 @@ async function buildFakeRelease(outDir, plugin, repoRoot) {
         'node_modules/ws/lib/websocket.js': `// ${plugin} ws lib\n`,
         'depcheck.mjs': `// ${plugin} depcheck\n`, 'depcheck-hook.mjs': `// ${plugin} depcheck-hook\n`,
         'depcheck-prompt.mjs': `// ${plugin} depcheck-prompt\n`, 'hooks/hooks.json': `{"hooks":{}}\n`,
+        'migration.mjs': `// ${plugin} migration\n`, 'legacy-cleanup.mjs': `// ${plugin} cleanup\n`,
         'setup.ps1': `# ${plugin} setup\n`, 'run.ps1': `# ${plugin} run\n`, 'run.vbs': `' ${plugin} run\n`,
         'gateway-launcher.ps1': `# ${plugin} launcher\n`, 'SKILL.md': `# ${plugin} skill route\n`,
       },
@@ -196,6 +197,32 @@ test('ZIP 不含提交 C 的自引用：条目与文本内容都不出现记录�
       assert.equal(text.includes(COMMIT), false, `${zip.plugin}/${entry.path} 不得包含提交自引用`);
     }
   }
+});
+
+test('跨包构建输入与根许可证漂移被门禁拒绝，重新编排只重建受影响包', async t => {
+  const world=await makeWorld(),outDir=await mkdtemp(join(tmpdir(),'pkg07-external-'));
+  t.after(()=>rm(world.root,{recursive:true,force:true}));t.after(()=>rm(outDir,{recursive:true,force:true}));
+  const locator=join(world.root,'suian-zcode-common','locate.mjs');
+  await writeFile(locator,'export const api=1;');
+  await writeFile(join(world.root,'LICENSE'),'license v1');
+  const original=world.builders['suian-zcode-title'];
+  world.builders['suian-zcode-title']=async args=>{
+    await original(args);
+    await writeFile(join(args.outDir,'..','build-inputs.json'),JSON.stringify({inputDigest:'a'.repeat(64),inputs:{'../suian-zcode-common/locate.mjs':'recorded-by-builder'}}));
+  };
+  const options={repoRoot:world.root,outDir,builders:world.builders,resolveCommit:world.resolveCommit,marketplace:world.marketplace,releaseTag:'external',baseUrl:'https://github.com/o/r/releases/download'};
+  const first=await buildReleaseArtifacts(options);
+  await writeFile(locator,'export const api=2;');
+  const titleRecord={...first.record,plugins:{'suian-zcode-title':first.record.plugins['suian-zcode-title']}};
+  const dirty=await gateCommitInputs({repoRoot:world.root,outDir,record:titleRecord});
+  assert.equal(dirty.ok,false,'title-only 门禁也必须核对实际打入 bundle 的 common 定位器');
+  assert.ok(dirty.drifted.some(item=>item.path==='../suian-zcode-common/locate.mjs'));
+  const second=await buildReleaseArtifacts(options);
+  assert.equal(world.buildCounts['suian-zcode-title'],2);
+  assert.equal(world.buildCounts['suian-zcode-app-mcp'],1,'未依赖该输入的合成构建器不重建');
+  assert.equal((await gateCommitInputs({repoRoot:world.root,outDir,record:second.record})).ok,true);
+  await writeFile(join(world.root,'LICENSE'),'license v2');
+  assert.equal((await gateCommitInputs({repoRoot:world.root,outDir,record:second.record})).ok,false);
 });
 
 test('门禁：输入未漂移时绑定提交通过；源文件被改后报告漂移文件', async t => {

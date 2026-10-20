@@ -309,7 +309,9 @@ test("隔离世界：发布安装入口保留 sqlite3 只读 JSON 验证且仅�
   const config = join(world.dataDir, "config.json");
   await writeFile(config, JSON.stringify({ sqliteBin: process.env.SQLITE_BIN || "sqlite3" }));
   const stateDir = join(world.base, "check-only-state");
-  const result = spawnSync(nodeBin, [join(world.titleInstall, "dist", "install.mjs"), stateDir, "--native-plugin", "--config", config, "--check-only"], {
+  const skill=await readFile(join(world.titleInstall,"skills/setup/SKILL.md"),"utf8");
+  const documentedEntry=skill.match(/node "([^"]+)"/)[1].replaceAll("{{plugin_root}}",world.titleInstall).replaceAll("{{command_dir}}",join(world.titleInstall,"dist"));
+  const result = spawnSync(nodeBin, [documentedEntry, stateDir, "--native-plugin", "--config", config, "--check-only"], {
     encoding: "utf8", windowsHide: true, env: consumerEnv({ ZCODE_PLUGIN_DATA: world.dataDir }),
   });
   assert.equal(result.status, 0, result.stderr);

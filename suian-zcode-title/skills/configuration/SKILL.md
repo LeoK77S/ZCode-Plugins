@@ -7,7 +7,7 @@ description: 配置 ZCode 自动命名的模型、思考档位、SQLite 路径�
 
 原生根为 `${ZCODE_SKILL_DIR}/../..`；源码模式沿用已确定的根。先读[路径与数据](../paths.md)，读取当前外置配置或既有 config.local.json。
 
-stdin 传目标会话，执行 node {{plugin_root}}/cli.mjs models --config {{config_path}}，从原 Host 取得实际清单。生成通过用户当前窗口的网关连接，不能猜 providerId、modelId 或 reasoningLevel。
+stdin 传目标会话，执行 `node "{{command_dir}}/cli.mjs" models --config "{{config_path}}" --installed-plugins "{{installed_plugins_json}}"`，从原 Host 取得实际清单。command_dir 按 paths.md 区分发布包与源码。生成通过用户当前窗口的网关连接，不能猜 providerId、modelId 或 reasoningLevel。
 
 首次安装由用户选择；已明确指定时核验后沿用。升级保留已有组合，只有用户要求更换或原组合不可用时询问。取不到清单时报告原因并保持首次安装暂停，不用示例 selection 代替用户选择。
 

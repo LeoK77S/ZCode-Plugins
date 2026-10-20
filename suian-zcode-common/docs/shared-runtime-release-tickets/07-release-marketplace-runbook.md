@@ -28,7 +28,7 @@ node release-orchestrate.mjs build \
 2. 组装目录契约校验：插件身份与版本三方一致、隐藏 `.zcode-plugin/plugin.json`、入口与必备资源、无 node_modules/测试/文档/锁文件、无敏感文件与敏感内容（本机路径、凭据模式）、`release.json` 文件摘要逐项核对、业务包不携带 common 实现的逐字节副本（白名单：`locate.mjs` 薄定位器、`LICENSE`）。
 3. 确定性 ZIP：条目按 posix 路径排序、时间戳固定（2026-01-01 00:00:00 DOS 纪元）、deflate 由 Node 内置 zlib 锁定；插件根直接位于压缩包根（`stripRoot:false` 前提）。同一输入重复打包字节一致。
 4. ZIP 解压复验：实际解压到临时目录后重跑全部契约校验。
-5. 发布记录 `release-record.json`：绑定提交（HEAD）、每包源码输入摘要与构建输入摘要（真实构建取自各包 `build-inputs.json`）、工具链（Node 版本/平台）与正式 ZIP 摘要。ZIP 内不含提交自引用。
+5. 发布记录 `release-record.json`（formatVersion 2）：绑定提交（HEAD）、每包源码及静态组装输入、实际构建依赖路径（取自各包 build-inputs.json，包括跨包薄定位器和第三方运行依赖）、根 LICENSE、仓库发布工具、Node 版本/平台与正式 ZIP 摘要。复用与门禁均重算这些输入；旧格式记录须重新构建，不能沿用缺少跨包输入的凭证。ZIP 内不含提交自引用。
 6. 市场候选 `marketplace.candidate.json` 与版本统一检查报告。
 
 **幂等复用**：再次执行 `build` 时，源码输入未变的包直接复用原 ZIP 字节与证据，不重跑构建器（规格 9.2：只改变提交身份不重建）；输入漂移只重建受影响包。`--plugins a,b` 可限定范围。
@@ -57,7 +57,7 @@ node release-orchestrate.mjs marketplace --tag <tag> --base-url <base-url> --out
 
 ## 4. Release 流水线（须另行授权）
 
-`release-github.mjs` 的 `runReleasePipeline` 按规格 9.3 顺序编排：读取同名 tag/Release 现状 -> 不存在才建草稿 -> 逐资产核对/上传（已传且摘要匹配跳过；无摘要的现有内容拒绝覆盖；上传结果未知先读现状再续作，不盲重传）-> 匿名公开下载核验（失败或摘要不符禁止公开，无先暴露 404 的路径）-> 授权后公开（先标预发布）-> 市场就绪核对（候选 URL/摘要与资产一致，仅报告）。
+`release-github.mjs` 的 `runReleasePipeline` 必须传入候选完整提交 SHA `candidateCommit`。按规格 9.3 顺序编排：读取并校对同名 tag/Release（annotated tag 解析到实际提交；错误绑定拒绝）→ 不存在才建立明确指向候选 SHA 的草稿 → 逐资产核对/上传（已传且摘要匹配跳过；未知内容不覆盖；结果未知先读取现状）→ 按授权公开预发布 → 匿名下载并核对摘要 → 市场就绪。草稿无匿名公开 URL；下载失败保留已公开资产、阻断市场切换，续作只重验失败项。局部发行只核对本轮更新条目的新资产，未变条目保留已有 URL 与摘要。已有公开 Release 不反复修改其预发布状态。
 
 真实 GitHub 操作使用 `createGithubRestApi({owner, repo, token})`；**创建/发布 Release、推送 tag、切换正式市场清单均须另行发布授权**，本票交付仅在外部边界桩（内存 GitHub API + 本地 loopback HTTP fixture）中验证。仓库 Release 不可变性设置须在实际发布前人工读取确认，脚本不擅自修改仓库设置。已发布资产不删除重传：字节需变更时使用新版本与新 tag。
 
@@ -71,7 +71,7 @@ node release-orchestrate.mjs marketplace --tag <tag> --base-url <base-url> --out
 
 ## 6. 已知边界与遗留
 
-- **common 发布目录覆盖面**（评审后收紧）：除 dist 双入口、vendor 许可与 skills 外，发布根现在完整携带网关运行闭包（gateway/terminal 源、vendor 运行件、`node_modules/ws` 运行库，按 `gateway-deploy.mjs` 清单 from 原位落位，可直接作为部署 sourceRoot）与宿主管理链（depcheck 三件、`hooks/hooks.json`、`setup.ps1`/`run.ps1`/`run.vbs`/`gateway-launcher.ps1`、`SKILL.md`）；`release-verify` 的 common profile 逐项强制。`node_modules` 仅对 common 的 ws 运行库豁免，业务包零豁免。
+- **common 发布目录覆盖面**（评审后收紧）：除 dist 客户端双入口、vendor 许可与 skills 外，发布根携带网关运行闭包（gateway/terminal 源、vendor 运行件、`node_modules/ws` 运行库，按 `gateway-deploy.mjs` 清单 from 原位落位，可直接作为部署 sourceRoot）与宿主管理链。depcheck-hook、migration、legacy-cleanup 各自打包为完整的自包含根入口，避免遗漏相对导入；其余管理资源包括 depcheck、depcheck-prompt、hooks、setup/run、稳定启动器及 SKILL.md。common profile 核对必备文件，发布契约直接执行诊断与迁移入口。`node_modules` 仅对 common 的 ws 运行库豁免，业务包零豁免。
 - **正式公开下载与目标宿主验证**：由已授权的 PKG-09 执行；本票脚本全部通过不代表发行已完成。
 - **side-editor 的 `locate.mjs`**：与 common 单一源码逐字节一致（PKG-04 契约），内联检测白名单放行；title/app-mcp 不携带独立定位器（经 bundle 内薄适配）。
 

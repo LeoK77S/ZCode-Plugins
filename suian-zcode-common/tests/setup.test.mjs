@@ -66,8 +66,8 @@ function New-ScheduledTaskAction { param([string]$Execute, [string]$Argument, [s
 function New-ScheduledTaskTrigger { param([switch]$AtLogOn, [string]$User) return [pscustomobject]@{ AtLogOn=[bool]$AtLogOn; User=$User } }
 function New-ScheduledTaskPrincipal { param([string]$UserId, [string]$LogonType, [string]$RunLevel) return [pscustomobject]@{ UserId=$UserId; LogonType=$LogonType; RunLevel=$RunLevel } }
 function New-ScheduledTaskSettingsSet { param([TimeSpan]$ExecutionTimeLimit, [int]$RestartCount, [TimeSpan]$RestartInterval, [string]$MultipleInstances, [switch]$AllowStartIfOnBatteries, [switch]$DontStopIfGoingOnBatteries) return [pscustomobject]@{ ExecutionTimeLimit=$ExecutionTimeLimit.TotalSeconds; RestartCount=$RestartCount; MultipleInstances=$MultipleInstances } }
-function Register-ScheduledTask { param([string]$TaskName, $Action, $Trigger, $Principal, $Settings, [switch]$Force) $global:fixture.task = [pscustomobject]@{ TaskName=$TaskName; TaskPath='\'; Actions=$Action; Trigger=$Trigger; Principal=$Principal; Settings=$Settings; State='Ready' }; $global:fixture.registrations++; Save-Fixture }
-function Start-ScheduledTask { param([string]$TaskName) if ($TaskName -ne $global:fixture.task.TaskName) { throw '启动了其他任务' }; $global:fixture.task.State='Running'; $global:fixture.health_available=$true; $global:fixture.starts++; Save-Fixture }
+function Register-ScheduledTask { param([string]$TaskName, $Action, $Trigger, $Principal, $Settings, [switch]$Force) if ($global:fixture.fail_register_count -gt 0) { $global:fixture.fail_register_count--; Save-Fixture; throw 'fixture: register denied' }; $global:fixture.task = [pscustomobject]@{ TaskName=$TaskName; TaskPath='\'; Actions=$Action; Trigger=$Trigger; Principal=$Principal; Settings=$Settings; State='Ready' }; $global:fixture.registrations++; Save-Fixture }
+function Start-ScheduledTask { param([string]$TaskName) if ($global:fixture.fail_start_count -gt 0) { $global:fixture.fail_start_count--; Save-Fixture; throw 'fixture: start denied' }; if ($TaskName -ne $global:fixture.task.TaskName) { throw '启动了其他任务' }; $global:fixture.task.State='Running'; $global:fixture.health_available=$true; $global:fixture.starts++; Save-Fixture }
 function Stop-ScheduledTask { throw 'Gateway already accepted self shutdown; do not terminate its exiting launcher' }
 function Unregister-ScheduledTask { param([string]$TaskName, [bool]$Confirm) if ($TaskName -ne $global:fixture.task.TaskName -or $Confirm) { throw '删除了其他任务' }; if ($global:fixture.unregister_fail) { throw 'fixture: task cleanup failed' }; $global:fixture.task=$null; Save-Fixture }
 function Invoke-RestMethod {
@@ -125,7 +125,7 @@ async function fixture(t, overrides = {}, { setupScript = setup } = {}) {
   const dataDir = join(root, '公共 data');
   const skillsDir = join(root, 'skills');
   const toolsRoot = join(root, '稳定 网关 tools');
-  const initial = { relay: 'wss://previous.example/ws', app_version_env: null, task: null, registrations: 0, starts: 0, shutdowns: 0, health: 'ready', health_protocol: null, real_health: false, build: { id: deployBuildId, version: gatewayBuild.version }, reject_build: null, desktop: false, legacy_health: false, health_min_timeout: 0, timeouts_left: 0, health_requests: 0, http_attempts: 0, health_available: false, draining: false, shutdown_health_reads: 0, broadcasts: [], broadcast_fail: false, broadcast_declaration: null, unregister_fail: false, ...overrides };
+  const initial = { relay: 'wss://previous.example/ws', app_version_env: null, task: null, registrations: 0, starts: 0, shutdowns: 0, health: 'ready', health_protocol: null, real_health: false, build: { id: deployBuildId, version: gatewayBuild.version }, reject_build: null, desktop: false, legacy_health: false, health_min_timeout: 0, timeouts_left: 0, health_requests: 0, http_attempts: 0, health_available: false, draining: false, shutdown_health_reads: 0, broadcasts: [], broadcast_fail: false, broadcast_declaration: null, unregister_fail: false, fail_start_count: 0, fail_register_count: 0, ...overrides };
   await writeFile(stateFile, JSON.stringify(initial));
   await writeFile(script, '\uFEFF' + systemFixture);
   const run = async (action, { healthTimeoutSec, port, mode, nativePlugin, relayProtocolVersion, zcodeAppVersion, upstreamUrl, setupScript: scriptOverride } = {}) => {
@@ -135,6 +135,28 @@ async function fixture(t, overrides = {}, { setupScript = setup } = {}) {
   const state = async () => JSON.parse(await readFile(stateFile, 'utf8'));
   return { root, stateFile, dataDir, skillsDir, toolsRoot, setupScript, run, state };
 }
+
+test('启动或注册任务异常进入回退，首次撤销安装，升级恢复原端口与运行任务', { skip: process.platform !== 'win32' }, async t => {
+  for(const failed of ['fail_start_count','fail_register_count']) {
+    const fresh=await fixture(t,{[failed]:1});
+    await assert.rejects(fresh.run('Install'),/rolled back/);
+    assert.equal((await fresh.state()).task,null);
+    await assert.rejects(stat(join(fresh.dataDir,'config.json')),{code:'ENOENT'});
+  }
+  const f=await fixture(t,{fail_start_count:0});
+  await f.run('Install');
+  const config=await readFile(join(f.dataDir,'config.json'),'utf8');
+  const active=await readFile(join(f.toolsRoot,'active-gateway.json'),'utf8');
+  const state=await f.state();state.fail_start_count=1;
+  await writeFile(f.stateFile,JSON.stringify(state));
+  await assert.rejects(f.run('Restart',{port:17331}),error=>{
+    assert.match(error.stderr,/start denied.*fallback: restored/s);
+    assert.doesNotMatch(error.stderr,/fallback also failed/);return true;
+  });
+  assert.equal(await readFile(join(f.dataDir,'config.json'),'utf8'),config);
+  assert.equal(await readFile(join(f.toolsRoot,'active-gateway.json'),'utf8'),active);
+  assert.equal((await f.state()).task.State,'Running');
+});
 
 test('3.16 首次安装按宿主应用版本自动选择 V2 和新版官方地址', { skip: process.platform !== 'win32' }, async t => {
   const f = await fixture(t, { app_version_env: '3.16.1' });

@@ -6,6 +6,7 @@ import {homedir} from "node:os";
 import {pathToFileURL} from "node:url";
 import {parseArgs} from "node:util";
 import {resolvePluginLayout} from "./release-layout.mjs";
+import {commonInstaller,commonAnchorOptions} from "./common-access.mjs";
 import {installPlugin,removeStopHook,removeSkill,removeToastAssets,removeToastTemplate,defaultShell,PROTOCOL} from "./installer.mjs";
 
 export * from "./installer.mjs";
@@ -22,6 +23,7 @@ if(isMain) {
   if(!dataDir||positionals.length!==1) {console.error("用法：node install.mjs <dataDir> [--config 文件] [--check-only | --remove]\n      可选 --common-root / --installed-plugins 在无宿主注入时显式提供 common 位置");process.exit(2);}
   const run=remove
     ?async()=>{
+      await commonInstaller(commonAnchorOptions({commonRoot:values["common-root"],installedPlugins:values["installed-plugins"]}));
       const hook=values["native-plugin"]?{action:"plugin_managed"}:await removeStopHook({pluginRoot,entrySubdir:layout.entrySubdir,configFile});
       // 卸载只清理归属匹配的自有资产：协议键、快捷方式、vbs、AppID 缓存与外置身份/模板；
       // 共享 Toast 运行目录、common 身份与网关不受影响。

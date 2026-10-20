@@ -11,6 +11,8 @@
 
 命令入口与资源分两种形态：发布安装的命令入口（cli.mjs、install.mjs、hook.mjs、toast-action.mjs）位于插件根 `dist/`，提示词、技能与 Hook 清单在插件根；源码模式入口与资源同在插件根。
 
+执行技能命令前确定 `{{command_dir}}`：含 release.json 的发布包取 `{{plugin_root}}/dist`，源码取 `{{plugin_root}}`。`{{plugin_root}}` 始终指插件根，不为调用命令而改成 dist。
+
 公共能力经安装记录定位 common 发布目录（PKG-01 客户端契约）：宿主 Hook/MCP 注入 ZCODE_PLUGIN_DATA 时自动推导；技能命令与独立 CLI 无注入时显式加 `--installed-plugins {{installed_plugins_json}}`，源码调试加 `--common-root {{common_release_root}}`（指向 common 的构建产物目录，须含 release.json）。安装器会把可用的安装记录路径写入外置配置，供后续无注入的 CLI 复用。原生缓存里不存在可依赖的同级 common，也不拼默认用户目录。公共安装入口为 {{common_root}}/skills/setup/SKILL.md，配置与排障在该根的对应技能。
 
 迁移前保留旧 config.local.json 的模型选择、原启用或暂停状态与自定义路径。

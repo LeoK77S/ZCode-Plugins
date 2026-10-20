@@ -39,7 +39,7 @@ export const PLUGIN_PROFILES = {
       'gateway-build.mjs', 'gateway-deploy.mjs',
       'vendor/remote-shared.js', 'vendor/channelClient.js',
       'node_modules/ws/index.js', 'node_modules/ws/package.json',
-      'depcheck.mjs', 'depcheck-hook.mjs', 'depcheck-prompt.mjs', 'hooks/hooks.json',
+      'depcheck.mjs', 'depcheck-hook.mjs', 'depcheck-prompt.mjs', 'migration.mjs', 'legacy-cleanup.mjs', 'hooks/hooks.json',
       'setup.ps1', 'run.ps1', 'run.vbs', 'gateway-launcher.ps1', 'SKILL.md',
     ],
     requiredDirs: ['skills', 'node_modules/ws/lib', 'vendor'],

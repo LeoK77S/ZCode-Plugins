@@ -51,6 +51,18 @@ async function scanSourceInputs(dir, base = dir) {
   return inputs;
 }
 
+// 同时用于构建复用和门禁：本包静态资源、真实构建依赖及仓库级组装输入。
+async function collectReleaseInputs(repoRoot, plugin, buildInputPaths = []) {
+  const pluginRoot = join(repoRoot, plugin);
+  const inputs = await scanSourceInputs(pluginRoot);
+  const paths = new Set([...buildInputPaths, '../LICENSE', ...['release-orchestrate.mjs','release-zip.mjs','release-verify.mjs','release-marketplace.mjs'].map(path => `../${path}`)]);
+  for (const path of paths) {
+    try { inputs[toPosix(path)] = sha256(await readFile(resolve(pluginRoot, path))); }
+    catch (error) { if (error.code !== 'ENOENT') throw error; }
+  }
+  return inputs;
+}
+
 async function resolveDefaultCommit(repoRoot) {
   const { stdout } = await run('git', ['rev-parse', 'HEAD'], { cwd: repoRoot, windowsHide: true });
   return stdout.trim();
@@ -120,11 +132,12 @@ export async function buildReleaseArtifacts({
     : null;
 
   for (const plugin of plugins) {
-    const inputs = await scanSourceInputs(join(repoRoot, plugin));
-    sourceInputsByPlugin[plugin] = inputs;
-    const sourceDigest = sha256(JSON.stringify(sortedObject(inputs)));
     const prior = previous?.plugins?.[plugin];
-    const reuse = prior && prior.sourceDigest === sourceDigest;
+    let buildInputPaths = prior?.buildInputPaths ?? [];
+    let inputs = await collectReleaseInputs(repoRoot, plugin, buildInputPaths);
+    let sourceDigest = sha256(JSON.stringify(sortedObject(inputs)));
+    const reuse = previous?.formatVersion === 2 && prior && prior.sourceDigest === sourceDigest
+      && previous.toolchain.node === process.version && previous.toolchain.platform === process.platform;
 
     let releaseDir;
     let release;
@@ -142,10 +155,14 @@ export async function buildReleaseArtifacts({
       releaseDir = stagingRelease;
       release = JSON.parse(await readFile(join(stagingRelease, 'release.json'), 'utf8'));
       const buildInputs = await findBuildInputs(workDir);
+      buildInputPaths = Object.keys(buildInputs?.inputs ?? {});
+      inputs = await collectReleaseInputs(repoRoot, plugin, buildInputPaths);
+      sourceDigest = sha256(JSON.stringify(sortedObject(inputs)));
       // 真实构建取 build-inputs.json 的 inputDigest（esbuild metafile 语义），否则以源码扫描为准。
       inputDigest = buildInputs?.inputDigest ?? sha256(JSON.stringify(sortedObject(inputs)));
       if (isCommon(plugin)) commonReleaseDir = stagingRelease;
     }
+    sourceInputsByPlugin[plugin] = inputs;
 
     const fileName = `${plugin}-${release.pluginVersion}.zip`;
     const zipPath = join(zipsDir, fileName);
@@ -161,6 +178,7 @@ export async function buildReleaseArtifacts({
       releaseDir: toPosix(relative(outDir, releaseDir)),
       sourceDigest,
       inputDigest,
+      buildInputPaths,
       zipPath: toPosix(relative(outDir, zipPath)),
       zipSha256: zipResults.at(-1).zipSha256,
     };
@@ -211,7 +229,7 @@ export async function buildReleaseArtifacts({
   });
 
   const record = {
-    formatVersion: 1,
+    formatVersion: 2,
     commit,
     releaseTag,
     baseUrl,
@@ -240,13 +258,15 @@ export async function buildReleaseArtifacts({
 export async function gateCommitInputs({ repoRoot, record, outDir, commit }) {
   const problems = [];
   const drifted = [];
+  if (record.formatVersion !== 2) problems.push({ code: 'record_version', message: '需要包含完整构建输入的新版发布记录' });
+  if (record.toolchain?.node !== process.version || record.toolchain?.platform !== process.platform) problems.push({ code: 'toolchain_changed' });
   // 规格 9.2：提交身份变化不阻止复用（构建后又提交属正常）；commit 仅供人工核对，
   // 真正的门禁是下面的源输入摘要与 ZIP 摘要。
   const commitNote = commit && record.commit !== commit
     ? { record: record.commit, head: commit }
     : null;
   for (const [plugin, pluginRecord] of Object.entries(record.plugins ?? {})) {
-    const current = await scanSourceInputs(join(resolve(repoRoot), plugin));
+    const current = await collectReleaseInputs(resolve(repoRoot), plugin, pluginRecord.buildInputPaths);
     const recorded = record.sourceInputs?.[plugin] ?? {};
     for (const [path, digest] of Object.entries(current)) {
       if (recorded[path] !== digest) drifted.push({ plugin, path, kind: recorded[path] === undefined ? 'added' : 'changed' });

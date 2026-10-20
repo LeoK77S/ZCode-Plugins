@@ -72,10 +72,8 @@ if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1]
     throw new Error('需要 Node.js 24+；请升级 Node，并在客户端配置中使用该版本的可执行文件');
   if (values['installed-plugins']) setCommonLocation({ installedPluginsPath: resolve(values['installed-plugins']) });
   if (values['common-root']) setCommonLocation({ commonRoot: resolve(values['common-root']) });
-  // 公共安装期入口（client-install）经 PKG-01 契约定位；不可用作为诊断状态报告，不安装、不修链
-  let dependencies, common;
-  try { dependencies = await (await loadCommonInstall()).checkRuntime(); common = { ok: true }; }
-  catch (error) { common = { ok: false, error: `${error.code ?? 'error'}: ${error.message}` }; }
+  // 公共前提失败时停止，尤其不能先移除旧注册或创建配置。
+  const dependencies = await (await loadCommonInstall()).checkRuntime();
   let result;
   if (values['check-only']) result = { ok: true, action: 'checked' };
   else if (values['native-plugin']) {
@@ -90,5 +88,5 @@ if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1]
     }
     result = { ok: true, action: 'plugin_managed', ...(migration ? { migration } : {}) };
   } else result = await installSkill({ skillFile: join(resolve(values['skills-dir']), 'suian-zcode-app-mcp', 'SKILL.md') });
-  console.log(JSON.stringify({ ...result, ...(dependencies ? { dependencies } : {}), common }));
+  console.log(JSON.stringify({ ...result, dependencies, common: { ok: true } }));
 }

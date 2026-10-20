@@ -480,6 +480,24 @@ test('start_session 从 CLI 权限继承而非陈旧任务索引，显式指定�
   assert.equal(calls.length, 4);
 });
 
+test('省略工作目录的会话控制等待真实异步 SQLite 读取', async t => {
+  const f = fixture(t);
+  f.task({ id: 'sess_async_target', workspace: 'D:/fixture' });
+  f.session({ id: 'sess_async_target', directory: 'D:/fixture' });
+  const { createSessionReader } = await import('../sessions.mjs');
+  const { createSessionController } = await import('../control.mjs');
+  let closed = false;
+  const controller = createSessionController({ reader: createSessionReader(f),
+    connect: async target => {
+      assert.equal(target.workspacePath, 'D:/fixture');
+      assert.equal(target.sessionId, 'sess_async_target');
+      return { workspacePath: target.workspacePath, close() { closed = true; },
+        call: async () => ({ meta: { taskId: 'sess_async_target', status: 'completed' } }) };
+    } });
+  assert.equal((await controller.getSessionStatus({ session_id: 'sess_async_target' })).status, 'completed');
+  assert.equal(closed, true);
+});
+
 test('start_session 继承与首发后确认共用 CLI 库，索引分叉不误判，真实差异保留提交回执', async t => {
   const f = fixture(t), calls = [];
   f.task({ id: 'sess_parent', mode: 'build' });

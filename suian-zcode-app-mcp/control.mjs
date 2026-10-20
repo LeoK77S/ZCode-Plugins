@@ -57,7 +57,7 @@ export function createSessionController({ reader, gatewayConfigPath, connect = d
   const glmAttempts = new Map();
   const deliveryClientId = `suian-zcode-app-mcp-${randomUUID()}`;
   const targetOf = async args => ({ sessionId: args.session_id,
-    workspacePath: args.workspace_path ?? reader.readSession({ session_id: args.session_id, workspace_key: args.workspace_key, limit: 1 }).session.workspace_path });
+    workspacePath: args.workspace_path ?? (await reader.readSession({ session_id: args.session_id, workspace_key: args.workspace_key, limit: 1 })).session.workspace_path });
   // 写调用允许并发：网关为每个本地连接维护独立 RPC ID 空间并共享同一 Host 桥，
   // 一步工具轮的批量归档等写操作各自建立连接，不再互相拒绝。
   const attached = async (target, run, timeoutMs = 120000) => {

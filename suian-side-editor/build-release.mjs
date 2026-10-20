@@ -133,6 +133,11 @@ export async function buildEditorRelease({ root = defaultRoot, outDir, skipUiBui
   for (const inputKey of Object.keys(result.metafile.inputs)) {
     inputs[toPosix(inputKey)] = sha256(await readFile(join(root, inputKey)));
   }
+  // 薄定位器来自公共单一源码；最低兼容版本也读取公共清单，二者都是实际组装输入。
+  for (const path of ['locate.mjs', '.zcode-plugin/plugin.json']) {
+    const inputPath = join(commonSourceRoot, path);
+    inputs[toPosix(relative(root, inputPath))] = sha256(await readFile(inputPath));
+  }
   const inputDigest = sha256(JSON.stringify({ config, inputs: sortedObject(inputs) }));
   const buildId = sha256(JSON.stringify({ inputDigest, outputs: files.map(({ path, sha256: digest }) => [path, digest]) }));
   const release = {

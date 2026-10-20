@@ -6,6 +6,7 @@ import assert from 'node:assert/strict';
 import { execFile, spawn } from 'node:child_process';
 import { lstat, mkdir, mkdtemp, readdir, readFile, writeFile, rm, stat } from 'node:fs/promises';
 import { join } from 'node:path';
+import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
 import { promisify } from 'node:util';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
@@ -203,7 +204,9 @@ test('安装器 --check-only 不安装 npm、不修链、不注册额外 MCP/Hoo
   await writeFile(config, JSON.stringify({ indexDbPath: 'D:/keep/index.sqlite', authDataDir: join(dataDir, 'auth') }));
   const registryBefore = await readFile(host.registryPath, 'utf8');
   const configBefore = await readFile(config, 'utf8');
-  const { stdout } = await run(process.execPath, [distInstall, '--check-only', '--installed-plugins', host.registryPath, '--config', config],
+  const skill = await readFile(join(appOut, 'skills/setup/SKILL.md'), 'utf8');
+  const documentedEntry = skill.match(/node "([^"]+)"/)[1].replaceAll('{{plugin_root}}',appOut).replaceAll('{{command_dir}}',join(appOut,'dist'));
+  const { stdout } = await run(process.execPath, [documentedEntry, '--check-only', '--installed-plugins', host.registryPath, '--config', config],
     { windowsHide: true, env: neutralEnv(), cwd: neutralCwd });
   const result = JSON.parse(stdout);
   assert.equal(result.action, 'checked');
@@ -214,11 +217,25 @@ test('安装器 --check-only 不安装 npm、不修链、不注册额外 MCP/Hoo
   await assert.rejects(stat(join(dataDir, 'node_modules')), { code: 'ENOENT' });
 });
 
-test('--check-only 在无锚点时报告公共层状态而非崩溃或安装', async () => {
+test('--check-only 在无锚点时明确失败且不安装', async () => {
   const dataDir = join(staging, 'check-noanchor');
   await mkdir(dataDir, { recursive: true });
-  const { stdout } = await run(process.execPath, [distInstall, '--check-only'], { windowsHide: true, env: neutralEnv({ ZCODE_PLUGIN_DATA: undefined }), cwd: neutralCwd });
-  const result = JSON.parse(stdout);
-  assert.equal(result.action, 'checked');
-  assert.ok(result.common?.error, '公共层不可用应作为状态报告');
+  await assert.rejects(run(process.execPath, [distInstall, '--check-only'], { windowsHide: true, env: neutralEnv({ ZCODE_PLUGIN_DATA: undefined }), cwd: neutralCwd }), error => {
+    assert.equal(error.code,1);assert.match(error.stderr,/anchor_missing/);return true;
+  });
+});
+
+test('发布包 debug 技能的独立握手脚本只需 Node，并显式传安装记录',async t=>{
+  const text=await readFile(join(appOut,'skills/debug/verification.md'),'utf8');
+  const script=text.match(/@'\r?\n([\s\S]*?)\r?\n'@/)[1];
+  const cwd=await mkdtemp(join(tmpdir(),'pkg-debug-isolated-'));
+  t.after(()=>rm(cwd,{recursive:true,force:true}));
+  const config=join(cwd,'config.json');
+  await writeFile(config,JSON.stringify({indexDbPath:join(cwd,'index.sqlite'),sessionDbPath:join(cwd,'sessions.sqlite')}));
+  const pending=run(process.execPath,['--input-type=module','-',distCli,config,host.registryPath],{windowsHide:true,cwd,env:neutralEnv({ZCODE_PLUGIN_DATA:undefined})});
+  pending.child.stdin.end(script);
+  const {stdout}=await pending;
+  const result=JSON.parse(stdout);
+  assert.ok(result.names.includes('list_sessions'));
+  assert.ok(result.toolCount>=19);
 });

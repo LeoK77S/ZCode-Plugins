@@ -1,6 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { join } from 'node:path';
+import { mkdtemp,readFile,rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
 import {
   toastRootFor, activeToastRecordFor, deployToastRuntime, registerToastIdentity, removeToastIdentity,
   checkToastRuntime, buildForwardVbs, buildStableLauncherVbs,
@@ -43,6 +45,14 @@ const NODE = 'C:\\Program Files\\nodejs\\node.exe';
 const activeRecord = activeToastRecordFor(HOME);
 const deployedWorld = (shell, { executorText = '// executor v1' } = {}) =>
   deployToastRuntime({ homeDir: HOME, nodeExe: NODE, executorText, shell });
+
+test('真实文件系统部署 Toast 成功返回，活动执行器可读',async t=>{
+  const home=await mkdtemp(join(tmpdir(),'toast-real-'));
+  t.after(()=>rm(home,{recursive:true,force:true}));
+  const result=await deployToastRuntime({homeDir:home,executorText:'export const version=1;'});
+  assert.equal(result.action,'deployed');
+  assert.equal(await readFile(join(toastRootFor(home),'executor.mjs'),'utf8'),'export const version=1;');
+});
 
 test('部署稳定运行时：executor/launch/活动记录落位，均不引用版本缓存与缓存内入口', async () => {
   const shell = makeShell();
@@ -105,6 +115,25 @@ test('重复部署幂等：内容一致时 unchanged，不重写活动记录', a
   assert.equal(again.action, 'unchanged');
   assert.equal(shell.files.get(activeRecord), activeBefore);
   assert.equal(shell.runs.filter(run => run.args[0] === '--check').length, checksBefore, '幂等路径不再执行校验命令');
+});
+
+test('启动器写入或活动记录提交失败恢复执行器与启动器，首次失败不残留活动文件', async () => {
+  for (const initial of [false,true]) for (const failure of ['launcher','active-write','active-rename']) {
+    const shell=makeShell(),root=toastRootFor(HOME);
+    if(initial)await deployedWorld(shell);
+    const before=new Map(shell.files),write=shell.writeText,rename=shell.rename;
+    let failed=false;
+    shell.writeText=async(path,text)=>{
+      if(!failed&&((failure==='launcher'&&path===join(root,'launch.vbs'))||(failure==='active-write'&&path.includes('.active-toast.tmp-')))) {failed=true;throw new Error('fixture commit failure');}
+      return write(path,text);
+    };
+    shell.rename=async(from,to)=>{
+      if(!failed&&failure==='active-rename'&&to===activeRecord) {failed=true;throw new Error('fixture commit failure');}
+      return rename(from,to);
+    };
+    await assert.rejects(deployToastRuntime({homeDir:HOME,nodeExe:'C:\\new-node.exe',executorText:'// executor v2',shell}),/fixture commit failure/);
+    for(const path of [join(root,'executor.mjs'),join(root,'launch.vbs'),activeRecord])assert.equal(shell.files.get(path),before.get(path),`${initial}/${failure}: ${path}`);
+  }
 });
 
 test('身份描述外置按协议隔离；卸载只移除本身份，保留共享运行目录与另一身份', async () => {

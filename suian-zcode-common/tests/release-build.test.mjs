@@ -74,6 +74,21 @@ if (typeof m.connectHost !== 'function' || typeof m.TopicWireFrameAssembler !== 
   assert.equal(result.status, 0, result.stderr);
 });
 
+test('发布管理入口在隔离目录执行诊断和迁移，不依赖源码导入链', async t => {
+  const { out, releaseDir } = await buildTo(commonRoot, 'pkg01-management-');
+  t.after(() => rm(out, { recursive: true, force: true }));
+  const env = { ...process.env, SUIAN_DEPCHECK_HOME: out, HOME: out, USERPROFILE: out };
+  const scan = spawnSync(nodeBin, [join(releaseDir, 'depcheck-hook.mjs'), '--scan-only'], { cwd: out, env, encoding: 'utf8', windowsHide: true });
+  assert.equal(scan.status, 0, scan.stderr);
+  assert.equal(typeof JSON.parse(scan.stdout), 'object');
+  const captured = spawnSync(nodeBin, [join(releaseDir, 'migration.mjs'), '--capture', '--record', join(out, 'migration.json')], { cwd: out, env, encoding: 'utf8', windowsHide: true });
+  assert.equal(captured.status, 0, captured.stderr);
+  assert.equal(JSON.parse(captured.stdout).ok, true);
+  const links = spawnSync(nodeBin, [join(releaseDir, 'legacy-cleanup.mjs'), '--inspect', '--home', out], { cwd: out, env, encoding: 'utf8', windowsHide: true });
+  assert.equal(links.status, 0, links.stderr);
+  assert.equal(JSON.parse(links.stdout).ok, true);
+});
+
 test('release.json 契约：字段齐备、文件清单逐项校验且不含自身', async t => {
   const { out, releaseDir, release } = await buildTo(commonRoot, 'pkg01-release-');
   t.after(() => rm(out, { recursive: true, force: true }));
@@ -83,7 +98,7 @@ test('release.json 契约：字段齐备、文件清单逐项校验且不含自�
   assert.equal(release.commonApiVersion, 1);
   assert.match(release.pluginVersion, /^\d+\.\d+\.\d+/);
   assert.match(release.buildId, /^[0-9a-f]{64}$/);
-  assert.deepEqual(Object.keys(release.entries).sort(), ['client', 'client-install']);
+  assert.deepEqual(Object.keys(release.entries).sort(), ['client', 'client-install', 'depcheck-hook', 'legacy-cleanup', 'migration']);
   for (const entryPath of Object.values(release.entries)) {
     await assert.doesNotReject(() => readFile(join(releaseDir, entryPath)));
   }

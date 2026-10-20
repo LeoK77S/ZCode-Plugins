@@ -63,7 +63,7 @@
 | package.json / package-lock.json | package.json 提供插件和运行时自报版本；原生清单与锁文件同步版本，固定依赖与测试入口 |
 | CHANGELOG.md | 本插件的版本变更记录、预览限制和对应源码链接 |
 | mcp.config.example.json | MCP 客户端连接示例 |
-| install.mjs / SKILL.md | 源码路由技能部署、原生外置配置初始化与指定旧根迁移；checkRuntime 经 client-install 定位，公共不可用仅作诊断；--check-only 零副作用 |
+| install.mjs / SKILL.md | 源码路由技能部署、原生外置配置初始化与指定旧根迁移；checkRuntime 经 client-install 定位，公共前提失败在迁移/写配置前退出；--check-only 零副作用 |
 | vendor/NOTICE.md | 公共消息投影库的来源与许可指针 |
 | tests/ | 真实 SQLite fixture、MCP/stdio、正式 Hook 与工件简表选择/裁剪契约测试；release-package 验证解包产物（隔离 stdio/Hook/UI 资源/install 零副作用与无 common 内联），fixtures 顶层提供进程内公共锚点 |
 | docs/ | 研究、工具规格、ADR、开票草稿与脱敏验收证据；agents/ 保存开票和领域文档入口 |

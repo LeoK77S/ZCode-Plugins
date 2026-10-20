@@ -12,10 +12,11 @@ const toPosix = path => path.split(sep).join('/');
 const defaultRoot = dirname(fileURLToPath(import.meta.url));
 const ENTRIES = { client: 'client.mjs', 'client-install': 'client-install.mjs' };
 const DIST_ENTRIES = { client: 'dist/client.mjs', 'client-install': 'dist/client-install.mjs' };
+const MANAGEMENT_ENTRIES = { 'depcheck-hook': 'depcheck-hook.mjs', migration: 'migration.mjs', 'legacy-cleanup': 'legacy-cleanup.mjs' };
 // 随包分发的管理链文件（相对源根路径）：hooks.json 的 Stop 命令、depcheck 修复链、
 // setup/run 安装器与稳定启动器、setup.ps1 读取的源码兼容路由技能。
 const MANAGEMENT_STATIC = [
-  'depcheck.mjs', 'depcheck-hook.mjs', 'depcheck-prompt.mjs', 'hooks/hooks.json',
+  'depcheck.mjs', 'depcheck-prompt.mjs', 'hooks/hooks.json',
   'gateway-deploy.mjs', 'setup.ps1', 'run.ps1', 'run.vbs', 'gateway-launcher.ps1', 'SKILL.md',
 ];
 
@@ -63,10 +64,10 @@ export async function buildRelease({ root = defaultRoot, outDir } = {}) {
   await mkdir(distDir, { recursive: true });
 
   const inputs = {};
-  for (const [key, entry] of Object.entries(ENTRIES)) {
+  for (const [key, entry] of Object.entries({ ...ENTRIES, ...MANAGEMENT_ENTRIES })) {
     const result = await build({
       entryPoints: [join(root, entry)],
-      outfile: join(outDir, DIST_ENTRIES[key]),
+      outfile: join(outDir, DIST_ENTRIES[key] ?? MANAGEMENT_ENTRIES[key]),
       bundle: true,
       format: 'esm',
       platform: 'node',
@@ -116,7 +117,7 @@ export async function buildRelease({ root = defaultRoot, outDir } = {}) {
     files.push({ path, sha256: sha256(content), bytes: content.length });
   }
 
-  const config = { target: TARGET, entries: ENTRIES, external: EXTERNALS, esbuildVersion };
+  const config = { target: TARGET, entries: { ...ENTRIES, ...MANAGEMENT_ENTRIES }, external: EXTERNALS, esbuildVersion };
   const inputDigest = sha256(JSON.stringify({ config, inputs: sortedObject(inputs) }));
   const buildId = sha256(JSON.stringify({ inputDigest, outputs: files.map(({ path, sha256: digest }) => [path, digest]) }));
 
@@ -128,7 +129,7 @@ export async function buildRelease({ root = defaultRoot, outDir } = {}) {
     pluginVersion: manifest.version,
     buildId,
     commonApiVersion: (await import(pathToFileURL(join(root, 'client.mjs')).href)).COMMON_API_VERSION,
-    entries: { ...DIST_ENTRIES },
+    entries: { ...DIST_ENTRIES, ...MANAGEMENT_ENTRIES },
     files,
   };
   await writeFile(join(outDir, 'release.json'), `${JSON.stringify(release, null, 2)}\n`);

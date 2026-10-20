@@ -12,8 +12,8 @@ description: 初始化、升级或迁移 ZCode 会话 MCP，核对公共层定�
 3. 仅检查通过后初始化：
 
 ```powershell
-node "{{plugin_root}}/install.mjs" --native-plugin --config "{{data_path}}/config.json" --check-only
-node "{{plugin_root}}/install.mjs" --native-plugin --config "{{data_path}}/config.json"
+node "{{command_dir}}/install.mjs" --native-plugin --config "{{data_path}}/config.json" --installed-plugins "{{installed_plugins_json}}" --check-only
+node "{{command_dir}}/install.mjs" --native-plugin --config "{{data_path}}/config.json" --installed-plugins "{{installed_plugins_json}}"
 ```
 
 原生模式创建或保留外置配置，技能和 MCP 由宿主加载，不部署全局技能或另加全局 MCP。

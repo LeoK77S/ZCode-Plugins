@@ -79,10 +79,11 @@ test('发布目录组装：实际构建页面、薄适配、许可与元数据�
 });
 
 test('构建输入不内联 common 实现或公共 vendor；状态库仍使用 Node 内置 SQLite', async t => {
-  const { releaseDir, buildInputs } = await releaseResult();
+  const { releaseDir, buildInputs, metafile } = await releaseResult();
   const inputs = Object.keys(buildInputs.inputs);
   assert.ok(inputs.length > 0, '必须记录真实构建输入');
-  assert.ok(!inputs.some(path => path.includes('suian-zcode-common')), '不得把 common 实现打进业务产物');
+  assert.ok(!Object.keys(metafile.inputs).some(path => path.includes('suian-zcode-common')), '不得把 common 实现打进业务 bundle');
+  assert.deepEqual(inputs.filter(path => path.includes('suian-zcode-common')).sort(), ['../suian-zcode-common/.zcode-plugin/plugin.json','../suian-zcode-common/locate.mjs'], '记录公共静态组装输入，不将其误称为 bundle 内联');
   assert.ok(!inputs.some(path => /(^|[\\/])vendor([\\/]|$)/.test(path)), '不得把公共 vendor 打进业务产物');
   assert.ok(!inputs.some(path => /better-sqlite3|(^|[\\/])sqlite3([\\/]|$)|node-gyp/.test(path)), '不得引入原生 SQLite 扩展');
   const bundle = await readFile(join(releaseDir, 'cli.mjs'), 'utf8');

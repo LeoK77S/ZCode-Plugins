@@ -1,43 +1,50 @@
 // PKG-07：GitHub Release 发布流水线编排。GitHub API 与匿名下载全部依赖注入：
 // 测试使用内存桩，不触真实网络写操作；真实 REST 适配器由 createGithubRestApi 提供，
 // 仅在另行授权的正式发布中由人显式调用。
-// 顺序强制（规格 9.3）：草稿资产齐全 -> 匿名公开下载核验 -> 公开（先预发布）->
-// 市场就绪报告；未完成下载核验不得公开，市场切换须另行授权。已发布资产不删除重传；
+// 顺序强制（规格 9.3）：草稿资产齐全 -> 授权公开（先预发布）-> 匿名公开下载核验 ->
+// 市场就绪报告；下载核验失败不得切换市场。已发布资产不删除重传；
 // 上传结果未知时先读取远端现状再续作，不盲重传；不能覆盖现有未知内容。
 import { readFile } from 'node:fs/promises';
 import { validateMarketplaceEntry } from './release-marketplace.mjs';
 
-export const PIPELINE_STAGES = ['draft', 'upload', 'verify-download', 'publish', 'market-ready'];
+export const PIPELINE_STAGES = ['draft', 'upload', 'publish', 'verify-download', 'market-ready'];
 
 const stageOrder = new Map(PIPELINE_STAGES.map((stage, index) => [stage, index]));
 const reached = stage => stageOrder.get(stage) ?? -1;
 
 /**
  * zips：[{ name, fileName, zipPath, sha256, bytes }]
- * githubApi：{ getReleaseByTag, createDraftRelease, listAssets, getAssetDigest,
+ * candidateCommit：已验候选的完整提交 SHA（新 tag 和已有 tag 均须绑定）。
+ * githubApi：{ getTagCommit, getReleaseByTag, createDraftRelease, listAssets, getAssetDigest,
  *              uploadAsset, updateRelease, assetDownloadUrl }
  * download(url)：匿名下载，成功返回 Buffer，失败抛错
  * authorize：{ publish: boolean }——publish 为 false 时停留在核验完成态
  * marketCandidate：候选市场清单（可选）；publish 后核对其 URL/摘要与资产一致
  * state：跨调用持久化（{stage, releaseId, assets, downloads, publishPending, marketSwitchPending}）
  */
-export async function runReleasePipeline({ state, githubApi, download, zips, releaseTag, authorize = {}, marketCandidate }) {
+export async function runReleasePipeline({ state, githubApi, download, zips, releaseTag, candidateCommit, authorize = {}, marketCandidate }) {
   const run = state ?? {};
   run.assets = run.assets ?? {};
   run.downloads = run.downloads ?? [];
-  const report = { releaseTag, zips: zips.map(zip => zip.fileName) };
+  const report = { releaseTag, candidateCommit, zips: zips.map(zip => zip.fileName) };
   const fail = code => ({ state: run, report, error: { code } });
+  if (!/^[0-9a-f]{40}$/.test(candidateCommit ?? '')) return fail('candidate_commit_invalid');
+  if ((run.releaseTag && run.releaseTag !== releaseTag) || (run.candidateCommit && run.candidateCommit !== candidateCommit)) return fail('state_candidate_mismatch');
+  const tagCommit = await githubApi.getTagCommit(releaseTag);
+  if (tagCommit && tagCommit !== candidateCommit) return fail('tag_commit_mismatch');
+  run.releaseTag = releaseTag;
+  run.candidateCommit = candidateCommit;
 
   // 阶段一：读取现状，不存在同名才建草稿。
   let release = await githubApi.getReleaseByTag(releaseTag);
-  if (!release) release = await githubApi.createDraftRelease({ tag: releaseTag });
+  if (!release) release = await githubApi.createDraftRelease({ tag: releaseTag, commit: candidateCommit });
+  if (!tagCommit && release.target_commitish !== candidateCommit) return fail('draft_commit_mismatch');
   run.releaseId = release.id;
   if (reached(run.stage ?? 'draft') < reached('draft')) run.stage = 'draft';
 
   // 阶段二：逐资产核对/上传；已确认的不重传，未知内容不覆盖。
   const remoteAssets = await githubApi.listAssets(release);
   for (const zip of zips) {
-    if (run.assets[zip.fileName]?.uploaded) continue;
     const existing = remoteAssets.find(asset => asset.name === zip.fileName);
     if (existing) {
       const digest = await githubApi.getAssetDigest(existing);
@@ -63,10 +70,27 @@ export async function runReleasePipeline({ state, githubApi, download, zips, rel
   }
   if (reached(run.stage) < reached('upload')) run.stage = 'upload';
 
-  // 阶段三：匿名公开下载核验；任何失败停留本阶段，禁止公开（无先暴露 404 的路径）。
-  const pendingDownloads = zips.filter(zip => !run.downloads.some(record => record.fileName === zip.fileName));
+  // 草稿没有匿名公开 URL；资产齐备后须先按授权公开，市场清单仍不切换。
+  if (release.draft) {
+    if (!authorize.publish) {
+      run.publishPending = true;
+      report.pending = '资产已备/待授权公开：Release 保持草稿，市场清单保持原正式版本';
+      return { state: run, report };
+    }
+    const currentTagCommit = await githubApi.getTagCommit(releaseTag);
+    if (currentTagCommit && currentTagCommit !== candidateCommit) return fail('tag_commit_mismatch');
+    release = await githubApi.updateRelease(release, { draft: false, prerelease: true });
+  }
+  if (await githubApi.getTagCommit(releaseTag) !== candidateCommit) return fail('tag_commit_mismatch');
+  delete run.publishPending;
+  run.stage = 'publish';
+
+  // 阶段四：公开后匿名下载；任何失败阻断市场就绪，不删除或替换已公开资产。
+  const pendingDownloads = zips.filter(zip => !run.downloads.some(record => record.fileName === zip.fileName && record.ok
+    && record.sha256 === zip.sha256 && record.url === githubApi.assetDownloadUrl(release, { name: zip.fileName })));
   for (const zip of pendingDownloads) {
     const url = githubApi.assetDownloadUrl(release, { name: zip.fileName });
+    run.downloads = run.downloads.filter(record => record.fileName !== zip.fileName);
     try {
       const bytes = await download(url);
       const { createHash } = await import('node:crypto');
@@ -81,17 +105,7 @@ export async function runReleasePipeline({ state, githubApi, download, zips, rel
     }
   }
   if (reached(run.stage) < reached('verify-download')) run.stage = 'verify-download';
-  if (run.downloads.some(record => !record.ok)) return fail('download_failed');
-
-  // 阶段四：公开（先预发布）。未获授权时停在核验完成态并报告待授权。
-  if (!authorize.publish) {
-    run.publishPending = true;
-    report.pending = '资产已备/待集成：publish 未获授权，Release 保持草稿，市场清单保持原正式版本';
-    return { state: run, report };
-  }
-  await githubApi.updateRelease(release, { draft: false, prerelease: true });
-  delete run.publishPending;
-  run.stage = 'publish';
+  if (zips.some(zip => !run.downloads.some(record => record.fileName === zip.fileName && record.ok && record.sha256 === zip.sha256))) return fail('download_failed');
 
   // 阶段五：市场就绪——核对候选条目 URL/摘要与已公开资产一致；切换须另行授权。
   if (marketCandidate?.plugins) {
@@ -99,11 +113,13 @@ export async function runReleasePipeline({ state, githubApi, download, zips, rel
       if (entry.source?.type !== 'zip') continue;
       const shape = validateMarketplaceEntry(entry);
       if (!shape.ok) return fail('market_candidate_invalid');
-      const expectedUrl = githubApi.assetDownloadUrl(release, { name: entry.source.url.split('/').at(-1) });
+      const zip = zips.find(item => item.name === entry.name);
+      if (!zip) continue; // 未变条目保留其已发布 URL 和摘要。
+      const expectedUrl = githubApi.assetDownloadUrl(release, { name: zip.fileName });
       if (entry.source.url !== expectedUrl) return fail('market_url_mismatch');
-      const zip = zips.find(item => item.fileName === entry.source.url.split('/').at(-1));
-      if (!zip || zip.sha256 !== entry.source.sha256) return fail('market_digest_mismatch');
+      if (zip.sha256 !== entry.source.sha256) return fail('market_digest_mismatch');
     }
+    if (zips.some(zip => !marketCandidate.plugins.some(entry => entry.name === zip.name))) return fail('market_candidate_missing');
     run.stage = 'market-ready';
     run.marketSwitchPending = true;
     report.market = '候选市场清单与公开资产一致；正式合入 master 须另行授权';
@@ -142,6 +158,15 @@ export function createGithubRestApi({ owner, repo, token, fetchImpl = fetch }) {
     }
   };
   return {
+    async getTagCommit(tag) {
+      let ref;
+      try { ref = await request(`/git/ref/tags/${encodeURIComponent(tag)}`); }
+      catch (error) { if (error.httpStatus === 404) return null; throw error; }
+      let object = ref.object;
+      while (object.type === 'tag') object = (await request(`/git/tags/${object.sha}`)).object;
+      if (object.type !== 'commit') throw new Error(`Release tag ${tag} 没有指向提交`);
+      return object.sha;
+    },
     async getReleaseByTag(tag) {
       try {
         return await request(`/releases/tags/${encodeURIComponent(tag)}`);
@@ -150,8 +175,9 @@ export function createGithubRestApi({ owner, repo, token, fetchImpl = fetch }) {
         throw error;
       }
     },
-    async createDraftRelease({ tag, name = tag, body = '' }) {
-      return request('/releases', { method: 'POST', body: JSON.stringify({ tag_name: tag, name, body, draft: true, prerelease: true }) });
+    async createDraftRelease({ tag, commit, name = tag, body = '' }) {
+      if (!/^[0-9a-f]{40}$/.test(commit ?? '')) throw new Error('创建 Release 必须指定候选提交 SHA');
+      return request('/releases', { method: 'POST', body: JSON.stringify({ tag_name: tag, target_commitish: commit, name, body, draft: true, prerelease: true }) });
     },
     async listAssets(release) { return request(`/releases/${release.id}/assets?per_page=100`); },
     async getAssetDigest(asset) {
@@ -161,8 +187,8 @@ export function createGithubRestApi({ owner, repo, token, fetchImpl = fetch }) {
     async uploadAsset(release, { name, readBytes, bytes, zipPath }) {
       // 载荷契约：编排器传 zipPath（从发布记录读盘），测试注入 readBytes/bytes；
       // 三者皆缺是调用方错误，静默上传空资产比报错更危险。
-      const body = readBytes ?? bytes ?? (zipPath ? await readFile(zipPath) : null);
-      if (body == null) throw new Error(`uploadAsset(${name}) 需要 readBytes/bytes/zipPath 之一`);
+      const body = zipPath ? await readFile(zipPath) : (readBytes ?? bytes);
+      if (!(body instanceof Uint8Array)) throw new Error(`uploadAsset(${name}) 需要 readBytes/bytes/zipPath 之一；载荷必须是字节数组，文件大小不能用作载荷`);
       return request(`https://uploads.github.com/repos/${owner}/${repo}/releases/${release.id}/assets?name=${encodeURIComponent(name)}`, {
         method: 'POST',
         headers: { 'content-type': 'application/zip' },

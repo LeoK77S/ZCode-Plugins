@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import {installToastAssets,removeToastAssets,ensureToastAppId,installStopHook,removeStopHook,buildHookCommand,installSkill,removeSkill,installPlugin,deployToastTemplate,removeToastTemplate,AUMID,PROTOCOL,TOAST_TEMPLATE_FILE} from "../installer.mjs";
 
 import {buildVbsContent,buildProtocolCommand} from "../../suian-zcode-common/notification-install.mjs";
-import {mkdtemp,writeFile,stat,rm} from "node:fs/promises";
+import {mkdtemp,mkdir,readFile,writeFile,stat,rm} from "node:fs/promises";
 import {tmpdir,homedir} from "node:os";
 import {join,resolve} from "node:path";
 import {fileURLToPath,pathToFileURL} from "node:url";
@@ -24,6 +24,21 @@ const makeShell=()=>{
     stat:async path=>state.files.has(path)?{isFile:true}:null
   };
 };
+test("CLI 原生卸载在无宿主注入时传递两种显式公共锚点",async t=>{
+  const dir=await mkdtemp(join(tmpdir(),"z-title-remove-anchor-"));
+  t.after(()=>rm(dir,{recursive:true}));
+  const commonRoot=join(dir,"common"),trace=join(dir,"trace.json"),registry=join(dir,"installed_plugins.json");
+  await mkdir(commonRoot);
+  await writeFile(join(commonRoot,"install.mjs"),`import {writeFile} from 'node:fs/promises';export const removeToastAssets=async options=>writeFile(${JSON.stringify(trace)},JSON.stringify(options));export const fileShell={remove:async()=>{}};`);
+  await writeFile(join(commonRoot,"release.json"),JSON.stringify({formatVersion:1,pluginName:"suian-zcode-common",pluginVersion:"0.4.2",buildId:"fixture",commonApiVersion:1,entries:{"client-install":"install.mjs"},files:[]}));
+  await writeFile(registry,JSON.stringify({version:1,plugins:[{id:"suian-zcode-common@suian-zcode-plugins",name:"suian-zcode-common",marketplace:"suian-zcode-plugins",installPath:commonRoot}]}));
+  const cli=fileURLToPath(new URL("../install.mjs",import.meta.url)),dataDir=join(dir,"data");
+  for(const flags of [["--common-root",commonRoot],["--installed-plugins",registry]]) {
+    const {stdout}=await promisify(execFile)(process.execPath,[cli,dataDir,"--native-plugin","--remove",...flags],{windowsHide:true,env:{...process.env,ZCODE_PLUGIN_DATA:undefined,HOME:dir,USERPROFILE:dir}});
+    assert.equal(JSON.parse(stdout).ok,true);
+    assert.equal(JSON.parse(await readFile(trace,"utf8")).dataDir,dataDir);
+  }
+});
 test("vbs 桥与协议命令行：调用方 vbs 只转发到稳定启动器，只放行本协议 fix",()=>{
   const toastRoot=join("H:\\toast-home",".zcode","tools","suian-zcode-common","toast");
   const vbs=buildVbsContent({protocol:PROTOCOL,launcherPath:join(toastRoot,"launch.vbs")});

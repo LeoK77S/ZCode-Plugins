@@ -315,10 +315,12 @@ $previousTaskAction = if ($null -ne $task) { @($task.Actions)[0] } else { $null 
 $nextConfig = [ordered]@{ version=1; gateway_root=$deploymentDir; tools_root=$ToolsRoot; active_build_id=$buildId; instance_id=$instanceId; port=$Port; upstream_url=$UpstreamUrl; mode=$Mode; relay_protocol_version=$RelayProtocolVersion; previous_user_relay=$previousRelay; control_token=$controlToken }
 $healthUrl = "http://127.0.0.1:$Port/health"
 [IO.Directory]::CreateDirectory($DataDir) | Out-Null
-[IO.File]::WriteAllText($configFile, ($nextConfig | ConvertTo-Json), (New-Object Text.UTF8Encoding($false)))
 
 $registeredThisRun = $false
 if ($null -eq $health) {
+    $candidateError = $null
+    try {
+    [IO.File]::WriteAllText($configFile, ($nextConfig | ConvertTo-Json), (New-Object Text.UTF8Encoding($false)))
     # 步骤 4：原子切换活动记录并复用原任务启动候选；任务参数与版本无关。
     Invoke-DeployCli @('--activate', '--tools-root', $ToolsRoot, '--build-id', $buildId, '--node-path', $script:gatewayNode) | Out-Null
     if ($null -eq $task -or @($task.Actions)[0].Execute -cne $scriptHost -or @($task.Actions)[0].Arguments -cne (Get-LauncherArguments)) {
@@ -332,7 +334,6 @@ if ($null -eq $health) {
         $vbsLauncher = $true
     }
     Start-ScheduledTask -TaskName $taskName
-    $candidateError = $null
     # 步骤 5：核对健康指纹、协议、模式与监听。
     for ($attempt = 0; $attempt -lt 40; $attempt++) {
         try { $health = Read-GatewayHealth; break }
@@ -346,10 +347,17 @@ if ($null -eq $health) {
         if ($health.service -ne 'suian-zcode-gateway' -or $health.version -ne 1 -or $health.instance_id -ne $instanceId -or $health.upstream_url -ne $UpstreamUrl -or $health.mode -ne $Mode -or $health.relay_protocol_version -ne $RelayProtocolVersion) { $candidateError = 'Gateway health check returned a different instance or relay protocol' }
         elseif (-not $health.PSObject.Properties['build'] -or $health.build.id -ne $buildId -or $health.build.root -ne $deploymentDir) { $candidateError = 'Candidate gateway is not running the deployed runtime files' }
     }
+    } catch { $candidateError = $_.Exception.Message }
     if ($null -ne $candidateError) {
         # 步骤 6：候选失败回退。有旧部署时恢复先前活动版本；首次安装撤销本次新增注册、环境修改与部署。
         if ($null -ne $previousConfigBytes -or $null -ne $previousActiveBytes -or $null -ne $previousTaskAction) {
             try {
+                if ($null -ne $health -and $health.instance_id -eq $instanceId) {
+                    if ($health.desktop_connected) { throw 'candidate has an active Desktop connection; fallback was not applied' }
+                    $stopped = Invoke-RestMethod -Uri "http://127.0.0.1:$Port/shutdown" -Method Post -Headers @{ Authorization=('Bearer ' + $controlToken) } -TimeoutSec 5 -UseBasicParsing
+                    if (-not $stopped.ok) { throw 'candidate did not accept shutdown' }
+                    Wait-GatewayExit
+                }
                 if ($null -ne $previousConfigBytes) { [IO.File]::WriteAllBytes($configFile, $previousConfigBytes) }
                 if ($null -ne $previousActiveBytes) { [IO.File]::WriteAllBytes($activeGatewayFile, $previousActiveBytes) }
                 elseif (Test-Path -LiteralPath $activeGatewayFile) { Remove-Item -LiteralPath $activeGatewayFile }
@@ -367,6 +375,8 @@ if ($null -eq $health) {
                     }
                 }
                 if ($null -ne $previousTaskAction) {
+                    $healthUrl = "http://127.0.0.1:$runningPort/health"
+                    $health = $null
                     Start-ScheduledTask -TaskName $taskName
                     for ($attempt = 0; $attempt -lt 40; $attempt++) {
                         try { $health = Read-GatewayHealth; break }
@@ -379,11 +389,11 @@ if ($null -eq $health) {
                 }
                 $previousBuildId = 'unknown'
                 if ($null -ne $previousActiveBytes) { try { $previousBuildId = ([Text.Encoding]::UTF8.GetString($previousActiveBytes) | ConvertFrom-Json).build_id } catch {} }
-                throw ("Candidate gateway activation failed: $candidateError; fallback: restored previous active deployment ($previousBuildId), configuration and task were restored")
             }
             catch {
                 throw ("Candidate gateway activation failed: $candidateError; fallback also failed: " + $_.Exception.Message)
             }
+            throw ("Candidate gateway activation failed: $candidateError; fallback: restored previous active deployment ($previousBuildId), configuration and task were restored")
         } else {
             if ($null -ne $task -or $registeredThisRun) { Unregister-ScheduledTask -TaskName $taskName -Confirm:$false }
             Remove-Item -LiteralPath $configFile
@@ -397,6 +407,8 @@ if ($null -eq $health) {
     $task = Get-ScheduledTask | Where-Object { $_.TaskName -eq $taskName -and $_.TaskPath -eq '\' }
     # 旧安装的数据目录启动文件在切换成功后移除；归属为 config 记录的 DataDir。
     if (Test-Path -LiteralPath $legacyLauncherFile) { Remove-Item -LiteralPath $legacyLauncherFile }
+} else {
+    [IO.File]::WriteAllText($configFile, ($nextConfig | ConvertTo-Json), (New-Object Text.UTF8Encoding($false)))
 }
 $skillDir = Join-Path $SkillsDir 'suian-zcode-common'
 if ($NativePlugin) {
