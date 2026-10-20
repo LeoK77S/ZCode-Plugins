@@ -5,6 +5,7 @@
 // 本模块不包含任何主模块判定，可安全内联。
 import { join, dirname, resolve } from "node:path";
 import { homedir } from "node:os";
+import { readFile } from "node:fs/promises";
 import { commonInstaller, commonAnchorOptions, registryPathFromDataPath } from "./common-access.mjs";
 import { deployToastTemplate, removeToastTemplate, TOAST_TEMPLATE_FILE } from "./toast.mjs";
 
@@ -93,7 +94,8 @@ export async function removeStopHook({pluginRoot,entrySubdir="",configFile,shell
 export async function installPlugin({pluginRoot,entrySubdir="",dataDir,configPath,checkOnly=false,nativePlugin=false,legacyRoot,shell=defaultShell,commonRoot,installedPlugins,homeDir=homedir()}) {
   const activeConfigPath=configPath??(nativePlugin?join(dirname(dataDir),"config.json"):join(pluginRoot,"config.local.json"));
   let config=nativePlugin?{enabled:false}:{};
-  try {config=JSON.parse(await shell.readText(activeConfigPath));}
+  // 配置本身可能提供 common 锚点，读取它之前不能先加载依赖 common 的默认 shell。
+  try {config=JSON.parse(await (shell===defaultShell?readFile(activeConfigPath,"utf8"):shell.readText(activeConfigPath)));}
   catch(error) {if(error.code!=="ENOENT"||(!nativePlugin&&configPath))throw error;}
   // 安装期公共函数经客户端契约加载：显式位置优先，其次宿主注入，最后外置配置里的安装记录路径。
   const anchor=commonAnchorOptions({commonRoot,installedPlugins,config});

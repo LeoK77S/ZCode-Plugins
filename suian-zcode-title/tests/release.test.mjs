@@ -322,6 +322,33 @@ test("隔离世界：发布安装入口保留 sqlite3 只读 JSON 验证且仅�
   await assert.rejects(stat(stateDir), { code: "ENOENT" }, "仅检查不得创建数据目录");
 });
 
+test("隔离世界：无宿主环境时发布安装入口接受三种明确 common 锚点", async t => {
+  const world = await buildWorld(t);
+  const home = join(world.base, "隔离 HOME");
+  await mkdir(home);
+  for (const mode of ["common-root", "installed-plugins", "config"]) {
+    await t.test(mode, async () => {
+      const config = join(world.dataDir, mode + ".json");
+      await writeFile(config, JSON.stringify({
+        sqliteBin: process.env.SQLITE_BIN || "sqlite3",
+        ...(mode === "config" ? { installedPluginsPath: world.registryPath } : {}),
+      }));
+      const args = mode === "config" ? [] : ["--" + mode, mode === "common-root" ? world.commonInstall : world.registryPath];
+      const stateDir = join(world.base, mode + "-state");
+      const result = spawnSync(nodeBin, [join(world.titleInstall, "dist", "install.mjs"), stateDir,
+        "--native-plugin", "--config", config, "--check-only", ...args], {
+        encoding: "utf8", windowsHide: true,
+        env: consumerEnv({ HOME: home, USERPROFILE: home }),
+      });
+      assert.equal(result.status, 0, result.stderr + result.stdout);
+      const payload = JSON.parse(result.stdout.trim());
+      assert.equal(payload.action, "checked");
+      assert.ok(payload.dependencies.sqlite_bin);
+      await assert.rejects(stat(stateDir), { code: "ENOENT" });
+    });
+  }
+});
+
 test("隔离世界：doctor 的 native 分支读取发布根 Hook 清单", async () => {
   const { out, releaseDir } = await buildTo("pkg02-doctor-");
   try {
