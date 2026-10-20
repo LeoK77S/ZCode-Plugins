@@ -38,3 +38,19 @@ test('提示词 parity：执行器快照与 depcheck-prompt 主源对同一结�
   assert.equal(result.ok, false);
   assert.equal(buildPromptSnapshot(result), buildPromptMain(result), '修复提示词文本必须逐字一致');
 });
+
+test('清单不可用时主源与快照均报告未知，不把 skipped 解释为通过', async t => {
+  const world = await buildReleaseWorld(t);
+  for (const content of [null, '{bad', 'null', '{}', '{"plugins":42}']) {
+    const pluginsFile = join(world.root, 'missing-or-bad.json');
+    if (content !== null) await writeFile(pluginsFile, content);
+    const main = await scanMain({ pluginsFile, homeDir: world.homeDir });
+    const snapshot = await scanSnapshot({ pluginsFile, homeDir: world.homeDir });
+    assert.equal(main.ok, false);
+    assert.ok(main.skipped);
+    assert.deepEqual(normalize(snapshot), normalize(main));
+    assert.equal(buildPromptSnapshot(main), buildPromptMain(main));
+    assert.match(buildPromptMain(main), /未完成.*检查/);
+    assert.doesNotMatch(buildPromptMain(main), /复查通过|无需修复/);
+  }
+});

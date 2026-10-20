@@ -12,7 +12,7 @@ import { pathToFileURL } from 'node:url';
 import { scanSuianPlugins } from './depcheck.mjs';
 import { buildToastMessage } from './depcheck-prompt.mjs';
 import { notifyOnce } from './notifications.mjs';
-import { installToastAssets, buildVbsContent } from './notification-install.mjs';
+import { installToastAssets, buildVbsContent, resolveToastPluginsFile } from './notification-install.mjs';
 import { toastRootFor } from './toast-runtime.mjs';
 import { fileShell } from './windows.mjs';
 
@@ -34,7 +34,7 @@ export function resolveDataDir(env = process.env) {
 // 并保证共享 Toast 运行时（缓存外执行器）已部署。幂等判据是转发 vbs 内容、外置身份描述
 // 与注册表协议键三重校验——仅凭 appid 缓存会在 common 升级后指向旧版本缓存路径（按钮运行
 // 旧逻辑），或身份被外部清理后静默失声。
-export async function ensureToastIdentity({ dataDir, homeDir = process.env.SUIAN_DEPCHECK_HOME || homedir(), install = installToastAssets, shell = fileShell }) {
+export async function ensureToastIdentity({ dataDir, homeDir = process.env.SUIAN_DEPCHECK_HOME || homedir(), pluginsFile = resolveToastPluginsFile(), install = installToastAssets, shell = fileShell }) {
   const toastRoot = toastRootFor(homeDir);
   const desiredVbs = buildVbsContent({ protocol: TOAST_IDENTITY.protocol, launcherPath: join(toastRoot, 'launch.vbs') });
   let vbsMatches = false;
@@ -42,7 +42,10 @@ export async function ensureToastIdentity({ dataDir, homeDir = process.env.SUIAN
   catch (error) { if (error.code !== 'ENOENT') throw error; }
   if (vbsMatches) {
     let identityPresent = false;
-    try { identityPresent = JSON.parse(await readFile(join(toastRoot, 'identities', `${TOAST_IDENTITY.protocol}.json`), 'utf8'))?.protocol === TOAST_IDENTITY.protocol; }
+    try {
+      const identity = JSON.parse(await readFile(join(toastRoot, 'identities', `${TOAST_IDENTITY.protocol}.json`), 'utf8'));
+      identityPresent = identity?.protocol === TOAST_IDENTITY.protocol && identity.pluginsFile === pluginsFile;
+    }
     catch (error) { if (error.code !== 'ENOENT' && !(error instanceof SyntaxError)) throw error; }
     if (identityPresent) {
       try {
@@ -51,7 +54,7 @@ export async function ensureToastIdentity({ dataDir, homeDir = process.env.SUIAN
       } catch { /* 协议键缺失（被外部清理），落到重装自愈 */ }
     }
   }
-  await install({ dataDir, homeDir, ...TOAST_IDENTITY });
+  await install({ dataDir, homeDir, pluginsFile, ...TOAST_IDENTITY });
   return { action: 'installed' };
 }
 
@@ -72,8 +75,8 @@ const defaultNotify = ({ dataDir, message }) => notifyOnce({
   actionUri: `${TOAST_IDENTITY.protocol}://fix`,
 });
 
-// SUIAN_DEPCHECK_HOME 仅供测试与人工诊断覆盖扫描根；生产路径走宿主真实用户目录。
-const defaultScan = () => scanSuianPlugins({ homeDir: process.env.SUIAN_DEPCHECK_HOME || undefined });
+// 宿主注入优先定位实际存储根；独立诊断仍允许显式 homeDir 选择默认布局。
+const defaultScan = () => scanSuianPlugins({ pluginsFile: resolveToastPluginsFile(), homeDir: process.env.SUIAN_DEPCHECK_HOME || undefined });
 
 export async function runDepcheckHook({ payload, dataDir, scan = defaultScan, ensureIdentity = ({ dataDir: dir }) => ensureToastIdentity({ dataDir: dir }), notify = defaultNotify, persist = persistLastResult }) {
   if (!payload || typeof payload !== 'object') return { action: 'ignored_invalid' };
@@ -90,11 +93,15 @@ export async function runDepcheckHook({ payload, dataDir, scan = defaultScan, en
 const isMain = process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href;
 if (isMain) {
   let dataDirArg = null;
+  let pluginsFileArg;
   const scanOnly = process.argv.includes('--scan-only');
   for (let i = 2; i < process.argv.length; i++) {
     if (process.argv[i] === '--data-dir' && process.argv[i + 1]) dataDirArg = resolve(process.argv[++i]);
+    if (process.argv[i] === '--installed-plugins' && process.argv[i + 1]) pluginsFileArg = resolve(process.argv[++i]);
   }
   const dataDir = dataDirArg ?? resolveDataDir();
+  const pluginsFile = resolveToastPluginsFile(pluginsFileArg);
+  const scan = () => scanSuianPlugins({ pluginsFile, homeDir: process.env.SUIAN_DEPCHECK_HOME || undefined });
   const logHook = async entry => {
     try {
       await mkdir(dataDir, { recursive: true });
@@ -103,7 +110,7 @@ if (isMain) {
   };
   try {
     if (scanOnly) {
-      const result = await scanSuianPlugins({ homeDir: process.env.SUIAN_DEPCHECK_HOME || undefined });
+      const result = await scan();
       console.log(JSON.stringify(result, null, 2));
       process.exit(0);
     }
@@ -111,7 +118,7 @@ if (isMain) {
     for await (const chunk of process.stdin) raw += chunk;
     let payload = null;
     try { payload = JSON.parse(raw); } catch {}
-    const result = await runDepcheckHook({ payload, dataDir });
+    const result = await runDepcheckHook({ payload, dataDir, scan, ensureIdentity: ({ dataDir: dir }) => ensureToastIdentity({ dataDir: dir, pluginsFile }) });
     console.log('suian-zcode-common:', JSON.stringify(result));
     await logHook({ event: payload?.hook_event_name ?? 'Stop', action: result.action, sessionId: payload?.session_id ?? null, error: null });
   } catch (error) {

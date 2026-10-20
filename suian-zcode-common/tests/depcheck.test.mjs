@@ -138,18 +138,18 @@ test('旧源码缓存形态（npm+链接世界）报 release_missing 而非 npm/
   assert.equal(result.ok, false);
 });
 
-test('清单缺失时静默跳过本轮（skipped=no_manifest 且 ok）', async t => {
+test('清单缺失时跳过本轮且不能报告正常（skipped=no_manifest）', async t => {
   const world = await buildReleaseWorld(t);
   const result = await scanSuianPlugins({ pluginsFile: join(world.root, 'absent.json') });
-  assert.equal(result.ok, true);
+  assert.equal(result.ok, false);
   assert.equal(result.skipped, 'no_manifest');
 });
 
-test('清单损坏时静默跳过本轮（skipped=bad_manifest 且 ok）', async t => {
+test('清单损坏时跳过本轮且不能报告正常（skipped=bad_manifest）', async t => {
   const world = await buildReleaseWorld(t);
   await writeFile(world.pluginsFile, '{broken json', 'utf8');
   const result = await scanSuianPlugins({ pluginsFile: world.pluginsFile });
-  assert.equal(result.ok, true);
+  assert.equal(result.ok, false);
   assert.equal(result.skipped, 'bad_manifest');
 });
 
@@ -159,7 +159,7 @@ test('清单为合法 JSON 但非对象（null/数组）按 bad_manifest 静默�
     await writeFile(world.pluginsFile, content, 'utf8');
     const result = await scanSuianPlugins({ pluginsFile: world.pluginsFile });
     assert.equal(result.skipped, 'bad_manifest', `内容 ${content} 应判 bad_manifest`);
-    assert.equal(result.ok, true);
+    assert.equal(result.ok, false);
   }
 });
 

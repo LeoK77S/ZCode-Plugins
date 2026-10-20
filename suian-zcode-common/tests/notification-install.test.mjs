@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { join } from 'node:path';
+import { join, resolve } from 'node:path';
 import { installToastAssets, removeToastAssets } from '../notification-install.mjs';
 import { toastRootFor } from '../toast-runtime.mjs';
 
@@ -45,7 +45,7 @@ test('公共通知安装按调用方注册身份，vbs 与快捷方式不引用�
   const toastRoot = toastRootFor(HOME);
   const title = { dataDir: 'D:/data/title', protocol: 'example-title', appId: 'Example.Title.Toast',
     shortcutName: '标题提醒.lnk', description: '标题提醒', homeDir: HOME, templateFile: 'toast-prompt-template.md',
-    nodeExe: 'C:/Node/node.exe', shell };
+    nodeExe: 'C:/Node/node.exe', pluginsFile: 'D:/自定义 存储/installed_plugins.json', shell };
   const first = await installToastAssets(title);
   assert.equal(first.appId, 'Example.Title.Toast');
   assert.equal(first.actions.vbs, 'written');
@@ -61,6 +61,7 @@ test('公共通知安装按调用方注册身份，vbs 与快捷方式不引用�
   const identity = JSON.parse(shell.files.get(join(toastRoot, 'identities', 'example-title.json')));
   assert.equal(identity.protocol, 'example-title');
   assert.equal(identity.templateFile, 'toast-prompt-template.md');
+  assert.equal(identity.pluginsFile, resolve(title.pluginsFile));
   // 幂等
   const second = await installToastAssets(title);
   assert.equal(second.actions.vbs, 'unchanged');

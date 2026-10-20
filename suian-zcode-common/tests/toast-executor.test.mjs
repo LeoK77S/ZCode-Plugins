@@ -50,8 +50,14 @@ const realIoShell = {
 };
 
 // 构造部署好的 Toast 世界：发布形态 fixture 世界 + 稳定运行时 + 两个外置身份 + title 外置模板。
-async function buildToastWorld(t) {
+async function buildToastWorld(t, { customRegistry = false } = {}) {
   const world = await buildReleaseWorld(t);
+  if (customRegistry) {
+    const pluginsFile = join(world.root, '自定义 存储根', 'installed_plugins.json');
+    await mkdir(dirname(pluginsFile), { recursive: true });
+    await rename(world.pluginsFile, pluginsFile);
+    world.pluginsFile = pluginsFile;
+  }
   const homeDir = world.homeDir;
   const executorText = await readFile(executorSource, 'utf8');
   await deployToastRuntime({ homeDir, nodeExe: process.execPath, executorText, shell: realIoShell });
@@ -59,8 +65,8 @@ async function buildToastWorld(t) {
   const titleDataDir = join(world.root, 'toast-title-data');
   await mkdir(commonDataDir, { recursive: true });
   await mkdir(titleDataDir, { recursive: true });
-  await registerToastIdentity({ homeDir, protocol: 'suian-zcode-common', appId: 'SUIAN.SuianZcodeCommon.Toast', dataDir: commonDataDir, description: 'ZCode 公共基础插件通知', shell: realIoShell });
-  await registerToastIdentity({ homeDir, protocol: 'suian-zcode-title', appId: 'SUIAN.SuianZcodeTitle.Toast', dataDir: titleDataDir, description: 'ZCode Stop 自动命名', templateFile: 'toast-prompt-template.md', shell: realIoShell });
+  await registerToastIdentity({ homeDir, protocol: 'suian-zcode-common', appId: 'SUIAN.SuianZcodeCommon.Toast', dataDir: commonDataDir, pluginsFile: world.pluginsFile, description: 'ZCode 公共基础插件通知', shell: realIoShell });
+  await registerToastIdentity({ homeDir, protocol: 'suian-zcode-title', appId: 'SUIAN.SuianZcodeTitle.Toast', dataDir: titleDataDir, pluginsFile: world.pluginsFile, description: 'ZCode Stop 自动命名', templateFile: 'toast-prompt-template.md', shell: realIoShell });
   await writeFile(join(titleDataDir, 'toast-prompt-template.md'), TITLE_TEMPLATE, 'utf8');
   return { ...world, homeDir, toastRoot: toastRootFor(homeDir), commonDataDir, titleDataDir };
 }
@@ -94,14 +100,14 @@ test('同时移除 common 与 title 测试缓存后，已部署执行器与外�
 });
 
 test('title 点击插入当前安装条目根：重装换根后提示词用新根，不残留旧根', async t => {
-  const world = await buildToastWorld(t);
+  const world = await buildToastWorld(t, { customRegistry: true });
   const first = inject();
   await runAction({ uri: 'suian-zcode-title://fix', homeDir: world.homeDir, ...first });
   const oldRoot = world.installPaths['suian-zcode-title'];
   assert.ok(first.clipboard[0].includes(oldRoot), '安装条目存在时插入当前根');
 
   // 模拟重装到新版本目录：改写安装记录
-  const registryPath = join(world.homeDir, '.zcode', 'cli', 'plugins', 'installed_plugins.json');
+  const registryPath = world.pluginsFile;
   const registry = JSON.parse(await readFile(registryPath, 'utf8'));
   const newRoot = join(world.root, 'cache-v2', 'suian-zcode-title', '0.1.6');
   await mkdir(newRoot, { recursive: true });
@@ -117,7 +123,7 @@ test('title 点击插入当前安装条目根：重装换根后提示词用新�
 });
 
 test('common 点击现场重扫：依赖修复前后提示词反映当前状态', async t => {
-  const world = await buildToastWorld(t);
+  const world = await buildToastWorld(t, { customRegistry: true });
   const broken = inject();
   const victim = join(world.installPaths['suian-zcode-title'], 'dist', 'hook.mjs');
   const original = await readFile(victim, 'utf8');
@@ -125,11 +131,39 @@ test('common 点击现场重扫：依赖修复前后提示词反映当前状态'
   const brokenResult = await runAction({ uri: 'suian-zcode-common://fix', homeDir: world.homeDir, ...broken });
   assert.equal(brokenResult.issues, 1);
   assert.match(broken.clipboard[0], /发布文件缺失/, '修复提示词使用完整描述文案');
+  assert.ok(broken.clipboard[0].includes(`--installed-plugins "${world.pluginsFile}"`), '外部复查命令必须使用同一自定义清单');
   await writeFile(victim, original, 'utf8');
   const fixed = inject();
   const fixedResult = await runAction({ uri: 'suian-zcode-common://fix', homeDir: world.homeDir, ...fixed });
   assert.equal(fixedResult.issues, 0);
   assert.match(fixed.clipboard[0], /复查通过/);
+});
+
+test('安装清单缺失、损坏或旧身份无锚点时，两个协议均明确报告未完成检查', async t => {
+  for (const [mode, skipped] of [['missing', 'no_manifest'], ['json', 'bad_manifest'], ['shape', 'bad_manifest'], ['anchor', 'anchor_missing']]) {
+    await t.test(mode, async () => {
+      const world = await buildToastWorld(t);
+      if (mode === 'missing') await rm(world.pluginsFile);
+      if (mode === 'json') await writeFile(world.pluginsFile, '{bad');
+      if (mode === 'shape') await writeFile(world.pluginsFile, 'null');
+      for (const protocol of ['suian-zcode-common', 'suian-zcode-title']) {
+        if (mode === 'anchor') {
+          const path = join(world.toastRoot, 'identities', protocol + '.json');
+          const identity = JSON.parse(await readFile(path, 'utf8'));
+          delete identity.pluginsFile;
+          await writeFile(path, JSON.stringify(identity));
+        }
+        const scope = inject();
+        const result = await runAction({ uri: protocol + '://fix', homeDir: world.homeDir, ...scope });
+        assert.equal(result.ok, false);
+        assert.equal(result.reason, 'registry_unavailable');
+        assert.equal(result.skipped, skipped);
+        assert.equal(result.issues, null, '未扫描不能报告零项问题');
+        assert.match(scope.clipboard[0], /未完成.*检查/);
+        assert.doesNotMatch(scope.clipboard[0], /复查通过|无需修复/);
+      }
+    });
+  }
 });
 
 test('身份缺失或协议不匹配时明确失败，不默认采用另一插件的数据', async t => {
@@ -186,7 +220,13 @@ test('执行器自包含：不相对导入任何包内模块，不依赖版本�
 });
 
 test('真实部署文件公开入口冒烟：子进程执行 URI 动作，系统边界全部拦截', async t => {
-  const world = await buildToastWorld(t);
+  const world = await buildToastWorld(t, { customRegistry: true });
+  await rm(world.installPaths['suian-side-editor'], { recursive: true });
+  const registry = JSON.parse(await readFile(world.pluginsFile, 'utf8'));
+  const newTitleRoot = join(world.root, '更新后的 title 根');
+  await mkdir(newTitleRoot);
+  registry.plugins.find(plugin => plugin.name === 'suian-zcode-title').installPath = newTitleRoot;
+  await writeFile(world.pluginsFile, JSON.stringify(registry));
   const dir = await mkdtemp(join(tmpdir(), 'zcode-toast-executor-'));
   t.after(() => rm(dir, { recursive: true, force: true }));
   const preload = join(dir, 'intercept.mjs');
@@ -197,13 +237,15 @@ test('真实部署文件公开入口冒烟：子进程执行 URI 动作，系统
     "import {syncBuiltinESMExports} from 'node:module';",
     "cp.execFile=(command,args, options, callback)=>{",
     "  fs.appendFileSync(process.env.SUIAN_INTERCEPT_LOG, command+' '+JSON.stringify(args)+'\\n');",
+    "  if(options?.env?.OIL_CLIP_FILE) fs.appendFileSync(process.env.SUIAN_INTERCEPT_LOG, fs.readFileSync(options.env.OIL_CLIP_FILE,'utf8')+'\\n');",
     "  if(typeof options==='function'){callback(null,{stdout:'',stderr:''});return {}}",
     "  if(typeof callback==='function'){callback(null,{stdout:'',stderr:''});return {}}",
     "  return {stdout:'',stderr:''};",
     "};",
     'syncBuiltinESMExports();',
   ].join('\n'), 'utf8');
-  const stopped = spawnSync(process.execPath, ['--import', pathToFileURL(preload).href, join(world.toastRoot, 'executor.mjs'), 'suian-zcode-title://fix'], {
+  for (const protocol of ['suian-zcode-common', 'suian-zcode-title']) {
+  const stopped = spawnSync(process.execPath, ['--import', pathToFileURL(preload).href, join(world.toastRoot, 'executor.mjs'), protocol + '://fix'], {
     windowsHide: true, encoding: 'utf8',
     env: {
       ...process.env,
@@ -217,9 +259,12 @@ test('真实部署文件公开入口冒烟：子进程执行 URI 动作，系统
   const payload = JSON.parse(stopped.stdout.trim().split('\n').at(-1));
   assert.equal(payload.ok, true);
   assert.equal(payload.action, 'fix');
+  if (protocol === 'suian-zcode-common') assert.ok(payload.issues > 0, '自定义清单中的缓存缺失必须检出');
+  }
   const intercepted = await readFile(logFile, 'utf8');
   assert.match(intercepted, /powershell\.exe/, '剪贴板写入经 PowerShell 且被拦截');
   assert.match(intercepted, /cmd\.exe.*zcode:\/\/workspace\/open/, '打开工作区经 cmd start 且被拦截');
+  assert.ok(intercepted.includes(newTitleRoot), '无宿主环境的部署入口读取自定义清单中的新 title 根');
   const log = await readFile(join(world.titleDataDir, 'toast-action-log.jsonl'), 'utf8');
   const entry = JSON.parse(log.trim().split('\n').at(-1));
   assert.equal(entry.uri, 'suian-zcode-title://fix');

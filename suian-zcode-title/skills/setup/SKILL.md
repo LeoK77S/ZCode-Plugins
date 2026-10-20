@@ -33,6 +33,6 @@ node "{{command_dir}}/install.mjs" "{{state_dir}}" --native-plugin --config "{{d
 
 ## 升级与卸载
 
-原生安装按公共 setup 通过原生管理器更新，再从插件清单获取新路径；源码安装才更新原仓库。原生更新无需重装依赖或修链，以实际状态目录与配置运行同一安装命令，更新通知 VBS 的代码路径。保留配置、状态、授权和原暂停状态；若升级需要临时暂停，记录原开关并按第 4、5 步恢复。常驻网关升级只按公共 setup 处理。
+原生安装按公共 setup 通过原生管理器更新，再从插件清单获取新路径；源码安装才更新原仓库。原生更新无需重装依赖或修链，以实际状态目录、配置和 `--installed-plugins` 重跑同一安装命令，更新共享 Toast 执行器并将实际安装清单路径保存到 title 外置身份。旧身份缺少清单锚点时也按此补齐；只做 `--check-only` 不更新身份。保留配置、状态、授权和原暂停状态；若升级需要临时暂停，记录原开关并按第 4、5 步恢复。常驻网关升级只按公共 setup 处理。
 
 原生卸载通知资产用 `node "{{command_dir}}/install.mjs" "{{state_dir}}" --native-plugin --remove --installed-plugins "{{installed_plugins_json}}"`，再通过原生管理器停用或卸载本插件。源码模式不加 native 标志，安装器同时移除自有全局 Hook 与技能。保留业务状态和公共网关；明确要求恢复直连时才调用公共 Remove。

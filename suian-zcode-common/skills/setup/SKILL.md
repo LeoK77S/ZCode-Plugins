@@ -27,10 +27,10 @@ description: 安装、升级、仅检查、迁移或移除 ZCode 公共运行时
 2. 运行发布完整性检查（只读，不写配置、不注册任务或通知、不启动网关）：
 
 ```powershell
-node "{{common_root}}/depcheck-hook.mjs" --scan-only
+node "{{common_root}}/depcheck-hook.mjs" --scan-only --installed-plugins "{{installed_plugins_json}}"
 ```
 
-   全部 `ok:true` 说明四个插件的发布目录与公共 API 兼容性就绪；有 issue 按下方[依赖完整性检查](#依赖完整性检查stop-钩子-depcheck)的分类修复，不在版本缓存内手工执行 npm、创建链接或复制文件。
+   安装清单路径按 paths.md 从实际宿主存储根确定。`skipped:null` 且 `ok:true` 才说明本次已安装插件的发布目录与公共 API 兼容性检查通过；`no_manifest` / `bad_manifest` 表示未完成检查，不能按零项问题判正常。有 issue 按下方[依赖完整性检查](#依赖完整性检查stop-钩子-depcheck)的分类修复，不在版本缓存内手工执行 npm、创建链接或复制文件。
 
 3. 仅在需要网关（自动命名、会话操控、选区评论）时部署服务；文本编辑器不部署网关。执行 setup.ps1 -Action Status -ZcodeAppVersion {{app_version}}，未安装才 Install。版本来自前面的实际 Desktop 核对；不要依赖外部 Shell 未必具备的宿主环境。原生模式为 Install/Restart 加 -NativePlugin：
 
@@ -79,10 +79,12 @@ common 0.2.0 起自带原生 Stop 钩子（hooks/hooks.json → depcheck-hook.mj
 发现缺失时弹 Windows Toast（同一数据目录 2 小时冷却），按钮点击复制修复提示词并打开 ZCode；提示词的修复步骤就是上表（原生重装/更新），不是 npm。修复后手动复查：
 
 ```powershell
-node "{{common_root}}/depcheck-hook.mjs" --scan-only
+node "{{common_root}}/depcheck-hook.mjs" --scan-only --installed-plugins "{{installed_plugins_json}}"
 ```
 
 Toast 身份（协议 suian-zcode-common://fix、AppID SUIAN.SuianZcodeCommon.Toast、开始菜单快捷方式"ZCode 公共基础插件"）由钩子在首次报警前自动幂等注册；setup.ps1 -Action Remove 不清理该身份，明确移除时调用 notification-install.mjs 的 removeToastAssets。
+
+每个外置 Toast 身份保存自己的 `pluginsFile`（实际安装清单的绝对路径）。钩子从宿主 `ZCODE_PLUGIN_DATA` 推导，独立调用显式提供；按钮无需宿主环境，现场读取该清单，不猜默认 HOME。清单不可用或旧身份无锚点时，按钮仍复制排障提示，但返回 `registry_unavailable`，不宣称检查通过。旧 common 身份可从当前公共根导入 `depcheck-hook.mjs`，调用 `ensureToastIdentity({ dataDir, pluginsFile })` 重新登记；`dataDir` 沿用身份文件原值，`pluginsFile` 使用实际清单。title 身份按 title setup 重跑安装命令。
 
 **common 缓存整体缺失时**：Stop 钩子随缓存一起消失，不能再指望它报警；已部署的缓存外 Toast 执行器（`~/.zcode/tools/suian-zcode-common/toast/executor.mjs`）仍在，点击旧通知按钮即可现场重扫并复制修复提示。诊断与修复都不会自动安装 npm 包、拉取源码、创建链接或重启 Desktop。
 

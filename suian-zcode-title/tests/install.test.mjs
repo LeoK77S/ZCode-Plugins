@@ -199,7 +199,10 @@ test('原生通知安装沿用外置配置的自定义状态目录', async () =>
   const shell=makeShell(),pluginRoot='D:\\native\\title',configPath='D:\\native-data\\config.json';
   shell.run=async command=>command==='sqlite3'?'[{"ready":1}]':'';
   shell.state.files.set(configPath,JSON.stringify({enabled:false,dataDir:'custom-state'}));
-  await installPlugin({pluginRoot,dataDir:'D:\\native-data\\state',configPath,nativePlugin:true,shell});
+  const homeDir='H:\\toast-home',installedPlugins='D:\\自定义 存储\\installed_plugins.json';
+  await installPlugin({pluginRoot,dataDir:'D:\\native-data\\state',configPath,nativePlugin:true,shell,homeDir,installedPlugins});
+  const identity=JSON.parse(shell.state.files.get(join(homeDir,'.zcode','tools','suian-zcode-common','toast','identities',PROTOCOL+'.json')));
+  assert.equal(identity.pluginsFile,installedPlugins,'title 安装必须将实际清单传给缓存外身份');
   assert.equal(JSON.parse(shell.state.files.get(configPath)).dataDir,'custom-state');
   assert.ok(shell.state.files.has(join(resolve('D:\\native-data','custom-state'),'toast-launch.vbs')));
   assert.ok(shell.state.files.has(join(resolve('D:\\native-data','custom-state'),TOAST_TEMPLATE_FILE)),'模板与 vbs 同落在自定义状态目录');

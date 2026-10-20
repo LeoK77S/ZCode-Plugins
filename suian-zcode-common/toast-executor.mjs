@@ -125,14 +125,16 @@ export async function scanSuianPlugins({ pluginsFile, homeDir = homedir(), tools
   const resolvedPluginsFile = pluginsFile ?? join(homeDir, '.zcode', 'cli', 'plugins', 'installed_plugins.json');
   const resolvedToolsRoot = toolsRoot ?? join(homeDir, '.zcode', 'tools');
   const runtimeRoot = join(resolvedToolsRoot, COMMON_PACKAGE, 'runtime');
-  const result = { ok: true, skipped: null, checkedAt: new Date().toISOString(), runtimeRoot, legacyRuntimeLink: null, plugins: [], issues: [] };
+  const result = { ok: true, skipped: null, checkedAt: new Date().toISOString(), pluginsFile: resolvedPluginsFile, runtimeRoot, legacyRuntimeLink: null, plugins: [], issues: [] };
   const manifestRead = await readJsonAt(resolvedPluginsFile);
   if (manifestRead.status !== 'ok') {
+    result.ok = false;
     result.skipped = manifestRead.status === 'missing' ? 'no_manifest' : 'bad_manifest';
     return result;
   }
   const manifest = manifestRead.value;
-  if (!manifest || typeof manifest !== 'object' || Array.isArray(manifest) || (manifest.plugins !== undefined && !Array.isArray(manifest.plugins))) {
+  if (!manifest || typeof manifest !== 'object' || Array.isArray(manifest) || !Array.isArray(manifest.plugins)) {
+    result.ok = false;
     result.skipped = 'bad_manifest';
     return result;
   }
@@ -217,6 +219,9 @@ const versionOf = (result, plugin) => {
 const REINSTALL_CODES = new Set(['cache_missing', 'plugin_files_missing', 'release_missing', 'release_invalid', 'identity_mismatch', 'file_missing', 'file_digest_mismatch']);
 
 export function buildFixPrompt(result) {
+  if (result.skipped) {
+    return `suian 系列插件未完成依赖检查，当前状态未知（${result.skipped}）。安装清单不可用或外置通知身份缺少清单锚点；请按对应插件的 setup 技能确认实际 installed_plugins.json 路径并重新初始化通知身份，再复查。`;
+  }
   if (!result.issues.length) {
     return `suian-zcode-common 依赖检查刚刚复查通过，所有已安装 suian 系列插件的发布包完整性与公共 API 兼容性均正常，无需修复。`;
   }
@@ -242,7 +247,7 @@ export function buildFixPrompt(result) {
     steps.push(`${steps.length + 1}. 对上表存在发布文件问题的插件，通过 ZCode 插件市场重新安装或更新（zcode plugins update <插件>@suian-zcode-plugins）以恢复发布目录；不要在版本缓存内手工执行 npm、创建目录链接或复制文件`);
   }
   const commonRoot = result.plugins.find(entry => entry.name === COMMON_PACKAGE)?.installPath;
-  steps.push(`${steps.length + 1}. 修复后运行 node ${commonRoot ?? '<suian-zcode-common 缓存根>'}\\depcheck-hook.mjs --scan-only 复查，直到缺失清单为空`);
+  steps.push(`${steps.length + 1}. 修复后运行 node "${commonRoot ?? '<suian-zcode-common 缓存根>'}/depcheck-hook.mjs" --scan-only${result.pluginsFile ? ` --installed-plugins "${result.pluginsFile}"` : ''} 复查，直到缺失清单为空`);
   return [
     '我的 ZCode suian 系列插件依赖不完整，请帮我修复。以下缺失清单来自 suian-zcode-common 的依赖检查（Stop 钩子 depcheck）：',
     '',
@@ -269,15 +274,18 @@ async function loadIdentity(toastRoot, protocol) {
 }
 
 // 点击时重新读取安装记录，取 title 当前安装条目根；缺失时返回 null，不采用任何旧根。
-async function resolveTitleInstallRoot({ pluginsFile, homeDir }) {
-  const resolved = pluginsFile ?? join(homeDir, '.zcode', 'cli', 'plugins', 'installed_plugins.json');
-  const read = await readJsonAt(resolved);
-  if (read.status !== 'ok') return null;
+async function resolveTitleInstallRoot(pluginsFile) {
+  if (!pluginsFile) return { installRoot: null, skipped: 'anchor_missing' };
+  const read = await readJsonAt(pluginsFile);
+  if (read.status !== 'ok') return { installRoot: null, skipped: read.status === 'missing' ? 'no_manifest' : 'bad_manifest' };
+  if (!read.value || typeof read.value !== 'object' || Array.isArray(read.value) || !Array.isArray(read.value.plugins)) {
+    return { installRoot: null, skipped: 'bad_manifest' };
+  }
   const entries = pickSuianEntries(read.value).filter(entry => entry?.name === TITLE_PLUGIN_ID);
   for (const entry of entries) {
-    if (typeof entry.installPath === 'string' && (await maybeLstat(entry.installPath))?.isDirectory()) return entry.installPath;
+    if (typeof entry.installPath === 'string' && (await maybeLstat(entry.installPath))?.isDirectory()) return { installRoot: entry.installPath, skipped: null };
   }
-  return null;
+  return { installRoot: null, skipped: null };
 }
 
 const MISSING_ROOT_NOTE = '（suian-zcode-title 安装条目缺失：请在 ZCode 插件市场重新安装或更新）';
@@ -343,11 +351,16 @@ export async function runAction({ uri, homeDir, toastRoot, pluginsFile, setClipb
 
   let prompt;
   let issues = null;
+  let skipped = null;
+  const registryPath = pluginsFile ?? identity.pluginsFile;
   if (parsed.protocol === 'suian-zcode-common') {
     // 按钮点击与 Toast 弹出可能间隔很久，现场重扫保证提示词反映当前实际状态
-    const result = await scanSuianPlugins({ pluginsFile, homeDir: resolvedHome });
+    const result = registryPath
+      ? await scanSuianPlugins({ pluginsFile: registryPath, homeDir: resolvedHome })
+      : { skipped: 'anchor_missing', issues: [], plugins: [] };
     prompt = buildFixPrompt(result);
-    issues = result.issues.length;
+    skipped = result.skipped;
+    issues = skipped ? null : result.issues.length;
   } else {
     if (!identity.templateFile) return { ok: false, reason: 'template_missing' };
     let template;
@@ -357,11 +370,15 @@ export async function runAction({ uri, homeDir, toastRoot, pluginsFile, setClipb
       if (error.code === 'ENOENT') return { ok: false, reason: 'template_missing' };
       throw error;
     }
-    const installRoot = await resolveTitleInstallRoot({ pluginsFile, homeDir: resolvedHome });
+    const resolved = await resolveTitleInstallRoot(registryPath);
+    const { installRoot } = resolved;
+    skipped = resolved.skipped;
     prompt = renderFixPrompt({ template, installRoot, dataDir: identity.dataDir });
+    if (skipped) prompt = buildFixPrompt({ skipped }) + '\n\n' + prompt;
   }
   await setClipboard(prompt, { dataDir: identity.dataDir });
   await openWorkspace(encodeWorkspaceOpenUri(defaultFixWorkspace()));
+  if (skipped) return { ok: false, reason: 'registry_unavailable', skipped, action: 'fix', identity: parsed.protocol, issues: null };
   return { ok: true, action: 'fix', identity: parsed.protocol, issues };
 }
 

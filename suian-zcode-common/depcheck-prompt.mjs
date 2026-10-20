@@ -51,6 +51,9 @@ export function buildToastMessage(result) {
 const REINSTALL_CODES = new Set(['cache_missing', 'plugin_files_missing', 'release_missing', 'release_invalid', 'identity_mismatch', 'file_missing', 'file_digest_mismatch']);
 
 export function buildFixPrompt(result) {
+  if (result.skipped) {
+    return `suian 系列插件未完成依赖检查，当前状态未知（${result.skipped}）。安装清单不可用或外置通知身份缺少清单锚点；请按对应插件的 setup 技能确认实际 installed_plugins.json 路径并重新初始化通知身份，再复查。`;
+  }
   if (!result.issues.length) {
     return `suian-zcode-common 依赖检查刚刚复查通过，所有已安装 suian 系列插件的发布包完整性与公共 API 兼容性均正常，无需修复。`;
   }
@@ -76,7 +79,7 @@ export function buildFixPrompt(result) {
     steps.push(`${steps.length + 1}. 对上表存在发布文件问题的插件，通过 ZCode 插件市场重新安装或更新（zcode plugins update <插件>@suian-zcode-plugins）以恢复发布目录；不要在版本缓存内手工执行 npm、创建目录链接或复制文件`);
   }
   const commonRoot = result.plugins.find(entry => entry.name === COMMON_PACKAGE)?.installPath;
-  steps.push(`${steps.length + 1}. 修复后运行 node ${commonRoot ?? '<suian-zcode-common 缓存根>'}\\depcheck-hook.mjs --scan-only 复查，直到缺失清单为空`);
+  steps.push(`${steps.length + 1}. 修复后运行 node "${commonRoot ?? '<suian-zcode-common 缓存根>'}/depcheck-hook.mjs" --scan-only${result.pluginsFile ? ` --installed-plugins "${result.pluginsFile}"` : ''} 复查，直到缺失清单为空`);
   return [
     '我的 ZCode suian 系列插件依赖不完整，请帮我修复。以下缺失清单来自 suian-zcode-common 的依赖检查（Stop 钩子 depcheck）：',
     '',

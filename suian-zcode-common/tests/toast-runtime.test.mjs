@@ -179,8 +179,14 @@ test('安装检查报告部署、身份、模板与实际协议目标；仅凭 A
   assert.equal(noTemplate.identities['suian-zcode-title'].templatePresent, false);
 
   shell.files.set(join(titleDir, 'toast-prompt-template.md'), '模板');
+  const noAnchor = await checkToastRuntime({ homeDir: HOME, shell });
+  assert.equal(noAnchor.healthy, false, '旧身份缺少安装清单锚点不能报告健康');
+  const pluginsFile = join(HOME, '自定义 存储', 'installed_plugins.json');
+  await registerToastIdentity({ homeDir: HOME, protocol: 'suian-zcode-common', appId: 'SUIAN.SuianZcodeCommon.Toast', dataDir: commonDir, pluginsFile, shell });
+  await registerToastIdentity({ homeDir: HOME, protocol: 'suian-zcode-title', appId: 'SUIAN.SuianZcodeTitle.Toast', dataDir: titleDir, pluginsFile, templateFile: 'toast-prompt-template.md', shell });
   const healthy = await checkToastRuntime({ homeDir: HOME, protocols: ['suian-zcode-common', 'suian-zcode-title'], shell });
   assert.equal(healthy.healthy, true);
+  assert.equal(healthy.identities['suian-zcode-common'].pluginsFile, pluginsFile);
   assert.equal(healthy.deployed.executorPresent, true);
   assert.equal(healthy.deployed.launcherPresent, true);
   assert.ok(healthy.deployed.active, '活动记录必须可读');

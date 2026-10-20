@@ -8,7 +8,7 @@
 // 本模块只用 Node 内置模块：挂在 depcheck-hook 自举链与 client-install 安装链上。
 import { readFile } from 'node:fs/promises';
 import { statSync } from 'node:fs';
-import { dirname, join } from 'node:path';
+import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { randomUUID } from 'node:crypto';
 import { fileShell } from './windows.mjs';
@@ -142,13 +142,13 @@ export async function deployToastRuntime({ homeDir, nodeExe = process.execPath, 
 }
 
 // 调用方身份描述外置登记：身份归调用方所有，公共执行器只按协议读取，不反向导入业务代码。
-export async function registerToastIdentity({ homeDir, protocol, appId, dataDir, description = '', templateFile = null, shell = fileShell, now = () => new Date() }) {
+export async function registerToastIdentity({ homeDir, protocol, appId, dataDir, pluginsFile = null, description = '', templateFile = null, shell = fileShell, now = () => new Date() }) {
   if (!protocol || !appId || !dataDir) throw new Error('registerToastIdentity 需要 protocol/appId/dataDir');
   const identitiesDir = join(toastRootFor(homeDir), 'identities');
   await shell.mkdir(identitiesDir);
   const identityPath = join(identitiesDir, `${protocol}.json`);
   const current = await parseOptionalJson(shell, identityPath);
-  const desired = { formatVersion: 1, protocol, appId, dataDir, description, templateFile };
+  const desired = { formatVersion: 1, protocol, appId, dataDir, pluginsFile: pluginsFile ? resolve(pluginsFile) : null, description, templateFile };
   if (current && Object.keys(desired).every(key => current[key] === desired[key])) {
     return { action: 'unchanged', identityPath };
   }
@@ -192,13 +192,14 @@ export async function checkToastRuntime({ homeDir, protocols = TOAST_PROTOCOLS, 
       registered,
       appId: identity?.appId ?? null,
       dataDir: identity?.dataDir ?? null,
+      pluginsFile: identity?.pluginsFile ?? null,
       templateFile: identity?.templateFile ?? null,
       templatePresent,
     };
     protocolTargets[protocol] = { command };
   }
   const healthy = executorPresent && launcherPresent && active !== null
-    && protocols.every(protocol => identities[protocol].registered && identities[protocol].templatePresent !== false);
+    && protocols.every(protocol => identities[protocol].registered && identities[protocol].pluginsFile && identities[protocol].templatePresent !== false);
   return { toastRoot, deployed: { active, executorPresent, launcherPresent }, identities, protocols: protocolTargets, healthy };
 }
 

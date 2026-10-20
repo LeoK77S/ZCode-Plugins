@@ -15,4 +15,6 @@ stdin 传目标会话，执行 `node "{{command_dir}}/cli.mjs" models --config "
 
 按需修改 sqliteBin、timeoutMs、maxOutputTokens 或 gatewayConfigPath；超时允许 1000–300000 毫秒。公共目录非默认时 gatewayConfigPath 指向实际网关配置；保留有效自定义数据库与数据目录，不复制 control_token。
 
+`installedPluginsPath` 是安装清单路径，不是 common 缓存目录；无宿主环境时供 CLI 定位公共插件。更换宿主存储根后，按 setup 使用新的 `--installed-plugins` 重跑安装，外置配置与 Toast 身份的 `pluginsFile` 才会同步更新。按钮点击不读取当前会话环境，也不从旧缓存补代码；清单缺失或损坏时报告状态未知。
+
 变更由下一次 Hook/CLI 读取，通常不需重启网关。完成后 doctor；它核对静态定义、双库和模型，不证明当前会话已加载 Hook。真实触发按[debug](../debug/SKILL.md)验证。

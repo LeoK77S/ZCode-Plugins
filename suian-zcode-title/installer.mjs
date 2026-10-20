@@ -107,17 +107,17 @@ export async function installPlugin({pluginRoot,entrySubdir="",dataDir,configPat
     const toast=await checkToastRuntime({homeDir,protocols:[PROTOCOL],shell});
     return{ok:true,action:"checked",dependencies,toast};
   }
+  const registryPath=installedPlugins?resolve(installedPlugins):process.env.ZCODE_PLUGIN_DATA?registryPathFromDataPath(process.env.ZCODE_PLUGIN_DATA):config.installedPluginsPath??null;
   if(nativePlugin) {
     config={...config,registration:"native",dataDir:config.dataDir??dataDir};
     // 把可用的安装记录路径写进外置配置，供无宿主注入的后续 CLI 定位 common（不硬编码 common 安装位置）。
-    const registryPath=installedPlugins?resolve(installedPlugins):process.env.ZCODE_PLUGIN_DATA?registryPathFromDataPath(process.env.ZCODE_PLUGIN_DATA):config.installedPluginsPath??null;
     if(registryPath)config={...config,installedPluginsPath:resolve(registryPath)};
     await shell.mkdir(dirname(activeConfigPath));
     await shell.writeText(activeConfigPath,JSON.stringify(config,null,2)+"\n");
   }
   const toastDataDir=nativePlugin?resolve(dirname(activeConfigPath),process.env.OIL_ZCODE_TITLE_DATA??config.dataDir):dataDir;
   // Toast 桥与快捷方式落在命令入口目录：发布模式下 bundle 位于发布根的 dist/。
-  const toast=await installToastAssets({dataDir:toastDataDir,shell,homeDir});
+  const toast=await installToastAssets({dataDir:toastDataDir,pluginsFile:registryPath,shell,homeDir});
   // 排障提示词模板部署到 title 外置数据目录：公共执行器点击时读取，不依赖版本缓存。
   const template=await deployToastTemplate({dataDir:toastDataDir,shell});
   const configFile=join(homedir(),".zcode","cli","config.json"),skillFile=join(homedir(),".zcode","skills",PROTOCOL,"SKILL.md");

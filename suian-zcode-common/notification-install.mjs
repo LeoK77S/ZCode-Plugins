@@ -1,4 +1,4 @@
-import { join } from 'node:path';
+import { dirname, join, resolve } from 'node:path';
 import { homedir } from 'node:os';
 import { fileShell } from './windows.mjs';
 import { buildForwardVbs, deployToastRuntime, readExecutorText, registerToastIdentity, removeToastIdentity, toastRootFor } from './toast-runtime.mjs';
@@ -11,6 +11,12 @@ export function buildVbsContent({ protocol, launcherPath }) {
 
 export function buildProtocolCommand({ vbsPath }) {
   return `wscript.exe "${vbsPath}" "%1"`;
+}
+
+// 宿主数据路径是 <storageRoot>/data/<plugin-id>。仅保存明确安装上下文，不猜用户默认存储根。
+export function resolveToastPluginsFile(pluginsFile, env = process.env) {
+  if (pluginsFile) return resolve(pluginsFile);
+  return env.ZCODE_PLUGIN_DATA ? join(dirname(dirname(resolve(env.ZCODE_PLUGIN_DATA))), 'installed_plugins.json') : null;
 }
 
 // 创建调用方自己的 Toast 身份；协议和通知标识由调用方提供。
@@ -82,12 +88,12 @@ export async function ensureToastAppId({ dataDir, appId, shell = fileShell }) {
 
 // 安装调用方通知资产：先部署共享 Toast 运行时（暂存校验后切换活动记录），再登记外置身份，
 // 然后写调用方转发 vbs、注册协议与快捷方式。重复安装幂等；更新执行器不触碰网关。
-export async function installToastAssets({ dataDir, protocol, appId, shortcutName, description, templateFile = null, nodeExe = process.execPath, homeDir = homedir(), shell = fileShell }) {
+export async function installToastAssets({ dataDir, protocol, appId, shortcutName, description, templateFile = null, pluginsFile, nodeExe = process.execPath, homeDir = homedir(), shell = fileShell }) {
   if (!dataDir || !protocol || !appId || !shortcutName) throw new Error('installToastAssets 需要 dataDir/protocol/appId/shortcutName');
   await shell.mkdir(dataDir);
   const toastRoot = toastRootFor(homeDir);
   const runtime = await deployToastRuntime({ homeDir, nodeExe, executorText: await readExecutorText(), shell });
-  const identity = await registerToastIdentity({ homeDir, protocol, appId, dataDir, description, templateFile, shell });
+  const identity = await registerToastIdentity({ homeDir, protocol, appId, dataDir, pluginsFile: resolveToastPluginsFile(pluginsFile), description, templateFile, shell });
   const vbsPath = join(dataDir, 'toast-launch.vbs');
   const desired = buildVbsContent({ protocol, launcherPath: join(toastRoot, 'launch.vbs') });
   let current = null;

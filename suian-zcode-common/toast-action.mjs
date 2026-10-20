@@ -23,6 +23,7 @@ export async function runAction({ uri, dataDir, homeDir = homedir(), setClipboar
   const result = await scanSuianPlugins({ homeDir });
   const prompt = buildFixPrompt(result);
   await copyPromptAndOpenWorkspace({ prompt, dataDir, setClipboard, openWorkspace });
+  if (result.skipped) return { ok: false, reason: 'registry_unavailable', skipped: result.skipped, action: 'fix', issues: null };
   return { ok: true, action: 'fix', issues: result.issues.length };
 }
 

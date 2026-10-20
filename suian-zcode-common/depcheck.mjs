@@ -110,16 +110,18 @@ export async function scanSuianPlugins({ pluginsFile, homeDir = homedir(), tools
   const resolvedPluginsFile = pluginsFile ?? join(homeDir, '.zcode', 'cli', 'plugins', 'installed_plugins.json');
   const resolvedToolsRoot = toolsRoot ?? join(homeDir, '.zcode', 'tools');
   const runtimeRoot = join(resolvedToolsRoot, COMMON_PACKAGE, 'runtime');
-  const result = { ok: true, skipped: null, checkedAt: new Date().toISOString(), runtimeRoot, legacyRuntimeLink: null, plugins: [], issues: [] };
+  const result = { ok: true, skipped: null, checkedAt: new Date().toISOString(), pluginsFile: resolvedPluginsFile, runtimeRoot, legacyRuntimeLink: null, plugins: [], issues: [] };
 
   const manifestRead = await readJsonAt(resolvedPluginsFile);
   if (manifestRead.status !== 'ok') {
+    result.ok = false;
     result.skipped = manifestRead.status === 'missing' ? 'no_manifest' : 'bad_manifest';
     return result;
   }
   const manifest = manifestRead.value;
   // 合法 JSON 但形态异常（null/数组/标量、plugins 非数组）同样视为清单损坏，静默跳过而非按空世界判 clean
-  if (!manifest || typeof manifest !== 'object' || Array.isArray(manifest) || (manifest.plugins !== undefined && !Array.isArray(manifest.plugins))) {
+  if (!manifest || typeof manifest !== 'object' || Array.isArray(manifest) || !Array.isArray(manifest.plugins)) {
+    result.ok = false;
     result.skipped = 'bad_manifest';
     return result;
   }

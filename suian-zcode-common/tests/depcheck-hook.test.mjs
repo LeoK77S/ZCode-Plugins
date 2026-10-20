@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { rm, readFile, writeFile, mkdir, readdir } from 'node:fs/promises';
 import { homedir } from 'node:os';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { spawnSync } from 'node:child_process';
 import { runDepcheckHook, resolveDataDir, ensureToastIdentity } from '../depcheck-hook.mjs';
@@ -122,7 +122,7 @@ test('Toast 按钮动作对缺失世界复制含修复步骤的提示词并打�
   assert.match(prompt, /suian-side-editor 0\.3\.0：发布清单声明的文件缺失于安装目录/);
   assert.match(prompt, /suian-zcode-common:setup/);
   assert.match(prompt, /zcode plugins update/);
-  assert.match(prompt, /depcheck-hook\.mjs --scan-only/);
+  assert.match(prompt, /depcheck-hook\.mjs" --scan-only/);
   assert.doesNotMatch(prompt, /npm ci/, '修复提示词不得再引导 npm 安装');
   assert.doesNotMatch(prompt, /link\.mjs --plugin-root/, '修复提示词不得再引导修包链接');
   assert.match(prompt, new RegExp(world.installPaths['suian-zcode-common'].replace(/\\/g, '\\\\')));
@@ -145,6 +145,18 @@ test('按钮动作在依赖已修复后复制复查通过说明', async t => {
   assert.match(clipboard[0], /复查通过/);
 });
 
+test('源码按钮入口在清单不可用时也不能返回零问题与通过状态', async t => {
+  const world = await buildReleaseWorld(t);
+  await rm(world.pluginsFile);
+  const clipboard = [];
+  const result = await runAction({ uri: 'suian-zcode-common://fix', homeDir: world.homeDir,
+    dataDir: world.root, setClipboard: async text => clipboard.push(text), openWorkspace: async () => {} });
+  assert.equal(result.ok, false);
+  assert.equal(result.issues, null);
+  assert.equal(result.reason, 'registry_unavailable');
+  assert.match(clipboard[0], /未完成.*检查/);
+});
+
 test('协议 URI 解析：合法 fix 动作放行，非法与未知动作被拒绝', async () => {
   assert.deepEqual(parseActionUri('suian-zcode-common://fix'), { action: 'fix' });
   assert.equal(parseActionUri('https://example.com'), null);
@@ -162,7 +174,7 @@ test('数据目录解析：宿主注入 ZCODE_PLUGIN_DATA 时挂 state 子目录
 
 test('宿主冒烟：齐全世界 Stop 载荷正常退出且落盘检查结果', async t => {
   const world = await buildReleaseWorld(t);
-  const dataDir = join(world.root, 'host-data');
+  const dataDir = join(dirname(world.pluginsFile), 'data', 'suian-zcode-common');
   const hook = JSON.parse(await readFile(join(pluginRoot, 'hooks', 'hooks.json'), 'utf8')).hooks.Stop[0].hooks[0];
   assert.equal(hook.async, true, 'Stop 依赖检查必须异步注册以免阻塞对话');
   assert.equal(hook.timeoutMs >= 30000, true);
@@ -239,22 +251,37 @@ test('Toast 身份：旧版 vbs 嵌入缓存内入口时必须重装为稳定转
   assert.equal(installs[0].homeDir, world.homeDir, '安装必须携带 homeDir 以定位共享运行目录');
 });
 
-test('Toast 身份：vbs、身份描述与注册表键均正常时走缓存短路，不重装', async t => {
+test('Toast 身份：vbs、清单锚点与注册表键均正常时走缓存短路，不重装', async t => {
   const world = await buildReleaseWorld(t);
   const dataDir = join(world.root, 'data');
   const toastRoot = join(world.homeDir, '.zcode', 'tools', 'suian-zcode-common', 'toast');
   await mkdir(join(toastRoot, 'identities'), { recursive: true });
   await mkdir(dataDir, { recursive: true });
-  await writeFile(join(toastRoot, 'identities', 'suian-zcode-common.json'), JSON.stringify({ formatVersion: 1, protocol: 'suian-zcode-common', appId: 'SUIAN.SuianZcodeCommon.Toast', dataDir, templateFile: null }));
+  await writeFile(join(toastRoot, 'identities', 'suian-zcode-common.json'), JSON.stringify({ formatVersion: 1, protocol: 'suian-zcode-common', appId: 'SUIAN.SuianZcodeCommon.Toast', dataDir, pluginsFile: world.pluginsFile, templateFile: null }));
   await writeFile(join(dataDir, 'toast-launch.vbs'), buildVbsContent({ protocol: 'suian-zcode-common', launcherPath: join(toastRoot, 'launch.vbs') }));
   await writeFile(join(dataDir, 'toast-appid.txt'), 'SUIAN.SuianZcodeCommon.Toast');
   const installs = [];
   let registryQueried = false;
   const shell = { run: async (cmd, args) => { registryQueried = cmd === 'reg.exe' && args[0] === 'query'; return ''; } };
-  const result = await ensureToastIdentity({ dataDir, homeDir: world.homeDir, install: async arg => { installs.push(arg); }, shell });
+  const result = await ensureToastIdentity({ dataDir, homeDir: world.homeDir, pluginsFile: world.pluginsFile, install: async arg => { installs.push(arg); }, shell });
   assert.equal(result.action, 'cached');
   assert.equal(installs.length, 0);
   assert.equal(registryQueried, true, '缓存命中必须校验注册表协议键存在');
+});
+
+test('Toast 身份：旧身份缺少清单锚点时重装，并携带自定义清单路径', async t => {
+  const world = await buildReleaseWorld(t);
+  const dataDir = join(world.root, 'data');
+  const toastRoot = join(world.homeDir, '.zcode', 'tools', 'suian-zcode-common', 'toast');
+  await mkdir(join(toastRoot, 'identities'), { recursive: true });
+  await mkdir(dataDir);
+  await writeFile(join(dataDir, 'toast-launch.vbs'), buildVbsContent({ protocol: 'suian-zcode-common', launcherPath: join(toastRoot, 'launch.vbs') }));
+  await writeFile(join(toastRoot, 'identities', 'suian-zcode-common.json'), JSON.stringify({ protocol: 'suian-zcode-common' }));
+  const pluginsFile = join(world.root, '自定义 清单', 'installed_plugins.json');
+  const installs = [];
+  const result = await ensureToastIdentity({ dataDir, homeDir: world.homeDir, pluginsFile, shell: { run: async () => '' }, install: async options => installs.push(options) });
+  assert.equal(result.action, 'installed');
+  assert.equal(installs[0].pluginsFile, pluginsFile);
 });
 
 test('Toast 身份：外置身份描述被外部删除时自愈重装', async t => {
@@ -321,7 +348,7 @@ test('--scan-only 手动复查入口：输出 JSON 结果且不读 stdin、不�
   const dataDir = join(world.root, 'scan-data');
   const stopped = spawnSync(`node "${join(pluginRoot, 'depcheck-hook.mjs')}" --scan-only --data-dir "${dataDir}"`, {
     shell: true, windowsHide: true, encoding: 'utf8', input: '',
-    env: { ...process.env, ZCODE_PLUGIN_DATA: dataDir, SUIAN_DEPCHECK_HOME: world.homeDir, OIL_ZCODE_TITLE_DATA: undefined },
+    env: { ...process.env, ZCODE_PLUGIN_DATA: undefined, SUIAN_DEPCHECK_HOME: world.homeDir, OIL_ZCODE_TITLE_DATA: undefined },
   });
   assert.equal(stopped.status, 0, stopped.stderr);
   const parsed = JSON.parse(stopped.stdout);
@@ -329,6 +356,24 @@ test('--scan-only 手动复查入口：输出 JSON 结果且不读 stdin、不�
   assert.deepEqual(parsed.issues.map(i => i.code), ['file_missing']);
   const entries = await readdir(dataDir).catch(() => []);
   assert.deepEqual(entries, [], '--scan-only 不应写任何数据文件');
+});
+
+test('--scan-only 采用宿主自定义数据路径或显式清单，不读取默认 HOME 的清单', async t => {
+  const world = await buildReleaseWorld(t);
+  const pluginsFile = join(world.root, '自定义 存储', 'installed_plugins.json');
+  await mkdir(join(world.root, '自定义 存储'));
+  await writeFile(pluginsFile, await readFile(world.pluginsFile));
+  await rm(world.pluginsFile);
+  await rm(world.installPaths['suian-side-editor'], { recursive: true });
+  for (const injected of [true, false]) {
+    const args = [join(pluginRoot, 'depcheck-hook.mjs'), '--scan-only', ...(!injected ? ['--installed-plugins', pluginsFile] : [])];
+    const child = spawnSync(process.execPath, args, { encoding: 'utf8', windowsHide: true,
+      env: { ...process.env, ZCODE_PLUGIN_DATA: injected ? join(world.root, '自定义 存储', 'data', 'common') : undefined, SUIAN_DEPCHECK_HOME: world.homeDir } });
+    assert.equal(child.status, 0, child.stderr);
+    const result = JSON.parse(child.stdout);
+    assert.equal(result.skipped, null, child.stdout);
+    assert.ok(result.issues.some(issue => issue.code === 'cache_missing'));
+  }
 });
 
 test('toast-action 环境变量回退与 hook 一致（ZCODE_PLUGIN_DATA 挂 state 子目录）', async t => {
