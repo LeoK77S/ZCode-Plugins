@@ -39,7 +39,8 @@ export async function startGateway({ mode = 'relay', relayProtocolVersion = 1, u
       return;
     }
     if (request.method !== 'GET' || request.url !== '/health') { response.writeHead(404).end(); return; }
-    response.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }).end(JSON.stringify({
+    // charset=utf-8 让 Windows PowerShell 5.1 的 Invoke-RestMethod 正确解码中文部署路径。
+    response.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' }).end(JSON.stringify({
       service: 'suian-zcode-gateway', version: 1, build: gatewayBuild, instance_id: instanceId, upstream_url: upstreamUrl, mode, relay_protocol_version: relayProtocolVersion,
       desktop_connected: active?.desktop.readyState === WebSocket.OPEN,
       desktop_ready: active?.authenticated ?? false,

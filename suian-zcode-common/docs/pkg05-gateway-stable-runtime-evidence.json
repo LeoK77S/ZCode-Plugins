@@ -1,0 +1,39 @@
+{
+  "ticket": "#117 PKG-05",
+  "baseline": "90caa4b",
+  "verifiedAt": "2026-10-20",
+  "tdd": {
+    "red": [
+      { "suite": "tests/gateway-deploy.test.mjs", "exitCode": 1, "note": "gateway-deploy.mjs 缺失，部署契约先行失败", "log": ".scratch/red1-gateway-deploy.log（不入库）" },
+      { "suite": "tests/setup.test.mjs", "exitCode": 1, "result": "0/33", "note": "fixture 注入 -ToolsRoot 后旧 setup.ps1 不识别参数，稳定运行时契约全量先红", "log": ".scratch/red3-setup-stable.log（不入库）" }
+    ],
+    "green": [
+      { "suite": "tests/gateway-deploy.test.mjs", "exitCode": 0, "result": "6/6", "log": ".scratch/green1-gateway-deploy.log（不入库）" },
+      { "suite": "tests/stable-launcher.test.mjs", "exitCode": 0, "result": "4/4", "note": "含旧任务参数依赖已删除缓存的失败证明（对旧任务参数形态断言真实退出码非零）", "log": ".scratch/green2-stable-launcher.log（不入库）" },
+      { "suite": "tests/setup.test.mjs", "exitCode": 0, "result": "33/33", "log": ".scratch/green3-setup-stable.log（不入库）" }
+    ]
+  },
+  "regression": {
+    "exitCode": 0,
+    "suite": "suian-zcode-common 全量 node --test",
+    "result": "202/202 通过（基线 187 + 新增 15）",
+    "log": ".scratch/pkg05-full-green.log（不入库）"
+  },
+  "acceptance": {
+    "红色契约": "旧任务参数把安装时缓存编码进 EncodedCommand，缓存删除后以真实退出码失败；新稳定启动器在同样隔离场景（源码缓存删除）经活动记录启动部署运行文件并传回退出码",
+    "四动作贯通": "Install/Status/Restart/Remove 在临时目录与系统桩中贯通；任务参数、工作目录（数据目录）与子进程路径不引用版本缓存",
+    "幂等与三态": "同 buildId 重复部署/安装不重写不重复注册；buildId 只由内容决定（路径变化不要求重载）；Status 报 candidate_build_id/active_build_id/running_build 与 candidate_pending_activation",
+    "安全切换": "Desktop 活跃或健康未知时拒绝切换且活动记录不变；允许切换时等待网关、监听与监督启动器退出（Wait-GatewayExit 桩证）",
+    "失败回退": "候选健康不符（buildId/部署目录）时恢复旧活动记录、配置与任务并重启，报告原错误与回退结果；首次失败撤销任务注册、配置、活动记录与本次部署，不写网关环境",
+    "回环与不冒充": "部署目录删除源码候选后仍可启动真实回环网关，健康返回部署 buildId；运行中健康不随磁盘篡改变化；部署版 gateway-build 摘要校验失败即报错",
+    "环境与路径契约": "环境写入/恢复/广播沿用原契约（外部值不覆盖不广播）；ToolsRoot/DataDir 含中文与空格贯通全部 setup 桩与真实启动器；健康响应补 charset=utf-8 修复 PS5.1 中文路径解码",
+    "缓存独立": "部署目录不含 client/locate/depcheck 等业务模块；业务 common 缓存缺失不从网关部署目录补代码（由原生 common 诊断）",
+    "迁移": "旧任务参数形态核对归属后切换稳定参数，工作目录迁移到数据目录，切换成功后删除已确认的旧 gateway-launch.vbs；端口/令牌/原环境备份保留；不动用户源码与业务数据",
+    "记录独立": "active-gateway.json 与 active-toast.json 分开；安装/切换/移除网关不触碰 Toast 记录，Remove 在 Toast 记录存在时保留部署目录并报告"
+  },
+  "incidentalFixes": [
+    "gateway.mjs /health 响应 Content-Type 补 charset=utf-8：Windows PowerShell 5.1 对无 charset 的 JSON 按 ISO-8859-1 解码，中文部署路径乱码导致路径核对失败",
+    "稳定任务参数 EncodedCommand 外层 exit $LASTEXITCODE：& 调用脚本内的 exit 只退出脚本作用域，非零退出码会被进程层吞成 1"
+  ],
+  "notCovered": "Toast 执行器部署与模板迁移属 PKG-06；真实计划任务/注册表/正在运行的 ZCode 未触碰（全系统边界注入）；真实宿主安装、Release ZIP 与旧缓存删除后的实机重启验收属 PKG-09"
+}

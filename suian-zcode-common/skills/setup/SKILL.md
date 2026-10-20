@@ -36,7 +36,7 @@ node "{{common_root}}/link.mjs" --plugin-root "{{business_root}}"
 powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "{{common_root}}/setup.ps1" -Action Install -ZcodeAppVersion "{{app_version}}" -NativePlugin
 ```
 
-Install 复用唯一当前用户登录任务，以隐藏 VBS → PowerShell → Node 启动并监督网关。健康检查通过后才写用户级 ZCODE_WEB_REMOTE_CONTROL_RELAY_WS_URL 并广播变更。保留网关数据、端口、令牌和原环境备份，不另建 common 的第二个任务。原生模式不复制全局技能，只移除归属匹配的旧公共技能。
+Install 把网关运行文件部署到缓存外 `~/.zcode/tools/suian-zcode-common/deployments/<buildId>`（真实文件副本，buildId 只由内容决定），并把登录任务指向缓存外稳定启动器（`launchers/gateway-launch.vbs` → `launchers/run.ps1`）；启动器读取活动网关记录 `active-gateway.json` 选择部署版本与实际 Node，任务参数、工作目录和子进程路径不引用版本缓存。健康检查通过后才写用户级 ZCODE_WEB_REMOTE_CONTROL_RELAY_WS_URL 并广播变更。保留网关数据、端口、令牌和原环境备份，不另建 common 的第二个任务。同 buildId 重复安装幂等；候选启动失败时回退先前活动部署，首次安装失败则撤销本次新增的任务、配置与部署并明确报告未安装成功。原生模式不复制全局技能，只移除归属匹配的旧公共技能。
 
 6. 回业务 setup 完成全部配置。改变模式、端口或上游时先读[configuration](../configuration/SKILL.md)。首次连接未生效时仍先完成本机配置，原 Host 验证留到用户重开后。
 
@@ -48,7 +48,7 @@ Install 复用唯一当前用户登录任务，以隐藏 VBS → PowerShell → 
 
 更新后重装公共与 MCP 的锁定依赖，再刷新 link.mjs 的公共入口和所有已安装业务端链接。刷新链接不会重载运行中的网关或 MCP。
 
-从新公共根执行 Status -ZcodeAppVersion {{app_version}}，核对 code_status、gateway_path_matches、protocol_update_required、upstream_update_required 与 gateway_restart_required。代码已变化、目录不匹配、协议待升级或旧进程没有指纹时安排安全重载；不要用 health.version 或仅有的连接正常来判断已加载新代码。只修改文档或 skill 时，代码指纹不变；是否重开 Desktop 看环境变更与实际连接，不能仅凭 restart_required 汇总标志决定。
+从新公共根执行 Status -ZcodeAppVersion {{app_version}}，核对 code_status、candidate_pending_activation、gateway_path_matches、protocol_update_required、upstream_update_required 与 gateway_restart_required。代码已变化、候选待激活（candidate_build_id 与 active_build_id 不同）、目录不匹配、协议待升级或旧进程没有指纹时安排安全重载；不要用 health.version 或仅有的连接正常来判断已加载新代码。只修改文档或 skill 时，代码指纹不变；是否重开 Desktop 看环境变更与实际连接，不能仅凭 restart_required 汇总标志决定。
 
 需要重载网关时，等插件调用收尾，请用户只暂停 ZCode 的移动端远控，保留 ZCode 与当前 Agent 完成升级。Status 确认 desktop_connected:false 后执行 Restart -ZcodeAppVersion {{app_version}}，原生模式加 -NativePlugin。脚本等待网关和启动器退出后才更新任务，保留端口、控制令牌、原环境备份及自定义上游；应用升级时同步协议与官方地址。单纯重载且未提供新版本时，保留已配置协议。业务安装器同时更新通知脚本的代码路径。
 
