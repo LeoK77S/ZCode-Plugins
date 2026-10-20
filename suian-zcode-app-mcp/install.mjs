@@ -1,11 +1,15 @@
 import { readFile, mkdir, writeFile, unlink } from 'node:fs/promises';
+import { existsSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { homedir } from 'node:os';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { parseArgs } from 'node:util';
-import { checkRuntime } from 'suian-zcode-common/prerequisites.mjs';
+import { loadCommonInstall, setCommonLocation } from './common-client.mjs';
 
-const root = dirname(fileURLToPath(import.meta.url));
+// 入口目录自适应：源码模式入口位于插件根（含 SKILL.md）；发布 bundle 入口位于 dist/，
+// 插件根为发布根（SKILL.md 随包复制在根），上溯一级，保证两种模式对“插件根”的语义一致。
+const entryDir = dirname(fileURLToPath(import.meta.url));
+const root = existsSync(join(entryDir, 'SKILL.md')) ? entryDir : dirname(entryDir);
 
 export async function installSkill({ pluginRoot = root, skillFile = join(homedir(), '.zcode', 'skills', 'suian-zcode-app-mcp', 'SKILL.md') } = {}) {
   pluginRoot = resolve(pluginRoot);
@@ -60,13 +64,18 @@ export async function migrateLegacyRegistration({ pluginRoot, configFile = join(
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) {
-  const { values } = parseArgs({ options: { 'skills-dir': { type: 'string', default: join(homedir(), '.zcode', 'skills') }, 'check-only': { type: 'boolean' }, 'native-plugin': { type: 'boolean' }, 'legacy-root': { type: 'string' }, config: { type: 'string' } } });
-  const dependencies = await checkRuntime();
-  try { await import('@modelcontextprotocol/sdk/server/mcp.js'); await import('zod'); }
-  catch (error) {
-    if (error.code !== 'ERR_MODULE_NOT_FOUND') throw error;
-    throw new Error('MCP 缺少 npm 依赖；请在 suian-zcode-app-mcp 目录执行 npm ci --ignore-scripts --no-audit --no-fund', { cause: error });
-  }
+  const { values } = parseArgs({ options: { 'skills-dir': { type: 'string', default: join(homedir(), '.zcode', 'skills') }, 'check-only': { type: 'boolean' }, 'native-plugin': { type: 'boolean' }, 'legacy-root': { type: 'string' }, config: { type: 'string' },
+    // 独立 CLI 无宿主注入，公共层位置经显式安装记录或源码 common 根提供
+    'installed-plugins': { type: 'string' }, 'common-root': { type: 'string' } } });
+  // Node 版本预检不依赖公共层：公共不可用时运行前提仍须明确失败
+  if (Number(process.versions.node.split('.')[0]) < 24)
+    throw new Error('需要 Node.js 24+；请升级 Node，并在客户端配置中使用该版本的可执行文件');
+  if (values['installed-plugins']) setCommonLocation({ installedPluginsPath: resolve(values['installed-plugins']) });
+  if (values['common-root']) setCommonLocation({ commonRoot: resolve(values['common-root']) });
+  // 公共安装期入口（client-install）经 PKG-01 契约定位；不可用作为诊断状态报告，不安装、不修链
+  let dependencies, common;
+  try { dependencies = await (await loadCommonInstall()).checkRuntime(); common = { ok: true }; }
+  catch (error) { common = { ok: false, error: `${error.code ?? 'error'}: ${error.message}` }; }
   let result;
   if (values['check-only']) result = { ok: true, action: 'checked' };
   else if (values['native-plugin']) {
@@ -81,5 +90,5 @@ if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1]
     }
     result = { ok: true, action: 'plugin_managed', ...(migration ? { migration } : {}) };
   } else result = await installSkill({ skillFile: join(resolve(values['skills-dir']), 'suian-zcode-app-mcp', 'SKILL.md') });
-  console.log(JSON.stringify({ ...result, dependencies }));
+  console.log(JSON.stringify({ ...result, ...(dependencies ? { dependencies } : {}), common }));
 }

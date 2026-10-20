@@ -43,9 +43,11 @@ ZCode-Plugins/
 │
 ├── suian-zcode-app-mcp/    # ZCode 会话 MCP（检索、聊天历史、原 Host 改名/创建/发信/压缩/置顶与 stdio 接入）
 │   ├── .zcode-plugin/      # 原生插件元信息
-│   ├── .mcp.json           # 原生 stdio 注册，配置指向外置 dataPath
+│   ├── .mcp.json           # 原生 stdio 注册，配置指向外置 dataPath（发布版清单指向 dist 入口）
 │   ├── hooks/              # 同步工件初始化、提交摘要与 Stop 快照
-│   ├── ui/                 # 原生只读工件侧栏资源
+│   ├── ui/                 # 原生只读工件侧栏资源（构建时随 dist 复制，服务按相对位置读取）
+│   ├── build-release.mjs   # 发布目录构建：SDK/zod 内联，公共层经 PKG-01 安装记录共享加载
+│   ├── common-client.mjs   # 薄适配：业务对公共函数的唯一入口（惰性 loadCommonModule）
 │   └── skills/             # setup / configuration / sessions / automations / artifacts / glm / debug
 │
 ├── suian-side-editor/     # 本机文本编辑器 0.3.0；多目录切换，选区评论尽力保护，原#47缺口与Native待验
@@ -71,6 +73,7 @@ ZCode-Plugins/
 │   ├── client.mjs / client-install.mjs  # 公共客户端运行期/安装期入口（PKG-01 契约，commonApiVersion 1）
 │   ├── locate.mjs         # 薄定位器：安装记录定位 common，单一源码分发业务包
 │   ├── build-release.mjs  # 发布目录构建：esbuild 打包、release.json、buildId 与构建输入记录
+│   ├── gateway-deploy.mjs / gateway-launcher.ps1 # 缓存外网关部署与稳定启动器（PKG-05：deployments/<buildId> 真实副本、活动记录原子切换、六步升级与失败回退）
 │   ├── docs/client-contract.md  # 公共加载契约（锚点、失败分类、导出清单、迁移指引）
 │   ├── depcheck.mjs        # suian 系列插件依赖完整性扫描（纯内置模块，可独立运行）
 │   ├── depcheck-hook.mjs   # Stop 钩子入口：扫描→缺失时 Toast 提醒（--scan-only 手动复查）
