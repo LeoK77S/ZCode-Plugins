@@ -73,6 +73,7 @@ ZCode-Plugins/
 │   ├── client.mjs / client-install.mjs  # 公共客户端运行期/安装期入口（PKG-01 契约，commonApiVersion 1）
 │   ├── locate.mjs         # 薄定位器：安装记录定位 common，单一源码分发业务包
 │   ├── build-release.mjs  # 发布目录构建：esbuild 打包、release.json、buildId 与构建输入记录
+│   ├── gateway-deploy.mjs / gateway-launcher.ps1 # 缓存外网关部署与稳定启动器（PKG-05：deployments/<buildId> 真实副本、活动记录原子切换、六步升级与失败回退）
 │   ├── docs/client-contract.md  # 公共加载契约（锚点、失败分类、导出清单、迁移指引）
 │   ├── depcheck.mjs        # suian 系列插件依赖完整性扫描（纯内置模块，可独立运行）
 │   ├── depcheck-hook.mjs   # Stop 钩子入口：扫描→缺失时 Toast 提醒（--scan-only 手动复查）
