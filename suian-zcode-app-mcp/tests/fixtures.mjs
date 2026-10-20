@@ -26,13 +26,26 @@ if (!existsSync(join(commonReleaseDir, 'release.json'))) {
 const commonRelease = JSON.parse(readFileSync(join(commonReleaseDir, 'release.json'), 'utf8'));
 mkdirSync(join(anchorRoot, 'data', 'suian-zcode-app-mcp'), { recursive: true });
 const installedPluginsPath = join(anchorRoot, 'installed_plugins.json');
-const registryTemp = `${installedPluginsPath}.tmp-${process.pid}`;
-writeFileSync(registryTemp, JSON.stringify({
+const registryContent = JSON.stringify({
   version: 1,
   plugins: [{ id: 'suian-zcode-common@suian-zcode-plugins', name: 'suian-zcode-common', marketplace: 'suian-zcode-plugins',
     version: commonRelease.pluginVersion, installPath: commonReleaseDir, installedAt: '2026-10-20T00:00:00.000Z', scope: 'user' }],
-}) + '\n');
-renameSync(registryTemp, installedPluginsPath); // 并行测试进程下原子覆盖，避免读到半写 JSON
+}) + '\n';
+// 各进程写入内容一致：目标已是期望内容时跳过覆盖；rename 撞上他进程并发覆盖（Windows EPERM）
+// 时重读校验，一致即复用。仅在不一致时才失败，避免并行冷启动竞态让整个文件级测试报废。
+let registryOk = false;
+try { registryOk = readFileSync(installedPluginsPath, 'utf8') === registryContent; } catch {}
+if (!registryOk) {
+  const registryTemp = `${installedPluginsPath}.tmp-${process.pid}`;
+  writeFileSync(registryTemp, registryContent);
+  try {
+    renameSync(registryTemp, installedPluginsPath);
+  } catch (error) {
+    rmSync(registryTemp, { force: true });
+    try { registryOk = readFileSync(installedPluginsPath, 'utf8') === registryContent; } catch {}
+    if (!registryOk) throw error;
+  }
+}
 setCommonLocation({ installedPluginsPath });
 export const testZcodePluginData = join(anchorRoot, 'data', 'suian-zcode-app-mcp');
 export const testInstalledPluginsPath = installedPluginsPath;
