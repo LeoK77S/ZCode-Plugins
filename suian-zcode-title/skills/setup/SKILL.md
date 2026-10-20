@@ -7,7 +7,7 @@ description: 初始化、升级或卸载 ZCode 自动命名，配置外置数据
 
 原生根为 `${ZCODE_SKILL_DIR}/../..`；源码模式沿用已确定的根。先读[路径与数据](../paths.md)。
 
-1. 原生模式核对 common 与命名插件已启用。按公共 setup 安装锁定依赖、建立公共包和业务端链接，并完成网关配置；命名自身不用 npm install。源码模式同样先建立公共包链接。
+1. 原生模式核对 common 与命名插件已启用。命令入口按[路径与数据](../paths.md)区分形态：发布目录（含 release.json）的 common 能力经安装记录直接定位，不需要公共包链接或 npm 安装；源码目录形态仍按公共 setup 建立锁定依赖与公共包链接，并用 --common-root 指向 common 构建产物目录调试。
 2. 确认 Node.js 24+ 和 sqlite3 CLI。安装器验证只读 JSON 查询；sqliteBin → SQLITE_BIN → PATH，不把 npm 同名包当 CLI。绝对路径适合后台进程，显式无效路径不回退。
 3. 原生数据来自插件清单。按 paths.md 确定实际状态目录 {{state_dir}}，首次默认 {{data_path}}/state；已有有效外部自定义目录沿用。已有源码安装按下方迁移步骤转存配置和状态；首次配置保持暂停，不采用示例模型。仅检查通过后初始化：
 

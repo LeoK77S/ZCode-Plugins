@@ -1,10 +1,11 @@
 import { readFile } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
-import { fileURLToPath } from 'node:url';
-import { buildHookCommand } from './install.mjs';
+import { buildHookCommand } from './installer.mjs';
+import { resolvePluginLayout } from './release-layout.mjs';
 
-export async function runDoctor({ backend, event, config, pluginRoot = fileURLToPath(new URL('.', import.meta.url)), configFile = join(homedir(), '.zcode', 'cli', 'config.json') }) {
+// pluginRoot 默认取布局解析的插件根：源码模式为源码目录，发布模式为发布根（hooks 清单所在处）。
+export async function runDoctor({ backend, event, config, pluginRoot = resolvePluginLayout().root, configFile = join(homedir(), '.zcode', 'cli', 'config.json') }) {
   let userConfig = {};
   try { userConfig = JSON.parse(await readFile(configFile, 'utf8')); }
   catch (error) { if (error.code !== 'ENOENT') throw error; }
