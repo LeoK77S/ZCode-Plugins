@@ -38,6 +38,9 @@
 | title-policy.mjs | 当前用户跨插件的会话锁定策略：MCP 写入，命名插件读取 |
 | project-context.mjs | 只读任务索引的会话项目／执行目录；冻结附加目录优先、旧版单目录兼容，拒绝远端、错 Host、相对目录和歧义归属，不写宿主库 |
 | notifications.mjs / cooldown.mjs | Toast 显示、XML、两小时冷却、跨进程显示互斥 |
+| client.mjs / client-install.mjs | 公共客户端运行期与安装期入口（PKG-01）：再导出三消费者实际使用的公共 API，第一代 commonApiVersion 为 1；导入无副作用，安装期函数独立入口避免运行期携带安装器 |
+| locate.mjs | 薄定位器（单一源码，构建时分发到业务包）：按完整插件身份从安装记录定位 common，锚点优先级与失败分类见 docs/client-contract.md；进程内首次加载固定 common 根 |
+| build-release.mjs | 发布目录构建（PKG-01）：esbuild 多入口打包（ws 与 vendor 内联）、许可组装、release.json 与 buildId、发布目录外的构建输入记录；npm run build:release -- --out <dir> |
 | depcheck.mjs | suian 系列插件依赖完整性扫描：安装清单、npm 生产依赖与两级公共包链接判定 |
 | depcheck-hook.mjs / hooks/hooks.json | Stop 钩子入口与原生注册（async 不阻塞）；--scan-only 手动复查 |
 | depcheck-prompt.mjs | Toast 摘要与修复提示词模板（缺失清单、缓存根、setup 修复步骤） |
@@ -51,9 +54,11 @@
 | vendor/conversation-wire.js / vendor/conversation-wire.sources.json | 固定官方 V4 topic 帧组装／编码及快照／历史页 schema；49源blob、ref和构建SHA，不代表安装版本逐字节一致 |
 | vendor/LICENSE-ZCode / vendor/NOTICE-ZCode-current.md / vendor/LICENSE-zod | 官方Apache-2.0完整许可／NOTICE与构建内Zod MIT许可，禁止改成自有MIT归属 |
 | SKILL.md / README.md | 源码兼容路由与公共模块接口，完整操作流程在对应 skills/ 技能 |
-| tests/ | 回环网关、隔离 Windows 配置、远控、DPAPI、通知、依赖完整性判定与不自举契约 |
+| tests/ | 回环网关、隔离 Windows 配置、远控、DPAPI、通知、依赖完整性判定、不自举契约及 PKG-01 公共加载契约（定位器分类、入口导出面、导入纯净、构建确定性与自包含） |
 | tests/gateway-rpc.test.mjs / tests/plugin-link.test.mjs | 真实回环call／listen客户端隔离和释放、市场版本一致及独立缓存公共升级契约 |
 | tests/terminal-gateway.test.mjs / tests/terminal-relay.test.mjs | 3.16 终端握手与心跳、单桥复用、Host 会话查询、KICKED 及回环访问控制 |
 | experiments/ | 仅发合成 auth_init 的研究探针，不自动执行 |
 | package.json / package-lock.json | 固定 Node/ws 版本与测试入口 |
 | docs/ | [共享运行时与 Release 规格](docs/shared-runtime-release-spec.md)、[开票索引](docs/shared-runtime-release-tickets.md)及脱敏验证证据；历史与本次验证分开 |
+| docs/client-contract.md | PKG-01 公共加载契约：锚点事实、定位规则、失败分类、导出清单、release.json 与构建输入说明及业务迁移指引 |
+| docs/pkg01-client-contract-evidence.json | PKG-01 红绿与全量回归的脱敏验证证据；完整日志在忽略的 .scratch/ |
