@@ -7,6 +7,18 @@ description: 诊断 ZCode 公共网关、启动任务、Desktop、上游和手�
 
 原生根为 `${ZCODE_SKILL_DIR}/../..`；源码模式沿用已确定的根。先读[路径与数据](../paths.md)，固定启动目录、启动方式和实际公共根，确认 ZCode 应用版本后再执行 Status。CLI 版本不能代替应用版本。
 
+**安装与依赖诊断**用 `node {{common_root}}/depcheck-hook.mjs --scan-only`，业务进程加载公共层失败时按 PKG-01 契约的错误分类定位（均带 code 与 stage，在任何业务副作用前失败）：
+
+| 分类 | code | 处置 |
+| --- | --- | --- |
+| 锚点 | anchor_missing | 技能/CLI 显式传 `--installed-plugins`；宿主入口核对 ZCODE_PLUGIN_DATA 注入 |
+| 安装记录 | registry_missing / registry_invalid / common_not_installed / common_ambiguous | 原生重装或更新插件，修复安装记录 |
+| 安装路径 | install_path_missing | 市场重装 common |
+| 发布目录 | release_missing / release_invalid / entry_missing | 市场重装或更新，恢复发布目录 |
+| 兼容 | api_incompatible / version_insufficient | 按市场配套版本更新 common 或业务 |
+
+depcheck 自身的 issue code 语义见[setup 的依赖完整性检查](../setup/SKILL.md#依赖完整性检查stop-钩子-depcheck)。common 缓存整个缺失时 Stop 钩子随缓存消失，诊断走缓存外 Toast 执行器；不要在缓存内手工 npm 或复制文件补包。
+
 **公共插件 0.3.0 起支持 ZCode 3.16 在线模式，local-only 暂不可用**。在线模式需要已登录账号、可达的官方远控服务和 V2 配置。执行 Status 时用 -ZcodeAppVersion 传入已核实的 Desktop 应用版本，核对 relay_protocol_version、running_relay_protocol_version、protocol_update_required 和 upstream_update_required；protocol_source 为 legacy_default 时表示没有版本依据，不能据此判断 3.16 配置正确。先按[configuration](../configuration/SKILL.md)核对版本与配置，不能建议通过切换本地模式解决 3.16 连接失败。
 
 | 层次 | 证据 |

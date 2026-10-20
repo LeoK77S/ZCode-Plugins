@@ -8,7 +8,7 @@ import { spawnSync } from 'node:child_process';
 import childProcess from 'node:child_process';
 import { promisify } from 'node:util';
 import { syncBuiltinESMExports } from 'node:module';
-import { buildWorld } from './depcheck-fixture.mjs';
+import { buildReleaseWorld } from './depcheck-fixture.mjs';
 import { deployToastRuntime, registerToastIdentity, toastRootFor } from '../toast-runtime.mjs';
 import { runAction, parseActionUri, TITLE_PLUGIN_ID } from '../toast-executor.mjs';
 
@@ -49,9 +49,9 @@ const realIoShell = {
   },
 };
 
-// 构造部署好的 Toast 世界：depcheck fixture 世界 + 稳定运行时 + 两个外置身份 + title 外置模板。
+// 构造部署好的 Toast 世界：发布形态 fixture 世界 + 稳定运行时 + 两个外置身份 + title 外置模板。
 async function buildToastWorld(t) {
-  const world = await buildWorld(t);
+  const world = await buildReleaseWorld(t);
   const homeDir = world.homeDir;
   const executorText = await readFile(executorSource, 'utf8');
   await deployToastRuntime({ homeDir, nodeExe: process.execPath, executorText, shell: realIoShell });
@@ -119,12 +119,13 @@ test('title 点击插入当前安装条目根：重装换根后提示词用新�
 test('common 点击现场重扫：依赖修复前后提示词反映当前状态', async t => {
   const world = await buildToastWorld(t);
   const broken = inject();
-  await rm(join(world.installPaths['suian-side-editor'], 'node_modules', 'suian-zcode-common'));
+  const victim = join(world.installPaths['suian-zcode-title'], 'dist', 'hook.mjs');
+  const original = await readFile(victim, 'utf8');
+  await rm(victim);
   const brokenResult = await runAction({ uri: 'suian-zcode-common://fix', homeDir: world.homeDir, ...broken });
   assert.equal(brokenResult.issues, 1);
-  assert.match(broken.clipboard[0], /公共包链接/, '修复提示词使用完整描述文案');
-  const { symlink } = await import('node:fs/promises');
-  await symlink(world.runtimeRoot, join(world.installPaths['suian-side-editor'], 'node_modules', 'suian-zcode-common'), process.platform === 'win32' ? 'junction' : 'file');
+  assert.match(broken.clipboard[0], /发布文件缺失/, '修复提示词使用完整描述文案');
+  await writeFile(victim, original, 'utf8');
   const fixed = inject();
   const fixedResult = await runAction({ uri: 'suian-zcode-common://fix', homeDir: world.homeDir, ...fixed });
   assert.equal(fixedResult.issues, 0);

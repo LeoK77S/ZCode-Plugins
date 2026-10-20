@@ -6,7 +6,7 @@
 
 - 新增子项目必须在本文件文件树登记，并拥有自己的 `AGENTS.md`；通用规则写这里，专属规则写子项目内。
 - `suian-zcode-common/` 是业务插件共用的公共基础能力实现和配置入口：网关、远控协议/探活、DPAPI、Toast 与消息投影。插件仅维护业务规则和提示词，不复制公共实现；运行数据归调用方，网关数据保留原目录。
-- `marketplace.json` 是原生市场入口；三个业务条目的 dependencies 都包含 common，各条目版本与插件清单同步。原生插件分别缓存，不硬拼同级缓存路径；业务对 common 的加载正按 PKG 契约分票迁移到安装记录定位（title 已完成，公共导入经薄适配加载 common 发布目录），旧 link.mjs Node 包链接降为源码开发工具。skills/ 按职责拆分，根 SKILL.md 仅作源码兼容路由。
+- `marketplace.json` 是原生市场入口；三个业务条目的 dependencies 都包含 common，各条目版本与插件清单同步。原生插件分别缓存，不硬拼同级缓存路径；四包发布目录构建与安装记录定位（PKG-01 契约）已交付，安装、配置、诊断与旧安装迁移按发布入口收敛（PKG-08）：发布缓存不 npm ci、不 link.mjs、不修包链接，npm 与 link.mjs 仅剩源码开发用途。skills/ 按职责拆分，根 SKILL.md 仅作源码兼容路由。
 - 开源发布前完成个人信息脱敏（用户名、会话标识、本机路径、授权凭据），由插件各自 `.gitignore` 挡住运行时数据。
 - 提交信息用中文，`类型: 简述` 格式，正文分条说明做了什么、为什么做。
 - `sources/` 下的 submodule 是研究用的第三方上游快照：只读、不 fork、不修改、不安装依赖；升级钉定提交须在 `sources/README.md` 同步登记。
@@ -78,15 +78,17 @@ ZCode-Plugins/
 ├── suian-zcode-common/    # 公共网关、远控/授权/通知/投影模块、依赖完整性 Stop 钩子、Windows 配置与 Agent skill
 │   ├── .zcode-plugin/      # 必需公共插件元信息
 │   ├── hooks/              # 原生 Stop 注册（async 触发 depcheck-hook.mjs）
-│   ├── link.mjs            # 稳定公共入口与业务端 Node 包链接
+│   ├── link.mjs            # 源码开发用公共入口与业务端 Node 包链接；正式安装与诊断不依赖
 │   ├── client.mjs / client-install.mjs  # 公共客户端运行期/安装期入口（PKG-01 契约，commonApiVersion 1）
 │   ├── locate.mjs         # 薄定位器：安装记录定位 common，单一源码分发业务包
 │   ├── build-release.mjs  # 发布目录构建：esbuild 打包、release.json、buildId 与构建输入记录
 │   ├── gateway-deploy.mjs / gateway-launcher.ps1 # 缓存外网关部署与稳定启动器（PKG-05：deployments/<buildId> 真实副本、活动记录原子切换、六步升级与失败回退）
 │   ├── docs/client-contract.md  # 公共加载契约（锚点、失败分类、导出清单、迁移指引）
-│   ├── depcheck.mjs        # suian 系列插件依赖完整性扫描（纯内置模块，可独立运行）
+│   ├── depcheck.mjs        # suian 系列插件发布契约扫描（PKG-08：release.json 完整性、身份、API 兼容；不再检查 node_modules/junction）
 │   ├── depcheck-hook.mjs   # Stop 钩子入口：扫描→缺失时 Toast 提醒（--scan-only 手动复查）
+│   ├── migration.mjs / legacy-cleanup.mjs # 旧源码迁移链（PKG-08）：开关与路径记录/恢复；旧 junction 归属核对后只删链接
 │   ├── toast-action.mjs    # Toast 按钮协议入口：重扫→复制修复提示词→打开 ZCode
+│   ├── toast-runtime.mjs / toast-executor.mjs # 缓存外共享 Toast 稳定运行时与自包含执行器（PKG-06）
 │   ├── vendor/             # 固定协议／投影及官方V4 decoder；保留来源和独立许可
 │   └── skills/             # setup / configuration / debug
 │
