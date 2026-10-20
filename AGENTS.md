@@ -6,7 +6,7 @@
 
 - 新增子项目必须在本文件文件树登记，并拥有自己的 `AGENTS.md`；通用规则写这里，专属规则写子项目内。
 - `suian-zcode-common/` 是业务插件共用的公共基础能力实现和配置入口：网关、远控协议/探活、DPAPI、Toast 与消息投影。插件仅维护业务规则和提示词，不复制公共实现；运行数据归调用方，网关数据保留原目录。
-- `marketplace.json` 是原生市场入口；三个业务条目的 dependencies 都包含 common，各条目版本与插件清单同步。原生插件分别缓存，通过公共 link.mjs 建立 Node 包链接，不硬拼同级缓存路径。skills/ 按职责拆分，根 SKILL.md 仅作源码兼容路由。
+- `marketplace.json` 是原生市场入口，指向固定 Release ZIP URL，登记 SHA-256 与 stripRoot:false；三个业务条目的 dependencies 都包含 common，各条目版本与插件清单同步。原生插件分别缓存，不硬拼同级缓存路径；四包发布目录构建与安装记录定位（PKG-01 契约）已交付，安装、配置、诊断与旧安装迁移按发布入口收敛（PKG-08）：发布缓存不 npm ci、不 link.mjs、不修包链接，npm 与 link.mjs 仅剩源码开发用途。skills/ 按职责拆分，根 SKILL.md 仅作源码兼容路由。
 - 开源发布前完成个人信息脱敏（用户名、会话标识、本机路径、授权凭据），由插件各自 `.gitignore` 挡住运行时数据。
 - 提交信息用中文，`类型: 简述` 格式，正文分条说明做了什么、为什么做。
 - `sources/` 下的 submodule 是研究用的第三方上游快照：只读、不 fork、不修改、不安装依赖；升级钉定提交须在 `sources/README.md` 同步登记。
@@ -29,30 +29,43 @@ ZCode-Plugins/
 ├── CLAUDE.md               # 通过 @AGENTS.md 导入主文件，仅附加 Claude 专属补充
 ├── CONTEXT.md              # 开发术语表（词汇与边界定义；Agent 操作入口见各 SKILL.md）
 ├── README.md               # 面向开源读者的仓库简介
-├── marketplace.json        # 四个原生插件的版本、市场清单与业务依赖
+├── marketplace.json        # 四个原生插件的版本、市场清单与业务依赖（手工维护单一数据源；ZIP 切换候选由发布工具生成、人工核对采纳）
 ├── LICENSE                 # MIT（自有代码）；vendor 第三方代码保留原许可
 ├── .gitignore              # 仓库级通用忽略规则
 │
-├── suian-zcode-title/      # ZCode 会话自动命名插件（Stop Hook + 命名决策 + 通知文案）
+├── release-orchestrate.mjs # PKG-07 仓库级发布编排 CLI：四包构建、确定性 ZIP、门禁核对与市场候选；输出落 .scratch/
+├── release-zip.mjs         # 确定性 ZIP 写入/读取/安全解压（Node 内置 zlib；排序与时间戳固定，同输入同字节）
+├── release-verify.mjs      # 发布组装目录契约校验：身份/版本/必备资源/敏感内容/公共代码内联/文件摘要
+├── release-marketplace.mjs # 市场条目形状校验、候选生成（只改受影响条目）、版本统一检查（只报告）与回退候选
+├── release-github.mjs      # Release 发布流水线编排（GitHub API 与下载依赖注入；真实写操作须另行发布授权）
+├── tests/                  # 根级发布工具契约测试（release-*.test.mjs，含外部边界桩与 loopback HTTP fixture）
+│
+├── suian-zcode-title/      # ZCode 会话自动命名插件（Stop Hook + 命名决策 + 通知文案；公共导入经客户端契约定位）
 │   ├── .zcode-plugin/      # 原生插件元信息
-│   ├── hooks/             # 原生异步 Stop 注册
+│   ├── hooks/             # 原生异步 Stop 注册（发布构建将命令改指 dist 入口）
 │   ├── skills/            # setup / configuration / control / debug
+│   ├── common-access.mjs / release-layout.mjs / installer.mjs / build-release.mjs
+│   │                       # 公共薄适配与锚点解析、源码/发布双模式布局、安装共享实现、发布目录构建
 │   └── docs/notes/         # 研究与验证笔记（脱敏后入库；桌面截图等敏感物料不入库）
 │
 ├── suian-zcode-app-mcp/    # ZCode 会话 MCP（检索、聊天历史、原 Host 改名/创建/发信/压缩/置顶与 stdio 接入）
 │   ├── .zcode-plugin/      # 原生插件元信息
-│   ├── .mcp.json           # 原生 stdio 注册，配置指向外置 dataPath
+│   ├── .mcp.json           # 原生 stdio 注册，配置指向外置 dataPath（发布版清单指向 dist 入口）
 │   ├── hooks/              # 同步工件初始化、提交摘要与 Stop 快照
-│   ├── ui/                 # 原生只读工件侧栏资源
+│   ├── ui/                 # 原生只读工件侧栏资源（构建时随 dist 复制，服务按相对位置读取）
+│   ├── build-release.mjs   # 发布目录构建：SDK/zod 内联，公共层经 PKG-01 安装记录共享加载
+│   ├── common-client.mjs   # 薄适配：业务对公共函数的唯一入口（惰性 loadCommonModule）
 │   └── skills/             # setup / configuration / sessions / automations / artifacts / glm / debug
 │
-├── suian-side-editor/     # 本机文本编辑器 0.3.0；多目录切换，选区评论尽力保护，原#47缺口与Native待验
+├── suian-side-editor/     # 本机文本编辑器 0.4.0；多目录切换，选区评论尽力保护，原#47缺口与Native待验
 │   ├── AGENTS.md          # 本插件规则与文档入口
 │   ├── CLAUDE.md          # 导入 AGENTS.md
 │   ├── .zcode-plugin/     # 原生侧栏元信息与市场版本
-│   ├── skills/setup/     # 独立缓存的依赖初始化与公共包链接
+│   ├── skills/setup/     # 安装核对与公共客户端定位；正式包即装即用，不 npm、不链接
 │   ├── .mcp.json          # stdio 与宿主工作区绑定
-│   ├── cli.mjs / server.mjs # 启动入口与 app-only 上下文、目录、读写工具
+│   ├── cli.mjs / server.mjs # 启动入口与 app-only 上下文、目录、读写工具；入口先加载公共客户端
+│   ├── common-client.mjs / locate.mjs # 业务薄适配与 PKG-01 定位器副本：经已安装 common 加载公共实现，不依赖链接
+│   ├── build-release.mjs   # 正式发布目录构建：CLI 打包（SDK/zod 内联）、实际页面与许可、release.json
 │   ├── text-files.mjs     # 工作区边界、按层目录、UTF-8 读取与版本检查写回
 │   ├── text-resources.mjs # 已登记只读快照、版本通知／退订，后台发送失败报告并停止监测
 │   ├── comment-state.mjs # 可信评论状态、V4临时快照与当前分支历史分页、已观测批次证明
@@ -65,10 +78,17 @@ ZCode-Plugins/
 ├── suian-zcode-common/    # 公共网关、远控/授权/通知/投影模块、依赖完整性 Stop 钩子、Windows 配置与 Agent skill
 │   ├── .zcode-plugin/      # 必需公共插件元信息
 │   ├── hooks/              # 原生 Stop 注册（async 触发 depcheck-hook.mjs）
-│   ├── link.mjs            # 稳定公共入口与业务端 Node 包链接
-│   ├── depcheck.mjs        # suian 系列插件依赖完整性扫描（纯内置模块，可独立运行）
+│   ├── link.mjs            # 源码开发用公共入口与业务端 Node 包链接；正式安装与诊断不依赖
+│   ├── client.mjs / client-install.mjs  # 公共客户端运行期/安装期入口（PKG-01 契约，commonApiVersion 1）
+│   ├── locate.mjs         # 薄定位器：安装记录定位 common，单一源码分发业务包
+│   ├── build-release.mjs  # 发布目录构建：esbuild 打包、release.json、buildId 与构建输入记录
+│   ├── gateway-deploy.mjs / gateway-launcher.ps1 # 缓存外网关部署与稳定启动器（PKG-05：deployments/<buildId> 真实副本、活动记录原子切换、六步升级与失败回退）
+│   ├── docs/client-contract.md  # 公共加载契约（锚点、失败分类、导出清单、迁移指引）
+│   ├── depcheck.mjs        # suian 系列插件发布契约扫描（PKG-08：release.json 完整性、身份、API 兼容；不再检查 node_modules/junction）
 │   ├── depcheck-hook.mjs   # Stop 钩子入口：扫描→缺失时 Toast 提醒（--scan-only 手动复查）
+│   ├── migration.mjs / legacy-cleanup.mjs # 旧源码迁移链（PKG-08）：开关与路径记录/恢复；旧 junction 归属核对后只删链接
 │   ├── toast-action.mjs    # Toast 按钮协议入口：重扫→复制修复提示词→打开 ZCode
+│   ├── toast-runtime.mjs / toast-executor.mjs # 缓存外共享 Toast 稳定运行时与自包含执行器（PKG-06）
 │   ├── vendor/             # 固定协议／投影及官方V4 decoder；保留来源和独立许可
 │   └── skills/             # setup / configuration / debug
 │

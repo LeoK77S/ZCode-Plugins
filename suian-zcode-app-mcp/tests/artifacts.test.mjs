@@ -9,7 +9,7 @@ import { DatabaseSync } from 'node:sqlite';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
 import { createMcpServer } from '../server.mjs';
-import { fixture } from './fixtures.mjs';
+import { fixture, testZcodePluginData } from './fixtures.mjs';
 
 const references = items => items.map(({ kind, ref, label, purpose }) => ({ kind, ref, label, purpose }));
 
@@ -132,7 +132,7 @@ test('自动创建关系在同一事务保存，子记录失败不会留下父�
 });
 
 async function connect(t, config, options) {
-  const server = createMcpServer(config, options);
+  const server = await createMcpServer(config, options);
   const client = new Client({ name: 'artifact-contract', version: '1.0.0' });
   const [ct, st] = InMemoryTransport.createLinkedPair();
   t.after(async () => { await client.close(); await server.close(); });
@@ -190,7 +190,7 @@ test('工件工具描述承载摘要时效、主动登记、增量维护和资�
   const call = await connect(t, fixture(t)), { tools } = await call.listTools();
   const get = tools.find(tool => tool.name === 'get_artifacts').description;
   const set = tools.find(tool => tool.name === 'set_artifacts').description;
-  assert.match(get, /最新.*完整.*统计/);
+  assert.match(get, /最新工件列表、revision 与统计/);
   assert.match(get, /摘要.*可能已过时/);
   assert.match(set, /创建或接手.*后续用途.*登记/);
   assert.match(set, /kind\/ref\/label\/purpose.*pr\/issue\/session\/file\/link/);
@@ -260,7 +260,7 @@ test('统计摘要模式不限制工件数量和完整表示字符数，增量�
 });
 
 test('工件入口拒绝未知、冲突和歧义身份，不接受目标会话或转换 ref', async t => {
-  const f = fixture(t), server = createMcpServer(f);
+  const f = fixture(t), server = await createMcpServer(f);
   f.history.exec(`CREATE TABLE tool_usage (session_id TEXT, trace_id TEXT, tool_name TEXT);
     INSERT INTO tool_usage VALUES ('sess_a','shared','mcp__fixture__get_artifacts');
     INSERT INTO tool_usage VALUES ('sess_b','shared','mcp__fixture__get_artifacts');`);
@@ -302,7 +302,7 @@ test('独立 stdio 进程的 CAS 只有一个胜者，冷重启保留结果，�
   const before = [digest(f.indexDbPath), digest(f.sessionDbPath)];
   async function processClient() {
     const client = new Client({ name: 'artifact-process', version: '1' });
-    const transport = new StdioClientTransport({ command: process.execPath, stderr: 'pipe', args: [
+    const transport = new StdioClientTransport({ command: process.execPath, stderr: 'pipe', env: { ...process.env, ZCODE_PLUGIN_DATA: testZcodePluginData }, args: [
       fileURLToPath(new URL('../cli.mjs', import.meta.url)), '--index-db', f.indexDbPath, '--session-db', f.sessionDbPath, '--artifact-db', f.artifactDbPath
     ] });
     t.after(() => client.close());

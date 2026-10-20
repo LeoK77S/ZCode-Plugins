@@ -1,0 +1,56 @@
+{
+  "ticket": "#120 PKG-08",
+  "baseline": "62b59a2",
+  "verifiedAt": "2026-10-20",
+  "tdd": {
+    "red": [
+      {
+        "suite": "tests/depcheck.test.mjs（重写后对旧实现）",
+        "exitCode": 1,
+        "result": "4/19",
+        "note": "红色契约：旧 depcheck 把无 node_modules 的正确发布产物判为 plugin_files_missing（发布目录本无 package.json）+ runtime_missing（无 junction）等 15 项失败；证明误判而非夹带其他回归",
+        "log": ".scratch/red-depcheck.log（不入库）"
+      },
+      {
+        "suite": "tests/legacy-cleanup.test.mjs + tests/migration.test.mjs（对缺失模块）",
+        "exitCode": 1,
+        "result": "0/2 suites",
+        "note": "legacy-cleanup.mjs / migration.mjs 未实现，迁移链契约先行失败（ERR_MODULE_NOT_FOUND）",
+        "log": ".scratch/red-migration.log（不入库）"
+      }
+    ],
+    "green": [
+      { "suite": "tests/depcheck.test.mjs", "exitCode": 0, "result": "19/19", "note": "新检查接受发布包；file_missing/file_digest_mismatch/identity_mismatch/api_incompatible/version_insufficient/release_missing/release_invalid/common_not_installed 仍检出；遗留 runtime 链接只报告不判损坏" },
+      { "suite": "tests/depcheck-hook.test.mjs", "exitCode": 0, "result": "22/22", "note": "发布形态世界贯通；修复提示词引导 zcode plugins update，doesNotMatch npm ci 与 link.mjs" },
+      { "suite": "tests/toast-executor.test.mjs", "exitCode": 0, "result": "9/9", "note": "缓存外执行器快照与新判据同步；缓存删除后仍可诊断复制修复提示" },
+      { "suite": "tests/legacy-cleanup.test.mjs", "exitCode": 0, "result": "7/7", "note": "归属核对：runtime/业务端链接 owned 才删且只删链接；真实目录、他人目标、用户数据保留；悬空旧缓存链接仍判 common 归属；--inspect 计划模式不删" },
+      { "suite": "tests/migration.test.mjs", "exitCode": 0, "result": "7/7", "note": "capture 记录开关与路径（enabled 未写按启用、不含令牌）；restore 只补缺失字段不覆盖自定义；端到端记录→清理→Toast 部署（注入 shell，系统边界只放行 node --check）→恢复，网关配置与用户数据全保留" }
+    ]
+  },
+  "regression": {
+    "exitCode": 0,
+    "suite": "suian-zcode-common 全量 node --test tests/*.test.mjs",
+    "result": "232/232 通过（基线 218 + 新增 legacy-cleanup/migration 14；depcheck/depcheck-hook/toast-executor 三套在既有规模内改写适配发布契约）",
+    "note": "工作树 npm ci 安装开发依赖后运行；业务包代码未动，其安装/诊断测试不在受影响范围（技能为纯文案修改，走文档检查）",
+    "log": ".scratch/pkg08-full-green.log（不入库）"
+  },
+  "docsCheck": {
+    "exitCode": 0,
+    "note": "11 份技能/README 无用户安装流程的 npm ci/link.mjs 残留（源码开发/源码模式段除外）；common setup 引用的 5 个命令入口存在；技能相对链接有效；issue code 表、keep-data 语义、首次 Git 源到 ZIP 恢复限制、缓存缺失 Toast 诊断路径均写入"
+  },
+  "acceptance": {
+    "红色契约": "旧 depcheck 将正确无 node_modules 发布产物判错（plugin_files_missing + runtime_missing 等）有日志为证；新检查接受新包，仍检出缺文件、错身份与 API 不兼容",
+    "缓存缺失修复路径": "修复提示词按 issue 分类指向原生重新安装/更新（zcode plugins update），不引导 npm/链接；common 缓存整体缺失时 Stop 钩子随缓存消失的边界写入 setup 技能，诊断走缓存外 Toast 执行器（PKG-06 已有契约）；诊断链不自动 npm、不拉源码、不建链接、不重启 Desktop",
+    "迁移链": "migration.mjs 先记录开关与路径（不含凭据）→ 业务安装器迁移注册（既有 --legacy-root，不重复注册）→ 网关安全重载按 PKG-05 六步 → Toast 稳定运行时幂等部署 → legacy-cleanup 清理旧链接 → restore 恢复原开关（不覆盖自定义字段）；端到端契约见 tests/migration.test.mjs",
+    "junction 清理": "legacy-cleanup.mjs 归属核对（链接指向 common 安装根/runtime 根/悬空 common 路径）后只删链接本身；真实目录（real_directory）与他人目标（foreign_target）保留；计划模式不删",
+    "三态区分": "common setup 技能写明候选（版本缓存发布目录）、活动（active-gateway.json）、运行代码（健康指纹）三者区分，不以文件更新证明当前进程已换代；Status 字段沿用 PKG-05",
+    "业务入口": "title/app-mcp setup 已用包内实际入口（PKG-02/03 完成，本票清理升级段“刷新公共入口”等残留表述）；editor setup 无网关步骤、未新增 configuration 技能；配置变化不触发依赖重装已写入升级段",
+    "仅检查": "depcheck-hook.mjs --scan-only 不写文件、不注册系统对象、不启动网关（既有契约测试维持）",
+    "卸载语义": "setup 技能写明 update 保留 data、默认卸载可能删宿主 data（keep-data/先备份）、缓存外自有服务单独 Remove；不笼统承诺全部保留或删除",
+    "文档同步": "paths/debug/README/AGENTS/CONTEXT 同步术语与归属（安装记录定位 vs 源码链接、depcheck 发布契约、迁移与清理入口）；源码开发 npm/link 说明单独保留；首次 Git 源到 ZIP 恢复限制、keep-data 适用方式、暂缺缓存的业务失败边界（定位失败在业务副作用前抛出、修复指向原生重装）写清"
+  },
+  "boundaries": {
+    "系统边界注入": "Toast 部署 shell 只放行 node --check；剪贴板/打开工作区/注册表/计划任务全部注入桩（沿用既有测试桩）；未真实安装、未重启 Desktop、未修改用户系统",
+    "未验范围": "真实 UI 协议按钮、用户任务与协议操作留给 PKG-09；宿主 keep-data 行为须按实际宿主核实，技能已标注；旧正式市场来源未移除（本票不提前切换）"
+  }
+}

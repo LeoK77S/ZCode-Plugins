@@ -35,6 +35,7 @@ async function withEditor(action, { sameBytes = false } = {}) {
     const mode = page.getByRole('button', { name: '保存方式', exact: true }); await mode.getByText('手动保存', { exact: true }).waitFor();
     await page.clock.pauseAt(new Date('2026-01-01T01:00:00Z')); await page.getByRole('button', { name: '文件列表', exact: true }).click();
     await page.getByRole('treeitem', { name: 'folder', exact: true }).click(); await page.locator('[data-path="folder/file.txt"]').dblclick();
+    await page.locator('[role=tab] .tab-title').waitFor({ state: 'attached' });
     await page.waitForFunction(() => getComputedStyle(document.querySelector('[role=tab] .tab-title')).fontStyle === 'normal');
     const content = page.getByRole('textbox', { name: '文件正文', exact: true });
     const documentText = async () => (await content.locator('.cm-line').allTextContents()).join('\n');

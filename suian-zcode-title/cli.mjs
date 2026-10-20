@@ -7,13 +7,10 @@ import {resolve,dirname,join} from "node:path";
 import {randomUUID} from "node:crypto";
 import {createBackend} from "./backend.mjs";
 import {runNaming} from "./naming.mjs";
-import {probeHost} from "suian-zcode-common/remote.mjs";
+import {commonRuntime,commonAnchorOptions} from "./common-access.mjs";
+import {resolvePluginLayout} from "./release-layout.mjs";
 import {toastBodyFor} from "./toast.mjs";
-import {notifyOnce} from "suian-zcode-common/notifications.mjs";
-import {ensureToastAppId,PROTOCOL} from "./install.mjs";
-import {shouldNotify} from "suian-zcode-common/cooldown.mjs";
-import {saveAuthorization as storeAuthorization,clearAuthorization} from "suian-zcode-common/auth-store.mjs";
-import {readTitlePolicy,writeTitlePolicy} from "suian-zcode-common/title-policy.mjs";
+import {ensureToastAppId,PROTOCOL} from "./installer.mjs";
 import {runDoctor} from "./doctor.mjs";
 
 const args=process.argv.slice(2);
@@ -25,10 +22,12 @@ if(args.includes("--help")||!args.length) {
   try {
     command=args[0];
     if(!["run","doctor","models","probe","status","enable","disable","auth","unauth","lock","unlock","policy"].includes(command))throw new Error("未知命令");
-    let configPath,apply=false;
+    let configPath,apply=false,commonRootArg=null,installedPluginsArg=null;
     for(let i=1;i<args.length;i++) {
       if(args[i]==="--apply"&&command==="run")apply=true;
       else if(args[i]==="--config"&&args[i+1])configPath=resolve(args[++i]);
+      else if(args[i]==="--common-root"&&args[i+1])commonRootArg=resolve(args[++i]);
+      else if(args[i]==="--installed-plugins"&&args[i+1])installedPluginsArg=resolve(args[++i]);
       else throw new Error("未知参数");
     }
     let raw="";for await(const chunk of process.stdin)raw+=chunk;
@@ -44,7 +43,10 @@ if(args.includes("--help")||!args.length) {
     };
     if(!Number.isInteger(config.timeoutMs)||config.timeoutMs<1000||config.timeoutMs>300000)throw new Error("timeoutMs 应在 1000–300000 范围内");
     dataDir=resolve(configPath?dirname(configPath):process.cwd(),process.env.OIL_ZCODE_TITLE_DATA??config.dataDir??join(homedir(),".zcode","suian-zcode-title"));
-    const prompt=await readFile(new URL("./prompt.md",import.meta.url),"utf8");
+    // 锚点：显式 --common-root / --installed-plugins 优先，宿主注入交给定位器，否则回退配置记录。
+    const anchor=commonAnchorOptions({commonRoot:commonRootArg,installedPlugins:installedPluginsArg,config:supplied});
+    // 提示词从明确的发布根读取，不用 bundle 所在目录解释源码相对路径。
+    const prompt=await readFile(join(resolvePluginLayout().root,"prompt.md"),"utf8");
     const statePath=join(dataDir,event.session_id+".json");
     backend=createBackend({
       event,config,prompt,
@@ -56,6 +58,8 @@ if(args.includes("--help")||!args.length) {
     });
     if(command==="run"&&config.enabled===false)console.log(JSON.stringify({status:"disabled"}));
     else {
+      // 公共定位失败必须先于 mkdir、建锁等本地副作用；enable/disable 是纯本地命令不依赖 common。
+      if(command!=="enable"&&command!=="disable")await commonRuntime(anchor);
       await mkdir(dataDir,{recursive:true});
       const requestedLeasePath=join(dataDir,"worker.lock");
       try {lease=await open(requestedLeasePath,"wx");leasePath=requestedLeasePath;}
@@ -70,9 +74,11 @@ if(args.includes("--help")||!args.length) {
       } else if(command==="auth") {
         const url=event.authorization_url??process.env.OIL_ZCODE_REMOTE_URL;
         if(!url)throw new Error("auth 需要 stdin.authorization_url 提供授权链接");
+        const {saveAuthorization:storeAuthorization}=await commonRuntime();
         await storeAuthorization({dataDir,url});
         result={status:"auth_saved"};
       } else if(command==="unauth") {
+        const {clearAuthorization}=await commonRuntime();
         await clearAuthorization({dataDir});
         result={status:"auth_cleared"};
       } else if(command==="status") {
@@ -81,6 +87,7 @@ if(args.includes("--help")||!args.length) {
         let protocolRegistered=false;
         try {protocolRegistered=(await promisify(execFile)("reg.exe",["query",`HKCU\\Software\\Classes\\${PROTOCOL}\\shell\\open\\command`,"/ve"],{windowsHide:true})).stdout.includes("wscript.exe");}
         catch {}
+        const {shouldNotify}=await commonRuntime();
         const cooldown=await shouldNotify({dataDir});
         let lastUsage=null;
         try {
@@ -100,11 +107,13 @@ if(args.includes("--help")||!args.length) {
         await rename(temporary,configPath);
         result={status:command==="enable"?"enabled_writing":"disabled_writing",enabled:current.enabled};
       } else if(command==="probe") {
+        const {probeHost}=await commonRuntime();
         const probed=await probeHost({workspacePath:event.workspace_path??event.cwd,sessionId:event.session_id,gatewayConfigPath:config.gatewayConfigPath,timeoutMs:config.probeTimeoutMs??8000});
         result={status:probed.ok?"probe_ok":"probe_failed",...probed};
       } else if(command==="doctor") {
         result=await runDoctor({backend,event,config});
       } else if(command==="lock"||command==="unlock"||command==="policy") {
+        const {readTitlePolicy,writeTitlePolicy}=await commonRuntime();
         if(!await backend.sessionExists())throw new Error("目标会话在索引与会话库中均不存在");
         const policyDirectory=config.titlePolicyDirectory||undefined;
         if(command==="policy") {
@@ -131,6 +140,8 @@ if(args.includes("--help")||!args.length) {
     }
   } catch(error) {
     const failure={status:"failed",error:error.name==="SyntaxError"?"JSON 格式无效":error.message};
+    // 定位器错误（缺锚点、common 未装、API 不兼容等）透出错误码供诊断，与网关 reasonCode 区分
+    if(typeof error.code==="string"&&error.stage)failure.locator=error.code;
     // 本地数据类校验失败无 stage，也须透出 reasonCode 供日志与诊断（不触发远控失败的 Toast 路径）
     if(error.reasonCode)failure.reasonCode=error.reasonCode;
     if(error.stage) {
@@ -138,7 +149,7 @@ if(args.includes("--help")||!args.length) {
       failure.reasonCode=error.reasonCode??"unknown";
       // 链接被 relay 拒绝即已失效：立即清除密文，避免此后每次 Stop 继续撞击 relay
       if(error.reasonCode==="auth_link_rejected"&&dataDir) {
-        try {await clearAuthorization({dataDir});failure.authCleared=true;}catch{}
+        try {await (await commonRuntime()).clearAuthorization({dataDir});failure.authCleared=true;}catch{}
       }
       if(command==="run"&&dataDir) {
         if(process.env.OIL_ZCODE_TITLE_DISABLE_TOAST==="1")failure.toast="disabled";
@@ -146,6 +157,7 @@ if(args.includes("--help")||!args.length) {
           try {
             await mkdir(dataDir,{recursive:true});
             const appId=await ensureToastAppId({dataDir});
+            const {notifyOnce}=await commonRuntime();
             const outcome=await notifyOnce({dataDir,title:"ZCode 自动命名暂停",message:toastBodyFor(failure.reasonCode),reasonCode:failure.reasonCode,appId,actionUri:"suian-zcode-title://fix"});
             failure.toast=outcome.shown?"shown":(outcome.reason??"suppressed");
           } catch(toastError) {failure.toast="unavailable:"+String(toastError.message).slice(0,80);}

@@ -80,7 +80,7 @@
 
 ## 列出定时任务
 
-`list_automations` 列出定时任务（automation）清单与调度状态，跨工作区。数据直读任务索引同库的 `automations` 表（tasks-index.sqlite），不连接网关、离线可用，与官方桌面管理页看到的是同一份持久化数据。
+`list_crons` 列出定时任务清单与调度状态，跨工作区。工具名对齐官方 Cron 工具族命名；任务对象在官方数据模型中称 automation，返回字段沿用 `automationId`。数据直读任务索引同库的 `automations` 表（tasks-index.sqlite），不连接网关、离线可用，与官方桌面管理页看到的是同一份持久化数据。
 
 | 参数 | 约定 |
 | --- | --- |
@@ -92,6 +92,12 @@
 每项字段与官方 ZCodeAutomation 模型同名（camelCase）：`automationId`、`title`、`cronExpr`、`enabled`、`lifecycleStatus`（active / paused / completed / failed）、`nextRunAt`、`lastRunAt`、`runCount`、`recurring`、`maxRuns`、`scheduleRule`、`workspaceKey`、`workspacePath`、`targetTaskId`。`enabled` 与 `recurring` 是真实布尔；`nextRunAt`、`lastRunAt`、`maxRuns`、`scheduleRule`、`targetTaskId` 可空（null），`targetTaskId` 存在时即该任务绑定的会话 ID。`scheduleRule` 为 JSON 列，解析为对象返回；历史脏数据按未配置（null）处理，不让单行拖垮整个列表。时间戳是 Unix 毫秒。
 
 任务索引数据库缺失、或当前版本尚未建出 `automations` 表时，错误原样返回，不当作空清单。
+
+## 列出项目
+
+`list_projects` 列出本机项目注册表，主要用途是 start_session 跨项目创建前按工作区根反查 `project_id`。仅当宿主索引含 projects/project_roots 两表（ZCode Desktop 3.16+）时注册公布，旧宿主工具清单中不出现；数据直读任务索引（tasks-index.sqlite），不连接网关、离线可用。
+
+无参数、不分页（本机项目量级小）。返回 `projects` 数组，置顶优先、再按注册位置排序；每项含 `project_id`、`name`、`pinned`（真实布尔）与 `roots`（按位置排序，每根含 `root_path` 与 `is_primary` 主根标记）。仅列本机（host_id=local）未删除项目；未注册为项目的目录不在其中，对其创建会话走 start_session 的目录模式，无需 `project_id`。索引缺表时（启动探测后宿主被降级覆盖的窗口）显式报 `project_schema_unsupported`，不静默返回空表。
 
 ## 明确的失败与边界
 

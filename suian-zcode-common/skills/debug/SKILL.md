@@ -7,21 +7,33 @@ description: 诊断 ZCode 公共网关、启动任务、Desktop、上游和手�
 
 原生根为 `${ZCODE_SKILL_DIR}/../..`；源码模式沿用已确定的根。先读[路径与数据](../paths.md)，固定启动目录、启动方式和实际公共根，确认 ZCode 应用版本后再执行 Status。CLI 版本不能代替应用版本。
 
+**安装与依赖诊断**用 `node {{common_root}}/depcheck-hook.mjs --scan-only`，业务进程加载公共层失败时按 PKG-01 契约的错误分类定位（均带 code 与 stage，在任何业务副作用前失败）：
+
+| 分类 | code | 处置 |
+| --- | --- | --- |
+| 锚点 | anchor_missing | 技能/CLI 显式传 `--installed-plugins`；宿主入口核对 ZCODE_PLUGIN_DATA 注入 |
+| 安装记录 | registry_missing / registry_invalid / common_not_installed / common_ambiguous | 原生重装或更新插件，修复安装记录 |
+| 安装路径 | install_path_missing | 市场重装 common |
+| 发布目录 | release_missing / release_invalid / entry_missing | 市场重装或更新，恢复发布目录 |
+| 兼容 | api_incompatible / version_insufficient | 按市场配套版本更新 common 或业务 |
+
+depcheck 自身的 issue code 语义见[setup 的依赖完整性检查](../setup/SKILL.md#依赖完整性检查stop-钩子-depcheck)。common 缓存整个缺失时 Stop 钩子随缓存消失，诊断走缓存外 Toast 执行器；不要在缓存内手工 npm 或复制文件补包。
+
 **公共插件 0.3.0 起支持 ZCode 3.16 在线模式，local-only 暂不可用**。在线模式需要已登录账号、可达的官方远控服务和 V2 配置。执行 Status 时用 -ZcodeAppVersion 传入已核实的 Desktop 应用版本，核对 relay_protocol_version、running_relay_protocol_version、protocol_update_required 和 upstream_update_required；protocol_source 为 legacy_default 时表示没有版本依据，不能据此判断 3.16 配置正确。先按[configuration](../configuration/SKILL.md)核对版本与配置，不能建议通过切换本地模式解决 3.16 连接失败。
 
 | 层次 | 证据 |
 | --- | --- |
 | 配置与环境 | configured、user_env_matches；不回显完整 config |
 | 网关 | gateway_running、health_status、mode、rpc_available |
-| 代码与安装位置 | code_status、running_build、expected_build、gateway_path_matches；不以 health.version 判断插件版本 |
-| 启动任务 | task_running、vbs_launcher、launcher_update_required；Ready 不代表已停止 |
+| 代码与安装位置 | code_status、running_build、expected_build、candidate_build_id、active_build_id、candidate_pending_activation、gateway_path_matches；不以 health.version 判断插件版本 |
+| 启动任务 | task_running、vbs_launcher、launcher_update_required；Ready 不代表已停止；任务参数与工作目录指向缓存外 launchers，不引用版本缓存 |
 | Desktop | desktop_connected、desktop_ready；TCP 连入不等于原 Host 就绪 |
 | 官方链路 | upstream_connected、upstream_paired；仅在已支持旧版的 local-only 模式中，上游 false 属正常 |
 | 配对与调用 | paired、local_clients；paired 不能证明手机身份或手机仍在线 |
 
 健康检查默认单次 5 秒，只对超时重试一次；连续超时报未知。必要时用 -HealthTimeoutSec {{seconds}}，不以历史 LastTaskResult 代替当前健康证据。
 
-更新后必须从新公共根执行 Status。gateway_restart_required 表示网关代码、目录或启动链需要更新；code_status 为 unknown 表示旧进程未提供指纹，不能报告已加载最新代码。desktop_restart_required 只报告用户环境与目标地址不匹配；desktop_connection_required 单独报告未连接。restart_required 是汇总，不能一律解释为退出 Desktop；false 也不能替代业务验收。
+更新后必须从新公共根执行 Status。网关运行文件部署在缓存外（`~/.zcode/tools/suian-zcode-common/deployments/<buildId>`），任务经稳定启动器读取活动记录（`active-gateway.json`）启动部署目录；Toast 活动记录独立，网关切换不影响它。gateway_restart_required 表示网关代码、候选待激活、目录或启动链需要更新；code_status 为 unknown 表示旧进程未提供指纹，不能报告已加载最新代码；candidate_pending_activation 为 true 表示新候选已部署但活动记录未切换，按[setup](../setup/SKILL.md)安全重载。desktop_restart_required 只报告用户环境与目标地址不匹配；desktop_connection_required 单独报告未连接。restart_required 是汇总，不能一律解释为退出 Desktop；false 也不能替代业务验收。
 
 网关可达但任务未运行时修复启动链，不另开实例。任务运行而健康不可达时先读数据目录中的 gateway.error.log 等启动日志；Restart/Remove 会拒绝在未知状态下修改配置。缺少 rpc_available 可能是旧进程，按[setup](../setup/SKILL.md)安全重载，不回退官方独立 terminal。
 

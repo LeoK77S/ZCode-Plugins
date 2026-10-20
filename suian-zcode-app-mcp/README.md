@@ -5,7 +5,7 @@
 功能变化见[更新记录](./CHANGELOG.md)。
 
 > [!WARNING]
-> **从 0.8.1 起支持 ZCode 3.16 的核心会话操作**。当前 0.10.0 需要搭配公共插件 suian-zcode-common 0.4.0 及以上版本，可以与手机远控同时使用。
+> **从 0.8.1 起支持 ZCode 3.16 的核心会话操作**。当前 0.11.0 需要搭配公共插件 suian-zcode-common 0.5.0 及以上版本，沿用既有手机远控共存方式。
 >
 > **ZCode 3.16 无法在离线模式使用会话控制功能**，先联网开启远控再断网的情况除外。本机会话与历史查询不依赖远控，套餐查询仍需相应服务可达。
 
@@ -125,23 +125,23 @@ https://github.com/ONEGAYI/ZCode-Plugins.git
 | `pin_session` | 置顶会话；只改变列表展示归属，与归档状态互不影响 |
 | `unpin_session` | 取消置顶会话 |
 | `list_pinned_sessions` | 列出置顶会话，可含归档项；只读本机索引，无需 Desktop 在线 |
-| `list_automations` | 查询本机已保存的定时任务及启用状态 |
-| `set_automation_enabled` | 启用或停用指定定时任务，并确认结果 |
+| `list_crons` | 查询本机已保存的定时任务及启用状态 |
+| `set_cron_enabled` | 暂停或恢复指定定时任务，写后读回确认结果 |
 | `reset_cron_tools_visibility` | 在定时任务触发的会话中请求结束当前轮，以便下一轮恢复官方定时任务工具 |
 | `get_glm_balance` | 查询 GLM 个人套餐的模型、工具额度和可用重置卡 |
 | `reset_glm_quota` | 经本次用户许可和客户端确认表单，消耗一张对应卡重置 5h 或周模型额度 |
 | `get_artifacts` | 无业务参数，读取宿主绑定的当前会话最新 revision、items、stats 与继承诊断 |
 | `set_artifacts` | 以 expected_revision 和 upsert/remove 原子增量更新当前会话工件 |
 
-### 手动接入 MCP
+### 手动接入 MCP（源码模式）
 
-需要 Node.js 24+，使用 Node 内置 SQLite，无需另装 sqlite3 命令行程序。在本插件目录安装锁定依赖：
+原生安装由宿主加载 `.mcp.json`，入口为发布目录的 `dist/cli.mjs`，无需本节任何步骤。以下仅在源码模式下手动接入 MCP 客户端时使用：需要 Node.js 24+，使用 Node 内置 SQLite，无需另装 sqlite3 命令行程序。在本插件目录安装锁定依赖：
 
 ```powershell
 npm ci --ignore-scripts --no-fund --no-audit
 ```
 
-公共层也需按公共 setup 安装依赖。npm ci 后由公共 link.mjs 建立本插件的 Node 包链接，例如 `node ../suian-zcode-common/link.mjs --plugin-root .`（从源码 MCP 目录执行）。再运行 `node install.mjs --check-only`，确认依赖可用；失败先补齐，不继续注册。
+公共层也需按公共 setup 的源码开发说明安装依赖。npm ci 后由公共 link.mjs 建立本插件的 Node 包链接，例如 `node ../suian-zcode-common/link.mjs --plugin-root .`（从源码 MCP 目录执行）。再运行 `node install.mjs --check-only`，确认依赖可用；失败先补齐，不继续注册。
 
 在 MCP 客户端添加下面的 stdio 服务。将 `{{plugin_root}}` 替换为本插件目录的绝对路径，建议使用 `/` 分隔符；服务入口必须是 `cli.mjs`。配置示例见 [mcp.config.example.json](./mcp.config.example.json)。
 

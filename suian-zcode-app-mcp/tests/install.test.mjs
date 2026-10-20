@@ -7,6 +7,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { installSkill, migrateLegacyRegistration } from '../install.mjs';
+import { testInstalledPluginsPath } from './fixtures.mjs';
 
 async function skillFixture(t) {
   const root = await mkdtemp(join(tmpdir(), 'zcode-mcp-skill-'));
@@ -57,7 +58,7 @@ test('CLI 自行定位仓库根，允许在隔离技能目录安装', async (t) 
   const f = await skillFixture(t);
   const cli = fileURLToPath(new URL('../install.mjs', import.meta.url));
   const skillsDir = join(f.root, 'CLI skills');
-  const { stdout, stderr } = await promisify(execFile)(process.execPath, [cli, '--skills-dir', skillsDir], { windowsHide: true });
+  const { stdout, stderr } = await promisify(execFile)(process.execPath, [cli, '--skills-dir', skillsDir, '--installed-plugins', testInstalledPluginsPath], { windowsHide: true });
   assert.equal(stderr, '');
   assert.equal(JSON.parse(stdout).ok, true);
   const installed = await readFile(join(skillsDir, 'suian-zcode-app-mcp', 'SKILL.md'), 'utf8');
@@ -77,14 +78,14 @@ test('CLI Node 版本不足时不部署技能，错误说明所需版本',async 
 test('CLI 仅检查不部署技能，MCP 不要求 sqlite3 CLI',async t=>{
   const f=await skillFixture(t),cli=fileURLToPath(new URL('../install.mjs',import.meta.url));
   const skillsDir=join(f.root,'check-only-skills');
-  const {stdout}=await promisify(execFile)(process.execPath,[cli,'--skills-dir',skillsDir,'--check-only'],{windowsHide:true,env:{...process.env,SQLITE_BIN:join(f.root,'missing-sqlite3.exe')}});
+  const {stdout}=await promisify(execFile)(process.execPath,[cli,'--skills-dir',skillsDir,'--check-only','--installed-plugins',testInstalledPluginsPath],{windowsHide:true,env:{...process.env,SQLITE_BIN:join(f.root,'missing-sqlite3.exe')}});
   assert.equal(JSON.parse(stdout).action,'checked');
   await assert.rejects(stat(skillsDir),{code:'ENOENT'});
 });
 
 test('原生初始化由插件加载技能，不另部署全局技能副本',async t=>{
   const f=await skillFixture(t),cli=fileURLToPath(new URL('../install.mjs',import.meta.url)),skillsDir=join(f.root,'native-skills'),configFile=join(f.root,'native-data','config.json');
-  const args=[cli,'--native-plugin','--skills-dir',skillsDir,'--config',configFile];
+  const args=[cli,'--native-plugin','--skills-dir',skillsDir,'--config',configFile,'--installed-plugins',testInstalledPluginsPath];
   const {stdout}=await promisify(execFile)(process.execPath,args,{windowsHide:true});
   assert.equal(JSON.parse(stdout).action,'plugin_managed');
   await assert.rejects(stat(skillsDir),{code:'ENOENT'});
@@ -126,21 +127,24 @@ test('原生迁移保留旧 CLI 等号形式的自定义路径和参数优先级
   assert.equal(JSON.parse(await readFile(configFile,'utf8')).mcp.servers['suian-zcode-app'],undefined);
 });
 
-test('CLI MCP 依赖缺失时先报 npm ci，保留已有技能',async t=>{
-  const f=await skillFixture(t),common=join(f.root,'suian-zcode-common'),plugin=join(f.root,'suian-zcode-app-mcp');
-  await mkdir(join(common,'node_modules','ws'),{recursive:true});
-  await mkdir(plugin);
-  await mkdir(join(plugin,'node_modules'));
-  await symlink(common,join(plugin,'node_modules','suian-zcode-common'),process.platform==='win32'?'junction':'dir');
-  await writeFile(join(common,'node_modules','ws','package.json'),'{"type":"module","exports":"./index.mjs"}');
-  await writeFile(join(common,'node_modules','ws','index.mjs'),'export default class WebSocket {}');
-  for(const name of ['windows.mjs','prerequisites.mjs'])await copyFile(new URL('../../suian-zcode-common/'+name,import.meta.url),join(common,name));
+test('公共定位失败在检查或迁移写入前明确失败，不部署技能或配置',async t=>{
+  const f=await skillFixture(t),plugin=join(f.root,'suian-zcode-app-mcp');
+  await mkdir(join(f.root,'suian-zcode-common'));await mkdir(plugin);await mkdir(join(plugin,'node_modules')); // 空业务依赖目录：无 SDK、无 junction
+  
   const cli=join(plugin,'install.mjs');
+  // 按源码相对结构放置：install→common-client→../suian-zcode-common/locate.mjs
   await copyFile(new URL('../install.mjs',import.meta.url),cli);
-  await mkdir(dirname(f.skillFile),{recursive:true});
-  await writeFile(f.skillFile,'既有副本');
-  await assert.rejects(promisify(execFile)(process.execPath,[cli,'--skills-dir',join(f.root,'skills')],{windowsHide:true}),error=>{
-    assert.match(error.stderr,/MCP 缺少 npm 依赖/);assert.match(error.stderr,/npm ci/);return true;
-  });
-  assert.equal(await readFile(f.skillFile,'utf8'),'既有副本');
+  await copyFile(new URL('../common-client.mjs',import.meta.url),join(plugin,'common-client.mjs'));
+  await copyFile(new URL('../../suian-zcode-common/locate.mjs',import.meta.url),join(f.root,'suian-zcode-common','locate.mjs'));
+  await copyFile(new URL('../SKILL.md',import.meta.url),join(plugin,'SKILL.md'));
+  await copyFile(new URL('../package.json',import.meta.url),join(plugin,'package.json'));
+  const skillsDir=join(f.root,'skills');
+  const configFile=join(f.root,'native-data','config.json');
+  for (const flags of [[], ['--check-only'], ['--native-plugin','--config',configFile,'--legacy-root',f.pluginRoot]]) {
+    await assert.rejects(promisify(execFile)(process.execPath,[cli,'--skills-dir',skillsDir,...flags],{
+      windowsHide:true,env:{...process.env,ZCODE_PLUGIN_DATA:undefined}
+    }),error=>{assert.equal(error.code,1);assert.match(error.stderr,/anchor_missing/);return true;});
+  }
+  await assert.rejects(stat(join(skillsDir,'suian-zcode-app-mcp','SKILL.md')),{code:'ENOENT'});
+  await assert.rejects(stat(configFile),{code:'ENOENT'});
 });

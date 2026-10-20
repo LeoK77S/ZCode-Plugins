@@ -3,8 +3,7 @@ import { z } from 'zod';
 import { realpath, stat, readFile } from 'node:fs/promises';
 import { isAbsolute, resolve } from 'node:path';
 import { createHash } from 'node:crypto';
-import { readProjectContext } from 'suian-zcode-common/project-context.mjs';
-import { MCP_APP_MIME_TYPE, supportsZcodeMcpApps } from 'suian-zcode-common/ui-capabilities.mjs';
+import { commonClient, commonClientSync } from './common-client.mjs';
 import { readTextFile, listDirectory, saveTextFile, fileFailure } from './text-files.mjs';
 import { editorSettings, editorRecovery, recoveryState } from './editor-settings.mjs';
 import { installTextResources } from './text-resources.mjs';
@@ -30,7 +29,7 @@ async function boundContext(workspaceRoot, meta, indexDbPath, selectedRoot) {
   } catch {
     throw failure('workspace_binding_unavailable', '启动绑定的工作区不可访问或不是目录，已阻止文件访问');
   }
-  const project = readProjectContext({ indexDbPath, sessionId: ids[0], workspacePath });
+  const project = (await commonClient()).readProjectContext({ indexDbPath, sessionId: ids[0], workspacePath });
   const workspaceRoots = [...new Set([project.workspacePath, ...project.additionalDirectories])];
   const same = (a, b) => process.platform === 'win32' ? resolve(a).toLowerCase() === resolve(b).toLowerCase() : resolve(a) === resolve(b);
   if (!workspaceRoots.some(root => same(root, workspaceRoot))) throw failure('workspace_binding_invalid', '启动目录不属于当前会话允许的目录');
@@ -46,7 +45,11 @@ async function boundContext(workspaceRoot, meta, indexDbPath, selectedRoot) {
 
 export function createMcpServer({ workspaceRoot = process.env.SUIAN_SIDE_EDITOR_WORKSPACE, dataPath = process.env.ZCODE_PLUGIN_DATA, zcodeAppVersion = process.env.ZCODE_APP_VERSION,
   hostConnector, indexDbPath, gatewayConfigPath = process.env.SUIAN_SIDE_EDITOR_GATEWAY_CONFIG } = {}) {
-  const server = new McpServer({ name: 'suian-side-editor', version: '0.3.0' });
+  // 公共客户端必须由入口进程先行加载（cli.mjs 与测试夹具在创建服务前 await commonClient()）；
+  // 未加载即创建服务属于入口装配错误，显式失败而不是静默降级注册能力。
+  const common = commonClientSync();
+  if (!common) throw new Error('公共客户端尚未加载：入口须先 await commonClient() 再创建 MCP 服务');
+  const server = new McpServer({ name: 'suian-side-editor', version: '0.4.0' });
   const commentState = installCommentState(server, { hostConnector, gatewayConfigPath });
   const textResources = installTextResources(server, commentState, context =>
     boundContext(workspaceRoot, { session_id: context.sessionId }, indexDbPath, context.workspaceRoot));
@@ -116,14 +119,14 @@ export function createMcpServer({ workspaceRoot = process.env.SUIAN_SIDE_EDITOR_
     _meta: { ui: { resourceUri: EDITOR_URI, surface: 'editor', visibility: ['app'] } }
   }, (_args, extra) => run(extra, context => commentState.register({ ...context, workspacePath: context.sessionWorkspacePath })));
   const tools = [contextTool, readTool, directoryTool, saveTool, settingsTool, updateSettingsTool, stateTool, updateStateTool, commentTool];
-  const resource = server.registerResource('editor', EDITOR_URI, { title: '文本编辑器', mimeType: MCP_APP_MIME_TYPE }, async () => ({ contents: [{
-    uri: EDITOR_URI, mimeType: MCP_APP_MIME_TYPE, text: await readFile(new URL('./ui/dist/editor.html', import.meta.url), 'utf8'),
+  const resource = server.registerResource('editor', EDITOR_URI, { title: '文本编辑器', mimeType: common.MCP_APP_MIME_TYPE }, async () => ({ contents: [{
+    uri: EDITOR_URI, mimeType: common.MCP_APP_MIME_TYPE, text: await readFile(new URL('./ui/dist/editor.html', import.meta.url), 'utf8'),
     _meta: { ui: { prefersBorder: false } }
   }] }));
   resource.disable();
   for (const tool of tools) tool.disable();
   server.server.oninitialized = () => {
-    if (supportsZcodeMcpApps({ clientInfo: server.server.getClientVersion(), capabilities: server.server.getClientCapabilities(), zcodeAppVersion })) {
+    if (common.supportsZcodeMcpApps({ clientInfo: server.server.getClientVersion(), capabilities: server.server.getClientCapabilities(), zcodeAppVersion })) {
       resource.enable();
       for (const tool of tools) tool.enable();
     }

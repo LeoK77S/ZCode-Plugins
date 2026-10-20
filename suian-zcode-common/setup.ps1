@@ -9,6 +9,8 @@ param(
     [string]$UpstreamUrl = 'wss://zcode.z.ai/ws',
     [string]$DataDir = (Join-Path $env:USERPROFILE '.zcode\tools\suian-zcode-gateway'),
     [string]$SkillsDir = (Join-Path $env:USERPROFILE '.zcode\skills'),
+    # 缓存外部署根：deployments\<buildId> 存放网关运行文件副本，launchers 存放稳定启动器。
+    [string]$ToolsRoot = (Join-Path $env:USERPROFILE '.zcode\tools\suian-zcode-common'),
     [switch]$NativePlugin
 )
 $ErrorActionPreference = 'Stop'
@@ -16,6 +18,7 @@ Set-StrictMode -Version Latest
 [Console]::OutputEncoding = New-Object System.Text.UTF8Encoding($false)
 $relayVariable = 'ZCODE_WEB_REMOTE_CONTROL_RELAY_WS_URL'
 $configFile = Join-Path $DataDir 'config.json'
+$activeGatewayFile = Join-Path $ToolsRoot 'active-gateway.json'
 $config = if (Test-Path -LiteralPath $configFile) { Get-Content -LiteralPath $configFile -Raw -Encoding UTF8 | ConvertFrom-Json } else { $null }
 $restarting = $Action -eq 'Restart'
 if ($restarting -and $null -eq $config) { throw 'Shared gateway is not installed; use Install first' }
@@ -67,7 +70,9 @@ $property = (Get-ItemProperty -LiteralPath 'HKCU:\Environment').PSObject.Propert
 $userRelay = if ($null -ne $property) { [string]$property.Value } else { $null }
 $relayUrl = "ws://127.0.0.1:$Port/ws"
 $healthUrl = "http://127.0.0.1:$runningPort/health"
-$launcherFile = Join-Path $DataDir 'gateway-launch.vbs'
+$legacyLauncherFile = Join-Path $DataDir 'gateway-launch.vbs'
+$stableVbsFile = Join-Path $ToolsRoot 'launchers\gateway-launch.vbs'
+$stablePsFile = Join-Path $ToolsRoot 'launchers\run.ps1'
 $scriptHost = Join-Path $env:SystemRoot 'System32\wscript.exe'
 $vbsLauncher = $null -ne $task -and @($task.Actions)[0].Execute -eq $scriptHost
 $taskRunning = $null -ne $task -and $task.State -eq 'Running'
@@ -91,49 +96,61 @@ function Read-GatewayHealth {
     }
 }
 
+# 稳定任务参数：指向缓存外 launchers 的 VBS 与 PowerShell 启动器，不编码任何版本缓存路径。
+# 外层 exit $LASTEXITCODE 把启动器脚本的退出码精确传回进程（& 调用脚本内的 exit 只退出脚本作用域）。
 function Get-LauncherArguments {
-    param([string]$NodePath)
-    $runFile = (Join-Path $PSScriptRoot 'run.ps1').Replace("'", "''")
-    $safeNode = $NodePath.Replace("'", "''")
+    $launcherPs = $stablePsFile.Replace("'", "''")
+    $safeTools = $ToolsRoot.Replace("'", "''")
     $safeData = $DataDir.Replace("'", "''")
-    $launch = "& '$runFile' -NodePath '$safeNode' -DataDir '$safeData'"
+    $launch = "& '$launcherPs' -ToolsRoot '$safeTools' -DataDir '$safeData'; exit `$LASTEXITCODE"
     $encoded = [Convert]::ToBase64String([Text.Encoding]::Unicode.GetBytes($launch))
-    return '//B //NoLogo "' + $launcherFile + '" ' + $encoded
+    return '//B //NoLogo "' + $stableVbsFile + '" ' + $encoded
+}
+
+function Invoke-DeployCli {
+    param([string[]]$CliArguments)
+    $output = & $script:gatewayNode $script:deployCli @CliArguments 2>&1
+    if ($LASTEXITCODE -ne 0) { throw ('Gateway deployment tool failed: ' + (($output | Select-Object -Last 5 | Out-String).Trim())) }
+    return ($output | Where-Object { $_ -is [string] } | Select-Object -Last 1) | ConvertFrom-Json
 }
 
 function Get-GatewayUpgradeStatus {
     param($InstalledConfig, $Health)
-    $expected = $null; $running = $null; $codeStatus = 'not_configured'; $pathMatches = $false
+    $deployStatus = Invoke-DeployCli @('--status', '--source-root', $PSScriptRoot, '--tools-root', $ToolsRoot)
+    $candidateBuildId = $deployStatus.candidateBuildId
+    $active = $deployStatus.active
+    $activeBuildId = if ($null -ne $active) { $active.build_id } else { $null }
+    $expected = [pscustomobject]@{ id = $candidateBuildId; version = $deployStatus.version; root = (Join-Path $ToolsRoot ('deployments\' + $candidateBuildId)) }
+    $running = $null; $codeStatus = 'not_configured'; $pathMatches = $false
     if ($null -ne $InstalledConfig) {
-        $currentNode = (Get-Command node -CommandType Application | Select-Object -First 1).Source
-        $buildJson = & $currentNode (Join-Path $PSScriptRoot 'gateway-build.mjs')
-        if ($LASTEXITCODE -ne 0) { throw 'Cannot determine the current gateway code fingerprint' }
-        $expected = $buildJson | ConvertFrom-Json
         if ($null -eq $Health) { $codeStatus = 'unreachable' }
         elseif (-not $Health.PSObject.Properties['build']) { $codeStatus = 'unknown' }
         else {
             $running = $Health.build
-            $codeStatus = if ($running.id -eq $expected.id) { 'current' } else { 'changed' }
-            $pathMatches = $InstalledConfig.gateway_root -eq $PSScriptRoot -and $running.root -eq $expected.root
+            $codeStatus = if ($running.id -eq $candidateBuildId) { 'current' } else { 'changed' }
+        }
+        if ($null -ne $activeBuildId -and $null -ne $Health -and $Health.PSObject.Properties['build']) {
+            $activeDeploymentDir = Join-Path $ToolsRoot ('deployments\' + $activeBuildId)
+            $pathMatches = $InstalledConfig.gateway_root -eq $activeDeploymentDir -and $Health.build.root -eq $activeDeploymentDir
         }
     }
     $launcherUpdate = $false
     if ($null -ne $InstalledConfig) {
         $launcherUpdate = -not $vbsLauncher -or -not $taskRunning -or
-            @($task.Actions)[0].Arguments -cne (Get-LauncherArguments $currentNode) -or
-            -not (Test-Path -LiteralPath $launcherFile)
-        if (-not $launcherUpdate) {
-            $launcherUpdate = (Get-Content -LiteralPath $launcherFile -Raw -Encoding Unicode) -cne (Get-Content -LiteralPath (Join-Path $PSScriptRoot 'run.vbs') -Raw -Encoding UTF8)
-        }
+            @($task.Actions)[0].Arguments -cne (Get-LauncherArguments) -or
+            -not (Test-Path -LiteralPath $stableVbsFile) -or -not (Test-Path -LiteralPath $stablePsFile)
     }
     $configuredProtocol = if ($null -ne $InstalledConfig -and $InstalledConfig.PSObject.Properties['relay_protocol_version']) { $InstalledConfig.relay_protocol_version } else { 1 }
     $protocolUpdate = $null -ne $InstalledConfig -and ($configuredProtocol -ne $RelayProtocolVersion -or ($null -ne $Health -and $Health.relay_protocol_version -ne $RelayProtocolVersion))
     $upstreamUpdate = $null -ne $InstalledConfig -and $InstalledConfig.upstream_url -ne $UpstreamUrl
-    $gatewayRestart = $null -ne $InstalledConfig -and ($codeStatus -ne 'current' -or -not $pathMatches -or $launcherUpdate -or $protocolUpdate -or $upstreamUpdate)
+    $candidatePending = $null -ne $activeBuildId -and $candidateBuildId -ne $activeBuildId
+    $gatewayRestart = $null -ne $InstalledConfig -and ($codeStatus -ne 'current' -or -not $pathMatches -or $launcherUpdate -or $protocolUpdate -or $upstreamUpdate -or $candidatePending)
     $desktopRestart = $null -ne $InstalledConfig -and $userRelay -ne $relayUrl
     $desktopConnection = $null -ne $InstalledConfig -and ($null -eq $Health -or -not $Health.desktop_connected)
     return [ordered]@{
-        expected_build=$expected; running_build=$running; code_status=$codeStatus; gateway_path_matches=$pathMatches
+        expected_build=$expected; candidate_build_id=$candidateBuildId; active_build_id=$activeBuildId
+        candidate_pending_activation=$candidatePending
+        running_build=$running; code_status=$codeStatus; gateway_path_matches=$pathMatches
         relay_protocol_version=$RelayProtocolVersion; protocol_source=$protocolSource; running_relay_protocol_version=$(if ($null -ne $Health) { $Health.relay_protocol_version } else { $null })
         upstream_url=$UpstreamUrl; protocol_update_required=$protocolUpdate; upstream_update_required=$upstreamUpdate
         launcher_update_required=$launcherUpdate; gateway_restart_required=$gatewayRestart
@@ -172,6 +189,12 @@ namespace SuianZcodeGateway {
 }
 
 if ($Port -lt 1 -or $Port -gt 65535) { throw 'Invalid gateway port' }
+$script:gatewayNode = $null
+$script:deployCli = Join-Path $PSScriptRoot 'gateway-deploy.mjs'
+if ($Action -ne 'Remove') {
+    $script:gatewayNode = (Get-Command node -CommandType Application | Select-Object -First 1).Source
+    if ($null -eq $script:gatewayNode) { throw 'Node.js 24+ is required' }
+}
 if ($Action -eq 'Status') {
     $health = $null
     if ($null -ne $config) {
@@ -225,12 +248,22 @@ if ($Action -eq 'Remove') {
         $installedSkill = Join-Path $SkillsDir ($skillName + '\SKILL.md')
         if (Test-Path -LiteralPath $installedSkill) {
             $installed = Get-Content -LiteralPath $installedSkill -Raw -Encoding UTF8
-            if ($installed.Contains(('**本机公共根**：`' + $config.gateway_root + '`')) -or $installed.Contains(('**本机网关根**：`' + $config.gateway_root + '`'))) { Remove-Item -LiteralPath $installedSkill }
+            if ($installed.Contains(('**本机公共根**：`' + $config.gateway_root + '`')) -or ($installed.Contains(('**本机公共根**：`' + $PSScriptRoot + '`'))) -or $installed.Contains(('**本机网关根**：`' + $config.gateway_root + '`'))) { Remove-Item -LiteralPath $installedSkill }
         }
     }
     Remove-Item -LiteralPath $configFile
-    if (Test-Path -LiteralPath $launcherFile) { Remove-Item -LiteralPath $launcherFile }
-    [ordered]@{ ok=$true; action='removed'; user_env_action=$environmentAction; environment_broadcast=$environmentBroadcast; restart_required=$true } | ConvertTo-Json -Compress
+    if (Test-Path -LiteralPath $legacyLauncherFile) { Remove-Item -LiteralPath $legacyLauncherFile }
+    # 网关部署产物：活动记录必清；deployments 与 launchers 在 Toast 活动记录仍存在时保留。
+    $toastRecord = 'none'
+    if (Test-Path -LiteralPath (Join-Path $ToolsRoot 'active-toast.json')) { $toastRecord = 'preserved' }
+    if (Test-Path -LiteralPath $activeGatewayFile) { Remove-Item -LiteralPath $activeGatewayFile }
+    if ($toastRecord -eq 'none') {
+        foreach ($deployArtifact in @('launchers', 'deployments')) {
+            $artifactPath = Join-Path $ToolsRoot $deployArtifact
+            if (Test-Path -LiteralPath $artifactPath) { Remove-Item -LiteralPath $artifactPath -Recurse -Force }
+        }
+    }
+    [ordered]@{ ok=$true; action='removed'; user_env_action=$environmentAction; environment_broadcast=$environmentBroadcast; toast_record=$toastRecord; restart_required=$true } | ConvertTo-Json -Compress
     return
 }
 
@@ -238,8 +271,7 @@ $upstream = [Uri]$UpstreamUrl
 if (-not $upstream.IsAbsoluteUri -or ($upstream.Scheme -ne 'wss' -and -not ($upstream.Scheme -eq 'ws' -and $upstream.Host -eq '127.0.0.1')) -or $upstream.UserInfo -or $upstream.Query -or $upstream.Fragment) {
     throw 'Upstream must be a credential-free wss URL (or loopback ws for testing)'
 }
-$nodePath = (Get-Command node -CommandType Application | Select-Object -First 1).Source
-$nodeVersion = & $nodePath --version
+$nodeVersion = & $script:gatewayNode --version
 if ($LASTEXITCODE -ne 0 -or $nodeVersion -notmatch '^v(\d+)\.' -or [int]$Matches[1] -lt 24) { throw 'Node.js 24+ is required' }
 if (-not (Test-Path -LiteralPath (Join-Path $PSScriptRoot 'node_modules\ws\package.json'))) { throw 'Run npm ci in suian-zcode-common first' }
 $template = Get-Content -LiteralPath (Join-Path $PSScriptRoot 'SKILL.md') -Raw -Encoding UTF8
@@ -247,8 +279,14 @@ $marker = '<!-- suian-zcode-common:root -->'
 if (-not $template.Contains($marker)) { throw 'Gateway skill root marker is missing' }
 $skill = $template.Replace($marker, ('**本机公共根**：`' + $PSScriptRoot + '`'))
 $sha = [Security.Cryptography.SHA256]::Create()
-try { $instanceId = ([BitConverter]::ToString($sha.ComputeHash([Text.Encoding]::UTF8.GetBytes($PSScriptRoot.ToLowerInvariant())))).Replace('-', '').ToLowerInvariant() }
+try { $instanceId = ([BitConverter]::ToString($sha.ComputeHash([Text.Encoding]::UTF8.GetBytes($ToolsRoot.ToLowerInvariant())))).Replace('-', '').ToLowerInvariant() }
 finally { $sha.Dispose() }
+
+# 步骤 1：校验候选并暂存部署运行文件（真实文件副本，不使用 junction）；暂存不改变活动版本。
+$deployResult = Invoke-DeployCli @('--deploy', '--source-root', $PSScriptRoot, '--tools-root', $ToolsRoot)
+$buildId = $deployResult.buildId
+$deploymentDir = $deployResult.deploymentDir
+Invoke-DeployCli @('--ensure-launchers', '--source-root', $PSScriptRoot, '--tools-root', $ToolsRoot) | Out-Null
 
 # 复用在运行的实例。修改地址或安装位置时不能悄悄切断 Desktop。
 $health = $null
@@ -260,39 +298,117 @@ if ($null -ne $health) {
         if ($health.desktop_connected) { throw 'Stop mobile remote control in ZCode before restarting the shared gateway; keep ZCode open to finish the upgrade' }
         $stopped = Invoke-RestMethod -Uri "http://127.0.0.1:$runningPort/shutdown" -Method Post -Headers @{ Authorization=('Bearer ' + $config.control_token) } -TimeoutSec 5 -UseBasicParsing
         if (-not $stopped.ok) { throw 'Gateway did not accept shutdown' }
+        # 步骤 3：等待旧网关、监听与监督启动器实际退出后才修改任何记录。
         Wait-GatewayExit
         $health = $null
     } elseif ($health.service -ne 'suian-zcode-gateway' -or $health.version -ne 1 -or $health.instance_id -ne $instanceId -or $health.upstream_url -ne $UpstreamUrl -or $runningPort -ne $Port -or $health.mode -ne $Mode -or $health.relay_protocol_version -ne $RelayProtocolVersion) {
         throw 'Running gateway differs from requested configuration; stop mobile remote control in ZCode and use Restart; keep ZCode open to finish the upgrade'
     }
 }
+
 $previousRelay = if ($null -ne $config) { $config.previous_user_relay } else { $userRelay }
 $controlToken = if ($null -ne $config) { $config.control_token } else { [Guid]::NewGuid().ToString('N') }
-$nextConfig = [ordered]@{ version=1; gateway_root=$PSScriptRoot; instance_id=$instanceId; port=$Port; upstream_url=$UpstreamUrl; mode=$Mode; relay_protocol_version=$RelayProtocolVersion; previous_user_relay=$previousRelay; control_token=$controlToken }
+# 步骤 4 前置：保存本次要修改的活动记录、任务与配置，供候选失败回退。
+$previousConfigBytes = if ($null -ne $config) { [IO.File]::ReadAllBytes($configFile) } else { $null }
+$previousActiveBytes = if (Test-Path -LiteralPath $activeGatewayFile) { [IO.File]::ReadAllBytes($activeGatewayFile) } else { $null }
+$previousTaskAction = if ($null -ne $task) { @($task.Actions)[0] } else { $null }
+$nextConfig = [ordered]@{ version=1; gateway_root=$deploymentDir; tools_root=$ToolsRoot; active_build_id=$buildId; instance_id=$instanceId; port=$Port; upstream_url=$UpstreamUrl; mode=$Mode; relay_protocol_version=$RelayProtocolVersion; previous_user_relay=$previousRelay; control_token=$controlToken }
 $healthUrl = "http://127.0.0.1:$Port/health"
 [IO.Directory]::CreateDirectory($DataDir) | Out-Null
-[IO.File]::WriteAllText($configFile, ($nextConfig | ConvertTo-Json), (New-Object Text.UTF8Encoding($false)))
+
+$registeredThisRun = $false
 if ($null -eq $health) {
-    # EncodedCommand 避免安装路径中的空格、中文及单引号经过多层 shell。
-    $launcher = Get-Content -LiteralPath (Join-Path $PSScriptRoot 'run.vbs') -Raw -Encoding UTF8
-    [IO.File]::WriteAllText($launcherFile, $launcher, [Text.Encoding]::Unicode)
-    $taskAction = New-ScheduledTaskAction -Execute $scriptHost -Argument (Get-LauncherArguments $nodePath)
-    $trigger = New-ScheduledTaskTrigger -AtLogOn -User $identity.Name
-    $principal = New-ScheduledTaskPrincipal -UserId $identity.User.Value -LogonType Interactive -RunLevel Limited
-    $settings = New-ScheduledTaskSettingsSet -ExecutionTimeLimit ([TimeSpan]::Zero) -RestartCount 3 -RestartInterval ([TimeSpan]::FromMinutes(1)) -MultipleInstances IgnoreNew -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries
-    Register-ScheduledTask -TaskName $taskName -Action $taskAction -Trigger $trigger -Principal $principal -Settings $settings -Force | Out-Null
+    $candidateError = $null
+    try {
+    [IO.File]::WriteAllText($configFile, ($nextConfig | ConvertTo-Json), (New-Object Text.UTF8Encoding($false)))
+    # 步骤 4：原子切换活动记录并复用原任务启动候选；任务参数与版本无关。
+    Invoke-DeployCli @('--activate', '--tools-root', $ToolsRoot, '--build-id', $buildId, '--node-path', $script:gatewayNode) | Out-Null
+    if ($null -eq $task -or @($task.Actions)[0].Execute -cne $scriptHost -or @($task.Actions)[0].Arguments -cne (Get-LauncherArguments)) {
+        $taskAction = New-ScheduledTaskAction -Execute $scriptHost -Argument (Get-LauncherArguments) -WorkingDirectory $DataDir
+        $trigger = New-ScheduledTaskTrigger -AtLogOn -User $identity.Name
+        $principal = New-ScheduledTaskPrincipal -UserId $identity.User.Value -LogonType Interactive -RunLevel Limited
+        $settings = New-ScheduledTaskSettingsSet -ExecutionTimeLimit ([TimeSpan]::Zero) -RestartCount 3 -RestartInterval ([TimeSpan]::FromMinutes(1)) -MultipleInstances IgnoreNew -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries
+        Register-ScheduledTask -TaskName $taskName -Action $taskAction -Trigger $trigger -Principal $principal -Settings $settings -Force | Out-Null
+        $registeredThisRun = $true
+        $task = Get-ScheduledTask | Where-Object { $_.TaskName -eq $taskName -and $_.TaskPath -eq '\' }
+        $vbsLauncher = $true
+    }
     Start-ScheduledTask -TaskName $taskName
+    # 步骤 5：核对健康指纹、协议、模式与监听。
     for ($attempt = 0; $attempt -lt 40; $attempt++) {
         try { $health = Read-GatewayHealth; break }
         catch [Net.WebException] {
-            if ($_.Exception.Status -ne [Net.WebExceptionStatus]::ConnectFailure -or $attempt -eq 39) { throw }
+            if ($_.Exception.Status -ne [Net.WebExceptionStatus]::ConnectFailure -or $attempt -eq 39) { $candidateError = $_.Exception.Message; break }
             Start-Sleep -Milliseconds 250
         }
+        catch { $candidateError = $_.Exception.Message; break }
     }
-    if ($health.service -ne 'suian-zcode-gateway' -or $health.version -ne 1 -or $health.instance_id -ne $instanceId -or $health.upstream_url -ne $UpstreamUrl -or $health.mode -ne $Mode -or $health.relay_protocol_version -ne $RelayProtocolVersion) { throw 'Gateway health check returned a different instance or relay protocol; user environment was not changed' }
+    if ($null -eq $candidateError -and $null -ne $health) {
+        if ($health.service -ne 'suian-zcode-gateway' -or $health.version -ne 1 -or $health.instance_id -ne $instanceId -or $health.upstream_url -ne $UpstreamUrl -or $health.mode -ne $Mode -or $health.relay_protocol_version -ne $RelayProtocolVersion) { $candidateError = 'Gateway health check returned a different instance or relay protocol' }
+        elseif (-not $health.PSObject.Properties['build'] -or $health.build.id -ne $buildId -or $health.build.root -ne $deploymentDir) { $candidateError = 'Candidate gateway is not running the deployed runtime files' }
+    }
+    } catch { $candidateError = $_.Exception.Message }
+    if ($null -ne $candidateError) {
+        # 步骤 6：候选失败回退。有旧部署时恢复先前活动版本；首次安装撤销本次新增注册、环境修改与部署。
+        if ($null -ne $previousConfigBytes -or $null -ne $previousActiveBytes -or $null -ne $previousTaskAction) {
+            try {
+                if ($null -ne $health -and $health.instance_id -eq $instanceId) {
+                    if ($health.desktop_connected) { throw 'candidate has an active Desktop connection; fallback was not applied' }
+                    $stopped = Invoke-RestMethod -Uri "http://127.0.0.1:$Port/shutdown" -Method Post -Headers @{ Authorization=('Bearer ' + $controlToken) } -TimeoutSec 5 -UseBasicParsing
+                    if (-not $stopped.ok) { throw 'candidate did not accept shutdown' }
+                    Wait-GatewayExit
+                }
+                if ($null -ne $previousConfigBytes) { [IO.File]::WriteAllBytes($configFile, $previousConfigBytes) }
+                if ($null -ne $previousActiveBytes) { [IO.File]::WriteAllBytes($activeGatewayFile, $previousActiveBytes) }
+                elseif (Test-Path -LiteralPath $activeGatewayFile) { Remove-Item -LiteralPath $activeGatewayFile }
+                if ($registeredThisRun) {
+                    if ($null -ne $previousTaskAction) {
+                        $previousWorkingDirectory = $null
+                        if ($previousTaskAction.PSObject.Properties['WorkingDirectory']) { $previousWorkingDirectory = $previousTaskAction.WorkingDirectory }
+                        $restoreAction = New-ScheduledTaskAction -Execute $previousTaskAction.Execute -Argument $previousTaskAction.Arguments -WorkingDirectory $previousWorkingDirectory
+                        $trigger = New-ScheduledTaskTrigger -AtLogOn -User $identity.Name
+                        $principal = New-ScheduledTaskPrincipal -UserId $identity.User.Value -LogonType Interactive -RunLevel Limited
+                        $settings = New-ScheduledTaskSettingsSet -ExecutionTimeLimit ([TimeSpan]::Zero) -RestartCount 3 -RestartInterval ([TimeSpan]::FromMinutes(1)) -MultipleInstances IgnoreNew -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries
+                        Register-ScheduledTask -TaskName $taskName -Action $restoreAction -Trigger $trigger -Principal $principal -Settings $settings -Force | Out-Null
+                    } else {
+                        Unregister-ScheduledTask -TaskName $taskName -Confirm:$false
+                    }
+                }
+                if ($null -ne $previousTaskAction) {
+                    $healthUrl = "http://127.0.0.1:$runningPort/health"
+                    $health = $null
+                    Start-ScheduledTask -TaskName $taskName
+                    for ($attempt = 0; $attempt -lt 40; $attempt++) {
+                        try { $health = Read-GatewayHealth; break }
+                        catch [Net.WebException] {
+                            if ($_.Exception.Status -ne [Net.WebExceptionStatus]::ConnectFailure -or $attempt -eq 39) { throw }
+                            Start-Sleep -Milliseconds 250
+                        }
+                    }
+                    if ($null -eq $health) { throw 'previous deployment did not become reachable' }
+                }
+                $previousBuildId = 'unknown'
+                if ($null -ne $previousActiveBytes) { try { $previousBuildId = ([Text.Encoding]::UTF8.GetString($previousActiveBytes) | ConvertFrom-Json).build_id } catch {} }
+            }
+            catch {
+                throw ("Candidate gateway activation failed: $candidateError; fallback also failed: " + $_.Exception.Message)
+            }
+            throw ("Candidate gateway activation failed: $candidateError; fallback: restored previous active deployment ($previousBuildId), configuration and task were restored")
+        } else {
+            if ($null -ne $task -or $registeredThisRun) { Unregister-ScheduledTask -TaskName $taskName -Confirm:$false }
+            Remove-Item -LiteralPath $configFile
+            if (Test-Path -LiteralPath $activeGatewayFile) { Remove-Item -LiteralPath $activeGatewayFile }
+            if (-not $deployResult.alreadyPresent) { Remove-Item -LiteralPath (Join-Path $ToolsRoot ('deployments\' + $buildId)) -Recurse -Force }
+            throw ("Candidate gateway activation failed: $candidateError; installation rolled back; the shared gateway is NOT installed (registry and task changes were undone)")
+        }
+    }
     $vbsLauncher = $true
     $taskRunning = $true
     $task = Get-ScheduledTask | Where-Object { $_.TaskName -eq $taskName -and $_.TaskPath -eq '\' }
+    # 旧安装的数据目录启动文件在切换成功后移除；归属为 config 记录的 DataDir。
+    if (Test-Path -LiteralPath $legacyLauncherFile) { Remove-Item -LiteralPath $legacyLauncherFile }
+} else {
+    [IO.File]::WriteAllText($configFile, ($nextConfig | ConvertTo-Json), (New-Object Text.UTF8Encoding($false)))
 }
 $skillDir = Join-Path $SkillsDir 'suian-zcode-common'
 if ($NativePlugin) {

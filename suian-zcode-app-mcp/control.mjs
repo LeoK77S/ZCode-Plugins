@@ -1,6 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { connectHost } from 'suian-zcode-common/remote.mjs';
-import { writeTitlePolicy } from 'suian-zcode-common/title-policy.mjs';
+import { connectHost as defaultConnect, writeTitlePolicy as defaultTitlePolicy } from './common-client.mjs';
 import { getGlmBalance, resetGlmQuota } from './glm.mjs';
 import packageMetadata from './package.json' with { type: 'json' };
 
@@ -52,13 +51,13 @@ function archiveActivity(snapshot, sessionId) {
   return reasons;
 }
 
-export function createSessionController({ reader, gatewayConfigPath, connect = connectHost, setTitlePolicy = writeTitlePolicy, now = Date.now,
+export function createSessionController({ reader, gatewayConfigPath, connect = defaultConnect, setTitlePolicy = defaultTitlePolicy, now = Date.now,
   delay = ms => new Promise(resolve => setTimeout(resolve, ms)) }) {
   let resetting = false;
   const glmAttempts = new Map();
   const deliveryClientId = `suian-zcode-app-mcp-${randomUUID()}`;
-  const targetOf = args => ({ sessionId: args.session_id,
-    workspacePath: args.workspace_path ?? reader.readSession({ session_id: args.session_id, workspace_key: args.workspace_key, limit: 1 }).session.workspace_path });
+  const targetOf = async args => ({ sessionId: args.session_id,
+    workspacePath: args.workspace_path ?? (await reader.readSession({ session_id: args.session_id, workspace_key: args.workspace_key, limit: 1 })).session.workspace_path });
   // 写调用允许并发：网关为每个本地连接维护独立 RPC ID 空间并共享同一 Host 桥，
   // 一步工具轮的批量归档等写操作各自建立连接，不再互相拒绝。
   const attached = async (target, run, timeoutMs = 120000) => {
@@ -105,7 +104,7 @@ export function createSessionController({ reader, gatewayConfigPath, connect = c
   };
   const api = {
     async getSessionStatus(args) {
-      return attached(targetOf(args), async remote => {
+      return attached(await targetOf(args), async remote => {
         const snapshot = await remote.call('zcode-task', 'getTaskSnapshot', [{ taskId: args.session_id, workspacePath: remote.workspacePath, messageLimit: 1 }]);
         const meta = snapshot?.meta;
         if (meta?.taskId !== args.session_id || !['running', 'completed', 'error'].includes(meta.status))
@@ -129,7 +128,7 @@ export function createSessionController({ reader, gatewayConfigPath, connect = c
       } finally { resetting = false; }
     },
     async renameSession(args) {
-      const target = targetOf(args);
+      const target = await targetOf(args);
       return attached(target, async remote => {
         const params = { taskId: args.session_id, workspacePath: remote.workspacePath, title: args.title };
         await remote.call('zcode-task', 'renameTask', [params]);
@@ -184,6 +183,19 @@ export function createSessionController({ reader, gatewayConfigPath, connect = c
             if (permissionMode !== undefined && reading.mode !== permissionMode)
               throw new Error(`permission_not_confirmed: CLI 会话库权限与请求不一致（请求 ${permissionMode}，读回 ${reading.mode}），开局已提交，请勿重复派发`);
           }
+          // 项目归属写后读回（#126）：按 task_id 精确读回任务索引的 project_id 与请求核对
+          //（null === null 的未归类亦通过）；行未落库或读库异常按未核实告警，防无效 id 静默落未归类
+          if (project_id !== undefined) {
+            let observed;
+            for (let attempt = 0; attempt < 3; attempt++) {
+              if (attempt) await delay(300);
+              try { observed = reader.sessionProjectId?.({ session_id: meta.taskId }); } catch { observed = undefined; }
+              if (observed !== undefined) break;
+            }
+            if (observed === undefined) warnings.push({ code: 'project_unverified', message: '开局已提交，任务索引尚无可读的项目归属，未确认生效项目' });
+            else if (observed !== project_id)
+              throw new Error(`project_not_confirmed: CLI 任务索引项目归属与请求不一致（请求 ${project_id}，读回 ${observed}），开局已提交，请勿重复派发`);
+          }
           if (title !== undefined) {
             // sessionMode.observed 为空表示 CLI 库无行；权限为 null 的既有行仍可改名。
             if (!reading.observed.length) throw new Error('session_not_persisted: 开局已提交，CLI 会话库尚无会话记录，未改名，请勿重复派发');
@@ -200,7 +212,7 @@ export function createSessionController({ reader, gatewayConfigPath, connect = c
       });
     },
     async sendMessage(args) {
-      const target = targetOf(args);
+      const target = await targetOf(args);
       return attached(target, async remote => {
         const hello = await remote.call('zcode-agent', 'helloConversationV4');
         if (hello.protocolVersion !== 3) throw new Error('conversation_protocol_unsupported: Host 的会话协议版本不受支持');
@@ -246,7 +258,7 @@ export function createSessionController({ reader, gatewayConfigPath, connect = c
         deliverer: args.deliverer, originWarning: args.originWarning });
     },
     async compactSession(args) {
-      return attached(targetOf(args), async remote => {
+      return attached(await targetOf(args), async remote => {
         const hello = await remote.call('zcode-agent', 'helloConversationV4');
         if (hello.protocolVersion !== 3) throw new Error('conversation_protocol_unsupported: Host 的会话协议版本不受支持');
         await remote.call('zcode-agent', 'initializeConversationV4', [{ kind: 'clientHello', protocolVersion: 3,
@@ -275,7 +287,7 @@ export function createSessionController({ reader, gatewayConfigPath, connect = c
       });
     },
     async archiveSession(args) {
-      return attached(targetOf(args), async remote => {
+      return attached(await targetOf(args), async remote => {
         const params = { taskId: args.session_id, workspacePath: remote.workspacePath };
         const check = async () => archiveActivity(await remote.call('zcode-task', 'getTaskSnapshot', [{ ...params, messageLimit: 1 }]), args.session_id);
         const blocked = reasons => ({ source: 'original_host', session_id: args.session_id, status: 'confirmation_required', requires_confirmation: true, active_reasons: reasons });
@@ -289,19 +301,19 @@ export function createSessionController({ reader, gatewayConfigPath, connect = c
       });
     },
     async restoreSession(args) {
-      return attached(targetOf(args), async remote => {
+      return attached(await targetOf(args), async remote => {
         await remote.call('zcode-task', 'unarchiveTask', [{ taskId: args.session_id, workspacePath: remote.workspacePath }]);
         return archiveResult(args, remote, false);
       });
     },
     async pinSession(args) {
-      return attached(targetOf(args), async remote => {
+      return attached(await targetOf(args), async remote => {
         await remote.call('zcode-task', 'setTaskPinned', [{ taskId: args.session_id, workspacePath: remote.workspacePath, pinned: true }]);
         return pinnedResult(args, remote, true);
       });
     },
     async unpinSession(args) {
-      return attached(targetOf(args), async remote => {
+      return attached(await targetOf(args), async remote => {
         await remote.call('zcode-task', 'setTaskPinned', [{ taskId: args.session_id, workspacePath: remote.workspacePath, pinned: false }]);
         return pinnedResult(args, remote, false);
       });

@@ -16,7 +16,7 @@ test('创建和发信公布正文与 Markdown 路径二选一，文件正文按 
   const controller = Object.fromEntries(['startSession', 'sendMessage'].map(method => [method, async args => {
     calls.push({ method, args }); return { session_id: 'sess_child', delivery_status: 'accepted' };
   }]));
-  const server = createMcpServer(f, { controller });
+  const server = await createMcpServer(f, { controller });
   const client = new Client({ name: 'markdown-input-contract', version: '1.0.0' });
   const [ct, st] = InMemoryTransport.createLinkedPair();
   t.after(async () => { await client.close(); await server.close(); });
@@ -43,7 +43,7 @@ test('正文输入冲突、缺失及无效文档在创建和发信之前拒绝',
   const f = fixture(t), calls = [];
   const { createMcpServer } = await import('../server.mjs');
   const controller = Object.fromEntries(['startSession', 'sendMessage'].map(method => [method, async args => { calls.push(args); return args; }]));
-  const server = createMcpServer(f, { controller });
+  const server = await createMcpServer(f, { controller });
   const client = new Client({ name: 'invalid-markdown-contract', version: '1.0.0' });
   const [ct, st] = InMemoryTransport.createLinkedPair();
   t.after(async () => { await client.close(); await server.close(); });
@@ -69,7 +69,7 @@ test('compact_session 公布指定目标与受理语义，严格校验参数并�
   const { createMcpServer } = await import('../server.mjs');
   const receipt = { source: 'original_host', session_id: 'sess_target', workspace_path: 'D:/fixture',
     command_id: 'cmd_fixture', command_status: 'accepted' };
-  const server = createMcpServer(f, { controller: { compactSession: async args => {
+  const server = await createMcpServer(f, { controller: { compactSession: async args => {
     calls.push(args);
     if (args.session_id === 'sess_rejected') throw Object.assign(new Error('compact_not_accepted: compactOperationLock'), {
       partial_result: { ...receipt, session_id: args.session_id, command_status: 'failed', reason_code: 'compactOperationLock' }
@@ -109,7 +109,7 @@ test('MCP 握手版本与插件元信息一致，公布十九个工具并保持�
   f.session({ id: 'sess_alpha', title: 'MCP 工具' });
   f.message({ id: 'msg_user', sequence: 0, parts: [{ type: 'text', text: '实现只读工具' }] });
   const { createMcpServer } = await import('../server.mjs');
-  const server = createMcpServer(f);
+  const server = await createMcpServer(f);
   const client = new Client({ name: 'contract-test', version: '1.0.0' });
   const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
   t.after(async () => { await client.close(); await server.close(); });
@@ -120,8 +120,8 @@ test('MCP 握手版本与插件元信息一致，公布十九个工具并保持�
   assert.equal(lockMetadata.packages[''].version, packageMetadata.version);
   assert.equal(client.getServerVersion().version, packageMetadata.version);
   const listed = await client.listTools();
-  assert.deepEqual(listed.tools.map(tool => tool.name), ['list_sessions', 'read_session', 'get_current_session', 'rename_session', 'start_session', 'send_message', 'reset_cron_tools_visibility', 'compact_session', 'archive_session', 'restore_session', 'pin_session', 'unpin_session', 'list_pinned_sessions', 'list_automations', 'get_glm_balance', 'reset_glm_quota', 'set_automation_enabled', 'get_artifacts', 'set_artifacts']);
-  for (const tool of listed.tools) assert.equal(tool.annotations.readOnlyHint, ['list_sessions', 'read_session', 'get_current_session', 'list_pinned_sessions', 'list_automations', 'get_glm_balance'].includes(tool.name));
+  assert.deepEqual(listed.tools.map(tool => tool.name), ['list_sessions', 'read_session', 'get_current_session', 'rename_session', 'start_session', 'send_message', 'reset_cron_tools_visibility', 'compact_session', 'archive_session', 'restore_session', 'pin_session', 'unpin_session', 'list_pinned_sessions', 'list_crons', 'get_glm_balance', 'reset_glm_quota', 'set_cron_enabled', 'get_artifacts', 'set_artifacts']);
+  for (const tool of listed.tools) assert.equal(tool.annotations.readOnlyHint, ['list_sessions', 'read_session', 'get_current_session', 'list_pinned_sessions', 'list_crons', 'get_glm_balance'].includes(tool.name));
   assert.equal(listed.tools.find(tool => tool.name === 'reset_glm_quota').annotations.destructiveHint, true);
   assert.equal(listed.tools.find(tool => tool.name === 'reset_glm_quota').annotations.idempotentHint, false);
   const list = await client.callTool({ name: 'list_sessions', arguments: { query: 'MCP', limit: 1 } });
@@ -134,17 +134,17 @@ test('MCP 握手版本与插件元信息一致，公布十九个工具并保持�
   assert.ok(!chat.content[0].text.includes('实现只读工具'), '聊天正文只在 structuredContent 中保留');
 });
 
-test('list_automations 公布只读注解与可选工作区过滤，strict 拒绝未知与非法输入', async t => {
+test('list_crons 公布只读注解与可选工作区过滤，strict 拒绝未知与非法输入', async t => {
   const f = fixture(t);
   f.automation({ id: 'automation-alpha', title: '[pr-babysit] org/repo#1', created: 100 });
   f.automation({ id: 'automation-beta', workspace: 'D:\\work\\beta', key: 'kb', created: 300 });
   const { createMcpServer } = await import('../server.mjs');
-  const server = createMcpServer(f);
+  const server = await createMcpServer(f);
   const client = new Client({ name: 'automations-contract', version: '1.0.0' });
   const [ct, st] = InMemoryTransport.createLinkedPair();
   t.after(async () => { await client.close(); await server.close(); });
   await server.connect(st); await client.connect(ct);
-  const tool = (await client.listTools()).tools.find(tool => tool.name === 'list_automations');
+  const tool = (await client.listTools()).tools.find(tool => tool.name === 'list_crons');
   assert.ok(tool);
   // schema 公布形状：两个可选过滤参数、无必填、strict 拒绝未知字段
   assert.deepEqual(Object.keys(tool.inputSchema.properties), ['workspace_path', 'workspace_key']);
@@ -153,27 +153,27 @@ test('list_automations 公布只读注解与可选工作区过滤，strict 拒�
   assert.equal(tool.annotations.readOnlyHint, true);
   assert.equal(tool.annotations.destructiveHint, false);
   assert.equal(tool.annotations.idempotentHint, true);
-  const all = await client.callTool({ name: 'list_automations', arguments: {} });
+  const all = await client.callTool({ name: 'list_crons', arguments: {} });
   assert.equal(all.isError, undefined);
   assert.equal(all.structuredContent.source, 'local_tasks_index');
   assert.deepEqual(all.structuredContent.automations.map(a => a.automationId), ['automation-beta', 'automation-alpha']);
   assert.equal(all.structuredContent.total, 2);
   assert.match(all.content[0]?.text ?? '', /定时任务：本次 2 个，共 2 个/);
-  const scoped = await client.callTool({ name: 'list_automations', arguments: { workspace_path: 'd:/work/beta/' } });
+  const scoped = await client.callTool({ name: 'list_crons', arguments: { workspace_path: 'd:/work/beta/' } });
   assert.deepEqual(scoped.structuredContent.automations.map(a => a.automationId), ['automation-beta']);
   for (const invalid of [{ workspace_path: '' }, { workspace_path: 5 },
     { workspace_key: '' }, { unknown: 1 }, { limit: 50 }]) {
-    const response = await client.callTool({ name: 'list_automations', arguments: invalid });
+    const response = await client.callTool({ name: 'list_crons', arguments: invalid });
     assert.equal(response.isError, true, JSON.stringify(invalid));
   }
   // 空表是空列表而非错误；文本摘要保持简短
   const empty = fixture(t);
-  const emptyServer = createMcpServer(empty);
+  const emptyServer = await createMcpServer(empty);
   const emptyClient = new Client({ name: 'automations-empty-contract', version: '1.0.0' });
   const [ect, est] = InMemoryTransport.createLinkedPair();
   t.after(async () => { await emptyClient.close(); await emptyServer.close(); });
   await emptyServer.connect(est); await emptyClient.connect(ect);
-  const bare = await emptyClient.callTool({ name: 'list_automations', arguments: {} });
+  const bare = await emptyClient.callTool({ name: 'list_crons', arguments: {} });
   assert.equal(bare.isError, undefined);
   assert.deepEqual(bare.structuredContent, { source: 'local_tasks_index', automations: [], total: 0 });
   assert.match(bare.content[0]?.text ?? '', /定时任务：本次 0 个，共 0 个/);
@@ -184,7 +184,7 @@ test('get_current_session 回显发起会话的本机自省信息，不接受参
   f.task({ id: 'sess_parent', title: '索引标题', workspace: 'D:\\work\\alpha', updated: 42 });
   f.session({ id: 'sess_parent', title: 'CLI 标题', directory: 'D:\\work\\alpha', permission: { mode: 'yolo' } });
   const { createMcpServer } = await import('../server.mjs');
-  const server = createMcpServer(f);
+  const server = await createMcpServer(f);
   const client = new Client({ name: 'self-introspect-contract', version: '1.0.0' });
   const [ct, st] = InMemoryTransport.createLinkedPair();
   t.after(async () => { await client.close(); await server.close(); });
@@ -210,7 +210,7 @@ test('get_current_session 回显发起会话的本机自省信息，不接受参
 test('get_current_session 未落库时字段可空，来源未知或冲突按错误回报并给出候选', async t => {
   const f = fixture(t);
   const { createMcpServer } = await import('../server.mjs');
-  const server = createMcpServer(f);
+  const server = await createMcpServer(f);
   const client = new Client({ name: 'self-introspect-degraded-contract', version: '1.0.0' });
   const [ct, st] = InMemoryTransport.createLinkedPair();
   t.after(async () => { await client.close(); await server.close(); });
@@ -238,7 +238,7 @@ test('创建和发信自动读取每次 MCP 请求的来源会话，接口不接
     calls.push({ method, args });
     return { session_id: 'sess_child', ...args };
   }]));
-  const server = createMcpServer(f, { controller });
+  const server = await createMcpServer(f, { controller });
   const client = new Client({ name: 'origin-contract', version: '1.0.0' });
   const [ct, st] = InMemoryTransport.createLinkedPair();
   t.after(async () => { await client.close(); await server.close(); });
@@ -265,7 +265,7 @@ test('创建和发信自动读取每次 MCP 请求的来源会话，接口不接
 test('send_message 投递策略可省略或显式 guide/queue，不允许强制抢占模式', async t => {
   const f = fixture(t), calls = [];
   const { createMcpServer } = await import('../server.mjs');
-  const server = createMcpServer(f, { controller: { sendMessage: async args => { calls.push(args); return args; } } });
+  const server = await createMcpServer(f, { controller: { sendMessage: async args => { calls.push(args); return args; } } });
   const client = new Client({ name: 'delivery-contract', version: '1.0.0' });
   const [ct, st] = InMemoryTransport.createLinkedPair();
   t.after(async () => { await client.close(); await server.close(); });
@@ -292,7 +292,7 @@ test('reset_cron_tools_visibility 固定发给当前会话并立即排队，描�
     return { source: 'original_host', session_id: args.session_id, workspace_path: 'D:/fixture',
       input_id: 'input_fixture', requested_delivery_mode: 'queue', delivery_status: 'accepted' };
   } };
-  const server = createMcpServer(f, { controller });
+  const server = await createMcpServer(f, { controller });
   const client = new Client({ name: 'reset-cron-contract', version: '1.0.0' });
   const [ct, st] = InMemoryTransport.createLinkedPair();
   t.after(async () => { await client.close(); await server.close(); });
@@ -348,7 +348,7 @@ test('请求缺少会话 ID 时按 trace_id 和工具名从本地调用记录精
   const controller = Object.fromEntries(['startSession', 'sendMessage'].map(method => [method, async args => {
     calls.push({ method, args }); return args;
   }]));
-  const server = createMcpServer(f, { controller });
+  const server = await createMcpServer(f, { controller });
   const client = new Client({ name: 'trace-contract', version: '1.0.0' });
   const [ct, st] = InMemoryTransport.createLinkedPair();
   t.after(async () => { await client.close(); await server.close(); });
@@ -375,7 +375,7 @@ test('来源缺失或元数据损坏时在创建和发信前报错', async t => 
   const controller = Object.fromEntries(['startSession', 'sendMessage'].map(method => [method, async args => {
     calls.push({ method, args }); return args;
   }]));
-  const server = createMcpServer(f, { controller });
+  const server = await createMcpServer(f, { controller });
   const client = new Client({ name: 'unknown-origin-contract', version: '1.0.0' });
   const [ct, st] = InMemoryTransport.createLinkedPair();
   t.after(async () => { await client.close(); await server.close(); });
@@ -421,7 +421,7 @@ test('来源冲突降级为警告并继续创建和发信，候选来源仅作�
           result: { type: 'inputAccepted', inputId: envelope.commandId, delivery: 'queue' } };
       }
     } }) });
-  const server = createMcpServer(f, { controller });
+  const server = await createMcpServer(f, { controller });
   const client = new Client({ name: 'conflicting-origin-contract', version: '1.0.0' });
   const [ct, st] = InMemoryTransport.createLinkedPair();
   t.after(async () => { await client.close(); await server.close(); });
@@ -456,7 +456,7 @@ test('start_session 从 CLI 权限继承而非陈旧任务索引，显式指定�
   f.session({ id: 'sess_dirty', permission: { mode: 'legacy-autoEdit' } });
   const { createMcpServer } = await import('../server.mjs');
   const controller = { startSession: async args => { calls.push(args); return { session_id: 'sess_child' }; } };
-  const server = createMcpServer(f, { controller });
+  const server = await createMcpServer(f, { controller });
   const client = new Client({ name: 'permission-inherit-contract', version: '1.0.0' });
   const [ct, st] = InMemoryTransport.createLinkedPair();
   t.after(async () => { await client.close(); await server.close(); });
@@ -480,6 +480,24 @@ test('start_session 从 CLI 权限继承而非陈旧任务索引，显式指定�
   assert.equal(calls.length, 4);
 });
 
+test('省略工作目录的会话控制等待真实异步 SQLite 读取', async t => {
+  const f = fixture(t);
+  f.task({ id: 'sess_async_target', workspace: 'D:/fixture' });
+  f.session({ id: 'sess_async_target', directory: 'D:/fixture' });
+  const { createSessionReader } = await import('../sessions.mjs');
+  const { createSessionController } = await import('../control.mjs');
+  let closed = false;
+  const controller = createSessionController({ reader: createSessionReader(f),
+    connect: async target => {
+      assert.equal(target.workspacePath, 'D:/fixture');
+      assert.equal(target.sessionId, 'sess_async_target');
+      return { workspacePath: target.workspacePath, close() { closed = true; },
+        call: async () => ({ meta: { taskId: 'sess_async_target', status: 'completed' } }) };
+    } });
+  assert.equal((await controller.getSessionStatus({ session_id: 'sess_async_target' })).status, 'completed');
+  assert.equal(closed, true);
+});
+
 test('start_session 继承与首发后确认共用 CLI 库，索引分叉不误判，真实差异保留提交回执', async t => {
   const f = fixture(t), calls = [];
   f.task({ id: 'sess_parent', mode: 'build' });
@@ -498,7 +516,7 @@ test('start_session 继承与首发后确认共用 CLI 库，索引分叉不误�
       }
       if (method === 'sendPrompt') f.session({ id: params[0].taskId, directory: 'D:/fixture', permission: { mode: child === 1 ? 'yolo' : 'build' } });
     } }) });
-  const server = createMcpServer(f, { controller });
+  const server = await createMcpServer(f, { controller });
   const client = new Client({ name: 'permission-single-source-contract', version: '1.0.0' });
   const [ct, st] = InMemoryTransport.createLinkedPair();
   t.after(async () => { await client.close(); await server.close(); });
@@ -523,7 +541,7 @@ test('CLI 权限探测异常时继承回落为 Host 默认权限，不阻断创�
   const f = fixture(t), calls = [];
   const { createMcpServer } = await import('../server.mjs');
   const controller = { startSession: async args => { calls.push(args); return { session_id: 'sess_child' }; } };
-  const server = createMcpServer(f, { controller });
+  const server = await createMcpServer(f, { controller });
   const client = new Client({ name: 'permission-probe-failure-contract', version: '1.0.0' });
   const [ct, st] = InMemoryTransport.createLinkedPair();
   t.after(async () => { await client.close(); await server.close(); });
@@ -546,7 +564,7 @@ test('来源冲突时不继承权限也不叠加权限警告，仅保留来源�
     INSERT INTO tool_usage VALUES ('sess_b', 'trace_shared', 'mcp__fixture__start_session');`);
   const { createMcpServer } = await import('../server.mjs');
   const controller = { startSession: async args => { calls.push(args); return { session_id: 'sess_child' }; } };
-  const server = createMcpServer(f, { controller });
+  const server = await createMcpServer(f, { controller });
   const client = new Client({ name: 'permission-conflict-contract', version: '1.0.0' });
   const [ct, st] = InMemoryTransport.createLinkedPair();
   t.after(async () => { await client.close(); await server.close(); });
@@ -570,7 +588,7 @@ test('本地调用记录中的 NULL 或空白来源 ID 在进入写流程前报�
   const controller = Object.fromEntries(['startSession', 'sendMessage'].map(method => [method, async args => {
     calls.push({ method, args }); return args;
   }]));
-  const server = createMcpServer(f, { controller });
+  const server = await createMcpServer(f, { controller });
   const client = new Client({ name: 'corrupt-history-origin-contract', version: '1.0.0' });
   const [ct, st] = InMemoryTransport.createLinkedPair();
   t.after(async () => { await client.close(); await server.close(); });
@@ -606,7 +624,7 @@ test('自动定位的 ID 进入开局和后续消息 XML 及回执，不混入�
           result: { type: 'inputAccepted', inputId: envelope.commandId, delivery: 'queue' } };
       }
     } }) });
-  const server = createMcpServer(f, { controller });
+  const server = await createMcpServer(f, { controller });
   const client = new Client({ name: 'origin-message-contract', version: '1.0.0' });
   const [ct, st] = InMemoryTransport.createLinkedPair();
   t.after(async () => { await client.close(); await server.close(); });
@@ -634,7 +652,7 @@ test('MCP 额度查询路由与重置表单确认；不支持确认或自行填 
       const decision = await requestConfirmation({ account: 'fixture***', reset_type: args.reset_type, available_cards: 3, earliest_expires_at: '2027-01-15T09:00:00Z', remaining_percent: 16, retry: false });
       return { used: decision.action === 'accept' && decision.content.confirm === true };
     } };
-  const server = createMcpServer(f, { controller });
+  const server = await createMcpServer(f, { controller });
   const client = new Client({ name: 'confirmation-client', version: '1.0.0' }, { capabilities: { elicitation: { form: {} } } });
   client.setRequestHandler(ElicitRequestSchema, async request => { prompts.push(request.params); return { action: 'accept', content: { confirm: true } }; });
   const [ct, st] = InMemoryTransport.createLinkedPair();
@@ -649,7 +667,7 @@ test('MCP 额度查询路由与重置表单确认；不支持确认或自行填 
   assert.equal(prompts.length, 1);
   assert.equal(prompts[0].requestedSchema.properties.confirm.default, false);
   assert.match(prompts[0].message, /一张/);
-  const plainServer = createMcpServer(f, { controller });
+  const plainServer = await createMcpServer(f, { controller });
   const plainClient = new Client({ name: 'no-confirmation', version: '1.0.0' });
   const [pct, pst] = InMemoryTransport.createLinkedPair();
   t.after(async () => { await plainClient.close(); await plainServer.close(); });
@@ -668,7 +686,7 @@ test('三个写工具转交已验证参数，拒绝空开局和未知字段，�
     if (args.message === 'fail') throw Object.assign(new Error('send failed'), { partial_result: { session_id: 'sess_created' } });
     return { session_id: 'sess_created', title: args.title ?? '默认标题' };
   }]));
-  const server = createMcpServer(f, { controller });
+  const server = await createMcpServer(f, { controller });
   const client = new Client({ name: 'write-contract', version: '1.0.0' });
   const [ct, st] = InMemoryTransport.createLinkedPair();
   t.after(async () => { await client.close(); await server.close(); });
@@ -725,7 +743,7 @@ test('置顶工具转交已验证参数，置顶列表走本地索引且拒绝�
     calls.push({ method, args });
     return { source: 'original_host', session_id: args.session_id, workspace_path: 'D:\\fixture', pinned: method === 'pinSession' };
   }]));
-  const server = createMcpServer(f, { controller });
+  const server = await createMcpServer(f, { controller });
   const client = new Client({ name: 'pin-contract', version: '1.0.0' });
   const [ct, st] = InMemoryTransport.createLinkedPair();
   t.after(async () => { await client.close(); await server.close(); });
@@ -749,11 +767,11 @@ test('置顶工具转交已验证参数，置顶列表走本地索引且拒绝�
   assert.equal(calls.length, 2);
 });
 
-test('set_automation_enabled 公布暂停/恢复语义，严格校验参数并转交控制器，错误结构化返回', async t => {
+test('set_cron_enabled 公布暂停/恢复语义，严格校验参数并转交控制器，错误结构化返回', async t => {
   const f = fixture(t), calls = [];
   const { createMcpServer } = await import('../server.mjs');
   const receipt = { source: 'original_host', automation_id: 'automation-1', workspace_path: 'D:/fixture', enabled: false };
-  const server = createMcpServer(f, { controller: { setAutomationEnabled: async args => {
+  const server = await createMcpServer(f, { controller: { setAutomationEnabled: async args => {
     calls.push(args);
     if (args.automation_id === 'automation_rejected') throw Object.assign(new Error('automation_write_failed: fixture'), {
       partial_result: { ...receipt, automation_id: args.automation_id, enabled: true } });
@@ -763,7 +781,7 @@ test('set_automation_enabled 公布暂停/恢复语义，严格校验参数并�
   const [ct, st] = InMemoryTransport.createLinkedPair();
   t.after(async () => { await client.close(); await server.close(); });
   await server.connect(st); await client.connect(ct);
-  const tool = (await client.listTools()).tools.find(tool => tool.name === 'set_automation_enabled');
+  const tool = (await client.listTools()).tools.find(tool => tool.name === 'set_cron_enabled');
   assert.ok(tool);
   assert.deepEqual(Object.keys(tool.inputSchema.properties), ['automation_id', 'enabled', 'workspace_path', 'workspace_key']);
   assert.equal(tool.inputSchema.properties.enabled.type, 'boolean');
@@ -773,7 +791,7 @@ test('set_automation_enabled 公布暂停/恢复语义，严格校验参数并�
   assert.equal(tool.annotations.idempotentHint, true);
   assert.match(tool.description, /暂停|恢复/);
   const args = { automation_id: 'automation-1', enabled: false, workspace_path: 'D:/fixture', workspace_key: 'fixture-key' };
-  const accepted = await client.callTool({ name: 'set_automation_enabled', arguments: args });
+  const accepted = await client.callTool({ name: 'set_cron_enabled', arguments: args });
   assert.equal(accepted.isError, undefined);
   assert.deepEqual(accepted.structuredContent, receipt);
   assert.deepEqual(calls, [args]);
@@ -783,10 +801,10 @@ test('set_automation_enabled 公布暂停/恢复语义，严格校验参数并�
     { automation_id: ' ', enabled: false, workspace_path: 'D:/fixture' },
     { automation_id: 'automation-1', enabled: false, workspace_path: ' ' },
     { automation_id: 'automation-1', enabled: false, force: true }]) {
-    assert.equal((await client.callTool({ name: 'set_automation_enabled', arguments: invalid })).isError, true, JSON.stringify(invalid));
+    assert.equal((await client.callTool({ name: 'set_cron_enabled', arguments: invalid })).isError, true, JSON.stringify(invalid));
   }
   assert.equal(calls.length, 1);
-  const rejected = await client.callTool({ name: 'set_automation_enabled', arguments: { automation_id: 'automation_rejected', enabled: true, workspace_path: 'D:/fixture' } });
+  const rejected = await client.callTool({ name: 'set_cron_enabled', arguments: { automation_id: 'automation_rejected', enabled: true, workspace_path: 'D:/fixture' } });
   assert.equal(rejected.isError, true);
   assert.equal(rejected.structuredContent.automation_id, 'automation_rejected');
   assert.match(rejected.structuredContent.error, /automation_write_failed/);

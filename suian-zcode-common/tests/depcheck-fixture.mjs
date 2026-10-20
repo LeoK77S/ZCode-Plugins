@@ -1,13 +1,95 @@
+import { createHash } from 'node:crypto';
 import { mkdtemp, mkdir, writeFile, rm, symlink } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 
 const linkType = () => (process.platform === 'win32' ? 'junction' : 'dir');
+const sha256 = data => createHash('sha256').update(data).digest('hex');
 
-// 构造与真实宿主缓存同构的最小世界：installed_plugins.json + 四个 suian 插件缓存
-// （npm 依赖为真实目录、公共包链为两级 junction）+ 一个非 suian 插件对照条目。
-export async function buildWorld(t) {
-  const root = await mkdtemp(join(tmpdir(), 'suian-depcheck-'));
+// 构造发布形态插件目录（PKG-08 起 depcheck 的正判对象）：release.json 逐文件清单、
+// dist 入口与资源全部落盘，不含 node_modules，也不依赖任何目录链接。
+// release.json 自身不入清单（与 build-release.mjs 的发布契约一致）。
+export async function writeReleaseDirectory(dir, spec) {
+  const { name, version, deps = [], commonApiVersion, expectedCommonApiVersion, minimumCommonVersion, entries = {}, paths = [] } = spec;
+  const materialized = paths.map(path => ({ path, content: `${path} of ${name}@${version}\n` }));
+  for (const file of materialized) {
+    await mkdir(dirname(join(dir, file.path)), { recursive: true });
+    await writeFile(join(dir, file.path), file.content);
+  }
+  await mkdir(join(dir, '.zcode-plugin'), { recursive: true });
+  const pluginJson = JSON.stringify({ name, version, ...(deps.length ? { dependencies: deps } : {}) });
+  await writeFile(join(dir, '.zcode-plugin', 'plugin.json'), pluginJson);
+  const files = [
+    { path: '.zcode-plugin/plugin.json', sha256: sha256(pluginJson), bytes: pluginJson.length },
+    ...materialized.map(file => ({ path: file.path, sha256: sha256(file.content), bytes: file.content.length })),
+  ];
+  const release = {
+    formatVersion: 1,
+    pluginName: name,
+    packageName: name,
+    pluginVersion: version,
+    buildId: sha256(`${name}@${version}`),
+    ...(commonApiVersion !== undefined ? { commonApiVersion } : {}),
+    ...(expectedCommonApiVersion !== undefined ? { expectedCommonApiVersion } : {}),
+    ...(minimumCommonVersion !== undefined ? { minimumCommonVersion } : {}),
+    entries,
+    files,
+  };
+  const releaseJson = JSON.stringify(release, null, 2);
+  await writeFile(join(dir, 'release.json'), releaseJson);
+  return { dir, release };
+}
+
+// 发布形态世界：四个 suian 插件均为发布目录（无 node_modules、无 runtime junction）+ 非 suian 对照条目。
+// 三个业务包统一顶层 commonApiVersion + minimumCommonVersion（规格 5.3，与各自 build-release.mjs 实际
+// 写出的字段一致）；side-editor 目录布局按真实产物（根级 cli.mjs、外置 common-client.mjs/locate.mjs、
+// ui/dist/editor.html）。depcheck 的读取侧兼容旧字段名 expectedCommonApiVersion，由专项用例覆盖。
+export async function buildReleaseWorld(t) {
+  const root = await mkdtemp(join(tmpdir(), 'suian-depcheck-rel-'));
+  t.after(() => rm(root, { recursive: true, force: true }));
+  const homeDir = join(root, 'home');
+  const cacheDir = join(homeDir, '.zcode', 'cli', 'plugins', 'cache', 'suian-zcode-plugins');
+  const specs = [
+    {
+      name: 'suian-zcode-common', version: '0.5.0', deps: [], commonApiVersion: 1,
+      entries: { client: 'dist/client.mjs', 'client-install': 'dist/client-install.mjs' },
+      paths: ['dist/client.mjs', 'dist/client-install.mjs', 'toast-executor.mjs', 'vendor/NOTICE.md', 'licenses/ws-LICENSE', 'LICENSE'],
+    },
+    {
+      name: 'suian-zcode-title', version: '0.1.6', deps: ['suian-zcode-common'], commonApiVersion: 1, minimumCommonVersion: '0.5.0',
+      entries: { cli: 'dist/cli.mjs', hook: 'dist/hook.mjs', install: 'dist/install.mjs', 'toast-action': 'dist/toast-action.mjs' },
+      paths: ['dist/cli.mjs', 'dist/hook.mjs', 'dist/install.mjs', 'dist/toast-action.mjs', 'skills/setup/SKILL.md', 'skills/configuration/SKILL.md', 'prompt.md', 'LICENSE'],
+    },
+    {
+      name: 'suian-zcode-app-mcp', version: '0.11.0', deps: ['suian-zcode-common'], commonApiVersion: 1, minimumCommonVersion: '0.5.0',
+      entries: { cli: 'dist/cli.mjs', 'artifact-hook': 'dist/artifact-hook.mjs', install: 'dist/install.mjs' },
+      paths: ['dist/cli.mjs', 'dist/artifact-hook.mjs', 'dist/install.mjs', 'dist/ui/panel.html', 'skills/setup/SKILL.md', 'mcp.config.example.json', 'LICENSE'],
+    },
+    {
+      name: 'suian-side-editor', version: '0.3.0', deps: ['suian-zcode-common'], commonApiVersion: 1, minimumCommonVersion: '0.5.0',
+      entries: { cli: 'cli.mjs' },
+      paths: ['cli.mjs', 'common-client.mjs', 'locate.mjs', 'ui/dist/editor.html', 'skills/setup/SKILL.md', 'LICENSE'],
+    },
+  ];
+  const installPaths = {};
+  for (const spec of specs) installPaths[spec.name] = join(cacheDir, spec.name, spec.version);
+  await writeReleaseDirectory(installPaths['suian-zcode-common'], specs[0]);
+  await writeReleaseDirectory(installPaths['suian-zcode-title'], specs[1]);
+  await writeReleaseDirectory(installPaths['suian-zcode-app-mcp'], specs[2]);
+  await writeReleaseDirectory(installPaths['suian-side-editor'], specs[3]);
+  const pluginsFile = join(homeDir, '.zcode', 'cli', 'plugins', 'installed_plugins.json');
+  await mkdir(dirname(pluginsFile), { recursive: true });
+  await writeFile(pluginsFile, JSON.stringify({ version: 1, plugins: [
+    ...specs.map(spec => ({ id: `${spec.name}@suian-zcode-plugins`, name: spec.name, version: spec.version, installPath: installPaths[spec.name], scope: 'user', ...(spec.deps.length ? { dependencies: spec.deps } : {}) })),
+    { id: 'exa@claude-plugins-official', name: 'exa', version: '3.4.1', installPath: join(root, 'nonexistent-exa'), scope: 'user' },
+  ] }));
+  return { root, homeDir, pluginsFile, installPaths, specs };
+}
+
+// 旧形态世界（npm + 两级 junction）：仅供迁移与链接清理契约使用，
+// 新 depcheck 不再把该形态判定为损坏（迁移遗留不等于安装损坏）。
+export async function buildLegacyWorld(t) {
+  const root = await mkdtemp(join(tmpdir(), 'suian-depcheck-legacy-'));
   t.after(() => rm(root, { recursive: true, force: true }));
   const homeDir = join(root, 'home');
   const cacheDir = join(homeDir, '.zcode', 'cli', 'plugins', 'cache', 'suian-zcode-plugins');
@@ -37,7 +119,11 @@ export async function buildWorld(t) {
   await mkdir(dirname(pluginsFile), { recursive: true });
   await writeFile(pluginsFile, JSON.stringify({ version: 1, plugins: [
     ...defs.map(d => ({ id: `${d.name}@suian-zcode-plugins`, name: d.name, version: d.version, installPath: installPaths[d.name], scope: 'user', ...(d.pluginDeps.length ? { dependencies: d.pluginDeps } : {}) })),
-    { id: 'exa@claude-plugins-official', name: 'exa', version: '3.4.1', installPath: join(root, 'nonexistent-exa'), scope: 'user' },
   ] }));
   return { root, homeDir, pluginsFile, runtimeRoot, installPaths, defs };
+}
+
+// 兼容旧引用名：原有测试与文档使用的 buildWorld 即旧形态世界。
+export async function buildWorld(t) {
+  return buildLegacyWorld(t);
 }

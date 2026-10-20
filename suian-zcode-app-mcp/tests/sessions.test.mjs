@@ -80,7 +80,7 @@ test('列表与读取带 permission_mode，sessionMode 供继承发起者权限'
   const reader = createSessionReader(f);
   assert.deepEqual(reader.listSessions({}).sessions.map(s => [s.session_id, s.permission_mode]),
     [['sess_alpha', 'yolo'], ['sess_beta', 'plan']]);
-  assert.equal(reader.readSession({ session_id: 'sess_alpha' }).session.permission_mode, 'yolo');
+  assert.equal((await reader.readSession({ session_id: 'sess_alpha' })).session.permission_mode, 'yolo');
   assert.equal(reader.sessionMode({ session_id: 'sess_alpha' }).mode, 'yolo');
   assert.deepEqual(reader.sessionMode({ session_id: 'sess_alpha' }).observed, ['yolo']);
   assert.equal(reader.sessionMode({ session_id: 'sess_missing' }).mode, null);
@@ -121,14 +121,14 @@ test('损坏的消息角色或 text 数据形状明确报错，不能当作空�
   const { createSessionReader } = await import('../sessions.mjs');
   const reader = createSessionReader(f);
   f.history.prepare('UPDATE message SET data=? WHERE id=?').run('null', 'msg_user');
-  assert.throws(() => reader.readSession({ session_id: 'sess_alpha' }), /history_format_error/);
+  await assert.rejects(() => reader.readSession({ session_id: 'sess_alpha' }), /history_format_error/);
   f.history.prepare('UPDATE message SET data=? WHERE id=?').run(JSON.stringify({ role: 'system' }), 'msg_user');
-  assert.throws(() => reader.readSession({ session_id: 'sess_alpha' }), /history_format_error/);
+  await assert.rejects(() => reader.readSession({ session_id: 'sess_alpha' }), /history_format_error/);
   f.history.prepare('UPDATE message SET data=? WHERE id=?').run(JSON.stringify({ role: 'user' }), 'msg_user');
   f.history.prepare('UPDATE part SET data=? WHERE message_id=?').run(JSON.stringify({ type: 'text' }), 'msg_user');
-  assert.throws(() => reader.readSession({ session_id: 'sess_alpha' }), /history_format_error/);
+  await assert.rejects(() => reader.readSession({ session_id: 'sess_alpha' }), /history_format_error/);
   f.history.prepare('UPDATE part SET data=? WHERE message_id=?').run('null', 'msg_user');
-  assert.throws(() => reader.readSession({ session_id: 'sess_alpha' }), /history_format_error/);
+  await assert.rejects(() => reader.readSession({ session_id: 'sess_alpha' }), /history_format_error/);
 });
 
 test('当前 branchCutAfterMessageID 回退保留后续新消息，优先于旧 created 标记', async t => {
@@ -143,14 +143,14 @@ test('当前 branchCutAfterMessageID 回退保留后续新消息，优先于旧 
   f.message({ id: 'msg_new_reply', sequence: 4, role: 'assistant', parent: 'msg_new' });
   const { createSessionReader } = await import('../sessions.mjs');
   const reader = createSessionReader(f);
-  const page = reader.readSession({ session_id: 'sess_alpha', limit: 2 });
+  const page = await reader.readSession({ session_id: 'sess_alpha', limit: 2 });
   assert.deepEqual(page.messages.map(m => m.message_id), ['msg_new', 'msg_new_reply']);
   assert.equal(page.total, 3);
   assert.equal(page.next_before_message_id, 'msg_new');
-  assert.deepEqual(reader.readSession({ session_id: 'sess_alpha', before_message_id: 'msg_new' }).messages.map(m => m.message_id), ['msg_kept']);
+  assert.deepEqual((await reader.readSession({ session_id: 'sess_alpha', before_message_id: 'msg_new' })).messages.map(m => m.message_id), ['msg_kept']);
   const revert = JSON.parse(f.history.prepare('SELECT revert FROM session WHERE id=?').get('sess_alpha').revert);
   f.history.prepare('UPDATE session SET revert=? WHERE id=?').run(JSON.stringify({ ...revert, createdMessageID: 'msg_discard' }), 'sess_alpha');
-  assert.deepEqual(reader.readSession({ session_id: 'sess_alpha' }).messages.map(m => m.message_id), ['msg_kept', 'msg_new', 'msg_new_reply']);
+  assert.deepEqual((await reader.readSession({ session_id: 'sess_alpha' })).messages.map(m => m.message_id), ['msg_kept', 'msg_new', 'msg_new_reply']);
 });
 
 test('没有回退时正常返回未记录父标识的可见助手消息', async t => {
@@ -158,7 +158,7 @@ test('没有回退时正常返回未记录父标识的可见助手消息', async
   f.task({ id: 'sess_alpha' }); f.session({ id: 'sess_alpha' });
   f.message({ id: 'msg_reply', role: 'assistant', sequence: 0, parts: [{ type: 'text', text: '历史回复' }] });
   const { createSessionReader } = await import('../sessions.mjs');
-  const page = createSessionReader(f).readSession({ session_id: 'sess_alpha' });
+  const page = await createSessionReader(f).readSession({ session_id: 'sess_alpha' });
   assert.equal(page.messages[0].text, '历史回复');
   assert.equal(page.messages[0].parent_message_id, null);
   assert.equal(page.branch, 'persisted');
@@ -172,7 +172,7 @@ test('非正文 part 的布尔合成标记仍参与官方可见性判断', async
     { type: 'text', text: '内部材料' }, { type: 'file', synthetic: true, filename: 'internal.txt' }
   ] });
   const { createSessionReader } = await import('../sessions.mjs');
-  const result = createSessionReader(f).readSession({ session_id: 'sess_alpha' });
+  const result = await createSessionReader(f).readSession({ session_id: 'sess_alpha' });
   assert.deepEqual(result.messages.map(m => m.message_id), ['msg_visible']);
 });
 
@@ -187,12 +187,12 @@ test('不存在、已删除、远端或重复 ID 明确报错，不用空聊天�
   f.task({ id: 'sess_no_history' });
   const { createSessionReader } = await import('../sessions.mjs');
   const reader = createSessionReader(f);
-  assert.throws(() => reader.readSession({ session_id: 'sess_deleted' }), /session_not_found/);
-  assert.throws(() => reader.readSession({ session_id: 'sess_unknown' }), /session_not_found/);
-  assert.throws(() => reader.readSession({ session_id: 'sess_remote' }), /remote_history_unavailable/);
-  assert.throws(() => reader.readSession({ session_id: 'sess_duplicate' }), /ambiguous_session/);
-  assert.throws(() => reader.readSession({ session_id: 'sess_no_history' }), /history_not_found/);
-  assert.equal(reader.readSession({ session_id: 'sess_duplicate', workspace_key: 'local-a' }).messages.length, 0);
+  await assert.rejects(() => reader.readSession({ session_id: 'sess_deleted' }), /session_not_found/);
+  await assert.rejects(() => reader.readSession({ session_id: 'sess_unknown' }), /session_not_found/);
+  await assert.rejects(() => reader.readSession({ session_id: 'sess_remote' }), /remote_history_unavailable/);
+  await assert.rejects(() => reader.readSession({ session_id: 'sess_duplicate' }), /ambiguous_session/);
+  await assert.rejects(() => reader.readSession({ session_id: 'sess_no_history' }), /history_not_found/);
+  assert.equal((await reader.readSession({ session_id: 'sess_duplicate', workspace_key: 'local-a' })).messages.length, 0);
   assert.equal(f.index.prepare('SELECT COUNT(*) n FROM tasks').get().n, 5);
 });
 
@@ -213,15 +213,15 @@ test('持久化回退分支与可见规则排除废弃、合成、压缩和隐�
   f.message({ id: 'msg_file', sequence: 8, parts: [{ type: 'file', filename: 'example.png', mime: 'image/png', url: 'data:secret' }] });
   const { createSessionReader } = await import('../sessions.mjs');
   const reader = createSessionReader(f);
-  const page = reader.readSession({ session_id: 'sess_alpha' });
+  const page = await reader.readSession({ session_id: 'sess_alpha' });
   assert.deepEqual(page.messages.map(m => m.message_id), ['msg_kept', 'msg_new', 'msg_reply', 'msg_file']);
   assert.equal(page.messages[2].text, '正确回复');
   assert.deepEqual(page.messages[3].attachments, [{ filename: 'example.png', mime: 'image/png' }]);
   assert.equal(page.branch, 'persisted_revert');
   assert.equal(JSON.stringify(page).includes('secret'), false);
-  assert.throws(() => reader.readSession({ session_id: 'sess_alpha', before_message_id: 'msg_discard' }), /游标/);
+  await assert.rejects(() => reader.readSession({ session_id: 'sess_alpha', before_message_id: 'msg_discard' }), /游标/);
   f.history.prepare('UPDATE session SET revert=? WHERE id=?').run(JSON.stringify({ targetMessageID: 'msg_discard', createdMessageID: 'msg_new' }), 'sess_alpha');
-  assert.deepEqual(reader.readSession({ session_id: 'sess_alpha' }).messages.map(m => m.message_id), ['msg_kept', 'msg_new', 'msg_reply', 'msg_file']);
+  assert.deepEqual((await reader.readSession({ session_id: 'sess_alpha' })).messages.map(m => m.message_id), ['msg_kept', 'msg_new', 'msg_reply', 'msg_file']);
 });
 
 test('读取最近消息保留完整正文，按持久化 sequence 排序并返回更早页游标', async t => {
@@ -236,7 +236,7 @@ test('读取最近消息保留完整正文，按持久化 sequence 排序并返�
   const { createSessionReader } = await import('../sessions.mjs');
   const reader = createSessionReader(f);
   assert.equal(typeof reader.readSession, 'function');
-  const page = reader.readSession({ session_id: 'sess_alpha', limit: 2 });
+  const page = await reader.readSession({ session_id: 'sess_alpha', limit: 2 });
   assert.deepEqual(page.messages.map(m => m.message_id), ['msg_middle', 'msg_later']);
   assert.equal(page.messages[1].text, '完整正文'.repeat(1000));
   assert.equal(page.messages[1].parent_message_id, 'msg_user');
@@ -244,7 +244,7 @@ test('读取最近消息保留完整正文，按持久化 sequence 排序并返�
   assert.equal(page.total, 3);
   assert.equal(page.next_before_message_id, 'msg_middle');
   assert.equal(page.session.title, 'MCP 设计');
-  const earlier = reader.readSession({ session_id: 'sess_alpha', before_message_id: page.next_before_message_id });
+  const earlier = await reader.readSession({ session_id: 'sess_alpha', before_message_id: page.next_before_message_id });
   assert.deepEqual(earlier.messages.map(m => m.message_id), ['msg_user']);
   assert.equal(earlier.next_before_message_id, null);
 });

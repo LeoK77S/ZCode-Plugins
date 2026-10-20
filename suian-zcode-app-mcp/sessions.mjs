@@ -1,7 +1,6 @@
 import { DatabaseSync } from 'node:sqlite';
 import { win32 } from 'node:path';
-import { readProjectContext } from 'suian-zcode-common/project-context.mjs';
-import { getConversationMessageProjectionPolicy } from 'suian-zcode-common/vendor/projection.js';
+import { readProjectContext, getConversationMessageProjectionPolicy } from './common-client.mjs';
 
 function openReadOnly(path) {
   const db = new DatabaseSync(path, { readOnly: true, timeout: 2000 });
@@ -29,15 +28,81 @@ function parseScheduleRule(raw) {
 
 const normalizeWorkspace = path => win32.normalize(path).replaceAll('\\', '/').replace(/\/$/, '').toLowerCase();
 
+// 项目注册表（list_projects 与 start_session 项目模式的数据源）：只读本机未删除项目；
+// 左连接展开 roots 后在内存聚合，项目按置顶、位置排序，roots 按位置排序，布尔字段真实化
+const projectTablesPresent = db => db.prepare(
+  "SELECT COUNT(*) AS n FROM sqlite_master WHERE type='table' AND name IN ('projects','project_roots')").get().n === 2;
+const projectRowSql = filter => `SELECT p.project_id,p.name,p.pinned,r.root_path,r.is_primary
+  FROM projects p LEFT JOIN project_roots r ON r.project_id=p.project_id
+  WHERE p.host_id='local' AND p.deleted=0${filter}
+  ORDER BY p.pinned DESC,p.position,p.project_id,r.position,r.root_path`;
+const assembleProjects = rows => {
+  const projects = [];
+  for (const row of rows) {
+    let project = projects.at(-1);
+    if (!project || project.project_id !== row.project_id) {
+      project = { project_id: row.project_id, name: row.name, pinned: !!row.pinned, roots: [] };
+      projects.push(project);
+    }
+    if (row.root_path !== null) project.roots.push({ root_path: row.root_path, is_primary: !!row.is_primary });
+  }
+  return projects;
+};
+
 export function createSessionReader({ indexDbPath, sessionDbPath }) {
   return {
-    sessionProject({ session_id }) {
+    // 宿主能力探测：仅当索引同时具备 projects 与 project_roots 两表时按项目能力差异化注册工具
+    projectsSupported() {
+      const db = openReadOnly(indexDbPath);
+      try { return projectTablesPresent(db); } finally { db.close(); }
+    },
+    listProjects() {
+      const db = openReadOnly(indexDbPath);
+      try {
+        if (!projectTablesPresent(db)) throw new Error('project_schema_unsupported: 当前宿主索引不支持项目列表（ZCode Desktop 3.16+）');
+        return { source: 'local_tasks_index', projects: assembleProjects(db.prepare(projectRowSql('')).all()) };
+      } finally { db.close(); }
+    },
+    projectById(projectId) {
+      const db = openReadOnly(indexDbPath);
+      try {
+        if (!projectTablesPresent(db)) throw new Error('project_schema_unsupported: 当前宿主索引不支持项目查询（ZCode Desktop 3.16+）');
+        const [project] = assembleProjects(db.prepare(projectRowSql(' AND p.project_id=?')).all(projectId));
+        return project ?? null;
+      } finally { db.close(); }
+    },
+    // 按工作区根反查所属项目：路径经 normalize 精确匹配（大小写/斜杠/尾斜杠归一）。
+    // 两者缺表时与 listProjects 同口径显式报错（#126 第二层防线）：调用方仅在 projectCapable
+    // 分支进入，缺表只可能出现在启动探测后宿主索引被降级覆盖的窗口，报错优于静默停用
+    projectsByRoot(workspacePath) {
+      const db = openReadOnly(indexDbPath);
+      try {
+        if (!projectTablesPresent(db)) throw new Error('project_schema_unsupported: 当前宿主索引不支持项目反查（ZCode Desktop 3.16+）');
+        db.function('normalize_workspace', normalizeWorkspace);
+        return db.prepare(`SELECT p.project_id,p.name FROM projects p JOIN project_roots r ON r.project_id=p.project_id
+          WHERE p.host_id='local' AND p.deleted=0 AND normalize_workspace(r.root_path)=?
+          ORDER BY p.position,p.project_id`).all(normalizeWorkspace(workspacePath));
+      } finally { db.close(); }
+    },
+    // start_session 项目归属的写后读回：按 task_id 精确定位（含归档行、排除删除行，与 listSessionStates 同款精确路径）；
+    // 行缺失、跨工作区歧义或索引无 project_id 列返回 undefined 表示无法核实，null 表示已确认未归类
+    sessionProjectId({ session_id }) {
+      const db = openReadOnly(indexDbPath);
+      try {
+        if (!taskColumnsFor(db).includes('project_id')) return undefined;
+        const rows = db.prepare('SELECT project_id,host_id FROM tasks WHERE task_id=? AND deleted=0').all(session_id);
+        if (rows.length !== 1 || rows[0].host_id !== 'local') return undefined;
+        return rows[0].project_id;
+      } finally { db.close(); }
+    },
+    // 项目上下文由公共层提供（3.16 项目归属与冻结范围语义），读取前完成公共定位
+    async sessionProject({ session_id }) {
       const index = openReadOnly(indexDbPath);
       try {
         if (!taskColumnsFor(index).includes('project_id')) return undefined;
         const matches = index.prepare('SELECT host_id,workspace_key FROM tasks WHERE task_id=? AND deleted=0').all(session_id);
         if (matches.length !== 1 || matches[0].host_id !== 'local') return undefined;
-        return readProjectContext({ indexDbPath, sessionId: session_id, workspaceKey: matches[0].workspace_key });
+        return await readProjectContext({ indexDbPath, sessionId: session_id, workspaceKey: matches[0].workspace_key });
       } finally { index.close(); }
     },
     sessionTitle({ session_id }) {
@@ -67,14 +132,14 @@ export function createSessionReader({ indexDbPath, sessionDbPath }) {
     },
     // get_current_session 的自省读取：两库都可能没有行（子代理上下文、deferPersistence 未落库），字段可空不报错。
     // 跨工作区同 task_id 的多行按 workspace_key 排序全部返回，交调用方判断；index_title 取首行，与 sessionTitle 的诊断语义一致。
-    sessionOverview({ session_id }) {
+    async sessionOverview({ session_id }) {
       const index = openReadOnly(indexDbPath);
       let indexMatches, project;
       try {
         indexMatches = index.prepare(`SELECT ${taskColumnsFor(index)} FROM tasks WHERE task_id=? AND deleted=0
           ORDER BY workspace_key`).all(session_id).map(taskItem);
         if (indexMatches.length === 1 && indexMatches[0].host_id === 'local')
-          project = readProjectContext({ indexDbPath, sessionId: session_id, workspaceKey: indexMatches[0].workspace_key });
+          project = await readProjectContext({ indexDbPath, sessionId: session_id, workspaceKey: indexMatches[0].workspace_key });
       } finally { index.close(); }
       const db = openReadOnly(sessionDbPath);
       let sessionTitle = null, workspacePath = null, permissionMode = null;
@@ -192,7 +257,8 @@ export function createSessionReader({ indexDbPath, sessionDbPath }) {
         return { source: 'local_tasks_index', automations, total: automations.length };
       } finally { db.close(); }
     },
-    readSession({ session_id, limit = 30, before_message_id, workspace_key }) {
+    // 历史投影规则（realUserInput/visibleAssistant）由公共层与宿主协商维护，读取前完成公共定位
+    async readSession({ session_id, limit = 30, before_message_id, workspace_key }) {
       const index = openReadOnly(indexDbPath);
       let task;
       try {
@@ -249,7 +315,7 @@ export function createSessionReader({ indexDbPath, sessionDbPath }) {
         const messages = [];
         for (const message of active) {
           const { info, parts: content } = message;
-          const policy = getConversationMessageProjectionPolicy(message);
+          const policy = await getConversationMessageProjectionPolicy(message);
           if (!(info.role === 'user' && policy === 'realUserInput' || info.role === 'assistant' && policy === 'visibleAssistant')) continue;
           const text = content.filter(p => p.type === 'text' && !p.ignored && !p.synthetic).map(p => p.text).join('');
           if (revert?.targetMessageID && info.role === 'assistant' && info.parentID === revert.createdMessageID &&

@@ -4,27 +4,45 @@
 
 ## 原生缓存中的独立握手
 
-使用 paths.md 已确定的插件根与外置配置，初始化完成后执行。以下 SDK 客户端只做 initialize 和 tools/list，不读取数据库、不连接网关，也不证明当前 ZCode 会话的 MCP 已换代。
+使用 paths.md 已确定的命令目录、外置配置和安装记录，初始化完成后执行。脚本只用 Node 内置模块完成 initialize 和 tools/list，不调用业务工具或连接网关，也不证明当前 ZCode 会话的 MCP 已换代。
 
 ```powershell
 Push-Location "{{plugin_root}}"
 try {
     @'
-import { Client } from '@modelcontextprotocol/sdk/client/index.js';
-import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
-const [entry, configPath] = process.argv.slice(2);
-const client = new Client({ name: 'suian-mcp-debug', version: '1.0.0' });
-const transport = new StdioClientTransport({
-  command: process.execPath, args: [entry, '--config', configPath], stderr: 'pipe'
-});
+import { spawn } from 'node:child_process';
+import { createInterface } from 'node:readline';
+const [entry, configPath, registryPath] = process.argv.slice(2);
+const child = spawn(process.execPath, [entry, '--config', configPath, '--installed-plugins', registryPath], { windowsHide: true, stdio: ['pipe', 'pipe', 'pipe'] });
+child.stderr.pipe(process.stderr);
+child.on('error', error => { throw error; });
+const lines = createInterface({ input: child.stdout });
+const timeout = setTimeout(() => child.kill(), 10000);
+const send = message => child.stdin.write(JSON.stringify({ jsonrpc: '2.0', ...message }) + '\n');
+let received = false;
 try {
-  await client.connect(transport);
-  const { tools } = await client.listTools();
-  console.log(JSON.stringify({ toolCount: tools.length, names: tools.map(tool => tool.name) }));
+  send({ id: 1, method: 'initialize', params: { protocolVersion: '2025-03-26', capabilities: {}, clientInfo: { name: 'suian-mcp-debug', version: '1.0.0' } } });
+  for await (const line of lines) {
+    const response = JSON.parse(line);
+    if (response.error) throw new Error(JSON.stringify(response.error));
+    if (response.id === 1) {
+      send({ method: 'notifications/initialized' });
+      send({ id: 2, method: 'tools/list', params: {} });
+    } else if (response.id === 2) {
+      const tools = response.result.tools;
+      console.log(JSON.stringify({ toolCount: tools.length, names: tools.map(tool => tool.name) }));
+      received = true;
+      break;
+    }
+  }
+  if (!received) throw new Error('未收到 tools/list 回执；请核对 stderr、配置与定位锚点');
 } finally {
-  await client.close();
+  clearTimeout(timeout);
+  lines.close();
+  child.stdin.end();
+  child.kill();
 }
-'@ | node --input-type=module - "{{plugin_root}}/cli.mjs" "{{config_path}}"
+'@ | node --input-type=module - "{{command_dir}}/cli.mjs" "{{config_path}}" "{{installed_plugins_json}}"
 } finally {
     Pop-Location
 }
@@ -36,7 +54,7 @@ try {
 
 ## 源码工作树中的隔离读取
 
-这一步使用仓库的测试夹具，要求源码工作树同时包含 common 与 MCP，且已按 setup 准备依赖及链接。测试仍有同级源码引用，不能直接在原生的独立缓存目录运行。
+这一步使用仓库的测试夹具，要求源码工作树同时包含 common 与 MCP，并已安装锁定的开发依赖。夹具提供公共安装记录，不要求业务包链接；测试仍有同级源码引用，不能直接在原生的独立缓存目录运行。
 
 在源码 MCP 根执行：
 

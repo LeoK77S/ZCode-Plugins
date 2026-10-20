@@ -7,7 +7,7 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
-import { connect, apps } from './fixtures.mjs';
+import { connect, apps, isolatedDataPath } from './fixtures.mjs';
 
 const request = (client, name, session, args = {}) => client.callTool({ name, arguments: args, _meta: { session_id: session } });
 const draft = { text: '未保存\r\n正文', diskText: '原正文\r\n', baseVersion: 'sha256:' + 'a'.repeat(64), encoding: { name: 'utf-8', bom: true, newline: 'crlf' } };
@@ -15,7 +15,9 @@ const snapshot = { files: [{ path: 'a.md', fixed: true, scrollTop: 731, scrollLe
 async function fixture(t) {
   const root = await mkdtemp(join(tmpdir(), 'side-editor-recovery-'));
   t.after(() => rm(root, { recursive: true, force: true }));
-  const workspaceRoot = join(root, 'workspace'), dataPath = join(root, 'data'); await mkdir(workspaceRoot); await mkdir(dataPath);
+  // dataPath 采用夹具存储根的真实布局（<storageRoot>/data/<目录>）：定位锚点与状态库目录共享同一语义。
+  const workspaceRoot = join(root, 'workspace'); await mkdir(workspaceRoot);
+  const dataPath = await isolatedDataPath();
   return { root, workspaceRoot, dataPath };
 }
 
