@@ -48,7 +48,8 @@ test('发布目录包含三入口 bundle 与完整元信息，业务输入未内
   assert.equal(release.formatVersion, 1);
   assert.equal(release.pluginName, 'suian-zcode-app-mcp');
   assert.equal(release.pluginVersion, JSON.parse(await readFile(join(appOut, '.zcode-plugin', 'plugin.json'), 'utf8')).version);
-  assert.equal(release.expectedCommonApiVersion, 1);
+  assert.equal(release.commonApiVersion, 1, '顶层 commonApiVersion（规格 5.3 统一字段名）');
+  assert.equal(release.expectedCommonApiVersion, undefined, '不再使用旧字段名 expectedCommonApiVersion');
   assert.match(release.minimumCommonVersion, /^\d+\.\d+\.\d+/);
   for (const [name, path] of Object.entries(release.entries)) {
     assert.match(path, /^dist\//, `入口 ${name} 应位于 dist/`);

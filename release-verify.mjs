@@ -52,6 +52,7 @@ export const PLUGIN_PROFILES = {
       'prompt.md', 'SKILL.md', 'hooks/hooks.json',
     ],
     requiredDirs: ['skills'],
+    compatRequired: true,
   },
   'suian-zcode-app-mcp': {
     requiredFiles: [
@@ -60,6 +61,7 @@ export const PLUGIN_PROFILES = {
       'dist/cli.mjs', 'dist/artifact-hook.mjs', 'dist/install.mjs',
     ],
     requiredDirs: ['skills', 'dist/ui', 'licenses'],
+    compatRequired: true,
   },
   'suian-side-editor': {
     requiredFiles: [
@@ -67,6 +69,7 @@ export const PLUGIN_PROFILES = {
       'cli.mjs', 'common-client.mjs', 'locate.mjs', 'ui/dist/editor.html', '.mcp.json',
     ],
     requiredDirs: ['skills'],
+    compatRequired: true,
   },
 };
 
@@ -163,6 +166,13 @@ export async function verifyReleaseDir({ releaseDir, pluginName, expectedVersion
     }
     for (const required of profile.requiredDirs) {
       if (!(await dirHasFiles(join(releaseDir, ...required.split('/'))))) add('resource_missing', required, `必备资源目录 ${required} 缺失或为空`);
+    }
+    // 兼容声明强制（规格 5.3）：业务包 release.json 必须以顶层字段声明所需公共 API 代际
+    // 与最低 common 版本；字段缺失或形状分叉会使 depcheck/locate 的兼容检测静默跳过。
+    if (profile.compatRequired && release) {
+      if (typeof release.commonApiVersion !== 'number' || typeof release.minimumCommonVersion !== 'string') {
+        add('compat_missing', 'release.json', '业务包必须以顶层 commonApiVersion(数字) 与 minimumCommonVersion(字符串) 声明公共兼容性');
+      }
     }
   }
 

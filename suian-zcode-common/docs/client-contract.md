@@ -15,7 +15,7 @@
 - `loadCommonModule(entry, options)` 首次成功即冻结本进程 common 根与 buildId；注册表其后变化不热换，升级经新进程生效。
 - 失败分类共 12 类（均携带 `code` 与 `stage`，在任何业务副作用前抛出）：`anchor_missing`、`common_root_invalid`、`registry_missing`、`registry_invalid`、`common_not_installed`、`common_ambiguous`、`install_path_missing`、`release_missing`、`release_invalid`、`entry_missing`（清单未声明与文件缺失于磁盘两种情形）、`api_incompatible`、`version_insufficient`（含消费者声明版本不可解析）。
 - 安装记录 schema（`{ version: 1, plugins: [...] }`，条目含 `id/name/marketplace/version/installPath`）以官方 marketplace.ts 的 InstalledPluginRecord 写入器为准，测试夹具按此构造。
-- 兼容参数（`expectedCommonApiVersion`、`minimumCommonVersion`）仅在首次加载时评估；冻结后同进程的其他入口加载沿用首次结果。
+- 兼容参数（`expectedCommonApiVersion`、`minimumCommonVersion`）仅在首次加载时评估；冻结后同进程的其他入口加载沿用首次结果。`expectedCommonApiVersion` 为必填（缺省以 `api_incompatible` 拒绝，不提供默认代际）；业务包 release.json 以顶层 `commonApiVersion`（数字）与 `minimumCommonVersion`（字符串）声明兼容性（规格 5.3 统一字段名，读取侧兼容旧名 `expectedCommonApiVersion`）。
 
 ## 导出契约
 

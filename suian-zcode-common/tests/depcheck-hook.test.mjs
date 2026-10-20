@@ -68,7 +68,7 @@ test('依赖齐全时只落盘检查结果，不安装身份不发通知', async
 
 test('发现缺失时先确保 Toast 身份再以修复引导文案通知', async t => {
   const world = await buildReleaseWorld(t);
-  await rm(join(world.installPaths['suian-side-editor'], 'dist', 'cli.mjs'));
+  await rm(join(world.installPaths['suian-side-editor'], 'cli.mjs'));
   const dataDir = join(world.root, 'data');
   const calls = { identity: [], notify: [] };
   const result = await runDepcheckHook({
@@ -106,7 +106,7 @@ test('通知处于冷却（shown:false）时不视为错误', async t => {
 
 test('Toast 按钮动作对缺失世界复制含修复步骤的提示词并打开工作区', async t => {
   const world = await buildReleaseWorld(t);
-  await rm(join(world.installPaths['suian-side-editor'], 'dist', 'cli.mjs'));
+  await rm(join(world.installPaths['suian-side-editor'], 'cli.mjs'));
   const clipboard = [];
   const opened = [];
   const result = await runAction({
@@ -317,7 +317,7 @@ test('不自举静态契约：depcheck 全链路只用 Node 内置模块与包�
 
 test('--scan-only 手动复查入口：输出 JSON 结果且不读 stdin、不落盘', async t => {
   const world = await buildReleaseWorld(t);
-  await rm(join(world.installPaths['suian-side-editor'], 'dist', 'cli.mjs'));
+  await rm(join(world.installPaths['suian-side-editor'], 'cli.mjs'));
   const dataDir = join(world.root, 'scan-data');
   const stopped = spawnSync(`node "${join(pluginRoot, 'depcheck-hook.mjs')}" --scan-only --data-dir "${dataDir}"`, {
     shell: true, windowsHide: true, encoding: 'utf8', input: '',

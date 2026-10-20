@@ -33,6 +33,8 @@ function staging() {
 
 const consumerScript = `import { loadCommonModule } from './locate.mjs';
 const options = JSON.parse(process.argv[2] ?? '{}');
+// 本脚本代表规范消费者：默认声明第 1 代 API；"缺省必须拒绝"由专项用例单独覆盖。
+if (options.expectedCommonApiVersion === undefined && !options.omitApiDeclaration) options.expectedCommonApiVersion = 1;
 try {
   const loaded = await loadCommonModule(options.entryOverride ?? 'client', options);
   console.log(JSON.stringify({ ok: true, root: loaded.root, buildId: loaded.buildId, pluginVersion: loaded.pluginVersion,
@@ -191,6 +193,11 @@ test('定位器失败分类：入口缺失、API 不兼容、版本不足在导�
   const missing = runConsumer(world, { installedPluginsPath: world.registryPath, entryOverride: 'gateway' });
   assert.equal(missing.payload.code, 'entry_missing');
 
+  // 消费者未声明 expectedCommonApiVersion 时必须显式拒绝（无默认代际），
+  // 防止忘写声明的调用方静默按第 1 代放行未来的不兼容发布。
+  const undeclared = runConsumer(world, { installedPluginsPath: world.registryPath, omitApiDeclaration: true });
+  assert.equal(undeclared.payload.code, 'api_incompatible', JSON.stringify(undeclared.payload));
+
   const releasePath = join(world.commonInstall, 'release.json');
   const release = JSON.parse(await readFile(releasePath, 'utf8'));
   release.commonApiVersion = 2;
@@ -204,13 +211,14 @@ assert.equal(runConsumer(world2, { installedPluginsPath: world2.registryPath, mi
 
 test('进程内首次加载固定 common 根：注册表其后变化不热换，新进程读到新根', async t => {
   const world = await buildWorld(t);
-  const first = await loadCommonModule('client', { installedPluginsPath: world.registryPath });
+  const declared = { installedPluginsPath: world.registryPath, expectedCommonApiVersion: 1 };
+  const first = await loadCommonModule('client', declared);
   const secondInstall = join(world.base, '新版 common');
   await cp(world.commonInstall, secondInstall, { recursive: true });
   const registry = JSON.parse(await readFile(world.registryPath, 'utf8'));
   registry.plugins[0].installPath = secondInstall;
   await writeFile(world.registryPath, JSON.stringify(registry));
-  const second = await loadCommonModule('client', { installedPluginsPath: world.registryPath });
+  const second = await loadCommonModule('client', declared);
   assert.equal(second.root, first.root, '同进程内不得热换 common 根');
   assert.equal(second.buildId, first.buildId);
   const fresh = runConsumer(world, { installedPluginsPath: world.registryPath });

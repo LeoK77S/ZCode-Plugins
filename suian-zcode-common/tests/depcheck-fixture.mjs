@@ -41,8 +41,9 @@ export async function writeReleaseDirectory(dir, spec) {
 }
 
 // 发布形态世界：四个 suian 插件均为发布目录（无 node_modules、无 runtime junction）+ 非 suian 对照条目。
-// title 的兼容声明用 commonApiVersion、app-mcp/side-editor 用 expectedCommonApiVersion，
-// 与各自 build-release.mjs 实际写出的字段一致；depcheck 两种字段都要接受。
+// 三个业务包统一顶层 commonApiVersion + minimumCommonVersion（规格 5.3，与各自 build-release.mjs 实际
+// 写出的字段一致）；side-editor 目录布局按真实产物（根级 cli.mjs、外置 common-client.mjs/locate.mjs、
+// ui/dist/editor.html）。depcheck 的读取侧兼容旧字段名 expectedCommonApiVersion，由专项用例覆盖。
 export async function buildReleaseWorld(t) {
   const root = await mkdtemp(join(tmpdir(), 'suian-depcheck-rel-'));
   t.after(() => rm(root, { recursive: true, force: true }));
@@ -60,14 +61,14 @@ export async function buildReleaseWorld(t) {
       paths: ['dist/cli.mjs', 'dist/hook.mjs', 'dist/install.mjs', 'dist/toast-action.mjs', 'skills/setup/SKILL.md', 'skills/configuration/SKILL.md', 'prompt.md', 'LICENSE'],
     },
     {
-      name: 'suian-zcode-app-mcp', version: '0.11.0', deps: ['suian-zcode-common'], expectedCommonApiVersion: 1, minimumCommonVersion: '0.5.0',
+      name: 'suian-zcode-app-mcp', version: '0.11.0', deps: ['suian-zcode-common'], commonApiVersion: 1, minimumCommonVersion: '0.5.0',
       entries: { cli: 'dist/cli.mjs', 'artifact-hook': 'dist/artifact-hook.mjs', install: 'dist/install.mjs' },
       paths: ['dist/cli.mjs', 'dist/artifact-hook.mjs', 'dist/install.mjs', 'dist/ui/panel.html', 'skills/setup/SKILL.md', 'mcp.config.example.json', 'LICENSE'],
     },
     {
-      name: 'suian-side-editor', version: '0.3.0', deps: ['suian-zcode-common'], expectedCommonApiVersion: 1, minimumCommonVersion: '0.5.0',
-      entries: { cli: 'dist/cli.mjs' },
-      paths: ['dist/cli.mjs', 'dist/editor.html', 'skills/setup/SKILL.md', 'LICENSE'],
+      name: 'suian-side-editor', version: '0.3.0', deps: ['suian-zcode-common'], commonApiVersion: 1, minimumCommonVersion: '0.5.0',
+      entries: { cli: 'cli.mjs' },
+      paths: ['cli.mjs', 'common-client.mjs', 'locate.mjs', 'ui/dist/editor.html', 'skills/setup/SKILL.md', 'LICENSE'],
     },
   ];
   const installPaths = {};

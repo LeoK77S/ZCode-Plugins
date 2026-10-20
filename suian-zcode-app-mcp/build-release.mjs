@@ -132,7 +132,7 @@ export async function buildRelease({ root = defaultRoot, outDir } = {}) {
     packageName: JSON.parse(await readFile(join(root, 'package.json'), 'utf8')).name,
     pluginVersion: manifest.version,
     buildId,
-    expectedCommonApiVersion: EXPECTED_COMMON_API_VERSION,
+    commonApiVersion: EXPECTED_COMMON_API_VERSION,
     minimumCommonVersion: MINIMUM_COMMON_VERSION,
     entries: { ...DIST_ENTRIES },
     files,

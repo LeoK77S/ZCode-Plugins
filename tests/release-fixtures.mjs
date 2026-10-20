@@ -54,6 +54,10 @@ export async function makeReleaseDir(dir, options = {}) {
     pluginVersion: version,
     buildId: sha256(`${pluginName}@${version}`),
     entries: { cli: 'dist/cli.mjs' },
+    // 业务包统一顶层兼容声明（规格 5.3）；common 自身是被依赖方，仅带 commonApiVersion。
+    ...(pluginName === 'suian-zcode-common'
+      ? { commonApiVersion: 1 }
+      : { commonApiVersion: 1, minimumCommonVersion: '0.4.2' }),
     files: fileEntries,
   };
   if (releaseOverrides) release = releaseOverrides(structuredClone(release)) ?? release;

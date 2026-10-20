@@ -6,7 +6,9 @@
 import { loadCommonModule } from './locate.mjs';
 
 // 第一代公共 API 为 1；与本包兼容的公共客户端声明同一代际。
+// client 双入口自 common 0.4.2（PKG-01）起提供，低于该版本拒绝加载。
 export const EXPECTED_COMMON_API_VERSION = 1;
+export const MINIMUM_COMMON_VERSION = '0.4.2';
 
 let ready;
 let frozenModule;
@@ -14,7 +16,7 @@ let frozenModule;
 export function commonClient(options = {}) {
   // 展开为“公共导出 + 加载元信息”单个对象：调用点直接使用 readProjectContext 等成员，
   // commonRoot/commonBuildId 保留定位证据；后续入口沿用首次冻结结果。
-  ready ??= loadCommonModule('client', { expectedCommonApiVersion: EXPECTED_COMMON_API_VERSION, ...options })
+  ready ??= loadCommonModule('client', { expectedCommonApiVersion: EXPECTED_COMMON_API_VERSION, minimumCommonVersion: MINIMUM_COMMON_VERSION, ...options })
     .then(({ module, root, buildId, pluginVersion, commonApiVersion }) => {
       frozenModule = module;
       return { ...module, commonRoot: root, commonBuildId: buildId, commonPluginVersion: pluginVersion, commonApiVersion };

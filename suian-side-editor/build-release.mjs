@@ -141,7 +141,10 @@ export async function buildEditorRelease({ root = defaultRoot, outDir, skipUiBui
     packageName,
     pluginVersion: manifest.version,
     buildId,
-    requiredCommon: { commonApiVersion: 1, minimumCommonVersion: commonManifest.version },
+    // 兼容声明为顶层字段（规格 5.3，与 title/app-mcp 一致）：depcheck/locate/verify 按顶层读取，
+    // 嵌套形状无人消费曾使 API 兼容检测静默跳过。
+    commonApiVersion: 1,
+    minimumCommonVersion: commonManifest.version,
     entries: { cli: 'cli.mjs', commonClient: 'common-client.mjs', locate: 'locate.mjs', page: 'ui/dist/editor.html' },
     files,
   };

@@ -98,7 +98,11 @@ async function readRelease(root, options = {}) {
   if (release?.formatVersion !== 1 || release?.pluginName !== COMMON_PLUGIN_NAME || typeof release?.pluginVersion !== 'string' || !parseVersion(release.pluginVersion) || typeof release?.buildId !== 'string' || typeof release?.commonApiVersion !== 'number' || typeof release?.entries !== 'object' || release.entries === null || !Array.isArray(release?.files)) {
     fail('release_invalid', 'release', `${RELEASE_FILE} 字段不满足发布契约`, { root });
   }
-  const expectedApi = options.expectedCommonApiVersion ?? 1;
+  // 消费者必须显式声明所需 API 代际：无默认值，防止忘写声明的调用方静默按第 1 代放行。
+  if (typeof options.expectedCommonApiVersion !== 'number') {
+    fail('api_incompatible', 'compat', '消费者未声明 expectedCommonApiVersion；业务入口必须经薄适配显式传入，禁止依赖默认代际');
+  }
+  const expectedApi = options.expectedCommonApiVersion;
   if (release.commonApiVersion !== expectedApi) {
     fail('api_incompatible', 'compat', `commonApiVersion 不兼容：发布为 ${release.commonApiVersion}，消费者要求 ${expectedApi}；不回退其他版本`, { root, expectedApi });
   }

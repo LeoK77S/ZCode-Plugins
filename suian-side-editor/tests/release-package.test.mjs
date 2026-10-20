@@ -68,8 +68,9 @@ test('发布目录组装：实际构建页面、薄适配、许可与元数据�
     assert.ok(typeof release.entries[entry] === 'string' && release.entries[entry].length > 0, `entries 缺 ${entry}`);
     await assert.doesNotReject(() => readFile(join(releaseDir, release.entries[entry])), `入口文件 ${entry} 不存在`);
   }
-  assert.equal(release.requiredCommon.commonApiVersion, 1, '业务必须声明所需公共 API 代际');
-  assert.match(release.requiredCommon.minimumCommonVersion, /^\d+\.\d+\.\d+$/, '必须声明最低 common 插件版本');
+  assert.equal(release.commonApiVersion, 1, '业务必须以顶层字段声明所需公共 API 代际');
+  assert.match(release.minimumCommonVersion, /^\d+\.\d+\.\d+$/, '必须声明最低 common 插件版本');
+  assert.equal(release.requiredCommon, undefined, '不再使用无人消费的嵌套 requiredCommon 形状');
   const listed = release.files.map(file => file.path);
   assert.ok(!listed.includes('release.json'), '文件清单不得包含 release.json 自身');
   for (const file of release.files) {
