@@ -6,9 +6,9 @@
 import { loadCommonModule } from './locate.mjs';
 
 // 第一代公共 API 为 1；与本包兼容的公共客户端声明同一代际。
-// client 双入口自 common 0.4.2（PKG-01）起提供，低于该版本拒绝加载。
+// client 双入口随 common 0.5.0 正式分发，低于配套发布版本拒绝加载。
 export const EXPECTED_COMMON_API_VERSION = 1;
-export const MINIMUM_COMMON_VERSION = '0.4.2';
+export const MINIMUM_COMMON_VERSION = '0.5.0';
 
 let ready;
 let frozenModule;

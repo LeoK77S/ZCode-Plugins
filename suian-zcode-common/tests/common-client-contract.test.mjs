@@ -59,7 +59,7 @@ async function buildWorld(t, { storageName = '宿主 存储根' } = {}) {
   const base = await mkdtemp(join(tmpdir(), 'pkg01-world-'));
   const storageRoot = join(base, storageName);
   const installs = {
-    'suian-zcode-common': ['0.4.2', releaseDir],
+    'suian-zcode-common': [JSON.parse(await readFile(join(releaseDir, 'release.json'), 'utf8')).pluginVersion, releaseDir],
     'suian-zcode-title': ['0.1.5', null],
     'suian-zcode-app-mcp': ['0.10.0', null],
   };
@@ -205,7 +205,7 @@ test('定位器失败分类：入口缺失、API 不兼容、版本不足在导�
   assert.equal(runConsumer(world, { installedPluginsPath: world.registryPath }).payload.code, 'api_incompatible');
 
   const world2 = await buildWorld(t, { storageName: '版本 不足根' });
-  assert.equal(runConsumer(world2, { installedPluginsPath: world2.registryPath, minimumCommonVersion: '0.5.0' }).payload.code, 'version_insufficient');
+  assert.equal(runConsumer(world2, { installedPluginsPath: world2.registryPath, minimumCommonVersion: '999.0.0' }).payload.code, 'version_insufficient');
 assert.equal(runConsumer(world2, { installedPluginsPath: world2.registryPath, minimumCommonVersion: 'not-a-version' }).payload.code, 'version_insufficient');  assert.equal(runConsumer(world2, { commonRoot: '相对路径' }).payload.code, 'common_root_invalid');  await rm(join(world2.commonInstall, 'dist', 'client.mjs'));  assert.equal(runConsumer(world2, { installedPluginsPath: world2.registryPath }).payload.code, 'entry_missing');
 });
 

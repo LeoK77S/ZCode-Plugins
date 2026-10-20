@@ -30,7 +30,7 @@ test("CLI 原生卸载在无宿主注入时传递两种显式公共锚点",async
   const commonRoot=join(dir,"common"),trace=join(dir,"trace.json"),registry=join(dir,"installed_plugins.json");
   await mkdir(commonRoot);
   await writeFile(join(commonRoot,"install.mjs"),`import {writeFile} from 'node:fs/promises';export const removeToastAssets=async options=>writeFile(${JSON.stringify(trace)},JSON.stringify(options));export const fileShell={remove:async()=>{}};`);
-  await writeFile(join(commonRoot,"release.json"),JSON.stringify({formatVersion:1,pluginName:"suian-zcode-common",pluginVersion:"0.4.2",buildId:"fixture",commonApiVersion:1,entries:{"client-install":"install.mjs"},files:[]}));
+  await writeFile(join(commonRoot,"release.json"),JSON.stringify({formatVersion:1,pluginName:"suian-zcode-common",pluginVersion:"0.5.0",buildId:"fixture",commonApiVersion:1,entries:{"client-install":"install.mjs"},files:[]}));
   await writeFile(registry,JSON.stringify({version:1,plugins:[{id:"suian-zcode-common@suian-zcode-plugins",name:"suian-zcode-common",marketplace:"suian-zcode-plugins",installPath:commonRoot}]}));
   const cli=fileURLToPath(new URL("../install.mjs",import.meta.url)),dataDir=join(dir,"data");
   for(const flags of [["--common-root",commonRoot],["--installed-plugins",registry]]) {
