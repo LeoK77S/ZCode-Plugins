@@ -4,7 +4,7 @@ import {dirname,join} from "node:path";
 import {homedir} from "node:os";
 import {fileURLToPath,pathToFileURL} from "node:url";
 import {buildFixPrompt} from "./toast.mjs";
-import {copyPromptAndOpenWorkspace} from "suian-zcode-common/notification-action.mjs";
+import {commonRuntime} from "./common-access.mjs";
 
 export function parseActionUri(uri) {
   const match=/^suian-zcode-title:\/\/([a-z]+)$/i.exec(String(uri??""));
@@ -15,6 +15,7 @@ export async function runAction({uri,pluginRoot,dataDir,workspacePath,setClipboa
   const parsed=parseActionUri(uri);
   if(!parsed)return{ok:false,reason:"invalid_uri"};
   if(parsed.action!=="fix")return{ok:false,reason:"unknown_action"};
+  const {copyPromptAndOpenWorkspace}=await commonRuntime();
   await copyPromptAndOpenWorkspace({prompt:buildFixPrompt({pluginRoot,dataDir}),dataDir,workspacePath,setClipboard,openWorkspace});
   return{ok:true,action:"fix"};
 }
