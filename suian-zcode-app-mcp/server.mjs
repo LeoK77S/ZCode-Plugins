@@ -22,7 +22,8 @@ async function messageInput(args) {
   return { ...input, message };
 }
 
-export function createMcpServer(config, { controller, prStatus, reveal } = {}) {
+// async：面板资源注册需先完成公共层定位（MIME 与 UI 能力判定来自 common 发布目录）
+export async function createMcpServer(config, { controller, prStatus, reveal } = {}) {
   const server = new McpServer({ name: 'suian-zcode-app-mcp', version: packageMetadata.version },
     // 工件面板经 ZCode 扩展 resources/subscribe 订阅变更信号，写入后推送 notifications/resources/updated
     { capabilities: { resources: { subscribe: true } } });
@@ -81,7 +82,7 @@ export function createMcpServer(config, { controller, prStatus, reveal } = {}) {
       if (!origin.sessionId) return { ...toolResult('get_current_session', { code: origin.warning.code,
         possible_session_ids: origin.warning.possible_session_ids, error: origin.warning.message }), isError: true };
       return toolResult('get_current_session', { source: 'local_cli_databases', session_id: origin.sessionId,
-        ...reader.sessionOverview({ session_id: origin.sessionId }) });
+        ...await reader.sessionOverview({ session_id: origin.sessionId }) });
     } catch (error) {
       return { ...toolResult('get_current_session', { code: String(error.message).split(':')[0], error: error.message }), isError: true };
     }
@@ -136,7 +137,7 @@ export function createMcpServer(config, { controller, prStatus, reveal } = {}) {
       input.project_id = args.project_id;
     } else {
       if (origin.sessionId && (args.project_id === undefined || args.additional_directories === undefined)) {
-        const parent = reader.sessionProject({ session_id: origin.sessionId });
+        const parent = await reader.sessionProject({ session_id: origin.sessionId });
         if (parent && !parent.projectDeleted && parent.workspacePath) {
           const roots = [parent.workspacePath, ...parent.additionalDirectories];
           if (roots.some(path => normalizeWorkspace(path) === normalizeWorkspace(args.workspace_path))) {
@@ -286,6 +287,6 @@ export function createMcpServer(config, { controller, prStatus, reveal } = {}) {
     }).strict(),
     annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: true }
   }, respond('set_cron_enabled', args => controller.setAutomationEnabled(args)));
-  const artifactStore = registerArtifactTools(server, config, { controller, prStatus, reveal });
+  const artifactStore = await registerArtifactTools(server, config, { controller, prStatus, reveal });
   return server;
 }

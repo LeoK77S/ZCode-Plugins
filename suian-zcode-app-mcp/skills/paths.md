@@ -10,4 +10,6 @@
 
 原生服务由宿主加命名空间，形如 plugin:suian-zcode-app-mcp:suian-zcode-app。看客户端实际清单后使用，不能拿旧全局名断言原生服务不存在；源码模式仍可用 suian-zcode-app。
 
-公共根使用 common 插件的 rootPath 或源码公共目录；setup 在该根 skills/setup/SKILL.md。原生业务缓存没有同级公共模块，依赖通过共享 Node 包链接加载。
+命令目录 `{{command_dir}}`：含 release.json 的发布包为 `{{plugin_root}}/dist`，源码为 `{{plugin_root}}`。插件根不随命令目录改变。
+
+公共根使用 common 插件的 rootPath；setup 在该根 skills/setup/SKILL.md。公共能力经实际宿主存储根的 installed_plugins.json 定位，不依赖同级目录或包链接。独立技能命令传 `--installed-plugins "{{installed_plugins_json}}"`；源码调试可传 `--common-root "{{common_release_root}}"` 指向已有 common 发布目录。

@@ -44,7 +44,7 @@ flowchart LR
 
 本目录是三个业务插件的必需安装依赖，公共实现只保留一份。原生模式提供[setup](./skills/setup/SKILL.md)、[configuration](./skills/configuration/SKILL.md)和[debug](./skills/debug/SKILL.md)；根 SKILL.md 继续供源码兼容入口路由。
 
-npm ci 后运行 link.mjs，将稳定运行入口链接到本公共根，再把已选业务插件的 node_modules/suian-zcode-common 链接到该入口。Windows 使用无需提权的 junction，升级时刷新链接，新进程加载新版本。原生 Install/Restart 加 -NativePlugin，不再复制全局技能；网关、任务和数据仍沿用原身份与目录。
+原生安装与升级**不需要 npm 或目录链接**：市场交付的发布目录自带全部运行文件，业务经宿主安装记录定位 common 发布目录（PKG-01 契约），安装完整性由 depcheck 按发布清单校验。npm ci 与 link.mjs 仅用于源码开发（见各包 README 的本地开发说明）；从旧源码安装迁移按[setup 的迁移流程](./skills/setup/SKILL.md#旧源码安装迁移)执行，旧 junction 用 legacy-cleanup.mjs 归属核对后清理。原生 Install/Restart 加 -NativePlugin，不再复制全局技能；网关、任务和数据仍沿用原身份与目录。
 
 ## 模块与数据归属
 
@@ -61,14 +61,18 @@ npm ci 后运行 link.mjs，将稳定运行入口链接到本公共根，再把�
 | project-context.mjs | `readProjectContext({indexDbPath,sessionId,workspacePath,workspaceKey})`：只读会话的项目、执行及附加目录，冻结会话范围优先；侧栏编辑器与 MCP 共用，不改变网关或执行目录 |
 | notifications.mjs | `notifyOnce({dataDir,title,message,reasonCode,appId,actionUri})`；保留两小时冷却、跨进程互斥及显示失败结果 |
 | notification-action.mjs | `copyPromptAndOpenWorkspace({prompt,dataDir})`：复制调用方提示词后打开用户默认工作区；仅用户点击后执行 |
-| notification-install.mjs | `installToastAssets()` / `removeToastAssets()`：接收调用方的 protocol、appId、shortcutName、description、pluginRoot、dataDir |
+| notification-install.mjs | `installToastAssets()` / `removeToastAssets()`：接收调用方的 protocol、appId、shortcutName、description、templateFile、homeDir、dataDir；vbs 转发缓存外稳定启动器，卸载只清理本身份 |
+| toast-runtime.mjs | 共享 Toast 稳定运行时：执行器部署到 `~/.zcode/tools/suian-zcode-common/toast`（暂存校验后切换活动记录）、调用方身份外置登记、`checkToastRuntime()` 安装检查 |
+| toast-executor.mjs | 自包含 Toast 执行器（部署快照，原样分发进发布目录）：common 现场重扫依赖、title 读外置模板与当前安装根，复制修复提示并打开默认工作区；插件缓存整体缺失时仍可用 |
 | prerequisites.mjs | `checkRuntime()`：两插件的 Node / 公共依赖检查；传入 sqliteBin 时额外检查 sqlite3 CLI，只读查询内存库 |
-| depcheck.mjs | `scanSuianPlugins()`：suian 系列插件依赖完整性扫描；纯内置模块，可独立运行 |
-| depcheck-hook.mjs | `runDepcheckHook()`：Stop 钩子入口，依赖缺失时 Toast 提醒；`--scan-only` 手动复查 |
-| depcheck-prompt.mjs | `buildFixPrompt()` / `buildToastMessage()`：依赖缺失时的修复提示词与提醒文案 |
-| toast-action.mjs | `runAction()`：Toast 按钮协议入口，重扫后复制修复提示词并打开 ZCode |
+| depcheck.mjs | `scanSuianPlugins()`：suian 系列插件发布契约扫描（release.json 逐文件完整性、身份、公共 API 兼容）；纯内置模块，可独立运行 |
+| depcheck-hook.mjs | `runDepcheckHook()`：Stop 钩子入口，发布目录缺失或损坏时 Toast 提醒；`--scan-only` 手动复查 |
+| depcheck-prompt.mjs | `buildFixPrompt()` / `buildToastMessage()`：依赖缺失时的修复提示词与提醒文案（修复路径为原生重装/更新） |
+| migration.mjs | `captureLegacyState()` / `restoreLegacyState()`：旧源码迁移的开关与路径记录、迁移后恢复；记录不含凭据 |
+| legacy-cleanup.mjs | `inspectLegacyLinks()` / `cleanupLegacyLinks()`：旧 runtime/业务端 junction 的归属核对与只删链接清理；`--inspect` 出计划，`--apply` 执行 |
+| toast-action.mjs | `runAction()`：Toast 按钮协议入口（缓存内调试直调），重扫后复制修复提示词并打开 ZCode；部署链走缓存外公共执行器 |
 | ui-capabilities.mjs | `supportsZcodeMcpApps({clientInfo,capabilities,zcodeAppVersion})`：ZCode 应用版本与 MCP Apps MIME 判定；`MCP_APP_MIME_TYPE` 为页面 MIME 常量 |
-| link.mjs | `linkCommon()`：建立稳定公共入口和业务端 Node 包链接，不复制代码或覆盖普通目录 |
+| link.mjs | `linkCommon()`：源码开发用的稳定公共入口和业务端 Node 包链接，不复制代码或覆盖普通目录；正式安装与诊断不依赖它 |
 | vendor/projection.js | `getConversationMessageProjectionPolicy()`：两个插件引用同一固定产物 |
 
 UI 判定要求客户端名为 `zcode`、应用版本至少为 3.15.1，且 MCP Apps `mimeTypes` 数组包含 `text/html;profile=mcp-app`。公共模块只返回布尔值，资源和工具注册仍归业务插件。
@@ -85,13 +89,15 @@ UI 判定要求客户端名为 `zcode`、应用版本至少为 3.15.1，且 MCP 
 
 **安装器按 Desktop 应用版本自动选择协议**。宿主提供 `ZCODE_APP_VERSION` 时可直接读取；在外部 Shell 中执行时，用 `-ZcodeAppVersion` 指定已核实的应用版本。下面以 3.16.1 为例；旧版传入对应版本即可。
 
-读取 [SKILL.md](./SKILL.md)，按完整流程操作。需要 Windows、Node.js 24+，依赖固定为 ws 8.22.0：
+读取 [SKILL.md](./SKILL.md)，按完整流程操作。原生安装需要 Windows、Node.js 24+，无需 npm；发布完整性先跑 `node depcheck-hook.mjs --scan-only`：
 
 ```powershell
-npm ci --ignore-scripts --no-audit --no-fund
-powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File .\setup.ps1 -Action Status -ZcodeAppVersion 3.16.1
-powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File .\setup.ps1 -Action Install -ZcodeAppVersion 3.16.1
+node .\depcheck-hook.mjs --scan-only
+powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File .\setup.ps1 -Action Status -ZcodeAppVersion 3.16.1 -NativePlugin
+powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File .\setup.ps1 -Action Install -ZcodeAppVersion 3.16.1 -NativePlugin
 ```
+
+源码开发先执行 `npm ci --ignore-scripts --no-audit --no-fund`（依赖固定为 ws 8.22.0），调试用入口不加 -NativePlugin。
 
 Install 通过 `wscript.exe` 的 VBS 启动桥立即启动当前用户的登录任务，验证健康接口后写用户级 `ZCODE_WEB_REMOTE_CONTROL_RELAY_WS_URL`，并广播环境变更，默认 `ws://127.0.0.1:17329/ws`。默认数据目录 `~/.zcode/tools/suian-zcode-gateway` 由两个插件共用，路径为兼容旧安装保留；公共 skill 现在部署到 `~/.zcode/skills/suian-zcode-common`。重复安装复用运行中的实例和原始环境备份。
 

@@ -133,15 +133,15 @@ https://github.com/ONEGAYI/ZCode-Plugins.git
 | `get_artifacts` | 无业务参数，读取宿主绑定的当前会话最新 revision、items、stats 与继承诊断 |
 | `set_artifacts` | 以 expected_revision 和 upsert/remove 原子增量更新当前会话工件 |
 
-### 手动接入 MCP
+### 手动接入 MCP（源码模式）
 
-需要 Node.js 24+，使用 Node 内置 SQLite，无需另装 sqlite3 命令行程序。在本插件目录安装锁定依赖：
+原生安装由宿主加载 `.mcp.json`，入口为发布目录的 `dist/cli.mjs`，无需本节任何步骤。以下仅在源码模式下手动接入 MCP 客户端时使用：需要 Node.js 24+，使用 Node 内置 SQLite，无需另装 sqlite3 命令行程序。在本插件目录安装锁定依赖：
 
 ```powershell
 npm ci --ignore-scripts --no-fund --no-audit
 ```
 
-公共层也需按公共 setup 安装依赖。npm ci 后由公共 link.mjs 建立本插件的 Node 包链接，例如 `node ../suian-zcode-common/link.mjs --plugin-root .`（从源码 MCP 目录执行）。再运行 `node install.mjs --check-only`，确认依赖可用；失败先补齐，不继续注册。
+公共层也需按公共 setup 的源码开发说明安装依赖。npm ci 后由公共 link.mjs 建立本插件的 Node 包链接，例如 `node ../suian-zcode-common/link.mjs --plugin-root .`（从源码 MCP 目录执行）。再运行 `node install.mjs --check-only`，确认依赖可用；失败先补齐，不继续注册。
 
 在 MCP 客户端添加下面的 stdio 服务。将 `{{plugin_root}}` 替换为本插件目录的绝对路径，建议使用 `/` 分隔符；服务入口必须是 `cli.mjs`。配置示例见 [mcp.config.example.json](./mcp.config.example.json)。
 

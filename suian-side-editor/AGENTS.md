@@ -1,6 +1,6 @@
 # suian-side-editor — 独立侧栏文本编辑器
 
-当前版本 0.3.0 提供本机 UTF-8 文本编辑、保存、恢复、会话多目录切换与选区评论，登记原生市场并提供 `skills/setup/SKILL.md` 的依赖与公共包链接入口。共12张票；#42／46／47／48及完整并发#57保持open。H1/H2、目录／页签／保存、外部冲突和H4已有文本功能限定验证；评论原#47缺口、最终缓存／可见guest、完整首版及用户验收未通过。用户已接受的是发送边界尽力禁用风险，见`docs/adr/0005-temporary-comment-send-guard.md`，不等于豁免未观察受理后取消导致的A+B复活。
+当前版本 0.3.0 提供本机 UTF-8 文本编辑、保存、恢复、会话多目录切换与选区评论，登记原生市场并提供 `skills/setup/SKILL.md` 的安装核对入口。PKG-04（#116）后正式发布包自带 MCP SDK、zod 与实际构建页面：stdio CLI 经 `build-release.mjs` 打包，公共实现按 PKG-01 契约由 `common-client.mjs`／`locate.mjs` 薄适配经已安装 common 定位加载，原生安装不再需要 npm、链接或 UI 构建（市场切换 Release ZIP 仍属后续发布票）。共12张票；#42／46／47／48及完整并发#57保持open。H1/H2、目录／页签／保存、外部冲突和H4已有文本功能限定验证；评论原#47缺口、最终缓存／可见guest、完整首版及用户验收未通过。用户已接受的是发送边界尽力禁用风险，见`docs/adr/0005-temporary-comment-send-guard.md`，不等于豁免未观察受理后取消导致的A+B复活。
 
 2026-10-14 最终评论代码源`e77520d`／统一`f6b4257`复用SDK55、实际构建浏览器65及common98限定证据，两项可修P2（已观测证明保留、真实ChannelClient订阅释放）闭合。旧严格schema的Native失败保留，公开V4 A普通/B排队全文JSON与API审批通过仅属接口probe；最终f6新缓存／可见guest尚未执行。当前边界见[评论验证](docs/comment-guard-verification.md)顶部新记录；旧正文、JSON与首次失败不回写。
 
@@ -40,9 +40,11 @@ SE-05 已实现 schema 2 的会话恢复副本与独立回执；最终固定源 
 | --- | --- |
 | AGENTS.md / CLAUDE.md | 本插件规则与 Claude 导入入口 |
 | .zcode-plugin/plugin.json / .mcp.json | session 侧栏声明、stdio 注册及宿主工作区的显式环境绑定 |
-| skills/setup/SKILL.md | 原生实际 rootPath／dataPath 核对、锁定依赖与 common 包链接；不启动公共远控网关 |
+| skills/setup/SKILL.md | 原生实际 rootPath／dataPath 与公共客户端定位核对；正式安装即用，不 npm、不链接、不启动公共远控网关 |
 | package.json / package-lock.json | 独立插件的精确运行依赖、测试和语法检查入口 |
-| cli.mjs / server.mjs | stdio 服务、app-only 工具与本地 UI 资源；宿主 session meta 与每次目录选择验证，只读公共 project-context，评论仍绑定会话执行目录 |
+| cli.mjs / server.mjs | stdio 服务、app-only 工具与本地 UI 资源；入口先按定位契约加载公共客户端（`common-client.mjs`）再创建服务，宿主 session meta 与每次目录选择验证，只读公共 project-context，评论仍绑定会话执行目录 |
+| common-client.mjs / locate.mjs | 业务薄适配与 PKG-01 薄定位器副本（构建时逐字节校验单一源码）；公共导入统一经 `loadCommonModule('client')` 加载已安装 common，首次成功即冻结，不依赖 node_modules 链接 |
+| build-release.mjs | 正式发布目录构建入口：CLI 打包（SDK/zod 内联，薄适配独立分发）、复制 `build-ui.mjs` 实际页面与许可、组装 release.json 与发布目录外的构建输入记录 |
 | text-files.mjs | 工作区边界、按层目录、UTF-8/BOM/换行特征、字节版本与拒绝旧基线的写回 |
 | text-resources.mjs | 首次可信受审读取登记的文本资源、按版本通知与释放；后续刷新重新核对原会话目录范围，失效则停止监测并返回错误快照；同一 MCP subscribe／unsubscribe 路由按 URI 分派文本和评论资源，资源请求无对话 meta |
 | comment-state.mjs | 可信评论状态资源；common快照状态代理、V4自有临时订阅／官方组装／当前分支分页；已观测批次证明、unknown与有界退订，不用legacy事件路线 |
@@ -50,6 +52,8 @@ SE-05 已实现 schema 2 的会话恢复副本与独立回执；最终固定源 
 | ui/editor-template.html / ui/editor.css / ui/editor.mjs | 页面结构和主题、目录树、CodeMirror 页签、手动／自动保存、打开文件版本检测及冲突确认 |
 | build-ui.mjs / ui/dist/ | 唯一本地 UI 构建入口、随插件返回的自包含 HTML 与第三方许可；不手改生成文件 |
 | tests/ | 公开 MCP/stdio 文件边界契约与实际资源浏览器烟测 |
+| tests/common-fixture.mjs | 源码与发布测试共用的公共 common 安装夹具：真实构建 common 发布目录、组装宿主存储根布局并提供隔离数据目录 |
+| tests/release-package.test.mjs | 发布目录契约：锚点失败分类、组装完整性、构建输入不内联 common/vendor、独立安装根自包含运行与外置状态 |
 | tests/multi-root.test.mjs / tests/browser-multi-root.mjs | 多目录归属、撤销与 Windows 路径等价；实际构建目录切换、同名草稿、保存互斥、迟到资源及重开恢复 |
 | tests/comment-state.test.mjs | 可信双资源、V4分片／完整历史／独立受理证明、真实ChannelClient取消和晚ACK，精确本插件批次及普通正文隔离 |
 | tests/comment-host-fixture.mjs | V4 Host测试边界、官方encoder与真实ChannelClient pending／事件释放夹具，不连接Native |

@@ -1,0 +1,32 @@
+{
+  "ticket": "#113 PKG-01",
+  "baseline": "73a9c2e",
+  "verifiedAt": "2026-10-20",
+  "tdd": {
+    "red": {
+      "exitCode": 1,
+      "note": "locate.mjs / client.mjs / build-release.mjs 缺失，契约先行失败",
+      "log": ".scratch/pkg01-red.log（不入库）"
+    },
+    "green": {
+      "exitCode": 0,
+      "newContractTests": "15/15（含评审后新增 common_root_invalid、入口文件缺失、畸形版本声明三分类）",
+      "log": ".scratch/pkg01-green.log（不入库）"
+    }
+  },
+  "regression": {
+    "exitCode": 0,
+    "suite": "suian-zcode-common 全量 node --test",
+    "result": "187/187 通过",
+    "log": ".scratch/pkg01-full-suite.log（不入库）"
+  },
+  "acceptance": {
+    "旧路径失败锚点": "无链接独立目录裸导入报 ERR_MODULE_NOT_FOUND（常驻回归契约）",
+    "锚点": "ZCODE_PLUGIN_DATA 推导与显式 installedPluginsPath 均覆盖；无锚点报 anchor_missing",
+    "隔离与路径": "自定义存储根含中文与空格；两个独立消费者进程读取同一 common 根与 buildId；消费者无 node_modules",
+    "失败分类": "12 类错误码独立可辨，均在导入业务入口前抛出",
+    "导入纯净": "隔离 HOME 下导入产物零文件写入",
+    "产物自包含": "ws 与 vendor 内联；许可与 release.json 齐备；文件清单不含自身；buildId 同输入可复现、输入变更即变"
+  },
+  "notCovered": "业务插件迁移、网关缓存外部署、Release 发布与真实宿主安装验收属后续票"
+}

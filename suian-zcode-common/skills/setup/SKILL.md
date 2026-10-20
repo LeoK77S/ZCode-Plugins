@@ -1,11 +1,13 @@
 ---
 name: setup
-description: 安装、升级或移除 ZCode 公共网关，建立业务插件共享的公共包入口并迁移旧技能。
+description: 安装、升级、仅检查、迁移或移除 ZCode 公共运行时；发布包完整性诊断与旧源码安装迁移。
 ---
 
 # 公共插件安装与升级
 
-原生根为 `${ZCODE_SKILL_DIR}/../..`，使用前规范化绝对路径；源码模式沿用已确定的根。先读[路径与数据](../paths.md)。
+原生根为 `${ZCODE_SKILL_DIR}/../..`，使用前规范化绝对路径。先读[路径与数据](../paths.md)。
+
+发布形态的安装与升级**不执行 npm、不建立目录链接**：原生市场安装/更新交付的发布目录自带全部运行文件，公共层由宿主安装记录定位（PKG-01 契约）。npm 与 link.mjs 仅用于源码开发，见文末[源码开发](#源码开发npm-与-link-仅源码)。
 
 ## 确认 ZCode 版本
 
@@ -21,24 +23,26 @@ description: 安装、升级或移除 ZCode 公共网关，建立业务插件共
 
 ## 首次初始化
 
-1. 确认 Windows、Node.js 24+ 和用户选择的业务插件。市场安装业务插件会自动安装 common，但不会执行 npm 或 Windows 初始化。原生模式核对 common 已启用；源码模式核对公共目录存在。
-2. 在公共根执行 `npm ci --ignore-scripts --no-audit --no-fund`。安装 MCP 时也在 MCP 根执行同一命令；命名自身无需 npm 依赖。不要初始化研究用 sources。
-3. 建立共享入口，每个已选择业务插件传一次 --plugin-root；只有公共插件时可不传：
+1. 确认 Windows、Node.js 24+ 和用户选择的业务插件。市场安装业务插件会自动安装 common；核对 common 与所选业务插件已启用（`zcode plugins list --json`，按完整 id 核对 rootPath/dataPath/enabled）。
+2. 运行发布完整性检查（只读，不写配置、不注册任务或通知、不启动网关）：
 
 ```powershell
-node "{{common_root}}/link.mjs" --plugin-root "{{business_root}}"
+node "{{common_root}}/depcheck-hook.mjs" --scan-only --installed-plugins "{{installed_plugins_json}}"
 ```
 
-4. 按业务 setup 技能运行安装器 --check-only。只有命名需要 sqlite3 CLI 的只读 JSON 能力。失败先补齐依赖，不注册不可用的服务。
-5. 执行 setup.ps1 -Action Status -ZcodeAppVersion {{app_version}}，未安装才 Install。版本来自前面的实际 Desktop 核对；不要依赖外部 Shell 未必具备的宿主环境。原生模式为 Install/Restart 加 -NativePlugin；源码模式不加，保留旧全局技能入口：
+   安装清单路径按 paths.md 从实际宿主存储根确定。`skipped:null` 且 `ok:true` 才说明本次已安装插件的发布目录与公共 API 兼容性检查通过；`no_manifest` / `bad_manifest` 表示未完成检查，不能按零项问题判正常。有 issue 按下方[依赖完整性检查](#依赖完整性检查stop-钩子-depcheck)的分类修复，不在版本缓存内手工执行 npm、创建链接或复制文件。
+
+3. 仅在需要网关（自动命名、会话操控、选区评论）时部署服务；文本编辑器不部署网关。执行 setup.ps1 -Action Status -ZcodeAppVersion {{app_version}}，未安装才 Install。版本来自前面的实际 Desktop 核对；不要依赖外部 Shell 未必具备的宿主环境。原生模式为 Install/Restart 加 -NativePlugin：
 
 ```powershell
 powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "{{common_root}}/setup.ps1" -Action Install -ZcodeAppVersion "{{app_version}}" -NativePlugin
 ```
 
-Install 复用唯一当前用户登录任务，以隐藏 VBS → PowerShell → Node 启动并监督网关。健康检查通过后才写用户级 ZCODE_WEB_REMOTE_CONTROL_RELAY_WS_URL 并广播变更。保留网关数据、端口、令牌和原环境备份，不另建 common 的第二个任务。原生模式不复制全局技能，只移除归属匹配的旧公共技能。
+Install 把网关运行文件部署到缓存外 `~/.zcode/tools/suian-zcode-common/deployments/<buildId>`（真实文件副本，buildId 只由内容决定），并把登录任务指向缓存外稳定启动器（`launchers/gateway-launch.vbs` → `launchers/run.ps1`）；启动器读取活动网关记录 `active-gateway.json` 选择部署版本与实际 Node，任务参数、工作目录和子进程路径不引用版本缓存。健康检查通过后才写用户级 ZCODE_WEB_REMOTE_CONTROL_RELAY_WS_URL 并广播变更。保留网关数据、端口、令牌和原环境备份，不另建 common 的第二个任务。同 buildId 重复安装幂等；候选启动失败时回退先前活动部署，首次安装失败则撤销本次新增的任务、配置与部署并明确报告未安装成功。原生模式不复制全局技能，只移除归属匹配的旧公共技能。
 
-6. 回业务 setup 完成全部配置。改变模式、端口或上游时先读[configuration](../configuration/SKILL.md)。首次连接未生效时仍先完成本机配置，原 Host 验证留到用户重开后。
+4. 回业务 setup 完成全部配置。改变模式、端口或上游时先读[configuration](../configuration/SKILL.md)。首次连接未生效时仍先完成本机配置，原 Host 验证留到用户重开后。
+
+**候选、活动与运行代码是三回事**：版本缓存里的发布目录只是候选；`active-gateway.json` 指向的活动部署决定下次启动加载什么；正在运行的进程由健康指纹证明。文件已更新不代表当前进程已换代，也不要用 health.version 判断。
 
 ## 升级
 
@@ -46,38 +50,82 @@ Install 复用唯一当前用户登录任务，以隐藏 VBS → PowerShell → 
 
 由 Agent 代为更新原生插件时，更新对象是市场副本仓库 suian-zcode-plugins，不是版本缓存：先核对来源分支并拉取远端最新 HEAD，本地修改或分叉时说明原因，不强制覆盖；副本不含 Git 元数据时改用 CLI 的 `plugins marketplace update suian-zcode-plugins` 刷新。CLI 不依赖 PATH：定位用户实际安装的 Desktop 目录，用随应用提供的 zcode CLI（如 `resources/glm/zcode.cjs`，由 Node.js 24+ 执行相同参数），不下载另一份。更新顺序为先 common 后业务插件，命令形如 `zcode plugins update suian-zcode-common@suian-zcode-plugins`，只对实际已安装的插件执行。
 
-更新后重装公共与 MCP 的锁定依赖，再刷新 link.mjs 的公共入口和所有已安装业务端链接。刷新链接不会重载运行中的网关或 MCP。
-
-从新公共根执行 Status -ZcodeAppVersion {{app_version}}，核对 code_status、gateway_path_matches、protocol_update_required、upstream_update_required 与 gateway_restart_required。代码已变化、目录不匹配、协议待升级或旧进程没有指纹时安排安全重载；不要用 health.version 或仅有的连接正常来判断已加载新代码。只修改文档或 skill 时，代码指纹不变；是否重开 Desktop 看环境变更与实际连接，不能仅凭 restart_required 汇总标志决定。
+更新后**不再重装依赖或修链接**：重跑第 2 步发布完整性检查确认新缓存就绪，再从新公共根执行 Status -ZcodeAppVersion {{app_version}}，核对 code_status、candidate_pending_activation、gateway_path_matches、protocol_update_required、upstream_update_required 与 gateway_restart_required。代码已变化、候选待激活（candidate_build_id 与 active_build_id 不同）、目录不匹配、协议待升级或旧进程没有指纹时安排安全重载；不要用 health.version 或仅有的连接正常来判断已加载新代码。只修改文档或 skill 时，代码指纹不变；是否重开 Desktop 看环境变更与实际连接，不能仅凭 restart_required 汇总标志决定。
 
 需要重载网关时，等插件调用收尾，请用户只暂停 ZCode 的移动端远控，保留 ZCode 与当前 Agent 完成升级。Status 确认 desktop_connected:false 后执行 Restart -ZcodeAppVersion {{app_version}}，原生模式加 -NativePlugin。脚本等待网关和启动器退出后才更新任务，保留端口、控制令牌、原环境备份及自定义上游；应用升级时同步协议与官方地址。单纯重载且未提供新版本时，保留已配置协议。业务安装器同时更新通知脚本的代码路径。
 
 网关经 Restart 生效；地址未变且原窗口已连接正确网关时，重新开启远控即可。首次接入或改变启动环境时，先交付本机配置与待验证报告，最后请用户保存工作、择时从托盘退出并重开 ZCode，再开启远控。重连后继续业务模型、探活及临时暂停的恢复，不能把待恢复项当作升级完成。
 
-新进程加载新的公共模块；既有 MCP 仍可能是旧版，按 MCP setup 安排断开重连或择时重开并核验。只改文档或不涉及常驻代码的配置时可说明无需重载。
+新进程加载新的公共模块；既有 MCP 仍可能是旧版，按 MCP setup 安排断开重连或择时重开并核验。只改文档或不涉及常驻代码的配置时可说明无需重载。配置、模型选择、开关等业务状态在升级中保留，配置变化不会触发依赖重装。
+
+## 仅检查
+
+`depcheck-hook.mjs --scan-only` 是唯一必经的检查入口：不写文件、不注册系统对象、不启动网关。缺包（cache_missing/release_missing 等）由宿主重新安装或更新修复；服务未初始化才执行对应 setup，二者不混为 npm 缺失。
 
 ## 依赖完整性检查（Stop 钩子 depcheck）
 
-common 0.2.0 起自带原生 Stop 钩子（hooks/hooks.json → depcheck-hook.mjs），每轮对话结束自动扫描已安装 suian 系列插件的最新缓存：npm 生产依赖目录、各业务端 node_modules/suian-zcode-common 链接、公共稳定入口 runtime（含 common 升级后未重跑 link 的过期链接）。检查实现只用 Node 内置模块与包内相对导入，不经 node_modules 解析，依赖全丢时钩子仍可运行并报警。
+common 0.2.0 起自带原生 Stop 钩子（hooks/hooks.json → depcheck-hook.mjs），每轮对话结束自动扫描已安装 suian 系列插件的**发布契约**：发布清单 release.json 的逐文件完整性、发布身份、common 公共 API 兼容与最低版本约束。检查实现只用 Node 内置模块与包内相对导入，不经 node_modules 解析，依赖全丢时钩子仍可运行并报警。
 
-发现缺失时弹 Windows Toast（同一数据目录 2 小时冷却），按钮点击复制修复提示词并打开 ZCode；用户把提示词粘贴给任意会话，即可按本技能执行 npm ci 与 link.mjs 修复。修复后手动复查：
+| issue code | 含义与修复 |
+| --- | --- |
+| cache_missing | 插件缓存目录缺失：市场重装/更新该插件 |
+| plugin_files_missing | .zcode-plugin/plugin.json 缺失或不可解析：市场重装 |
+| release_missing / release_invalid | 缓存不是发布包形态（旧源码缓存或安装损坏）：迁移到发布版本或市场重装 |
+| identity_mismatch | 发布清单身份与安装条目不符：市场重装 |
+| file_missing / file_digest_mismatch | 发布文件缺失或被改动：市场重装/更新恢复发布目录 |
+| common_not_installed | 业务依赖 common 但清单无条目：安装 common |
+| api_incompatible / version_insufficient | 公共层与业务版本不配套：先更新 common，必要时一并更新业务 |
+
+发现缺失时弹 Windows Toast（同一数据目录 2 小时冷却），按钮点击复制修复提示词并打开 ZCode；提示词的修复步骤就是上表（原生重装/更新），不是 npm。修复后手动复查：
 
 ```powershell
-node "{{common_root}}/depcheck-hook.mjs" --scan-only
+node "{{common_root}}/depcheck-hook.mjs" --scan-only --installed-plugins "{{installed_plugins_json}}"
 ```
 
 Toast 身份（协议 suian-zcode-common://fix、AppID SUIAN.SuianZcodeCommon.Toast、开始菜单快捷方式"ZCode 公共基础插件"）由钩子在首次报警前自动幂等注册；setup.ps1 -Action Remove 不清理该身份，明确移除时调用 notification-install.mjs 的 removeToastAssets。
 
+每个外置 Toast 身份保存自己的 `pluginsFile`（实际安装清单的绝对路径）。钩子从宿主 `ZCODE_PLUGIN_DATA` 推导，独立调用显式提供；按钮无需宿主环境，现场读取该清单，不猜默认 HOME。清单不可用或旧身份无锚点时，按钮仍复制排障提示，但返回 `registry_unavailable`，不宣称检查通过。旧 common 身份可从当前公共根导入 `depcheck-hook.mjs`，调用 `ensureToastIdentity({ dataDir, pluginsFile })` 重新登记；`dataDir` 沿用身份文件原值，`pluginsFile` 使用实际清单。title 身份按 title setup 重跑安装命令。
+
+**common 缓存整体缺失时**：Stop 钩子随缓存一起消失，不能再指望它报警；已部署的缓存外 Toast 执行器（`~/.zcode/tools/suian-zcode-common/toast/executor.mjs`）仍在，点击旧通知按钮即可现场重扫并复制修复提示。诊断与修复都不会自动安装 npm 包、拉取源码、创建链接或重启 Desktop。
+
 ## 旧源码安装迁移
 
-先确定旧根、原启用状态和所选业务插件。把用户设置、旧命名配置与状态、网关配置备份到缓存外的私有目录；含凭据的备份不回显或入库。命名的临时暂停与恢复按其 setup 执行。
+先确定旧根、原启用状态和所选业务插件，按下述顺序执行；旧源码与运行数据保留作回退。
 
-按上方升级流程在原生根重建依赖与链接。已有网关按安全重载流程执行 Restart -NativePlugin，更新原任务的代码路径；Status 显示已安装不代表已指向原生缓存。网关数据、端口、模式、令牌及原环境备份继续保留。
+1. **记录开关和路径**（迁移记录缓存外保存，不含凭据；网关 config 只记路径、模式与端口）：
 
-业务安装器只移除指定旧根的注册。迁移后复读全局设置和旧技能；技能残留时，读取其中注入的根路径，规范化分隔符和绝对路径后比对归属，只删除已确认属于旧根的副本。保留旧源码与运行数据供回退。
+```powershell
+node "{{common_root}}/migration.mjs" --capture --legacy-root "{{legacy_root}}" --title-config "{{title_config}}" --gateway-config "~/.zcode/tools/suian-zcode-gateway/config.json" --record "{{private_dir}}/migration-record.json"
+```
+
+   含凭据的备份不回显或入库。命名的临时暂停与恢复按其 setup 执行，暂停单独记为待恢复项。
+
+2. **安装配套发布版本**：确认原生 common 与业务插件已安装并启用，跑仅检查确认发布目录就绪。已有网关按上方升级流程执行 Restart -NativePlugin 更新部署；Toast 稳定运行时与各业务 Toast 模板由安装流程幂等部署，不重复注册 Hook/MCP（业务注册迁移由各自安装器的 --legacy-root 参数处理，同一 matcher 内他人 Hook 保留，已有原生字段优先不被覆盖）。
+3. **清理旧 junction**：先看计划再执行，清理只删归属确认的链接本身，真实目录、其他插件注册和用户源码保持：
+
+```powershell
+node "{{common_root}}/legacy-cleanup.mjs" --inspect
+node "{{common_root}}/legacy-cleanup.mjs" --apply
+```
+
+4. **重连并恢复**：按业务 setup 重连 MCP/远控；网关数据、端口、模式、令牌及原环境备份全程保留。最后恢复记录的开关：
+
+```powershell
+node "{{common_root}}/migration.mjs" --restore --record "{{private_dir}}/migration-record.json" --title-config "{{new_title_config}}"
+```
+
+   恢复只补缺失字段，不覆盖已有自定义字段。迁移后复读全局设置和旧技能；技能残留时，读取其中注入的根路径，规范化分隔符和绝对路径后比对归属，只删除已确认属于旧根的副本。
+
+**首次 Git 源到 ZIP 的恢复限制**：更早的旧版本没有 Release ZIP。从旧源码安装迁移到发布版本后如需回退，须恢复原市场来源并按旧流程重新 npm 安装与建链，不能承诺无 setup 回退；公共数据默认不回滚。
 
 ## 移除
 
 单独卸载业务插件保留 common 和网关。只有用户明确要求恢复官方直连或移除公共工具，才执行 setup.ps1 -Action Remove。先保存工作并完整退出 ZCode；入口让网关自行退出，移除自己的任务，恢复原用户环境并广播。外部改过的变量保留。
 
 Remove 不删除业务授权、通知身份、Hook、MCP 或标题策略。若用户还要求清理业务端链接和运行入口，只删除已确认的链接本身，不递归删除目标。报告移除结果和重开后待验证事项。
+
+**原生卸载的数据语义以实际宿主为准**：插件更新（update）保留 data；默认彻底卸载可能删除宿主 data 目录（配置、状态、授权），需要保留数据时先备份到缓存外，或使用宿主已核实的 keep-data 入口；缓存外自有服务（网关部署、Toast 稳定运行时、网关数据目录）不随插件卸载删除，须按上面的 Remove 流程单独移除。不能笼统承诺原生卸载一定保留配置，也不能宣称全部删除。
+
+## 源码开发（npm 与 link 仅源码）
+
+从源码开发或调试时，公共根执行 `npm ci --ignore-scripts --no-audit --no-fund`（MCP 根同理；命名自身无 npm 依赖），再运行 `node link.mjs --plugin-root <业务根>` 为源码模式建立公共入口链接。npm 清理 node_modules 会移除业务端链接，需重新建立。该流程仅服务于源码工作树，正式发布入口、技能与诊断一律不依赖它；不要把源码测试夹具当作正式缓存安装或用户验收。研究用 sources 不初始化依赖。

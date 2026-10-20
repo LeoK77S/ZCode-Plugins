@@ -1,7 +1,6 @@
 import { DatabaseSync } from 'node:sqlite';
 import { win32 } from 'node:path';
-import { readProjectContext } from 'suian-zcode-common/project-context.mjs';
-import { getConversationMessageProjectionPolicy } from 'suian-zcode-common/vendor/projection.js';
+import { readProjectContext, getConversationMessageProjectionPolicy } from './common-client.mjs';
 
 function openReadOnly(path) {
   const db = new DatabaseSync(path, { readOnly: true, timeout: 2000 });
@@ -96,13 +95,14 @@ export function createSessionReader({ indexDbPath, sessionDbPath }) {
         return rows[0].project_id;
       } finally { db.close(); }
     },
-    sessionProject({ session_id }) {
+    // 项目上下文由公共层提供（3.16 项目归属与冻结范围语义），读取前完成公共定位
+    async sessionProject({ session_id }) {
       const index = openReadOnly(indexDbPath);
       try {
         if (!taskColumnsFor(index).includes('project_id')) return undefined;
         const matches = index.prepare('SELECT host_id,workspace_key FROM tasks WHERE task_id=? AND deleted=0').all(session_id);
         if (matches.length !== 1 || matches[0].host_id !== 'local') return undefined;
-        return readProjectContext({ indexDbPath, sessionId: session_id, workspaceKey: matches[0].workspace_key });
+        return await readProjectContext({ indexDbPath, sessionId: session_id, workspaceKey: matches[0].workspace_key });
       } finally { index.close(); }
     },
     sessionTitle({ session_id }) {
@@ -132,14 +132,14 @@ export function createSessionReader({ indexDbPath, sessionDbPath }) {
     },
     // get_current_session 的自省读取：两库都可能没有行（子代理上下文、deferPersistence 未落库），字段可空不报错。
     // 跨工作区同 task_id 的多行按 workspace_key 排序全部返回，交调用方判断；index_title 取首行，与 sessionTitle 的诊断语义一致。
-    sessionOverview({ session_id }) {
+    async sessionOverview({ session_id }) {
       const index = openReadOnly(indexDbPath);
       let indexMatches, project;
       try {
         indexMatches = index.prepare(`SELECT ${taskColumnsFor(index)} FROM tasks WHERE task_id=? AND deleted=0
           ORDER BY workspace_key`).all(session_id).map(taskItem);
         if (indexMatches.length === 1 && indexMatches[0].host_id === 'local')
-          project = readProjectContext({ indexDbPath, sessionId: session_id, workspaceKey: indexMatches[0].workspace_key });
+          project = await readProjectContext({ indexDbPath, sessionId: session_id, workspaceKey: indexMatches[0].workspace_key });
       } finally { index.close(); }
       const db = openReadOnly(sessionDbPath);
       let sessionTitle = null, workspacePath = null, permissionMode = null;
@@ -257,7 +257,8 @@ export function createSessionReader({ indexDbPath, sessionDbPath }) {
         return { source: 'local_tasks_index', automations, total: automations.length };
       } finally { db.close(); }
     },
-    readSession({ session_id, limit = 30, before_message_id, workspace_key }) {
+    // 历史投影规则（realUserInput/visibleAssistant）由公共层与宿主协商维护，读取前完成公共定位
+    async readSession({ session_id, limit = 30, before_message_id, workspace_key }) {
       const index = openReadOnly(indexDbPath);
       let task;
       try {
@@ -314,7 +315,7 @@ export function createSessionReader({ indexDbPath, sessionDbPath }) {
         const messages = [];
         for (const message of active) {
           const { info, parts: content } = message;
-          const policy = getConversationMessageProjectionPolicy(message);
+          const policy = await getConversationMessageProjectionPolicy(message);
           if (!(info.role === 'user' && policy === 'realUserInput' || info.role === 'assistant' && policy === 'visibleAssistant')) continue;
           const text = content.filter(p => p.type === 'text' && !p.ignored && !p.synthetic).map(p => p.text).join('');
           if (revert?.targetMessageID && info.role === 'assistant' && info.parentID === revert.createdMessageID &&

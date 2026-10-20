@@ -49,7 +49,7 @@ async function fixture(overrides = {}) {
   const calls = [], connections = [], policies = []; let archived = false, pinned = false, persistedMode = 'build';
   const { createSessionController } = await import('../control.mjs');
   const controller = createSessionController({
-    reader: { readSession: () => ({ session: { workspace_path: workspace } }),
+    reader: { readSession: async () => ({ session: { workspace_path: workspace } }),
       listSessions: args => overrides.listSessions ? overrides.listSessions(args)
         : { sessions: [{ session_id: args.query, archived, pinned }] },
       listSessionStates: args => overrides.listSessionStates ? overrides.listSessionStates(args)

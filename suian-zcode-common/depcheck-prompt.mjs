@@ -1,35 +1,32 @@
 import { COMMON_PACKAGE } from './depcheck.mjs';
 
 // Toast 正文用短描述（两行文本会截断），修复提示词用完整描述（含 detail）。
+// PKG-08 起诊断对象是发布契约：缺包/损坏指向原生重新安装或更新，不再是 npm 安装与包链接。
 const shortMessages = {
   cache_missing: '缓存目录缺失',
   plugin_files_missing: '插件文件缺失',
-  npm_dependency_missing: 'npm 依赖未装',
+  release_missing: '非发布包形态',
+  release_invalid: '发布清单损坏',
+  identity_mismatch: '发布身份不符',
+  file_missing: '发布文件缺失',
+  file_digest_mismatch: '发布文件被改动',
   common_not_installed: '公共插件未安装',
-  common_link_missing: '缺公共包链接',
-  common_link_not_symlink: '公共包入口被真实目录占据',
-  common_link_mismatch: '公共包链接指向错误',
-  runtime_missing: '公共稳定入口缺失',
-  runtime_not_symlink: '公共稳定入口被真实目录占据',
-  runtime_target_missing: '公共稳定入口悬空',
-  runtime_target_invalid: '公共稳定入口指向异常',
-  runtime_stale: '公共入口指向旧版本',
+  api_incompatible: '公共 API 不兼容',
+  version_insufficient: '公共插件版本过低',
 };
 
 const fullMessages = {
   ...shortMessages,
   cache_missing: '插件缓存目录缺失',
-  plugin_files_missing: '插件清单文件（package.json / plugin.json）缺失或不可解析',
-  npm_dependency_missing: 'npm 生产依赖未安装',
+  plugin_files_missing: '插件清单 .zcode-plugin/plugin.json 缺失或不可解析',
+  release_missing: '插件目录缺 release.json（旧源码缓存形态或安装损坏）',
+  release_invalid: 'release.json 缺失或字段不满足发布契约',
+  identity_mismatch: '发布清单身份与安装记录条目不一致',
+  file_missing: '发布清单声明的文件缺失于安装目录',
+  file_digest_mismatch: '发布文件内容与发布清单摘要不符（被改动或传输损坏）',
   common_not_installed: '业务插件声明依赖公共插件，但安装清单中没有公共插件条目',
-  common_link_missing: '缺少 node_modules/suian-zcode-common 公共包链接',
-  common_link_not_symlink: 'node_modules/suian-zcode-common 被真实目录占据（应为 junction 链接）',
-  common_link_mismatch: '公共包链接未指向稳定入口 ~/.zcode/tools/suian-zcode-common/runtime',
-  runtime_missing: '公共稳定入口 runtime 链接缺失',
-  runtime_not_symlink: '公共稳定入口被真实目录占据（应为 junction 链接）',
-  runtime_target_missing: '公共稳定入口链接悬空（目标目录不存在）',
-  runtime_target_invalid: '公共稳定入口指向了不属于 suian-zcode-common 的目录',
-  runtime_stale: '公共稳定入口仍指向旧版本缓存（common 升级后未重跑 link.mjs）',
+  api_incompatible: '业务要求的公共 API 版本与已安装 common 不一致，需按市场配套版本更新',
+  version_insufficient: '已安装 common 版本低于业务声明的最低版本',
 };
 
 // version 来自外部清单，仅接受字符串，其余形态（对象/数字等）一律视为缺失
@@ -51,28 +48,45 @@ export function buildToastMessage(result) {
   return `${summarizeIssues(result)}。点击按钮复制修复提示词并打开 ZCode（需确认打开工作区）。`;
 }
 
+const REINSTALL_CODES = new Set(['cache_missing', 'plugin_files_missing', 'release_missing', 'release_invalid', 'identity_mismatch', 'file_missing', 'file_digest_mismatch']);
+
 export function buildFixPrompt(result) {
+  if (result.skipped) {
+    return `suian 系列插件未完成依赖检查，当前状态未知（${result.skipped}）。安装清单不可用或外置通知身份缺少清单锚点；请按对应插件的 setup 技能确认实际 installed_plugins.json 路径并重新初始化通知身份，再复查。`;
+  }
   if (!result.issues.length) {
-    return `suian-zcode-common 依赖检查刚刚复查通过，所有已安装 suian 系列插件的 npm 依赖与公共包链接均齐全，无需修复。`;
+    return `suian-zcode-common 依赖检查刚刚复查通过，所有已安装 suian 系列插件的发布包完整性与公共 API 兼容性均正常，无需修复。`;
   }
   const lines = result.issues.map(issue => {
     const version = versionOf(result, issue.plugin);
     const label = `${issue.plugin}${version ? ` ${version}` : ''}`;
     return `- ${label}：${fullMessages[issue.code] ?? issue.code}${issue.detail ? `（${issue.detail}）` : ''}`;
   });
-  const commonRoot = result.plugins.find(entry => entry.name === COMMON_PACKAGE)?.installPath;
   const roots = result.plugins
     .map(entry => `- ${entry.name}${versionOf(result, entry.name) ? ` ${versionOf(result, entry.name)}` : ''}：${entry.installPath ?? '(未知)'}`)
     .join('\n');
+  const reinstallTargets = [...new Set(result.issues.filter(issue => REINSTALL_CODES.has(issue.code)).map(issue => issue.plugin))]
+    .filter(name => name !== COMMON_PACKAGE || result.issues.some(issue => issue.plugin === COMMON_PACKAGE && REINSTALL_CODES.has(issue.code)));
+  const commonUpgradeNeeded = result.issues.some(issue => issue.code === 'api_incompatible' || issue.code === 'version_insufficient' || issue.plugin === COMMON_PACKAGE && issue.code === 'common_not_installed');
+  const steps = [];
+  if (result.issues.some(issue => issue.code === 'common_not_installed')) {
+    steps.push(`1. 安装清单中没有 suian-zcode-common：在 ZCode 插件市场安装（或重新安装任一依赖它的 suian 业务插件，依赖会一并安装）`);
+  }
+  if (commonUpgradeNeeded && result.issues.some(issue => issue.code !== 'common_not_installed')) {
+    steps.push(`${steps.length + 1}. 公共层与业务版本不配套：先更新 suian-zcode-common（zcode plugins update suian-zcode-common@suian-zcode-plugins），仍有 api_incompatible 或 version_insufficient 时一并更新对应业务插件`);
+  }
+  if (reinstallTargets.length) {
+    steps.push(`${steps.length + 1}. 对上表存在发布文件问题的插件，通过 ZCode 插件市场重新安装或更新（zcode plugins update <插件>@suian-zcode-plugins）以恢复发布目录；不要在版本缓存内手工执行 npm、创建目录链接或复制文件`);
+  }
+  const commonRoot = result.plugins.find(entry => entry.name === COMMON_PACKAGE)?.installPath;
+  steps.push(`${steps.length + 1}. 修复后运行 node "${commonRoot ?? '<suian-zcode-common 缓存根>'}/depcheck-hook.mjs" --scan-only${result.pluginsFile ? ` --installed-plugins "${result.pluginsFile}"` : ''} 复查，直到缺失清单为空`);
   return [
     '我的 ZCode suian 系列插件依赖不完整，请帮我修复。以下缺失清单来自 suian-zcode-common 的依赖检查（Stop 钩子 depcheck）：',
     '',
     ...lines,
     '',
-    '请按 suian-zcode-common:setup 技能（skills/setup/SKILL.md）执行依赖初始化与修复：',
-    '1. 对上表每个存在 npm 依赖问题的插件，在其缓存根目录运行 npm ci --ignore-scripts --no-audit --no-fund（suian-zcode-common 自身同样适用）',
-    `2. 运行 node ${commonRoot ?? '<suian-zcode-common 缓存根>'}\\link.mjs --plugin-root <各业务插件缓存根>（每个依赖 common 的插件传一次），重建公共包链接`,
-    `3. 修复后运行 node ${commonRoot ?? '<suian-zcode-common 缓存根>'}\\depcheck-hook.mjs --scan-only 复查，直到缺失清单为空`,
+    '请按 suian-zcode-common:setup 技能（skills/setup/SKILL.md）处理，修复方式是原生重新安装或更新，不是 npm 安装：',
+    ...steps,
     '',
     '各插件本次检查实测的缓存根：',
     roots,

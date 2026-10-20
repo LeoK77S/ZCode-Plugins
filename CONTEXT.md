@@ -6,7 +6,8 @@ ZCode 会话工具 monorepo（自动命名插件、会话操控 MCP、侧栏编�
 
 **原生插件**：由 ZCode 加载 .zcode-plugin/plugin.json 及标准 skills、hooks、MCP 组件的安装单元。市场 dependencies 负责下载依赖，不自动执行 npm 或系统初始化，也不强制依赖永久启用。
 
-**公共包入口**：link.mjs 维护的稳定目录链接，业务插件按 Node 包名 suian-zcode-common 导入。它共享一份实现，不是第二个常驻进程；更新入口后运行中的模块缓存仍需重载。
+**公共包入口**：原生安装中业务加载 common 的方式——按完整插件身份从宿主安装记录（installed_plugins.json）定位 common 发布目录并校验 release.json 与 commonApiVersion（PKG-01 契约），不是 Node 包链接。link.mjs 的 runtime/业务端 junction 是源码开发时期的入口，正式安装与诊断不依赖；迁移后由 legacy-cleanup 归属核对清理。
+_Avoid_: 把安装记录定位称为包链接、用 node_modules 查找兜底
 
 **技能拆分**：setup 负责安装与迁移，configuration 负责配置，debug 负责诊断；命名 control 与 MCP sessions/glm 负责日常业务。根 SKILL.md 只为源码兼容安装路由。
 
