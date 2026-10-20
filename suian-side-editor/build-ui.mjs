@@ -22,6 +22,15 @@ const html = template.replace('<!-- EDITOR_LICENSES -->', () => `<!-- 第三方�
   .replace('<!-- EDITOR_STYLE -->', () => `<style>${css}</style>`).replace('<!-- EDITOR_SCRIPT -->', () => `<script type="module">${script}</script>`);
 const output = resolve(root, 'ui/dist');
 await mkdir(output, { recursive: true });
-await writeFile(join(output, 'editor.html'), html);
-await writeFile(join(output, 'THIRD-PARTY-LICENSES.txt'), licenseText);
+// autocrlf 环境下入库产物 checkout 为 CRLF，重建输出为 LF；内容按 LF 归一等价时
+// 跳过写回，避免每次构建都因行尾差异把工作树标脏、阻断发布门禁的清洁检查。
+const writeIfUnchanged = async (file, content) => {
+  const normalize = value => Buffer.from(value.toString('utf8').replaceAll('\r\n', '\n'));
+  let existing = null;
+  try { existing = await readFile(file); } catch {}
+  if (existing && Buffer.compare(normalize(existing), normalize(content)) === 0) return;
+  await writeFile(file, content);
+};
+await writeIfUnchanged(join(output, 'editor.html'), html);
+await writeIfUnchanged(join(output, 'THIRD-PARTY-LICENSES.txt'), licenseText);
 console.log(`已构建本地编辑器：${Buffer.byteLength(html)} 字节；${packages.size} 个依赖许可`);
