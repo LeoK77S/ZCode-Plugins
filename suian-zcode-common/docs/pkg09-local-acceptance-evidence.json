@@ -1,0 +1,115 @@
+{
+  "ticket": "#121 PKG-09",
+  "scope": "本地可自动验收部分；真实系统注册、人工交互、公开 Release 与正式合并按授权边界未执行",
+  "verifiedAt": "2026-10-20",
+  "candidate": {
+    "commit": "a6bd9c9373b0e5e35233b302ad8a05622576e8cc",
+    "baseline": "feat/shared-runtime-release@a6bd9c9（构建基线 tip，与工单预期一致）",
+    "buildBranch": "pkg09/local-acceptance（独立 worktree，构建绑定基线提交）",
+    "releaseTag": "plugins-2026.10.20-candidate",
+    "toolchain": { "node": "v24.20.0", "platform": "win32", "builder": "release-orchestrate.mjs build（PKG-07 链）" },
+    "gate": { "exitCode": 0, "ok": true, "drifted": 0, "note": "构建副作用 ui/dist 行尾写回已还原后复核；recordCommit 与 HEAD 一致" },
+    "zips": [
+      { "plugin": "suian-zcode-common", "version": "0.4.2", "sha256": "328aaac85a50ef2562c61a3b8640902232be0f15b904c691a216a04574673293" },
+      { "plugin": "suian-zcode-title", "version": "0.1.5", "sha256": "99fa92988a52b82ca72f2762c013c573aafbffb1b793c476f244dd31af976cd5" },
+      { "plugin": "suian-zcode-app-mcp", "version": "0.10.0", "sha256": "3c0617bacc5e8a13b9c3d4e479b4c143806cff7836efdffb0ec04b8963532874" },
+      { "plugin": "suian-side-editor", "version": "0.3.0", "sha256": "c67be9175b042634d17dc3b19398045aac04af4c89cd6bce12dfbedbdc6e5944" }
+    ],
+    "byteEquivalenceWithPkg07": "四 ZIP SHA-256 与 PKG-07 发布记录逐项一致（同源码输入 + 确定性 ZIP 复用语义成立）"
+  },
+  "isolatedHost": {
+    "cli": "zcode 0.17.0（真实已安装 CLI：resources/glm/zcode.cjs，非测试桩）",
+    "isolation": "USERPROFILE/HOME 重定向至 .scratch 隔离根；官方 storageRoot 按 ~/.zcode 默认布局解析（context/index.ts resolveUserHomeDir、config-factory env 层、bootstrap paths.ts）",
+    "marketplaceSource": "loopback HTTP（官方 zip-source.ts 显式允许 127.0.0.1；manifest 与 ZIP 同源下载，端口随机、用完即关）",
+    "layout": "iso-home/.zcode/cli/plugins/{known_marketplaces.json, marketplaces/, cache/, data/, installed_plugins.json}",
+    "noNpmOrLinks": "cache 内无 node_modules、无 junction/symlink；安装全程未执行 npm/link"
+  },
+  "executed": [
+    {
+      "item": "固定候选并绑定提交",
+      "result": "见 candidate 段；release-record/marketplace.candidate 落 .scratch/release"
+    },
+    {
+      "item": "隔离宿主真实安装四包及依赖集合",
+      "result": "marketplace add EXIT=0（4 插件）；四包 install EXIT=0；common 0.4.2 为唯一安装条目，三业务 dependencies=[suian-zcode-common] 共同指向同一安装路径；依赖闭包每次真实下载并校验 common ZIP（服务器访问日志 5 次下载）"
+    },
+    {
+      "item": "更新矩阵：只更新业务包",
+      "result": "title 0.1.5→0.1.6 update EXIT=0；common/app-mcp/editor 版本与安装时间未变；旧 0.1.5 缓存目录保留（多版本共存，无热换）"
+    },
+    {
+      "item": "更新矩阵：只更新兼容 common",
+      "result": "common 0.4.2→0.4.3 update EXIT=0（shadowB 真实构建的测试版本）；注册表 common 条目唯一指向 0.4.3；业务版本未动；0.4.2/0.4.3 目录共存"
+    },
+    {
+      "item": "更新矩阵：同版本重装",
+      "result": "字节一致重装 EXIT=0（幂等成功）；字节不一致（影子树同名 ZIP）被拒 EXIT=1 sha256 mismatch——CLI 以已装记录摘要比对，杜绝跨版本假通过"
+    },
+    {
+      "item": "更新矩阵：旧进程待重载",
+      "result": "app-mcp stdio 子进程在 common 0.4.2 下启动冻结后跨 0.4.3 更新存活，第二轮 tools/list 19 工具正常（无热换）；重启新进程握手 EXIT=0（定位注册表唯一 0.4.3 条目，commonApiVersion=1 兼容）——换代经新进程生效，符合定位器冻结语义"
+    },
+    {
+      "item": "迁移自动断言（PKG-08 链）",
+      "result": "19/19 通过：capture 记录 title 开关（未写字段按启用语义取值）/模型/网关模式端口且不捕获 control_token；发布形态安装器 --native-plugin --legacy-root 删除旧 MCP 注册、保留他人注册、旧自定义路径转入外置配置、删除归属旧技能；注册表无重复条目；restore 缺字段补齐、已有字段不覆盖；授权工件/编辑器恢复副本/网关配置原文件保留"
+    },
+    {
+      "item": "真实子进程核验：app-mcp stdio",
+      "result": "initialize+tools/list EXIT=0，serverInfo 0.10.0，19 工具"
+    },
+    {
+      "item": "真实子进程核验：工件 Hook 三事件",
+      "result": "SessionStart/UserPromptSubmit EXIT=0（suppressOutput + 工件提示上下文）；Stop 快照 EXIT=0 并真实创建工件库 artifacts.sqlite；输入契约缺字段时明确拒绝（hook_input_invalid）"
+    },
+    {
+      "item": "真实子进程核验：title Stop worker",
+      "result": "EXIT=0，按配置开关输出 {\"action\":\"disabled\"}（安全模式，未做真实改名/模型操作）"
+    },
+    {
+      "item": "真实子进程核验：editor stdio",
+      "result": "apps 宿主身份（zcode/3.15.1/ui 扩展）下 9 工具全注册；非 apps 身份 0 工具（宿主能力门控正确）；common supportsZcodeMcpApps API 在新安装条目下工作"
+    },
+    {
+      "item": "原生页面资源",
+      "result": "artifacts.html（中文侧栏结构/刷新/分组）与 editor.html（工具绑定、无源码占位符）断言 5/5 通过"
+    },
+    {
+      "item": "失败场景：摘要错误",
+      "result": "清单 sha 篡改（URL 正常）→ install EXIT=1 plugin_marketplace_invalid: sha256 mismatch expected=deadbeef.. actual=<正式摘要>；已装插件与注册表完好"
+    },
+    {
+      "item": "失败场景：缺包",
+      "result": "ZIP URL 404 → install EXIT=1 Failed to download plugin zip: 404 Not Found；注册表 4 条目完好、版本未变"
+    },
+    {
+      "item": "失败场景：候选启动失败",
+      "result": "commonApiVersion=2 假发布 → stdio 入口 BOOT_EXIT=1，CommonLocationError api_incompatible『发布为 2，消费者要求 1；不回退其他版本』；另证 install_path_missing 分类（安装路径缺失同样明确退出，不产生部分可用状态）"
+    },
+    {
+      "item": "回退可自动部分",
+      "result": "市场 remove→add(v0 旧 URL/摘要)→install：title 0.1.6→0.1.5、common 0.4.3→0.4.2 均 EXIT=0；旧版本 ZIP/缓存目录不删除（回退资产保留）；隔离世界最终回到正式候选 v0 四版本"
+    }
+  ],
+  "notExecuted": [
+    { "item": "真实系统注册/迁移（网关计划任务、协议/AUMID 注册、真实用户环境广播）", "reason": "工单授权门槛：真实系统操作不在本地自动范围" },
+    { "item": "安全窗口内真实网关切换与旧缓存删除后的网关重启（运行指纹比对）", "reason": "依赖真实系统注册与网关重载窗口" },
+    { "item": "人工 Toast 点击（common/title 双身份修复提示、剪贴板、官方确认框）", "reason": "工单要求操作者人工完成，禁止脚本激活协议" },
+    { "item": "公开 GitHub Release 创建/匿名下载/tag 推送", "reason": "未获发布授权；loopback 与草稿下载不能冒充公开下载证据（规格 9.3）" },
+    { "item": "市场清单正式切换与 master 正式合并核对", "reason": "未获正式合并授权；正式 marketplace.json 保持原版本" },
+    { "item": "真实 Desktop（GUI）宿主安装链路", "reason": "本票使用真实 zcode CLI 宿主；Desktop 版本对 ZIP 源行为留待实机验收（规格 13）" },
+    { "item": "真实会话/模型操作与模型用量记录", "reason": "未获专用测试会话授权；title 以 disabled 安全模式验证加载" },
+    { "item": "自定义存储根与带空格/中文路径宿主", "reason": "本票采用默认布局重定向隔离；该分支未覆盖" },
+    { "item": "网关活跃时拒绝切换、不完全卸载（keep-data）实机语义", "reason": "依赖真实网关进程与宿主卸载行为" }
+  ],
+  "rollbackEntry": "隔离宿主回退路径：zcode plugins marketplace remove→add(<旧清单 URL>)→install <包>@<市场>；版本回退不动旧资产。仓库层回退入口见规格 9.4（旧 URL/摘要/版本集合，不重压资产）",
+  "marketStatus": "仓库正式 marketplace.json 未改动（仍为 Git 源码形态四条目）；候选 marketplace.candidate.json 仅存 .scratch/release，未提交、未切换",
+  "artifacts": {
+    "scratchDir": ".scratch/pkg09（gitignore 忽略，不入库）：release 构建产物与记录、loopback 访问日志、全部场景 CLI 输出（logs-*.json）、迁移断言（logs-migration-e2e.json 19/19）、stdio 握手（logs-stdio-*.json）、失败与回退（logs-fail-*.json / logs-rollback-*.json）",
+    "committedEvidence": "本文件（suian-zcode-common/docs/pkg09-local-acceptance-evidence.json）"
+  },
+  "knownFindings": [
+    "side-editor build-release 会写回 ui/dist 触发行尾变化（git 规范化后无内容差异），构建后需还原再过 gate；不影响 ZIP 字节（四 ZIP 与 PKG-07 逐字节一致）",
+    "CLI 依赖闭包安装时对已满足依赖仍重新下载并校验 common ZIP（每次 install 5 连下载），属官方安装器行为，记录备查",
+    "影子树构建的 common 0.4.2 ZIP 与正式 ZIP 字节不同（构建环境路径进入产物元数据），仅用于同版本重装拒绝场景，未进入任何安装记录"
+  ]
+}
