@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import {installToastAssets,removeToastAssets,ensureToastAppId,installStopHook,removeStopHook,buildHookCommand,installSkill,removeSkill,installPlugin,AUMID,PROTOCOL} from "../install.mjs";
+import {installToastAssets,removeToastAssets,ensureToastAppId,installStopHook,removeStopHook,buildHookCommand,installSkill,removeSkill,installPlugin,AUMID,PROTOCOL} from "../installer.mjs";
 
 import {buildVbsContent,buildProtocolCommand} from "../../suian-zcode-common/notification-install.mjs";
 import {mkdtemp,writeFile,stat,rm} from "node:fs/promises";
@@ -147,7 +147,12 @@ test('原生重复安装保留已有配置的显式启用和暂停状态', async
     shell.state.files.set(configPath,JSON.stringify(previous));
     for(let attempt=0;attempt<2;attempt++) {
       await installPlugin({pluginRoot,dataDir,configPath,nativePlugin:true,shell});
-      assert.deepEqual(JSON.parse(shell.state.files.get(configPath)),{...previous,registration:'native',dataDir});
+      const config=JSON.parse(shell.state.files.get(configPath));
+      assert.equal(config.enabled,enabled,'显式启用或暂停状态不被安装器改变');
+      assert.deepEqual(config.selection,previous.selection);
+      assert.equal(config.registration,'native');
+      assert.equal(config.dataDir,dataDir);
+      assert.ok(String(config.installedPluginsPath||'').endsWith('installed_plugins.json'),'原生安装把安装记录路径写入外置配置，供无宿主注入的 CLI 定位');
     }
   }
 });

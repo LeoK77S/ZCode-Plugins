@@ -15,7 +15,7 @@ description: 排查 ZCode 自动命名不触发、标题异常、模型错误和
 
 | 现象或 reasonCode | 排查方向 |
 | --- | --- |
-| 公共包无法导入 | 公共 setup 在 npm ci 后重建链接，不复制公共模块 |
+| common 定位失败（anchor_missing / common_not_installed / api_incompatible）| 按失败阶段处理：未安装原生 common 先重装；已安装则核对 ZCODE_PLUGIN_DATA 或 --installed-plugins 路径；源码调试用 --common-root 指向 common 构建产物目录。不重建 node_modules 链接、不复制公共模块 |
 | gateway_not_configured / invalid_config | 公共配置缺失或无效，不回显完整文件 |
 | gateway_upgrade_required | 文件已新、进程仍旧，按公共 setup 安全重载 |
 | unreachable / connection_failed / desktop_offline | 公共 debug 分别检查任务、健康、连接与模式 |

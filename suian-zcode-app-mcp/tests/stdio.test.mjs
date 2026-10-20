@@ -8,13 +8,13 @@ import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { execFile } from 'node:child_process';
 import { writeFile } from 'node:fs/promises';
-import { fixture } from './fixtures.mjs';
+import { fixture, testZcodePluginData } from './fixtures.mjs';
 
 test('外置配置提供数据库路径，显式 CLI 参数仍优先，不写原生插件缓存',async t=>{
   const f=fixture(t),configFile=join(dirname(f.indexDbPath),'native-config.json');
   f.task({id:'sess_native_config',updated:1});
   await writeFile(configFile,JSON.stringify({indexDbPath:f.indexDbPath,sessionDbPath:'missing-supplied-db',gatewayConfigPath:join(dirname(f.indexDbPath),'missing-gateway.json')}));
-  const transport=new StdioClientTransport({command:process.execPath,args:[fileURLToPath(new URL('../cli.mjs',import.meta.url)),'--config',configFile,'--session-db',f.sessionDbPath],stderr:'pipe'});
+  const transport=new StdioClientTransport({command:process.execPath,args:[fileURLToPath(new URL('../cli.mjs',import.meta.url)),'--config',configFile,'--session-db',f.sessionDbPath],stderr:'pipe',env:{...process.env,ZCODE_PLUGIN_DATA:testZcodePluginData}});
   const client=new Client({name:'native-config-contract',version:'1.0.0'});
   t.after(()=>client.close());
   await client.connect(transport);
@@ -32,7 +32,7 @@ test('独立 stdio 进程完成握手、分页、消息读取与错误反馈，�
   const before = [digest(f.indexDbPath), digest(f.sessionDbPath)];
   const transport = new StdioClientTransport({ command: process.execPath,
     args: [fileURLToPath(new URL('../cli.mjs', import.meta.url)), '--index-db', f.indexDbPath, '--session-db', f.sessionDbPath, '--gateway-config', join(dirname(f.indexDbPath), 'missing-gateway.json')],
-    stderr: 'pipe' });
+    stderr: 'pipe', env: { ...process.env, ZCODE_PLUGIN_DATA: testZcodePluginData } });
   let stderr = '';
   transport.stderr.on('data', chunk => { stderr += chunk; });
   const client = new Client({ name: 'stdio-contract', version: '1.0.0' });
@@ -65,7 +65,7 @@ test('独立 stdio 进程完成握手、分页、消息读取与错误反馈，�
 test('授权配置入口从 stdin 保存当前用户 DPAPI 密文，不启动 MCP、不输出链接', { skip: process.platform !== 'win32' }, async t => {
   const f = fixture(t), dir = join(dirname(f.indexDbPath), 'auth');
   const secret = 'https://zcode.z.ai/remote/v4?sid=fixture&hash=fixture-hash&mid=fixture-mid';
-  const child = execFile(process.execPath, [fileURLToPath(new URL('../cli.mjs', import.meta.url)), '--save-authorization', '--auth-data-dir', dir], { windowsHide: true });
+  const child = execFile(process.execPath, [fileURLToPath(new URL('../cli.mjs', import.meta.url)), '--save-authorization', '--auth-data-dir', dir], { windowsHide: true, env: { ...process.env, ZCODE_PLUGIN_DATA: testZcodePluginData } });
   child.stdin.end(JSON.stringify({ authorization_url: secret }));
   const completed = await new Promise((resolve, reject) => {
     let stdout = ''; child.stdout.on('data', chunk => { stdout += chunk; });

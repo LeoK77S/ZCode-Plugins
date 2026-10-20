@@ -6,7 +6,7 @@
 
 - 新增子项目必须在本文件文件树登记，并拥有自己的 `AGENTS.md`；通用规则写这里，专属规则写子项目内。
 - `suian-zcode-common/` 是业务插件共用的公共基础能力实现和配置入口：网关、远控协议/探活、DPAPI、Toast 与消息投影。插件仅维护业务规则和提示词，不复制公共实现；运行数据归调用方，网关数据保留原目录。
-- `marketplace.json` 是原生市场入口；三个业务条目的 dependencies 都包含 common，各条目版本与插件清单同步。原生插件分别缓存，通过公共 link.mjs 建立 Node 包链接，不硬拼同级缓存路径。skills/ 按职责拆分，根 SKILL.md 仅作源码兼容路由。
+- `marketplace.json` 是原生市场入口；三个业务条目的 dependencies 都包含 common，各条目版本与插件清单同步。原生插件分别缓存，不硬拼同级缓存路径；业务对 common 的加载正按 PKG 契约分票迁移到安装记录定位（title 已完成，公共导入经薄适配加载 common 发布目录），旧 link.mjs Node 包链接降为源码开发工具。skills/ 按职责拆分，根 SKILL.md 仅作源码兼容路由。
 - 开源发布前完成个人信息脱敏（用户名、会话标识、本机路径、授权凭据），由插件各自 `.gitignore` 挡住运行时数据。
 - 提交信息用中文，`类型: 简述` 格式，正文分条说明做了什么、为什么做。
 - `sources/` 下的 submodule 是研究用的第三方上游快照：只读、不 fork、不修改、不安装依赖；升级钉定提交须在 `sources/README.md` 同步登记。
@@ -33,17 +33,21 @@ ZCode-Plugins/
 ├── LICENSE                 # MIT（自有代码）；vendor 第三方代码保留原许可
 ├── .gitignore              # 仓库级通用忽略规则
 │
-├── suian-zcode-title/      # ZCode 会话自动命名插件（Stop Hook + 命名决策 + 通知文案）
+├── suian-zcode-title/      # ZCode 会话自动命名插件（Stop Hook + 命名决策 + 通知文案；公共导入经客户端契约定位）
 │   ├── .zcode-plugin/      # 原生插件元信息
-│   ├── hooks/             # 原生异步 Stop 注册
+│   ├── hooks/             # 原生异步 Stop 注册（发布构建将命令改指 dist 入口）
 │   ├── skills/            # setup / configuration / control / debug
+│   ├── common-access.mjs / release-layout.mjs / installer.mjs / build-release.mjs
+│   │                       # 公共薄适配与锚点解析、源码/发布双模式布局、安装共享实现、发布目录构建
 │   └── docs/notes/         # 研究与验证笔记（脱敏后入库；桌面截图等敏感物料不入库）
 │
 ├── suian-zcode-app-mcp/    # ZCode 会话 MCP（检索、聊天历史、原 Host 改名/创建/发信/压缩/置顶与 stdio 接入）
 │   ├── .zcode-plugin/      # 原生插件元信息
-│   ├── .mcp.json           # 原生 stdio 注册，配置指向外置 dataPath
+│   ├── .mcp.json           # 原生 stdio 注册，配置指向外置 dataPath（发布版清单指向 dist 入口）
 │   ├── hooks/              # 同步工件初始化、提交摘要与 Stop 快照
-│   ├── ui/                 # 原生只读工件侧栏资源
+│   ├── ui/                 # 原生只读工件侧栏资源（构建时随 dist 复制，服务按相对位置读取）
+│   ├── build-release.mjs   # 发布目录构建：SDK/zod 内联，公共层经 PKG-01 安装记录共享加载
+│   ├── common-client.mjs   # 薄适配：业务对公共函数的唯一入口（惰性 loadCommonModule）
 │   └── skills/             # setup / configuration / sessions / automations / artifacts / glm / debug
 │
 ├── suian-side-editor/     # 本机文本编辑器 0.3.0；多目录切换，选区评论尽力保护，原#47缺口与Native待验

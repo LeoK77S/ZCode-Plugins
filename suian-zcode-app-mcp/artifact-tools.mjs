@@ -7,7 +7,7 @@ import { registerArtifactUi } from './artifact-ui.mjs';
 import { registerArtifactResources } from './artifact-resources.mjs';
 import { toolResult } from './tool-result.mjs';
 
-export function registerArtifactTools(server, config, { controller, prStatus, reveal }) {
+export async function registerArtifactTools(server, config, { controller, prStatus, reveal }) {
   // notify 闭包先于 registry 声明：set/linkSessions 只在连接建立后经工具调用到达，届时注册表已就绪
   const store = createArtifactStore({ ...config, notify: () => registry.notifyChanged() });
   const registry = registerArtifactResources(server, config, store);
@@ -109,6 +109,6 @@ export function registerArtifactTools(server, config, { controller, prStatus, re
     return { ref: item.ref, ...(await revealService.reveal(item.ref)) };
   }));
   revealTool.disable();
-  registerArtifactUi(server, getTool, setTool, statusTool, revealTool, config);
+  await registerArtifactUi(server, getTool, setTool, statusTool, revealTool, config);
   return store;
 }

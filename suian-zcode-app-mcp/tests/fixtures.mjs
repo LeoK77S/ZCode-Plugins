@@ -1,7 +1,41 @@
 import { DatabaseSync } from 'node:sqlite';
-import { mkdirSync, mkdtempSync, rmSync } from 'node:fs';
+import { execFileSync } from 'node:child_process';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { join } from 'node:path';
+import { setCommonLocation } from '../common-client.mjs';
+
+// 进程内 MCP 测试的公共层锚点（PKG-03 迁移后 createMcpServer 需要公共定位）：
+// 构建一次 common 发布目录并按官方 InstalledPluginRecord 写安装记录；子进程场景导出宿主注入变量。
+// node --test 并行进程同时冷启动：各自构建到 PID 专属临时目录再原子 rename，失败方复用已就位结果。
+// 缓存存在即复用；common 源变化后删除 tests/.scratch/common-anchor 重建。
+const repoRoot = fileURLToPath(new URL('../../', import.meta.url));
+const anchorRoot = join(fileURLToPath(new URL('./', import.meta.url)), '.scratch', 'common-anchor');
+const commonReleaseDir = join(anchorRoot, 'common-release');
+if (!existsSync(join(commonReleaseDir, 'release.json'))) {
+  const stagingDir = `${commonReleaseDir}.tmp-${process.pid}`;
+  rmSync(stagingDir, { recursive: true, force: true });
+  execFileSync(process.execPath, [join(repoRoot, 'suian-zcode-common', 'build-release.mjs'), '--out', stagingDir], { stdio: 'ignore' });
+  try {
+    renameSync(stagingDir, commonReleaseDir);
+  } catch {
+    rmSync(stagingDir, { recursive: true, force: true }); // 他进程已就位，复用其产物
+  }
+  if (!existsSync(join(commonReleaseDir, 'release.json'))) throw new Error('common 发布目录构建后仍不可用：' + commonReleaseDir);
+}
+const commonRelease = JSON.parse(readFileSync(join(commonReleaseDir, 'release.json'), 'utf8'));
+mkdirSync(join(anchorRoot, 'data', 'suian-zcode-app-mcp'), { recursive: true });
+const installedPluginsPath = join(anchorRoot, 'installed_plugins.json');
+const registryTemp = `${installedPluginsPath}.tmp-${process.pid}`;
+writeFileSync(registryTemp, JSON.stringify({
+  version: 1,
+  plugins: [{ id: 'suian-zcode-common@suian-zcode-plugins', name: 'suian-zcode-common', marketplace: 'suian-zcode-plugins',
+    version: commonRelease.pluginVersion, installPath: commonReleaseDir, installedAt: '2026-10-20T00:00:00.000Z', scope: 'user' }],
+}) + '\n');
+renameSync(registryTemp, installedPluginsPath); // 并行测试进程下原子覆盖，避免读到半写 JSON
+setCommonLocation({ installedPluginsPath });
+export const testZcodePluginData = join(anchorRoot, 'data', 'suian-zcode-app-mcp');
+export const testInstalledPluginsPath = installedPluginsPath;
 
 export function fixture(t) {
   const root = fileURLToPath(new URL('../.scratch/', import.meta.url));

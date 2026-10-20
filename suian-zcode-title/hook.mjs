@@ -7,8 +7,10 @@ import {join,dirname,resolve} from "node:path";
 import {homedir} from "node:os";
 import {readFile,appendFile} from "node:fs/promises";
 import {fileURLToPath,pathToFileURL} from "node:url";
+import {resolvePluginLayout} from "./release-layout.mjs";
 
 const pluginRoot=dirname(fileURLToPath(import.meta.url));
+const layout=resolvePluginLayout();
 
 async function resolveDataDir(configPath) {
   let supplied={};
@@ -51,14 +53,15 @@ if(isMain) {
     else if(process.argv[i]==="--data-dir"&&process.argv[i+1])dataDirArg=resolve(process.argv[++i]);
   }
   if(!configPath) {
-    const candidate=join(pluginRoot,"config.local.json");
+    // 源码模式的本地配置探测；发布模式配置由 Hook 命令的 --config 显式提供。
+    const candidate=join(layout.root,"config.local.json");
     try {await readFile(candidate,"utf8");configPath=candidate;}catch{}
   }
   let raw="";
   for await(const chunk of process.stdin)raw+=chunk;
   let payload=null;
   try {payload=JSON.parse(raw);}catch {}
-  const dataDir=dataDirArg??(configPath?await resolveDataDir(configPath):(process.env.OIL_ZCODE_TITLE_DATA??join(pluginRoot,".local")));
+  const dataDir=dataDirArg??(configPath?await resolveDataDir(configPath):(process.env.OIL_ZCODE_TITLE_DATA??join(layout.root,".local")));
   const logHook=async entry=>{
     try {
       const {mkdir}=await import("node:fs/promises");

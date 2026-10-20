@@ -1,6 +1,6 @@
 # suian-zcode-title — ZCode 会话自动命名插件
 
-- 本插件依赖公共插件 `suian-zcode-common`；源码目录仍同级，原生运行通过 Node 包链接加载。命名规则留在本目录，协议、DPAPI 与通知实现不复制。原生配置留在 dataPath，状态使用缓存外的 dataDir，默认 dataPath/state，不随缓存版本变化；结论沉淀在 docs/（脱敏证据）。
+- 本插件依赖公共插件 `suian-zcode-common`：公共导入经 `common-access.mjs` 薄适配按安装记录定位 common 发布目录（PKG-01 客户端契约）加载，不依赖 Node 包链接；源码调试用 `--common-root` 指向 common 构建产物。命名规则留在本目录，协议、DPAPI 与通知实现不复制。原生配置留在 dataPath，状态使用缓存外的 dataDir，默认 dataPath/state，不随缓存版本变化；结论沉淀在 docs/（脱敏证据）。
 - 用户已授权自动命名的搭建、验证与 Stop Hook 自动配置；真实改名操作限定明确指定的测试会话或用户会话的自动触发。
 - 不修改 ZCode 官方源码，不直接写 ZCode 会话数据库；改名仅走官方远控 RPC。
 - 旧远控授权链接仅以当前用户 DPAPI 密文（`.local/remote.blob`）保存；默认网关调用不读取它。配置、日志、Toast、提示词均不携带链接明文、sid/hash/mid 片段或网关 control_token。
@@ -15,7 +15,7 @@
 
 ### 环境要求
 
-Node.js 24+、sqlite3（配置项 `sqliteBin` → `SQLITE_BIN` 环境变量 → PATH）、已打开目标工作区的 ZCode。插件自身无需 npm install；公共层按其 skill 安装锁定 npm 依赖。命名安装入口先检查 Node、公共依赖与 sqlite3 只读 JSON 能力，检查失败不安装 Hook 或通知。
+Node.js 24+、sqlite3（配置项 `sqliteBin` → `SQLITE_BIN` 环境变量 → PATH）、已打开目标工作区的 ZCode。插件自身无需 npm install；公共层按其 skill 安装锁定 npm 依赖（esbuild 亦取自公共层锁文件，title 的发布构建 `npm run build:release` 不引入本地 node_modules）。命名安装入口先检查 Node、公共依赖与 sqlite3 只读 JSON 能力，检查失败不安装 Hook 或通知。
 
 ### CLI
 
@@ -42,7 +42,7 @@ node .\cli.mjs policy --config .\config.local.json      # 只读查询目标会�
 # auth / unauth：stdin 带 authorization_url 加密保存 / 清除授权
 ```
 
-默认调用通过公共网关 connectHost，无需远控链接；gatewayConfigPath 可指定公共配置文件。auth/unauth 只保留旧凭据管理，不能据其状态判断网关是否就绪。lock/unlock/policy 不连网关：先做存在性校验（CLI 会话库与任务索引任一命中，查询异常上抛不吞），不存在报错退出码 1；输出 `previous`/`policy` 透传公共策略对象，重复执行幂等。config 的 `titlePolicyDirectory` 可覆盖策略目录（默认公共目录，供测试隔离；误留在日常配置会使 CLI 与命名进程读写不同目录，固定不生效且无告警）。安装：`node .\install.mjs .\.local`；仅检查加 `--check-only`，自定义配置加 `--config {{path}}`。卸载加 `--remove`，不能与仅检查同时使用。
+默认调用通过公共网关 connectHost，无需远控链接；gatewayConfigPath 可指定公共配置文件。auth/unauth 只保留旧凭据管理，不能据其状态判断网关是否就绪。lock/unlock/policy 不连网关：先做存在性校验（CLI 会话库与任务索引任一命中，查询异常上抛不吞），不存在报错退出码 1；输出 `previous`/`policy` 透传公共策略对象，重复执行幂等。config 的 `titlePolicyDirectory` 可覆盖策略目录（默认公共目录，供测试隔离；误留在日常配置会使 CLI 与命名进程读写不同目录，固定不生效且无告警）。公共能力定位：宿主注入（Hook/MCP）自动推导；独立 CLI 无注入时 `--installed-plugins {{json路径}}`，源码调试 `--common-root {{common构建产物目录}}`（详见 skills/paths.md）。安装：`node .\install.mjs .\.local`；仅检查加 `--check-only`，自定义配置加 `--config {{path}}`。卸载加 `--remove`，不能与仅检查同时使用。
 
 ### 链路概要
 
@@ -68,23 +68,25 @@ node .\cli.mjs policy --config .\config.local.json      # 只读查询目标会�
 ### 文件职责
 
 | 文件 | 职责 |
-|---|---|
+| --- | --- |
 | cli.mjs | 命令入口：stdin 事件、配置、共享锁、结果与日志；status/enable/disable/auth/unauth/lock/unlock/policy |
-| hook.mjs | Stop Hook 派发器：续跑保护、会话元数据、8 秒延迟、后台 worker |
+| hook.mjs | Stop Hook 派发器：续跑保护、会话元数据、8 秒延迟、后台 worker（worker 为同目录 cli 入口，源码与发布形态同构） |
 | naming.mjs | 命名决策、去重、手动锁定保护、写前写后复核 |
 | backend.mjs | 只读双库与原 Host 服务适配 |
-| history.mjs | 历史重建、回退分支、最近三轮整理与指纹 |
-| ../suian-zcode-common/remote.mjs | 公共网关 connectHost/probeHost 入口；保留旧 relay API |
-| ../suian-zcode-common/auth-store.mjs | 公共 DPAPI 存取；仍使用本插件 `.local/remote.blob` |
+| history.mjs | 历史重建、回退分支、最近三轮整理与指纹；投影策略经公共客户端契约加载 |
+| common-access.mjs / release-layout.mjs | 公共客户端契约薄适配（定位、兼容声明、锚点优先级）与源码/发布双模式布局解析（发布根由上级 release.json 判定） |
+| ../suian-zcode-common/locate.mjs | 薄定位器单一源码；构建时作为业务包唯一允许的 common 输入分发进产物 |
 | toast.mjs / toast-action.mjs | 命名失败文案、排障提示词与自有协议动作；系统通知、冷却和剪贴板交给公共层 |
-| install.mjs | 自有通知身份、Stop Hook 配置与技能副本；协议桥及 AUMID 系统安装调用公共层 |
-| .zcode-plugin/plugin.json / hooks/hooks.json | 原生元信息与异步 Stop；native 初始化不重复全局注册 |
+| install.mjs | 安装命令入口（薄）：参数解析与退出码；复用逻辑在 installer.mjs |
+| installer.mjs | 安装与通知身份共享实现：sqlite3 检查、Toast 资产、Hook 与技能副本（命令入口间禁止互相导入，避免 bundle 内联复制主模块判定） |
+| build-release.mjs | 发布目录构建：esbuild 四入口进 dist/、资源组装、release.json 与构建输入记录；构建期断言仅薄定位器来自 common |
+| .zcode-plugin/plugin.json / hooks/hooks.json | 原生元信息与异步 Stop；发布构建把 Stop 命令改指 dist/hook.mjs，native 初始化不重复全局注册 |
 | skills/ | setup / configuration / control / debug，paths.md 统一路径与数据说明 |
 | doctor.mjs | 只读双库/模型与实际用户级 Stop Hook 配置检查；明确区分配置就绪和执行待验证 |
-| prompt.md | 命名规则（沿用自 oil-codex-title 的 prompts/naming.md，只调整编辑器名称） |
+| prompt.md | 命名规则（沿用自 oil-codex-title 的 prompts/naming.md，只调整编辑器名称）；发布时从发布根定位 |
 | SKILL.md | 源码兼容路由，按请求读取拆分技能；公共配置委托 common 技能 |
 | ../suian-zcode-common/vendor/ | 两个插件共用的固定投影库与远控协议库，见公共 NOTICE.md |
-| tests/ | 命名、Hook、授权与通知契约及 CLI 集成测试（`node --test tests/*.test.mjs`） |
+| tests/ | 命名、Hook、授权与通知契约、CLI 集成与发布目录契约；`npm test` 经 tests/common-fixture.mjs 预载合成宿主存储根 |
 
 ### 已验证与边界
 

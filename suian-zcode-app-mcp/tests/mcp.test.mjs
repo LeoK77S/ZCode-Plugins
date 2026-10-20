@@ -16,7 +16,7 @@ test('创建和发信公布正文与 Markdown 路径二选一，文件正文按 
   const controller = Object.fromEntries(['startSession', 'sendMessage'].map(method => [method, async args => {
     calls.push({ method, args }); return { session_id: 'sess_child', delivery_status: 'accepted' };
   }]));
-  const server = createMcpServer(f, { controller });
+  const server = await createMcpServer(f, { controller });
   const client = new Client({ name: 'markdown-input-contract', version: '1.0.0' });
   const [ct, st] = InMemoryTransport.createLinkedPair();
   t.after(async () => { await client.close(); await server.close(); });
@@ -43,7 +43,7 @@ test('正文输入冲突、缺失及无效文档在创建和发信之前拒绝',
   const f = fixture(t), calls = [];
   const { createMcpServer } = await import('../server.mjs');
   const controller = Object.fromEntries(['startSession', 'sendMessage'].map(method => [method, async args => { calls.push(args); return args; }]));
-  const server = createMcpServer(f, { controller });
+  const server = await createMcpServer(f, { controller });
   const client = new Client({ name: 'invalid-markdown-contract', version: '1.0.0' });
   const [ct, st] = InMemoryTransport.createLinkedPair();
   t.after(async () => { await client.close(); await server.close(); });
@@ -69,7 +69,7 @@ test('compact_session 公布指定目标与受理语义，严格校验参数并�
   const { createMcpServer } = await import('../server.mjs');
   const receipt = { source: 'original_host', session_id: 'sess_target', workspace_path: 'D:/fixture',
     command_id: 'cmd_fixture', command_status: 'accepted' };
-  const server = createMcpServer(f, { controller: { compactSession: async args => {
+  const server = await createMcpServer(f, { controller: { compactSession: async args => {
     calls.push(args);
     if (args.session_id === 'sess_rejected') throw Object.assign(new Error('compact_not_accepted: compactOperationLock'), {
       partial_result: { ...receipt, session_id: args.session_id, command_status: 'failed', reason_code: 'compactOperationLock' }
@@ -109,7 +109,7 @@ test('MCP 握手版本与插件元信息一致，公布十九个工具并保持�
   f.session({ id: 'sess_alpha', title: 'MCP 工具' });
   f.message({ id: 'msg_user', sequence: 0, parts: [{ type: 'text', text: '实现只读工具' }] });
   const { createMcpServer } = await import('../server.mjs');
-  const server = createMcpServer(f);
+  const server = await createMcpServer(f);
   const client = new Client({ name: 'contract-test', version: '1.0.0' });
   const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
   t.after(async () => { await client.close(); await server.close(); });
@@ -139,7 +139,7 @@ test('list_automations 公布只读注解与可选工作区过滤，strict 拒�
   f.automation({ id: 'automation-alpha', title: '[pr-babysit] org/repo#1', created: 100 });
   f.automation({ id: 'automation-beta', workspace: 'D:\\work\\beta', key: 'kb', created: 300 });
   const { createMcpServer } = await import('../server.mjs');
-  const server = createMcpServer(f);
+  const server = await createMcpServer(f);
   const client = new Client({ name: 'automations-contract', version: '1.0.0' });
   const [ct, st] = InMemoryTransport.createLinkedPair();
   t.after(async () => { await client.close(); await server.close(); });
@@ -168,7 +168,7 @@ test('list_automations 公布只读注解与可选工作区过滤，strict 拒�
   }
   // 空表是空列表而非错误；文本摘要保持简短
   const empty = fixture(t);
-  const emptyServer = createMcpServer(empty);
+  const emptyServer = await createMcpServer(empty);
   const emptyClient = new Client({ name: 'automations-empty-contract', version: '1.0.0' });
   const [ect, est] = InMemoryTransport.createLinkedPair();
   t.after(async () => { await emptyClient.close(); await emptyServer.close(); });
@@ -184,7 +184,7 @@ test('get_current_session 回显发起会话的本机自省信息，不接受参
   f.task({ id: 'sess_parent', title: '索引标题', workspace: 'D:\\work\\alpha', updated: 42 });
   f.session({ id: 'sess_parent', title: 'CLI 标题', directory: 'D:\\work\\alpha', permission: { mode: 'yolo' } });
   const { createMcpServer } = await import('../server.mjs');
-  const server = createMcpServer(f);
+  const server = await createMcpServer(f);
   const client = new Client({ name: 'self-introspect-contract', version: '1.0.0' });
   const [ct, st] = InMemoryTransport.createLinkedPair();
   t.after(async () => { await client.close(); await server.close(); });
@@ -210,7 +210,7 @@ test('get_current_session 回显发起会话的本机自省信息，不接受参
 test('get_current_session 未落库时字段可空，来源未知或冲突按错误回报并给出候选', async t => {
   const f = fixture(t);
   const { createMcpServer } = await import('../server.mjs');
-  const server = createMcpServer(f);
+  const server = await createMcpServer(f);
   const client = new Client({ name: 'self-introspect-degraded-contract', version: '1.0.0' });
   const [ct, st] = InMemoryTransport.createLinkedPair();
   t.after(async () => { await client.close(); await server.close(); });
@@ -238,7 +238,7 @@ test('创建和发信自动读取每次 MCP 请求的来源会话，接口不接
     calls.push({ method, args });
     return { session_id: 'sess_child', ...args };
   }]));
-  const server = createMcpServer(f, { controller });
+  const server = await createMcpServer(f, { controller });
   const client = new Client({ name: 'origin-contract', version: '1.0.0' });
   const [ct, st] = InMemoryTransport.createLinkedPair();
   t.after(async () => { await client.close(); await server.close(); });
@@ -265,7 +265,7 @@ test('创建和发信自动读取每次 MCP 请求的来源会话，接口不接
 test('send_message 投递策略可省略或显式 guide/queue，不允许强制抢占模式', async t => {
   const f = fixture(t), calls = [];
   const { createMcpServer } = await import('../server.mjs');
-  const server = createMcpServer(f, { controller: { sendMessage: async args => { calls.push(args); return args; } } });
+  const server = await createMcpServer(f, { controller: { sendMessage: async args => { calls.push(args); return args; } } });
   const client = new Client({ name: 'delivery-contract', version: '1.0.0' });
   const [ct, st] = InMemoryTransport.createLinkedPair();
   t.after(async () => { await client.close(); await server.close(); });
@@ -292,7 +292,7 @@ test('reset_cron_tools_visibility 固定发给当前会话并立即排队，描�
     return { source: 'original_host', session_id: args.session_id, workspace_path: 'D:/fixture',
       input_id: 'input_fixture', requested_delivery_mode: 'queue', delivery_status: 'accepted' };
   } };
-  const server = createMcpServer(f, { controller });
+  const server = await createMcpServer(f, { controller });
   const client = new Client({ name: 'reset-cron-contract', version: '1.0.0' });
   const [ct, st] = InMemoryTransport.createLinkedPair();
   t.after(async () => { await client.close(); await server.close(); });
@@ -348,7 +348,7 @@ test('请求缺少会话 ID 时按 trace_id 和工具名从本地调用记录精
   const controller = Object.fromEntries(['startSession', 'sendMessage'].map(method => [method, async args => {
     calls.push({ method, args }); return args;
   }]));
-  const server = createMcpServer(f, { controller });
+  const server = await createMcpServer(f, { controller });
   const client = new Client({ name: 'trace-contract', version: '1.0.0' });
   const [ct, st] = InMemoryTransport.createLinkedPair();
   t.after(async () => { await client.close(); await server.close(); });
@@ -375,7 +375,7 @@ test('来源缺失或元数据损坏时在创建和发信前报错', async t => 
   const controller = Object.fromEntries(['startSession', 'sendMessage'].map(method => [method, async args => {
     calls.push({ method, args }); return args;
   }]));
-  const server = createMcpServer(f, { controller });
+  const server = await createMcpServer(f, { controller });
   const client = new Client({ name: 'unknown-origin-contract', version: '1.0.0' });
   const [ct, st] = InMemoryTransport.createLinkedPair();
   t.after(async () => { await client.close(); await server.close(); });
@@ -421,7 +421,7 @@ test('来源冲突降级为警告并继续创建和发信，候选来源仅作�
           result: { type: 'inputAccepted', inputId: envelope.commandId, delivery: 'queue' } };
       }
     } }) });
-  const server = createMcpServer(f, { controller });
+  const server = await createMcpServer(f, { controller });
   const client = new Client({ name: 'conflicting-origin-contract', version: '1.0.0' });
   const [ct, st] = InMemoryTransport.createLinkedPair();
   t.after(async () => { await client.close(); await server.close(); });
@@ -456,7 +456,7 @@ test('start_session 从 CLI 权限继承而非陈旧任务索引，显式指定�
   f.session({ id: 'sess_dirty', permission: { mode: 'legacy-autoEdit' } });
   const { createMcpServer } = await import('../server.mjs');
   const controller = { startSession: async args => { calls.push(args); return { session_id: 'sess_child' }; } };
-  const server = createMcpServer(f, { controller });
+  const server = await createMcpServer(f, { controller });
   const client = new Client({ name: 'permission-inherit-contract', version: '1.0.0' });
   const [ct, st] = InMemoryTransport.createLinkedPair();
   t.after(async () => { await client.close(); await server.close(); });
@@ -498,7 +498,7 @@ test('start_session 继承与首发后确认共用 CLI 库，索引分叉不误�
       }
       if (method === 'sendPrompt') f.session({ id: params[0].taskId, directory: 'D:/fixture', permission: { mode: child === 1 ? 'yolo' : 'build' } });
     } }) });
-  const server = createMcpServer(f, { controller });
+  const server = await createMcpServer(f, { controller });
   const client = new Client({ name: 'permission-single-source-contract', version: '1.0.0' });
   const [ct, st] = InMemoryTransport.createLinkedPair();
   t.after(async () => { await client.close(); await server.close(); });
@@ -523,7 +523,7 @@ test('CLI 权限探测异常时继承回落为 Host 默认权限，不阻断创�
   const f = fixture(t), calls = [];
   const { createMcpServer } = await import('../server.mjs');
   const controller = { startSession: async args => { calls.push(args); return { session_id: 'sess_child' }; } };
-  const server = createMcpServer(f, { controller });
+  const server = await createMcpServer(f, { controller });
   const client = new Client({ name: 'permission-probe-failure-contract', version: '1.0.0' });
   const [ct, st] = InMemoryTransport.createLinkedPair();
   t.after(async () => { await client.close(); await server.close(); });
@@ -546,7 +546,7 @@ test('来源冲突时不继承权限也不叠加权限警告，仅保留来源�
     INSERT INTO tool_usage VALUES ('sess_b', 'trace_shared', 'mcp__fixture__start_session');`);
   const { createMcpServer } = await import('../server.mjs');
   const controller = { startSession: async args => { calls.push(args); return { session_id: 'sess_child' }; } };
-  const server = createMcpServer(f, { controller });
+  const server = await createMcpServer(f, { controller });
   const client = new Client({ name: 'permission-conflict-contract', version: '1.0.0' });
   const [ct, st] = InMemoryTransport.createLinkedPair();
   t.after(async () => { await client.close(); await server.close(); });
@@ -570,7 +570,7 @@ test('本地调用记录中的 NULL 或空白来源 ID 在进入写流程前报�
   const controller = Object.fromEntries(['startSession', 'sendMessage'].map(method => [method, async args => {
     calls.push({ method, args }); return args;
   }]));
-  const server = createMcpServer(f, { controller });
+  const server = await createMcpServer(f, { controller });
   const client = new Client({ name: 'corrupt-history-origin-contract', version: '1.0.0' });
   const [ct, st] = InMemoryTransport.createLinkedPair();
   t.after(async () => { await client.close(); await server.close(); });
@@ -606,7 +606,7 @@ test('自动定位的 ID 进入开局和后续消息 XML 及回执，不混入�
           result: { type: 'inputAccepted', inputId: envelope.commandId, delivery: 'queue' } };
       }
     } }) });
-  const server = createMcpServer(f, { controller });
+  const server = await createMcpServer(f, { controller });
   const client = new Client({ name: 'origin-message-contract', version: '1.0.0' });
   const [ct, st] = InMemoryTransport.createLinkedPair();
   t.after(async () => { await client.close(); await server.close(); });
@@ -634,7 +634,7 @@ test('MCP 额度查询路由与重置表单确认；不支持确认或自行填 
       const decision = await requestConfirmation({ account: 'fixture***', reset_type: args.reset_type, available_cards: 3, earliest_expires_at: '2027-01-15T09:00:00Z', remaining_percent: 16, retry: false });
       return { used: decision.action === 'accept' && decision.content.confirm === true };
     } };
-  const server = createMcpServer(f, { controller });
+  const server = await createMcpServer(f, { controller });
   const client = new Client({ name: 'confirmation-client', version: '1.0.0' }, { capabilities: { elicitation: { form: {} } } });
   client.setRequestHandler(ElicitRequestSchema, async request => { prompts.push(request.params); return { action: 'accept', content: { confirm: true } }; });
   const [ct, st] = InMemoryTransport.createLinkedPair();
@@ -649,7 +649,7 @@ test('MCP 额度查询路由与重置表单确认；不支持确认或自行填 
   assert.equal(prompts.length, 1);
   assert.equal(prompts[0].requestedSchema.properties.confirm.default, false);
   assert.match(prompts[0].message, /一张/);
-  const plainServer = createMcpServer(f, { controller });
+  const plainServer = await createMcpServer(f, { controller });
   const plainClient = new Client({ name: 'no-confirmation', version: '1.0.0' });
   const [pct, pst] = InMemoryTransport.createLinkedPair();
   t.after(async () => { await plainClient.close(); await plainServer.close(); });
@@ -668,7 +668,7 @@ test('三个写工具转交已验证参数，拒绝空开局和未知字段，�
     if (args.message === 'fail') throw Object.assign(new Error('send failed'), { partial_result: { session_id: 'sess_created' } });
     return { session_id: 'sess_created', title: args.title ?? '默认标题' };
   }]));
-  const server = createMcpServer(f, { controller });
+  const server = await createMcpServer(f, { controller });
   const client = new Client({ name: 'write-contract', version: '1.0.0' });
   const [ct, st] = InMemoryTransport.createLinkedPair();
   t.after(async () => { await client.close(); await server.close(); });
@@ -725,7 +725,7 @@ test('置顶工具转交已验证参数，置顶列表走本地索引且拒绝�
     calls.push({ method, args });
     return { source: 'original_host', session_id: args.session_id, workspace_path: 'D:\\fixture', pinned: method === 'pinSession' };
   }]));
-  const server = createMcpServer(f, { controller });
+  const server = await createMcpServer(f, { controller });
   const client = new Client({ name: 'pin-contract', version: '1.0.0' });
   const [ct, st] = InMemoryTransport.createLinkedPair();
   t.after(async () => { await client.close(); await server.close(); });
@@ -753,7 +753,7 @@ test('set_automation_enabled 公布暂停/恢复语义，严格校验参数并�
   const f = fixture(t), calls = [];
   const { createMcpServer } = await import('../server.mjs');
   const receipt = { source: 'original_host', automation_id: 'automation-1', workspace_path: 'D:/fixture', enabled: false };
-  const server = createMcpServer(f, { controller: { setAutomationEnabled: async args => {
+  const server = await createMcpServer(f, { controller: { setAutomationEnabled: async args => {
     calls.push(args);
     if (args.automation_id === 'automation_rejected') throw Object.assign(new Error('automation_write_failed: fixture'), {
       partial_result: { ...receipt, automation_id: args.automation_id, enabled: true } });

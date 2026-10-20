@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import {recentSnapshot,readHistory} from "../history.mjs";
+import {recentSnapshot,readHistory,ensureProjectionPolicy} from "../history.mjs";
 import {createBackend} from "../backend.mjs";
 import {createHash} from "node:crypto";
 import {execFileSync} from "node:child_process";
@@ -8,7 +8,9 @@ import {mkdtempSync,rmSync,readFileSync} from "node:fs";
 import {tmpdir} from "node:os";
 import {join} from "node:path";
 const m=(id,role,text,parentID,extra={})=>({info:{id,role,parentID,...extra},parts:[{type:"text",text},{type:"reasoning",text:"不交给命名模型"}]});
-test("按真实用户输入合并多条助手，取三轮并排除内部提醒与旧回退分支",()=>{
+test("按真实用户输入合并多条助手，取三轮并排除内部提醒与旧回退分支",async()=>{
+  // 投影策略经公共客户端契约加载（测试预载提供定位锚点）
+  await ensureProjectionPolicy();
   const messages=[m("u0","user","最早需求"),m("a0","assistant","最早回答","u0"),m("u1","user","第一轮"),m("a1","assistant","回复一","u1"),m("a2","assistant","回复二","u1"),m("bad","user","已回退内容"),m("aBad","assistant","旧分支","bad"),m("notice","user","Conversation rewind applied.",null,{synthetic:true,source:"rewind"}),m("u2","user","第二轮"),m("sys","user","内部提醒",null,{semantics:{origin:"agent_runtime",uiVisibility:"hidden"}}),m("a3","assistant","第二轮回答","u2"),m("u3","user","第三轮"),m("a4","assistant","第三轮回答","u3")];
   const session={title:"原名",revert:{targetMessageID:"bad",createdMessageID:"notice",keptMessageIDs:["u0","a0","u1","a1","a2"]}};
   const snap=recentSnapshot({session,messages},"D:\\测试工程");
