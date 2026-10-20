@@ -25,7 +25,7 @@ function projectFixture(t) {
   return f;
 }
 
-test('项目筛选以项目 ID 区分同目录的不同项目，当前会话公布冻结目录，查询不写索引', t => {
+test('项目筛选以项目 ID 区分同目录的不同项目，当前会话公布冻结目录，查询不写索引', async t => {
   const f = projectFixture(t), reader = createSessionReader(f);
   f.index.prepare('UPDATE tasks SET execution_directories=? WHERE task_id=?').run('[]', 'parent');
   const before = readFileSync(f.indexDbPath);
@@ -34,7 +34,7 @@ test('项目筛选以项目 ID 区分同目录的不同项目，当前会话公�
   assert.ok(list.sessions.every(row => row.project_id === 'project-a'));
   assert.deepEqual(reader.listSessions({ project_id: 'project-b' }).sessions.map(row => row.session_id), ['other']);
   assert.deepEqual(reader.listSessions({ project_id: null }).sessions, []);
-  const current = reader.sessionOverview({ session_id: 'parent' });
+  const current = await reader.sessionOverview({ session_id: 'parent' });
   assert.equal(current.project_id, 'project-a');
   assert.deepEqual(current.additional_directories, []);
   assert.deepEqual(readFileSync(f.indexDbPath), before);
@@ -106,17 +106,17 @@ test('旧索引继续支持原有列表，显式项目筛选报告宿主索引�
   assert.throws(() => reader.listSessions({ project_id: 'project-a' }), /project_schema_unsupported/);
 });
 
-test('远端发起者仍可查询会话元信息，但不把远端项目目录继承为本机权限', t => {
+test('远端发起者仍可查询会话元信息，但不把远端项目目录继承为本机权限', async t => {
   const f = projectFixture(t), reader = createSessionReader(f);
   f.index.exec("UPDATE tasks SET host_id='remote' WHERE task_id='parent'");
-  assert.equal(reader.sessionOverview({ session_id: 'parent' }).session_title, 'parent');
-  assert.equal(reader.sessionProject({ session_id: 'parent' }), undefined);
+  assert.equal((await reader.sessionOverview({ session_id: 'parent' })).session_title, 'parent');
+  assert.equal(await reader.sessionProject({ session_id: 'parent' }), undefined);
 });
 
 test('MCP 创建在会话范围内继承项目和目录，跨项目与显式未归类不误继承', async t => {
   const f = projectFixture(t), calls = [];
   const controller = { startSession: async args => { calls.push(args); return { session_id: 'new', delivery_status: 'accepted' }; } };
-  const server = createMcpServer(f, { controller }), client = new Client({ name: 'multi-root-contract', version: '1' });
+  const server = await createMcpServer(f, { controller }), client = new Client({ name: 'multi-root-contract', version: '1' });
   const [ct, st] = InMemoryTransport.createLinkedPair();
   t.after(async () => { await client.close(); await server.close(); });
   await server.connect(st); await client.connect(ct);
