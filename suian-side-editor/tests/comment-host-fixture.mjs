@@ -1,8 +1,10 @@
 import assert from 'node:assert/strict';
-import { encodeTopicWireFrames, measureTopicNotificationEnvelopeBytes } from 'suian-zcode-common/vendor/conversation-wire.js';
-import { ChannelClient } from 'suian-zcode-common/vendor/channelClient.js';
-import { Emitter } from 'suian-zcode-common/vendor/foundation.js';
-import { BufferReader, BufferWriter, deserialize, serialize } from 'suian-zcode-common/vendor/serialization.js';
+// 本文件是源码测试夹具（不进入发布产物）：Host 侧模拟所需的 vendor 原件直接从 common
+// 源码树相对导入；业务侧的公共导入经 common-client.mjs 加载发布产物，两轴在 comment-state.test 中对接。
+import { encodeTopicWireFrames, measureTopicNotificationEnvelopeBytes } from '../../suian-zcode-common/vendor/conversation-wire.js';
+import { ChannelClient } from '../../suian-zcode-common/vendor/channelClient.js';
+import { Emitter } from '../../suian-zcode-common/vendor/foundation.js';
+import { BufferReader, BufferWriter, deserialize, serialize } from '../../suian-zcode-common/vendor/serialization.js';
 
 export function userRow(text, rowId = 1) {
   return { rowId, turnId: `turn-${rowId}`, entityId: `message-${rowId}`, visibility: 'visible', createdAt: 1, createdAtSeq: rowId, kind: 'userInput', text, origin: 'realUser' };

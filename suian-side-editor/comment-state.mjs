@@ -1,8 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { ResourceTemplate } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { McpError, ErrorCode } from '@modelcontextprotocol/sdk/types.js';
-import { connectHost } from 'suian-zcode-common/gateway-client.mjs';
-import { TopicWireFrameAssembler, conversationTopicFrameSchema, v4ConversationRowsRangeResultSchema, PROTOCOL_V4_LIMITS, measureTopicNotificationEnvelopeBytes } from 'suian-zcode-common/vendor/conversation-wire.js';
+import { commonClient } from './common-client.mjs';
 
 const busyReason = '主对话正在处理输入，为避免新增评论被本次发送清理，暂时不能添加评论；处理结束后恢复。这是尽力保护，禁用窗口可能覆盖模型回复，发送边界仍有残余风险。';
 function acceptedBatches(context, bodies) {
@@ -24,6 +23,7 @@ function rememberBatches(entry, bodies) {
 // 每次只取得一份新快照，不维护第二份 V4 队列或增量投影。
 async function readConversation(host, entry, active) {
   const { workspacePath, sessionId } = entry.context, topic = `conversation/${sessionId}`;
+  const { TopicWireFrameAssembler, conversationTopicFrameSchema, PROTOCOL_V4_LIMITS, measureTopicNotificationEnvelopeBytes } = await commonClient();
   const hello = await host.call('zcode-agent', 'helloConversationV4', []);
   if (!active(entry)) return;
   if (hello?.protocolVersion !== 3) throw new Error('主对话公开帧协议版本不兼容');
@@ -91,6 +91,7 @@ async function readConversation(host, entry, active) {
 async function conversationBodies(host, entry, active) {
   const snapshot = await readConversation(host, entry, active);
   if (!active(entry)) return;
+  const { v4ConversationRowsRangeResultSchema } = await commonClient();
   const bodies = snapshot.queue.items.filter(item => item.kind === 'sendText').map(item => item.text);
   // 快照只携带尾窗；完整当前分支按公开游标逐页读取，不能按固定尾窗反证受理。
   let beforeRowId;
@@ -108,7 +109,7 @@ async function conversationBodies(host, entry, active) {
 }
 
 // 只服务本插件评论业务。资源归属来自一次受审工具，不从 URI/页面参数猜身份。
-export function installCommentState(server, { hostConnector = connectHost, gatewayConfigPath } = {}) {
+export function installCommentState(server, { hostConnector = (...args) => commonClient().then(common => common.connectHost(...args)), gatewayConfigPath } = {}) {
   const entries = new Map();
   let closed = false;
   const active = entry => !closed && entries.get(entry.uri) === entry;

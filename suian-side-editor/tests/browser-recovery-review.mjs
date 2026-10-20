@@ -10,12 +10,14 @@ import { execFileSync } from 'node:child_process';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
 import { EDITOR_URI } from '../server.mjs';
-import { apps } from './fixtures.mjs';
+import { apps, isolatedDataPath } from './fixtures.mjs';
 import { installResourceBridge } from './browser-resource-bridge.mjs';
 const { chromium } = createRequire(process.env.SUIAN_SIDE_EDITOR_PLAYWRIGHT_MODULE ?? import.meta.url)('playwright');
 async function fixture(t) {
-  const root = await mkdtemp(join(tmpdir(), 'side-editor-recovery-review-')), workspaceRoot = join(root, 'workspace'), dataPath = join(root, 'data');
-  await mkdir(workspaceRoot); await mkdir(dataPath);
+  const root = await mkdtemp(join(tmpdir(), 'side-editor-recovery-review-')), workspaceRoot = join(root, 'workspace');
+  await mkdir(workspaceRoot);
+  // dataPath 采用夹具存储根的真实布局（<storageRoot>/data/<目录>）：定位锚点与状态库目录共享同一语义。
+  const dataPath = await isolatedDataPath();
   for (const folder of ['folder','other']) { await mkdir(join(workspaceRoot, folder)); await writeFile(join(workspaceRoot, folder, 'file.txt'), folder + ' original\n'); }
   for (const name of ['alpha','beta']) await writeFile(join(workspaceRoot, name + '.txt'), name + ' original\n');
   const client = new Client({ name: 'zcode', version: '0.16.9' }, { capabilities: apps });
