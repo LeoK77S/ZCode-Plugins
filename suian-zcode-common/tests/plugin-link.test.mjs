@@ -10,7 +10,7 @@ import { linkCommon } from '../link.mjs';
 test('市场发布版本与插件清单一致，供宿主检查更新', async () => {
   const marketplace = JSON.parse(await readFile(new URL('../../marketplace.json', import.meta.url), 'utf8'));
   for (const entry of marketplace.plugins) {
-    const manifest = JSON.parse(await readFile(new URL(`../../${entry.source}/.zcode-plugin/plugin.json`, import.meta.url), 'utf8'));
+    const manifest = JSON.parse(await readFile(new URL(`../../${entry.name}/.zcode-plugin/plugin.json`, import.meta.url), 'utf8'));
     assert.equal(entry.version, manifest.version, `${entry.name} 的市场版本必须与插件清单同步`);
   }
 });
