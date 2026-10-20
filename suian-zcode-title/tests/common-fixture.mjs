@@ -47,23 +47,25 @@ async function buildCachedCommonRelease() {
 }
 
 const releaseDir = await buildCachedCommonRelease();
+const commonVersion = JSON.parse(await readFile(join(releaseDir, "release.json"), "utf8")).pluginVersion;
+const titleVersion = JSON.parse(await readFile(join(titleRoot, ".zcode-plugin", "plugin.json"), "utf8")).version;
 const storageRoot = join(tmpdir(), `pkg02-storage-${process.pid}`);
 const dataPath = join(storageRoot, "data", TITLE_PLUGIN_ID);
 export const COMMON_RELEASE_DIR = releaseDir;
 export const FIXTURE_STORAGE_ROOT = storageRoot;
-await mkdir(join(storageRoot, "cache", "suian-zcode-plugins", "suian-zcode-title", "0.1.5", ".zcode-plugin"), { recursive: true });
+await mkdir(join(storageRoot, "cache", "suian-zcode-plugins", "suian-zcode-title", titleVersion, ".zcode-plugin"), { recursive: true });
 await mkdir(dataPath, { recursive: true });
 await writeFile(join(storageRoot, "installed_plugins.json"), JSON.stringify({
   version: 1,
   plugins: [
     {
       id: "suian-zcode-common@suian-zcode-plugins", name: "suian-zcode-common", marketplace: "suian-zcode-plugins",
-      version: "0.4.2", installPath: releaseDir,
+      version: commonVersion, installPath: releaseDir,
       installedAt: "2026-10-20T00:00:00.000Z", updatedAt: "2026-10-20T00:00:00.000Z", scope: "user",
     },
     {
       id: TITLE_PLUGIN_ID, name: "suian-zcode-title", marketplace: "suian-zcode-plugins",
-      version: "0.1.5", installPath: join(storageRoot, "cache", "suian-zcode-plugins", "suian-zcode-title", "0.1.5"),
+      version: titleVersion, installPath: join(storageRoot, "cache", "suian-zcode-plugins", "suian-zcode-title", titleVersion),
       installedAt: "2026-10-20T00:00:00.000Z", updatedAt: "2026-10-20T00:00:00.000Z", scope: "user",
     },
   ],

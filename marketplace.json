@@ -3,27 +3,27 @@
   "plugins": [
     {
       "name": "suian-zcode-common",
-      "version": "0.4.2",
+      "version": "0.5.0",
       "source": "./suian-zcode-common",
       "description": "ZCode 插件共用的网关、监听、官方 V4 协议、通知、初始化与依赖完整性检查能力"
     },
     {
       "name": "suian-zcode-title",
-      "version": "0.1.5",
+      "version": "0.2.0",
       "source": "./suian-zcode-title",
       "description": "会话 Stop 后自动命名、模型配置与标题保护",
       "dependencies": ["suian-zcode-common"]
     },
     {
       "name": "suian-zcode-app-mcp",
-      "version": "0.10.0",
+      "version": "0.11.0",
       "source": "./suian-zcode-app-mcp",
       "description": "会话检索、历史读取、原 Host 操作与 GLM 额度 MCP",
       "dependencies": ["suian-zcode-common"]
     },
     {
       "name": "suian-side-editor",
-      "version": "0.3.0",
+      "version": "0.4.0",
       "source": "./suian-side-editor",
       "description": "本机 UTF-8 文本侧栏编辑、自动保存、会话恢复与选区评论；发送状态采用尽力保护",
       "dependencies": ["suian-zcode-common"]

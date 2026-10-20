@@ -4,13 +4,18 @@
 
 ## 未发布
 
+## [0.4.0] - 2026-10-20
+
 正式发布包改为自带运行依赖与实际构建页面：安装后无需 npm 安装、公共包链接或本地构建。
 
 ### 其他改进
 
+**自包含发布包与共享公共层（#124）**
+
 - stdio CLI 打包内联 MCP SDK 与 zod（业务自身依赖），公共实现按 PKG-01 契约经已安装的 suian-zcode-common 定位加载；定位失败在服务任何会话前以明确分类退出。
 - 发布目录包含实际构建的 `editor.html` 与第三方许可（CodeMirror 等），构建输入不内联 common 实现或公共 vendor；状态库仍使用 Node 内置 SQLite 落在插件自身数据目录。
 - setup 取消原生安装后的 npm/链接/构建步骤；源码开发方式见 README 本地开发一节。
+- 配套 common 最低版本为 0.5.0；文本编辑仍无需启动网关，选区评论沿用既有连接要求。
 
 > **验证范围**：独立安装根（无开发 node_modules、无链接、无源码目录）下 stdio initialize、app-only 工具、实际页面、版本冲突拒写与外置状态经真实构建产物验证；无网关时评论入口显示既有不可用状态且文本编辑不受影响。正式市场切换到 Release ZIP 属后续发布票，切换前从旧源码来源安装仍需按本地开发方式准备。
 
@@ -91,6 +96,7 @@
 > **验证边界**：核心实现原 SDK 基线为 37 项；加入市场登记契约后，本轮完整 SDK 回归 39 项通过。浏览器 55 项／组及三种限定原生生命周期验证沿用核心实现的通过记录。临时隔离入口的结果不等于正式缓存安装与用户产品验收；详细范围见 [实施总记录](docs/development-verification.md)。
 
 <!-- 变更链接 -->
+[0.4.0]: https://github.com/ONEGAYI/ZCode-Plugins/pull/124
 [0.3.0]: https://github.com/ONEGAYI/ZCode-Plugins/compare/13cd1fcf4f24c9d968f1e4235d299ea11ada4f14...761d06764c7fbdcc36f2c30a4b178af44d7b1d40
 [0.2.0]: https://github.com/ONEGAYI/ZCode-Plugins/compare/261bcdedf65c2d0f9a138cfb8c07d7e37998ac72...f6b4257ab9a4de14cfaf41c3eaf93433872a5dde
 [0.1.0]: https://github.com/ONEGAYI/ZCode-Plugins/commits/29eb9b5a7fad5681f488e098e6d26ccce0f41a57

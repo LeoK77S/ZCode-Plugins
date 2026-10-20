@@ -7,8 +7,8 @@ import {dirname,join,resolve} from "node:path";
 import {loadCommonModule} from "../suian-zcode-common/locate.mjs";
 
 export const EXPECTED_COMMON_API_VERSION=1;
-// client / client-install 双入口自 common 0.4.2（PKG-01）起提供，低于该版本拒绝加载。
-export const MINIMUM_COMMON_VERSION="0.4.2";
+// client / client-install 双入口随 common 0.5.0 正式分发，低于配套发布版本拒绝加载。
+export const MINIMUM_COMMON_VERSION="0.5.0";
 
 let runtimePromise,installerPromise;
 

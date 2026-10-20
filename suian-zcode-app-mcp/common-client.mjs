@@ -5,7 +5,7 @@
 import { loadCommonModule } from '../suian-zcode-common/locate.mjs';
 
 export const EXPECTED_COMMON_API_VERSION = 1;
-export const MINIMUM_COMMON_VERSION = '0.4.2';
+export const MINIMUM_COMMON_VERSION = '0.5.0';
 
 let pendingClient;
 let locationOptions;

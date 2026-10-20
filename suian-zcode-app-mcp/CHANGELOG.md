@@ -4,11 +4,30 @@
 
 ## [Unreleased]
 
+## [0.11.0] - 2026-10-20
+
+发布包自带运行依赖，使用独立共享的 common 0.5.0；补充项目查询与明确的项目会话创建方式。
+
+### 新功能
+
+**发布包与独立安装（#124）**
+
+- stdio、工件 Hook、侧栏资源及第三方许可随包交付，安装后不再运行 npm 或创建公共包链接。
+- 从实际安装记录加载共享 common，配置与状态仍在版本缓存外；安装检查支持显式清单路径。
+
+**项目查询与会话创建（#126、#127）**
+
+- 新增只读 `list_projects`，按项目筛选新会话的归属。
+- `start_session` 可用 `project_id` 选择项目主根，或用 `workspace_path` 选择工作目录，两者二选一；创建后核对项目与目录。
+
 ### 变更
 
-- **破坏性**：定时任务工具更名，工具面命名对齐官方 Cron 工具族，便于工具延迟暴露的场景下仅凭名称识别用途：
-  - `set_automation_enabled` 更名为 `set_cron_enabled`，`list_automations` 更名为 `list_crons`。
-  - 参数 `automation_id`、返回字段 `automationId`、官方 RPC 协议名与错误码均不变；桌面管理页与既有创建记录中的任务 ID 继续可用，调用方需同步更新工具名。
+- 定时任务工具更名为 `set_cron_enabled`、`list_crons`，旧名称不再提供；参数 `automation_id`、返回字段 `automationId` 和已有任务 ID 保持不变（#123）。
+- `start_session` 的项目与目录参数不接受 `null`；省略可选参数时仍按既有继承规则处理（#127）。
+
+> **升级注意**：调用方需更新 Cron 工具名，并配套更新 common 至 0.5.0；通过新缓存中的 setup 核对配置与入口，保留原有授权和暂停状态。
+
+> **分发与验证范围**：本版代码和 ZIP 的准备不代表正式市场已切换。公开 Release 下载核验与市场切换完成后才可按新方式更新；真实 Desktop、系统通知和模型操作的未验范围保留，见 #121。
 
 ## [0.10.0] - 2026-10-19
 
@@ -299,6 +318,7 @@
 仓库尚未建立版本标签，以下版本链接使用对应源码提交。
 
 <!-- 变更链接 -->
+[0.11.0]: https://github.com/ONEGAYI/ZCode-Plugins/pull/124
 [0.9.0]: https://github.com/ONEGAYI/ZCode-Plugins/compare/13cd1fcf4f24c9d968f1e4235d299ea11ada4f14...761d06764c7fbdcc36f2c30a4b178af44d7b1d40
 [0.8.1]: https://github.com/ONEGAYI/ZCode-Plugins/compare/cbb4f7613c53a66bf0a2f6c62ba641587462f51f...485cdc1be1c1ee9ad356e682df1374fe41d6d5c0
 [0.7.2]: https://github.com/ONEGAYI/ZCode-Plugins/compare/cd747c3f59cb3d160da1f92f283c6ed4bca30102...bf4e6db5713ab622f6cbffccd06e952ede96951b

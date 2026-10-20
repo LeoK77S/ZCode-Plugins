@@ -20,6 +20,8 @@ const titleRoot = resolve(here, "..");
 const commonRoot = join(titleRoot, "..", "suian-zcode-common");
 const nodeBin = process.execPath;
 const AUMID = "SUIAN.SuianZcodeTitle.Toast";
+const commonVersion = JSON.parse(await readFile(join(COMMON_RELEASE_DIR, "release.json"), "utf8")).pluginVersion;
+const titleVersion = JSON.parse(await readFile(join(titleRoot, ".zcode-plugin", "plugin.json"), "utf8")).version;
 
 const buildTo = async dirName => {
   const out = await mkdtemp(join(tmpdir(), dirName));
@@ -40,8 +42,8 @@ async function buildWorld(t, { storageName = "宿主 存储根" } = {}) {
   const base = await mkdtemp(join(tmpdir(), "pkg02-world-"));
   const storageRoot = join(base, storageName);
   const dataDir = join(storageRoot, "data", TITLE_PLUGIN_ID);
-  const commonInstall = join(storageRoot, "cache", "suian-zcode-plugins", "suian-zcode-common", "0.4.2");
-  const titleInstall = join(storageRoot, "cache", "suian-zcode-plugins", "suian-zcode-title", "0.1.5");
+  const commonInstall = join(storageRoot, "cache", "suian-zcode-plugins", "suian-zcode-common", commonVersion);
+  const titleInstall = join(storageRoot, "cache", "suian-zcode-plugins", "suian-zcode-title", titleVersion);
   await cp(COMMON_RELEASE_DIR, commonInstall, { recursive: true });
   await cp(releaseDir, titleInstall, { recursive: true });
   await mkdir(dataDir, { recursive: true });
@@ -52,7 +54,7 @@ async function buildWorld(t, { storageName = "宿主 存储根" } = {}) {
   });
   await writeFile(registryPath, JSON.stringify({
     version: 1,
-    plugins: [entry("suian-zcode-common", "0.4.2", commonInstall), entry("suian-zcode-title", "0.1.5", titleInstall)],
+    plugins: [entry("suian-zcode-common", commonVersion, commonInstall), entry("suian-zcode-title", titleVersion, titleInstall)],
   }));
   t.after(() => rm(base, { recursive: true, force: true }));
   t.after(() => rm(built.out, { recursive: true, force: true }));
@@ -122,9 +124,9 @@ test("发布目录组装：四命令入口、提示词、技能、Hook 清单、
   assert.equal(release.formatVersion, 1);
   assert.equal(release.pluginName, "suian-zcode-title");
   assert.equal(release.packageName, "oil-zcode-title-runner");
-  assert.equal(release.pluginVersion, "0.1.5");
+  assert.equal(release.pluginVersion, titleVersion);
   assert.equal(release.commonApiVersion, 1);
-  assert.equal(release.minimumCommonVersion, "0.4.2");
+  assert.equal(release.minimumCommonVersion, "0.5.0");
   assert.match(release.buildId, /^[0-9a-f]{64}$/);
   assert.deepEqual(Object.keys(release.entries).sort(), ["cli", "hook", "install", "toast-action"]);
   const listed = release.files.map(file => file.path);
