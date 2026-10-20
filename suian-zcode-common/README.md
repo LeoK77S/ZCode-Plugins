@@ -61,12 +61,14 @@ npm ci 后运行 link.mjs，将稳定运行入口链接到本公共根，再把�
 | project-context.mjs | `readProjectContext({indexDbPath,sessionId,workspacePath,workspaceKey})`：只读会话的项目、执行及附加目录，冻结会话范围优先；侧栏编辑器与 MCP 共用，不改变网关或执行目录 |
 | notifications.mjs | `notifyOnce({dataDir,title,message,reasonCode,appId,actionUri})`；保留两小时冷却、跨进程互斥及显示失败结果 |
 | notification-action.mjs | `copyPromptAndOpenWorkspace({prompt,dataDir})`：复制调用方提示词后打开用户默认工作区；仅用户点击后执行 |
-| notification-install.mjs | `installToastAssets()` / `removeToastAssets()`：接收调用方的 protocol、appId、shortcutName、description、pluginRoot、dataDir |
+| notification-install.mjs | `installToastAssets()` / `removeToastAssets()`：接收调用方的 protocol、appId、shortcutName、description、templateFile、homeDir、dataDir；vbs 转发缓存外稳定启动器，卸载只清理本身份 |
+| toast-runtime.mjs | 共享 Toast 稳定运行时：执行器部署到 `~/.zcode/tools/suian-zcode-common/toast`（暂存校验后切换活动记录）、调用方身份外置登记、`checkToastRuntime()` 安装检查 |
+| toast-executor.mjs | 自包含 Toast 执行器（部署快照，原样分发进发布目录）：common 现场重扫依赖、title 读外置模板与当前安装根，复制修复提示并打开默认工作区；插件缓存整体缺失时仍可用 |
 | prerequisites.mjs | `checkRuntime()`：两插件的 Node / 公共依赖检查；传入 sqliteBin 时额外检查 sqlite3 CLI，只读查询内存库 |
 | depcheck.mjs | `scanSuianPlugins()`：suian 系列插件依赖完整性扫描；纯内置模块，可独立运行 |
 | depcheck-hook.mjs | `runDepcheckHook()`：Stop 钩子入口，依赖缺失时 Toast 提醒；`--scan-only` 手动复查 |
 | depcheck-prompt.mjs | `buildFixPrompt()` / `buildToastMessage()`：依赖缺失时的修复提示词与提醒文案 |
-| toast-action.mjs | `runAction()`：Toast 按钮协议入口，重扫后复制修复提示词并打开 ZCode |
+| toast-action.mjs | `runAction()`：Toast 按钮协议入口（缓存内调试直调），重扫后复制修复提示词并打开 ZCode；部署链走缓存外公共执行器 |
 | ui-capabilities.mjs | `supportsZcodeMcpApps({clientInfo,capabilities,zcodeAppVersion})`：ZCode 应用版本与 MCP Apps MIME 判定；`MCP_APP_MIME_TYPE` 为页面 MIME 常量 |
 | link.mjs | `linkCommon()`：建立稳定公共入口和业务端 Node 包链接，不复制代码或覆盖普通目录 |
 | vendor/projection.js | `getConversationMessageProjectionPolicy()`：两个插件引用同一固定产物 |

@@ -221,48 +221,67 @@ test('摘要与提示词对异常 version 值安全（类型白名单与分隔�
   assert.match(prompt, /suian-side-editor：缺少 node_modules\/suian-zcode-common 公共包链接/);
 });
 
-test('Toast 身份：vbs 内容随插件版本漂移时必须重装（跨版本陈旧回归）', async t => {
+test('Toast 身份：旧版 vbs 嵌入缓存内入口时必须重装为稳定转发桥', async t => {
   const world = await buildWorld(t);
   const dataDir = join(world.root, 'data');
   await mkdir(dataDir, { recursive: true });
-  // 模拟旧版本安装残留：vbs 指向旧插件根
-  const staleVbs = buildVbsContent({ nodeExe: process.execPath, toastActionPath: join(world.root, 'old-root', 'toast-action.mjs'), dataDir, protocol: 'suian-zcode-common' });
+  // 模拟旧版本安装残留：vbs 直接嵌入版本缓存内的 toast-action.mjs
+  const staleVbs = `' 旧格式桥\r\nsh.Run """" & "node.exe" & """ """ & "${join(world.root, 'old-cache', 'toast-action.mjs')}" & """ """ & WScript.Arguments(0) & """", 0, False\r\n`;
   await writeFile(join(dataDir, 'toast-launch.vbs'), staleVbs);
   await writeFile(join(dataDir, 'toast-appid.txt'), 'SUIAN.SuianZcodeCommon.Toast');
   const installs = [];
   const shell = { run: async () => '' };
-  const result = await ensureToastIdentity({ dataDir, pluginRoot: join(world.root, 'new-root'), install: async arg => { installs.push(arg); }, shell });
+  const result = await ensureToastIdentity({ dataDir, homeDir: world.homeDir, install: async arg => { installs.push(arg); }, shell });
   assert.equal(result.action, 'installed');
-  assert.equal(installs.length, 1, 'vbs 指向旧根时必须重装');
-  assert.equal(installs[0].pluginRoot, join(world.root, 'new-root'));
+  assert.equal(installs.length, 1, '旧格式 vbs 必须重装为稳定入口');
+  assert.equal(installs[0].homeDir, world.homeDir, '安装必须携带 homeDir 以定位共享运行目录');
 });
 
-test('Toast 身份：vbs 与注册表键均正常时走缓存短路，不重装', async t => {
+test('Toast 身份：vbs、身份描述与注册表键均正常时走缓存短路，不重装', async t => {
   const world = await buildWorld(t);
   const dataDir = join(world.root, 'data');
-  const pluginRoot = join(world.root, 'new-root');
+  const toastRoot = join(world.homeDir, '.zcode', 'tools', 'suian-zcode-common', 'toast');
+  await mkdir(join(toastRoot, 'identities'), { recursive: true });
   await mkdir(dataDir, { recursive: true });
-  await writeFile(join(dataDir, 'toast-launch.vbs'), buildVbsContent({ nodeExe: process.execPath, toastActionPath: join(pluginRoot, 'toast-action.mjs'), dataDir, protocol: 'suian-zcode-common' }));
+  await writeFile(join(toastRoot, 'identities', 'suian-zcode-common.json'), JSON.stringify({ formatVersion: 1, protocol: 'suian-zcode-common', appId: 'SUIAN.SuianZcodeCommon.Toast', dataDir, templateFile: null }));
+  await writeFile(join(dataDir, 'toast-launch.vbs'), buildVbsContent({ protocol: 'suian-zcode-common', launcherPath: join(toastRoot, 'launch.vbs') }));
   await writeFile(join(dataDir, 'toast-appid.txt'), 'SUIAN.SuianZcodeCommon.Toast');
   const installs = [];
   let registryQueried = false;
   const shell = { run: async (cmd, args) => { registryQueried = cmd === 'reg.exe' && args[0] === 'query'; return ''; } };
-  const result = await ensureToastIdentity({ dataDir, pluginRoot, install: async arg => { installs.push(arg); }, shell });
+  const result = await ensureToastIdentity({ dataDir, homeDir: world.homeDir, install: async arg => { installs.push(arg); }, shell });
   assert.equal(result.action, 'cached');
   assert.equal(installs.length, 0);
   assert.equal(registryQueried, true, '缓存命中必须校验注册表协议键存在');
 });
 
+test('Toast 身份：外置身份描述被外部删除时自愈重装', async t => {
+  const world = await buildWorld(t);
+  const dataDir = join(world.root, 'data');
+  const toastRoot = join(world.homeDir, '.zcode', 'tools', 'suian-zcode-common', 'toast');
+  await mkdir(join(toastRoot, 'identities'), { recursive: true });
+  await mkdir(dataDir, { recursive: true });
+  await writeFile(join(dataDir, 'toast-launch.vbs'), buildVbsContent({ protocol: 'suian-zcode-common', launcherPath: join(toastRoot, 'launch.vbs') }));
+  await writeFile(join(dataDir, 'toast-appid.txt'), 'SUIAN.SuianZcodeCommon.Toast');
+  const installs = [];
+  const shell = { run: async () => '' };
+  const result = await ensureToastIdentity({ dataDir, homeDir: world.homeDir, install: async arg => { installs.push(arg); }, shell });
+  assert.equal(result.action, 'installed');
+  assert.equal(installs.length, 1, '身份描述缺失必须重装，不能仅凭 AppID 缓存判定健康');
+});
+
 test('Toast 身份：注册表协议键被外部删除时自愈重装', async t => {
   const world = await buildWorld(t);
   const dataDir = join(world.root, 'data');
-  const pluginRoot = join(world.root, 'new-root');
+  const toastRoot = join(world.homeDir, '.zcode', 'tools', 'suian-zcode-common', 'toast');
+  await mkdir(join(toastRoot, 'identities'), { recursive: true });
   await mkdir(dataDir, { recursive: true });
-  await writeFile(join(dataDir, 'toast-launch.vbs'), buildVbsContent({ nodeExe: process.execPath, toastActionPath: join(pluginRoot, 'toast-action.mjs'), dataDir, protocol: 'suian-zcode-common' }));
+  await writeFile(join(toastRoot, 'identities', 'suian-zcode-common.json'), JSON.stringify({ formatVersion: 1, protocol: 'suian-zcode-common', appId: 'SUIAN.SuianZcodeCommon.Toast', dataDir, templateFile: null }));
+  await writeFile(join(dataDir, 'toast-launch.vbs'), buildVbsContent({ protocol: 'suian-zcode-common', launcherPath: join(toastRoot, 'launch.vbs') }));
   await writeFile(join(dataDir, 'toast-appid.txt'), 'SUIAN.SuianZcodeCommon.Toast');
   const installs = [];
   const shell = { run: async () => { throw new Error('exit 1: 系统找不到指定的注册表项'); } };
-  const result = await ensureToastIdentity({ dataDir, pluginRoot, install: async arg => { installs.push(arg); }, shell });
+  const result = await ensureToastIdentity({ dataDir, homeDir: world.homeDir, install: async arg => { installs.push(arg); }, shell });
   assert.equal(result.action, 'installed');
   assert.equal(installs.length, 1);
 });
@@ -273,7 +292,7 @@ test('Toast 身份：vbs 尚未安装（首次运行）时直接安装', async t
   const installs = [];
   let registryQueried = false;
   const shell = { run: async cmd => { registryQueried = true; return ''; } };
-  const result = await ensureToastIdentity({ dataDir, pluginRoot: join(world.root, 'new-root'), install: async arg => { installs.push(arg); }, shell });
+  const result = await ensureToastIdentity({ dataDir, homeDir: world.homeDir, install: async arg => { installs.push(arg); }, shell });
   assert.equal(result.action, 'installed');
   assert.equal(installs.length, 1);
   assert.equal(registryQueried, false, 'vbs 缺失时无需查询注册表');

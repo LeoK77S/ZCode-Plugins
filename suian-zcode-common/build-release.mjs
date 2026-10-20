@@ -73,6 +73,8 @@ export async function buildRelease({ root = defaultRoot, outDir } = {}) {
 
   // 允许清单：许可与插件清单目录（隐藏目录随 recursive 复制进入）。
   await cp(join(root, '.zcode-plugin'), join(outDir, '.zcode-plugin'), { recursive: true });
+  // Toast 执行器以源文件原样分发（部署快照不参与 bundle，运行期由 client-install 读取后部署）。
+  await cp(join(root, 'toast-executor.mjs'), join(outDir, 'toast-executor.mjs'));
   await mkdir(join(outDir, 'vendor'), { recursive: true });
   for (const name of VENDOR_STATIC) {
     await cp(join(root, 'vendor', name), join(outDir, 'vendor', name));
