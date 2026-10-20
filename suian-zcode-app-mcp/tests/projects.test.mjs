@@ -208,7 +208,7 @@ test('项目注册表读取：探测支持、列表排序过滤、按 ID 与按�
 test('start_session 项目模式以主根为执行目录并归属项目，互斥校验与跨项目反查引导', async t => {
   const f = projectFixture(t), calls = [];
   const controller = { startSession: async args => { calls.push(args); return { session_id: 'new', delivery_status: 'accepted' }; } };
-  const server = createMcpServer(f, { controller }), client = new Client({ name: 'project-mode-contract', version: '1' });
+  const server = await createMcpServer(f, { controller }), client = new Client({ name: 'project-mode-contract', version: '1' });
   const [ct, st] = InMemoryTransport.createLinkedPair();
   t.after(async () => { await client.close(); await server.close(); });
   await server.connect(st); await client.connect(ct);
@@ -242,7 +242,7 @@ test('start_session 项目模式以主根为执行目录并归属项目，互斥
 test('list_projects 按宿主索引能力差异化公布：新库返回注册表，旧库 schema 不出现 project_id', async t => {
   const f = projectFixture(t);
   const controller = { startSession: async args => args };
-  const server = createMcpServer(f, { controller }), client = new Client({ name: 'project-tool-contract', version: '1' });
+  const server = await createMcpServer(f, { controller }), client = new Client({ name: 'project-tool-contract', version: '1' });
   const [ct, st] = InMemoryTransport.createLinkedPair();
   t.after(async () => { await client.close(); await server.close(); });
   await server.connect(st); await client.connect(ct);
@@ -261,7 +261,7 @@ test('list_projects 按宿主索引能力差异化公布：新库返回注册表
   assert.equal((await client.callTool({ name: 'list_projects', arguments: { limit: 5 } })).isError, true, '无参数工具拒绝未知字段');
   await client.close(); await server.close();
   const legacy = fixture(t);
-  const legacyServer = createMcpServer(legacy, { controller }), legacyClient = new Client({ name: 'legacy-tool-contract', version: '1' });
+  const legacyServer = await createMcpServer(legacy, { controller }), legacyClient = new Client({ name: 'legacy-tool-contract', version: '1' });
   const [lct, lst] = InMemoryTransport.createLinkedPair();
   t.after(async () => { await legacyClient.close(); await legacyServer.close(); });
   await legacyServer.connect(lst); await legacyClient.connect(lct);
