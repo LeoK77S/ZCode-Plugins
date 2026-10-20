@@ -1,1 +1,12 @@
-{"name":"oil-zcode-title-runner","private":true,"type":"module","engines":{"node":">=24.0.0"},"scripts":{"test":"node --test tests/*.test.mjs"}}
+{
+  "name": "oil-zcode-title-runner",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=24.0.0"
+  },
+  "scripts": {
+    "test": "node --test --import ./tests/common-fixture.mjs tests/*.test.mjs",
+    "build:release": "node build-release.mjs"
+  }
+}

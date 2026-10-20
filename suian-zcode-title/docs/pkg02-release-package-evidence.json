@@ -1,0 +1,35 @@
+{
+  "ticket": "#114 PKG-02",
+  "baseline": "90caa4b（feat/shared-runtime-release，含 PKG-01）",
+  "verifiedAt": "2026-10-20",
+  "tdd": {
+    "red": {
+      "exitCode": 1,
+      "note": "tests/release.test.mjs 契约先行：common-access.mjs / build-release.mjs 缺失导致加载失败，另含常驻旧路径红锚点（无链接独立目录裸导入 suian-zcode-common 报 ERR_MODULE_NOT_FOUND）",
+      "log": ".scratch/pkg02-red.log（不入库）"
+    },
+    "green": {
+      "exitCode": 0,
+      "newContractTests": "15/15（发布组装、Hook 清单语义、metafile 薄定位器独占、路径泄漏、buildId 确定性、隔离世界 Stop/worker 拦截/status/probe/无锚点/本地命令/install check-only/doctor）",
+      "log": ".scratch/pkg02-green.log（不入库）"
+    }
+  },
+  "regression": {
+    "exitCode": 0,
+    "suite": "suian-zcode-title 全量 npm test（node --test --import tests/common-fixture.mjs）",
+    "result": "89/89 通过",
+    "log": ".scratch/pkg02-full-suite.log（不入库）"
+  },
+  "acceptance": {
+    "红色契约先行": "旧入口在独立目录无法加载 common（裸导入 ERR_MODULE_NOT_FOUND 常驻回归）；实现前新契约 15 项全红",
+    "隔离加载": "发布目录复制进合成宿主缓存，清开发依赖隔离源码后 Stop 命令、CLI status/probe、install --check-only 均正常",
+    "真实子进程 worker": "preload 拦截 spawn 证明 Hook 派发发布目录内 dist/cli.mjs，args 含 run --apply 与实际 --config，stdin 只传会话元数据，windowsHide/detached 保留；不触发真实改名或协议",
+    "ESM 主模块判定": "命令入口间禁止互相导入（cli 原先导入 install 致 bundle 内联复制 isMain 判定），拆出非入口共享模块 installer.mjs 后各 bundle 单一主逻辑",
+    "提示词与资源": "prompt.md、skills、SKILL.md、清单、Hook、配置模板与许可齐备且从明确发布根定位（发布根由上级 release.json 判定）",
+    "安装检查": "sqlite3 只读 JSON 验证保留；首次配置暂停、模型核验、原开关与自定义字段契约不变；native 安装把安装记录路径写入外置配置供无注入 CLI 定位",
+    "metafile": "构建期断言 common 侧输入恰为 ../suian-zcode-common/locate.mjs，未内联 common 实现或公共 vendor；包内无 node_modules、用户配置或本机绝对路径",
+    "Toast 业务归属": "提示词模板与协议/AUMID 身份保留在 title 源码（toast.mjs/installer.mjs），随发布目录提供，未搬入 common；稳定协议执行留 PKG-06",
+    "命名行为": "naming 契约（去重、固定标题、手动保护、stale_result、写后复核）零改动，测试全量通过"
+  },
+  "notCovered": "真实 Stop 端到端、模型用量与 Toast 按钮属 PKG-09；Toast 稳定入口与活动记录属 PKG-06；正式市场切换与 ZIP 发布属 PKG-07"
+}

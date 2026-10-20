@@ -1,8 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtemp, mkdir, writeFile, readFile, rm, stat } from 'node:fs/promises';
+import { mkdtemp, mkdir, writeFile, readFile, rm, stat, readdir, cp } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { join, dirname } from 'node:path';
+import { join, dirname, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { execFile, spawn } from 'node:child_process';
 import { promisify } from 'node:util';
@@ -12,14 +12,16 @@ import { once } from 'node:events';
 import { createInterface } from 'node:readline';
 import WebSocket, { WebSocketServer } from 'ws';
 import { gatewayBuild } from '../gateway-build.mjs';
+import { computeGatewayBuildId } from '../gateway-deploy.mjs';
 
 const setup = fileURLToPath(new URL('../setup.ps1', import.meta.url));
 const gatewayRoot = dirname(setup);
+const deployBuildId = await computeGatewayBuildId(gatewayRoot);
 const nativeExec = promisify(execFile);
 
 // 只替换 Windows 系统边界，真实执行 setup.ps1 与临时目录内的文件读写。
 const systemFixture = String.raw`
-param([string]$Script, [string]$Action, [string]$DataDir, [string]$SkillsDir, [string]$StateFile, [int]$HealthTimeoutSec, [int]$Port, [string]$Mode, [int]$RelayProtocolVersion, [string]$ZcodeAppVersion, [string]$UpstreamUrl, [switch]$NativePlugin)
+param([string]$Script, [string]$Action, [string]$DataDir, [string]$SkillsDir, [string]$ToolsRoot, [string]$StateFile, [int]$HealthTimeoutSec, [int]$Port, [string]$Mode, [int]$RelayProtocolVersion, [string]$ZcodeAppVersion, [string]$UpstreamUrl, [switch]$NativePlugin)
 $ErrorActionPreference = 'Stop'
 [Console]::OutputEncoding = New-Object System.Text.UTF8Encoding($false)
 $global:fixture = Get-Content -LiteralPath $StateFile -Raw | ConvertFrom-Json
@@ -60,7 +62,7 @@ function Get-ItemProperty { param([string]$LiteralPath) if ($LiteralPath -ne 'HK
 function New-ItemProperty { param([string]$LiteralPath, [string]$Name, [string]$Value, [string]$PropertyType, [switch]$Force) if ($LiteralPath -ne 'HKCU:\Environment' -or $Name -ne 'ZCODE_WEB_REMOTE_CONTROL_RELAY_WS_URL') { throw '修改了非目标变量' }; $global:fixture.relay = $Value; Save-Fixture }
 function Remove-ItemProperty { param([string]$LiteralPath, [string]$Name) if ($LiteralPath -ne 'HKCU:\Environment' -or $Name -ne 'ZCODE_WEB_REMOTE_CONTROL_RELAY_WS_URL') { throw '删除了非目标变量' }; $global:fixture.relay = $null; Save-Fixture }
 function Get-ScheduledTask { if ($null -ne $global:fixture.task) { return $global:fixture.task } }
-function New-ScheduledTaskAction { param([string]$Execute, [string]$Argument) return [pscustomobject]@{ Execute=$Execute; Arguments=$Argument } }
+function New-ScheduledTaskAction { param([string]$Execute, [string]$Argument, [string]$WorkingDirectory) return [pscustomobject]@{ Execute=$Execute; Arguments=$Argument; WorkingDirectory=$WorkingDirectory } }
 function New-ScheduledTaskTrigger { param([switch]$AtLogOn, [string]$User) return [pscustomobject]@{ AtLogOn=[bool]$AtLogOn; User=$User } }
 function New-ScheduledTaskPrincipal { param([string]$UserId, [string]$LogonType, [string]$RunLevel) return [pscustomobject]@{ UserId=$UserId; LogonType=$LogonType; RunLevel=$RunLevel } }
 function New-ScheduledTaskSettingsSet { param([TimeSpan]$ExecutionTimeLimit, [int]$RestartCount, [TimeSpan]$RestartInterval, [string]$MultipleInstances, [switch]$AllowStartIfOnBatteries, [switch]$DontStopIfGoingOnBatteries) return [pscustomobject]@{ ExecutionTimeLimit=$ExecutionTimeLimit.TotalSeconds; RestartCount=$RestartCount; MultipleInstances=$MultipleInstances } }
@@ -72,6 +74,7 @@ function Invoke-RestMethod {
     param([string]$Uri, [int]$TimeoutSec, [switch]$UseBasicParsing, [string]$Method, $Headers)
     $global:fixture.http_attempts++; Save-Fixture
     if ($global:fixture.health -eq 'failure') { throw 'fixture: 网关启动失败' }
+    if ($null -ne $global:fixture.reject_build -and $null -ne $global:fixture.build -and $global:fixture.build.PSObject.Properties['id'] -and $global:fixture.build.id -eq $global:fixture.reject_build) { throw [Net.WebException]::new('fixture: rejected candidate', [Net.WebExceptionStatus]::ConnectFailure) }
     $config = Get-Content -LiteralPath (Join-Path $DataDir 'config.json') -Raw | ConvertFrom-Json
     if (([Uri]$Uri).Port -ne $config.port) { throw [Net.WebException]::new('fixture: wrong health port', [Net.WebExceptionStatus]::ConnectFailure) }
     if ($global:fixture.real_health) { return Microsoft.PowerShell.Utility\Invoke-RestMethod @PSBoundParameters }
@@ -94,12 +97,16 @@ function Invoke-RestMethod {
     $protocol = if ($config.PSObject.Properties['relay_protocol_version']) { $config.relay_protocol_version } else { 1 }
     if ($null -ne $global:fixture.health_protocol) { $protocol = $global:fixture.health_protocol }
     $reply = [pscustomobject]@{ service='suian-zcode-gateway'; version=1; instance_id=$id; upstream_url=$config.upstream_url; mode=$mode; desktop_connected=$global:fixture.desktop; desktop_ready=$global:fixture.desktop; upstream_connected=$false; paired=$false; rpc_protocol_version=1; upstream_paired=$false; local_clients=0 }
-    if ($null -ne $global:fixture.build) { Add-Member -InputObject $reply -NotePropertyName build -NotePropertyValue $global:fixture.build }
+    if ($null -ne $global:fixture.build) {
+        $b = $global:fixture.build
+        if ($b -is [string]) { $b = @{ id=$b }.psobject } elseif ($b.PSObject.Properties['root'] -and $null -ne $b.root) { } else { $b = [pscustomobject]@{ id=$b.id; version=$b.version; root=(Join-Path $ToolsRoot ('deployments\' + $b.id)) } }
+        Add-Member -InputObject $reply -NotePropertyName build -NotePropertyValue $b
+    }
     Add-Member -InputObject $reply -NotePropertyName relay_protocol_version -NotePropertyValue $protocol
     if ($global:fixture.legacy_health) { $reply.PSObject.Properties.Remove('mode'); $reply.PSObject.Properties.Remove('desktop_ready'); $reply.PSObject.Properties.Remove('relay_protocol_version') }
     return $reply
 }
-$params = @{ Action=$Action; DataDir=$DataDir; SkillsDir=$SkillsDir }
+$params = @{ Action=$Action; DataDir=$DataDir; SkillsDir=$SkillsDir; ToolsRoot=$ToolsRoot }
 if ($PSBoundParameters.ContainsKey('HealthTimeoutSec')) { $params.HealthTimeoutSec=$HealthTimeoutSec }
 if ($PSBoundParameters.ContainsKey('Port')) { $params.Port=$Port }
 if ($PSBoundParameters.ContainsKey('Mode')) { $params.Mode=$Mode }
@@ -110,22 +117,23 @@ if ($NativePlugin) { $params.NativePlugin=$true }
 & $Script @params
 `;
 
-async function fixture(t, overrides = {}) {
+async function fixture(t, overrides = {}, { setupScript = setup } = {}) {
   const root = await mkdtemp(join(tmpdir(), 'zcode-gateway-'));
   t.after(() => rm(root, { recursive: true }));
   const stateFile = join(root, 'system.json');
   const script = join(root, 'Windows 边界 fixture.ps1');
   const dataDir = join(root, '公共 data');
   const skillsDir = join(root, 'skills');
-  const initial = { relay: 'wss://previous.example/ws', app_version_env: null, task: null, registrations: 0, starts: 0, shutdowns: 0, health: 'ready', health_protocol: null, real_health: false, build: gatewayBuild, desktop: false, legacy_health: false, health_min_timeout: 0, timeouts_left: 0, health_requests: 0, http_attempts: 0, health_available: false, draining: false, shutdown_health_reads: 0, broadcasts: [], broadcast_fail: false, broadcast_declaration: null, unregister_fail: false, ...overrides };
+  const toolsRoot = join(root, '稳定 网关 tools');
+  const initial = { relay: 'wss://previous.example/ws', app_version_env: null, task: null, registrations: 0, starts: 0, shutdowns: 0, health: 'ready', health_protocol: null, real_health: false, build: { id: deployBuildId, version: gatewayBuild.version }, reject_build: null, desktop: false, legacy_health: false, health_min_timeout: 0, timeouts_left: 0, health_requests: 0, http_attempts: 0, health_available: false, draining: false, shutdown_health_reads: 0, broadcasts: [], broadcast_fail: false, broadcast_declaration: null, unregister_fail: false, ...overrides };
   await writeFile(stateFile, JSON.stringify(initial));
   await writeFile(script, '\uFEFF' + systemFixture);
-  const run = async (action, { healthTimeoutSec, port, mode, nativePlugin, relayProtocolVersion, zcodeAppVersion, upstreamUrl } = {}) => {
-    const { stdout } = await nativeExec('powershell.exe', ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File', script, '-Script', setup, '-Action', action, '-DataDir', dataDir, '-SkillsDir', skillsDir, '-StateFile', stateFile, ...(healthTimeoutSec === undefined ? [] : ['-HealthTimeoutSec', String(healthTimeoutSec)]), ...(port === undefined ? [] : ['-Port', String(port)]), ...(mode === undefined ? [] : ['-Mode', mode]), ...(relayProtocolVersion === undefined ? [] : ['-RelayProtocolVersion', String(relayProtocolVersion)]), ...(zcodeAppVersion === undefined ? [] : ['-ZcodeAppVersion', zcodeAppVersion]), ...(upstreamUrl === undefined ? [] : ['-UpstreamUrl', upstreamUrl]), ...(nativePlugin ? ['-NativePlugin'] : [])], { windowsHide: true });
+  const run = async (action, { healthTimeoutSec, port, mode, nativePlugin, relayProtocolVersion, zcodeAppVersion, upstreamUrl, setupScript: scriptOverride } = {}) => {
+    const { stdout } = await nativeExec('powershell.exe', ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File', script, '-Script', scriptOverride ?? setupScript, '-Action', action, '-DataDir', dataDir, '-SkillsDir', skillsDir, '-ToolsRoot', toolsRoot, '-StateFile', stateFile, ...(healthTimeoutSec === undefined ? [] : ['-HealthTimeoutSec', String(healthTimeoutSec)]), ...(port === undefined ? [] : ['-Port', String(port)]), ...(mode === undefined ? [] : ['-Mode', mode]), ...(relayProtocolVersion === undefined ? [] : ['-RelayProtocolVersion', String(relayProtocolVersion)]), ...(zcodeAppVersion === undefined ? [] : ['-ZcodeAppVersion', zcodeAppVersion]), ...(upstreamUrl === undefined ? [] : ['-UpstreamUrl', upstreamUrl]), ...(nativePlugin ? ['-NativePlugin'] : [])], { windowsHide: true });
     return JSON.parse(stdout.trim());
   };
   const state = async () => JSON.parse(await readFile(stateFile, 'utf8'));
-  return { root, stateFile, dataDir, skillsDir, run, state };
+  return { root, stateFile, dataDir, skillsDir, toolsRoot, setupScript, run, state };
 }
 
 test('3.16 首次安装按宿主应用版本自动选择 V2 和新版官方地址', { skip: process.platform !== 'win32' }, async t => {
@@ -232,7 +240,7 @@ test('实际 health 协议不符会报告重载，首次启动协议未生效时
   assert.equal((await wrong.state()).broadcasts.length, 0);
 });
 
-test('安装生成的 V1/V2 配置可直接启动真实 Node CLI，Status 读取真实健康接口确认版本与代码', { skip: process.platform !== 'win32', timeout: 15000 }, async t => {
+test('安装部署的运行文件可直接启动真实 Node CLI，Status 读取真实健康接口确认版本与代码', { skip: process.platform !== 'win32', timeout: 15000 }, async t => {
   const relay = new WebSocketServer({ host: '127.0.0.1', port: 0 });
   await once(relay, 'listening');
   t.after(() => { for (const socket of relay.clients) socket.terminate(); relay.close(); });
@@ -242,7 +250,9 @@ test('安装生成的 V1/V2 配置可直接启动真实 Node CLI，Status 读取
     await new Promise(resolve => portProbe.close(resolve));
     const f = await fixture(t, { app_version_env: appVersion });
     await f.run('Install', { port, upstreamUrl: `ws://127.0.0.1:${relay.address().port}/ws` });
-    const child = spawn(process.execPath, [join(gatewayRoot, 'gateway.mjs'), '--config', join(f.dataDir, 'config.json')], { windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'] });
+    const deployedGateway = join(f.toolsRoot, 'deployments', deployBuildId, 'gateway.mjs');
+    await assert.doesNotReject(() => readFile(deployedGateway));
+    const child = spawn(process.execPath, [deployedGateway, '--config', join(f.dataDir, 'config.json')], { windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'] });
     const exited = once(child, 'exit');
     t.after(async () => { if (child.exitCode === null && child.signalCode === null) { child.kill(); await exited; } });
     let stderr = ''; child.stderr.on('data', chunk => { stderr += chunk; });
@@ -264,7 +274,7 @@ test('安装生成的 V1/V2 配置可直接启动真实 Node CLI，Status 读取
     const health = await (await fetch(health_url)).json();
     assert.equal(health.relay_protocol_version, protocol);
     assert.equal(health.desktop_ready, true);
-    assert.equal(health.build.id, gatewayBuild.id);
+    assert.equal(health.build.id, deployBuildId);
     const state = await f.state(); state.real_health = true;
     await writeFile(f.stateFile, JSON.stringify(state));
     const status = await f.run('Status');
@@ -299,17 +309,15 @@ test('Status 识别已连接网关加载的旧代码，并区分网关重载与 
   assert.equal(outdated.desktop_restart_required, false);
   assert.equal(outdated.restart_required, true);
   assert.equal(outdated.running_build.id, state.build.id);
-  assert.equal(outdated.expected_build.id, gatewayBuild.id);
+  assert.equal(outdated.expected_build.id, deployBuildId);
 });
 
-test('Status 检查启动任务的实际脚本路径，wscript 正在运行仍不能代替路径核对', { skip: process.platform !== 'win32' }, async t => {
+test('Status 检查启动任务的实际脚本参数，wscript 正在运行仍不能代替参数核对', { skip: process.platform !== 'win32' }, async t => {
   const f = await fixture(t, { desktop: true });
   await f.run('Install');
   const state = await f.state();
-  const args = state.task.Actions.Arguments;
-  const encoded = args.match(/([A-Za-z0-9+/=]+)$/)[1];
-  const oldLaunch = Buffer.from(encoded, 'base64').toString('utf16le').replace(join(gatewayRoot, 'run.ps1'), 'D:\\old-cache\\run.ps1');
-  state.task.Actions.Arguments = args.slice(0, -encoded.length) + Buffer.from(oldLaunch, 'utf16le').toString('base64');
+  // 旧安装的任务参数形态：把启动器编码进 EncodedCommand 的旧缓存路径。
+  state.task.Actions.Arguments = '//B //NoLogo "' + join(f.dataDir, 'gateway-launch.vbs') + '" ' + Buffer.from("& 'D:\\旧缓存\\run.ps1' -NodePath 'C:\\node.exe' -DataDir '" + f.dataDir.replaceAll("'", "''") + "'", 'utf16le').toString('base64');
   await writeFile(f.stateFile, JSON.stringify(state));
   const status = await f.run('Status');
   assert.equal(status.code_status, 'current');
@@ -321,8 +329,12 @@ test('Status 检查启动任务的实际脚本路径，wscript 正在运行仍�
 });
 
 test('Status 不把旧 health 当作最新代码，也不把远控未连接直接等同 Desktop 必须重开', { skip: process.platform !== 'win32' }, async t => {
-  const f = await fixture(t, { desktop: true, build: null });
-  const installed = await f.run('Install');
+  const f = await fixture(t, { desktop: true });
+  await f.run('Install');
+  // 旧版本网关没有指纹：健康缺 build 时报告 unknown，不当作最新代码。
+  const state = await f.state(); state.build = null;
+  await writeFile(f.stateFile, JSON.stringify(state));
+  const installed = await f.run('Status');
   assert.equal(installed.code_status, 'unknown');
   assert.equal(installed.gateway_restart_required, true);
   const unknown = await f.run('Status');
@@ -330,14 +342,14 @@ test('Status 不把旧 health 当作最新代码，也不把远控未连接直�
   assert.equal(unknown.code_status, 'unknown');
   assert.equal(unknown.gateway_restart_required, true);
   assert.equal(unknown.restart_required, true);
-  const state = await f.state(); state.build = gatewayBuild; state.desktop = false;
+  state.build = { id: deployBuildId, version: gatewayBuild.version }; state.desktop = false;
   await writeFile(f.stateFile, JSON.stringify(state));
   const disconnected = await f.run('Status');
   assert.equal(disconnected.gateway_restart_required, false);
   assert.equal(disconnected.desktop_restart_required, false);
   assert.equal(disconnected.desktop_connection_required, true);
   assert.equal(disconnected.restart_required, true);
-  state.build = { ...gatewayBuild, root: 'D:\\old-cache' }; state.desktop = true;
+  state.build = { id: deployBuildId, version: gatewayBuild.version, root: 'D:\\old-cache' }; state.desktop = true;
   await writeFile(f.stateFile, JSON.stringify(state));
   const wrongRoot = await f.run('Status');
   assert.equal(wrongRoot.code_status, 'current');
@@ -358,7 +370,7 @@ test('原生公共初始化不复制全局技能，只清理归属匹配的旧�
   await assert.rejects(stat(skillFile),{code:'ENOENT'});
 });
 
-test('公共安装部署唯一用户启动任务和 skill，网关就绪后才设置 Desktop 用户环境', { skip: process.platform !== 'win32' }, async (t) => {
+test('公共安装部署缓存外运行文件与稳定任务，网关就绪后才设置 Desktop 用户环境', { skip: process.platform !== 'win32' }, async (t) => {
   const f = await fixture(t);
   const result = await f.run('Install');
   assert.equal(result.ok, true);
@@ -372,15 +384,32 @@ test('公共安装部署唯一用户启动任务和 skill，网关就绪后才�
   assert.equal(state.task.Trigger.AtLogOn, true);
   assert.equal(state.task.Settings.ExecutionTimeLimit, 0);
   assert.equal(state.task.Actions.Execute, join(process.env.SystemRoot, 'System32', 'wscript.exe'));
-  const launcherFile = join(f.dataDir, 'gateway-launch.vbs');
-  assert.ok(state.task.Actions.Arguments.includes('"' + launcherFile + '"'));
-  assert.ok((await readFile(launcherFile, 'utf16le')).includes('Option Explicit'));
+  assert.equal(state.task.Actions.WorkingDirectory, f.dataDir, '任务工作目录是网关数据目录，不引用版本缓存');
+
+  // 任务参数指向缓存外稳定 VBS；EncodedCommand 内只有稳定启动器与工具/数据目录，无源码缓存路径。
+  const stableVbs = join(f.toolsRoot, 'launchers', 'gateway-launch.vbs');
+  assert.ok(state.task.Actions.Arguments.includes('"' + stableVbs + '"'));
   const encoded = state.task.Actions.Arguments.match(/([A-Za-z0-9+/=]+)$/)[1];
   const launch = Buffer.from(encoded, 'base64').toString('utf16le');
-  assert.ok(launch.includes(join(gatewayRoot, 'run.ps1')));
+  assert.ok(launch.includes(join(f.toolsRoot, 'launchers', 'run.ps1')), 'EncodedCommand 必须引用稳定启动器');
+  assert.ok(!launch.includes(gatewayRoot), '任务参数不得编码源码缓存路径');
+  assert.ok(!JSON.stringify(state.task).replaceAll('\\\\', '\\').includes(gatewayRoot), '任务整体不得引用版本缓存');
+
+  // 部署目录是真实文件副本；活动网关记录独立落盘。
+  const deploymentDir = join(f.toolsRoot, 'deployments', deployBuildId);
+  await assert.doesNotReject(() => readFile(join(deploymentDir, 'gateway.mjs')), '部署目录必须包含网关入口');
+  await assert.doesNotReject(() => readFile(join(deploymentDir, 'deployment.json')));
+  await assert.doesNotReject(() => readFile(join(f.toolsRoot, 'launchers', 'run.ps1')));
+  await assert.doesNotReject(() => readFile(join(f.toolsRoot, 'launchers', 'gateway-launch.vbs')));
+  const active = JSON.parse(await readFile(join(f.toolsRoot, 'active-gateway.json'), 'utf8'));
+  assert.equal(active.build_id, deployBuildId);
+  assert.match(active.node_path, /node(\.exe)?$/i, '活动记录必须记录实际 Node 可执行文件');
+
   const config = JSON.parse((await readFile(join(f.dataDir, 'config.json'), 'utf8')).replace(/^\uFEFF/, ''));
   assert.equal(config.previous_user_relay, 'wss://previous.example/ws');
-  assert.equal(config.gateway_root, gatewayRoot);
+  assert.equal(config.gateway_root, deploymentDir, 'config 记录部署目录而非源码缓存');
+  assert.equal(config.tools_root, f.toolsRoot);
+  assert.equal(config.active_build_id, deployBuildId);
   assert.match(config.control_token, /^[a-f0-9]{32}$/);
   assert.ok(!JSON.stringify(result).includes(config.control_token));
   const skill = await readFile(join(f.skillsDir, 'suian-zcode-common', 'SKILL.md'), 'utf8');
@@ -480,7 +509,7 @@ test('旧配置和旧健康端点缺少模式时按 relay 兼容，不改变原�
   assert.equal(JSON.parse(await readFile(configFile, 'utf8')).previous_user_relay, config.previous_user_relay);
 });
 
-test('重复初始化复用唯一实例与原环境备份；状态区分未配置和 Desktop 已连接', { skip: process.platform !== 'win32' }, async (t) => {
+test('重复初始化复用唯一实例与原环境备份；同 buildId 幂等部署不重复', { skip: process.platform !== 'win32' }, async (t) => {
   const f = await fixture(t);
   assert.equal((await f.run('Status')).configured, false);
   await f.run('Install');
@@ -490,6 +519,10 @@ test('重复初始化复用唯一实例与原环境备份；状态区分未配�
   assert.equal(state.starts, 1);
   const config = JSON.parse(await readFile(join(f.dataDir, 'config.json'), 'utf8'));
   assert.equal(config.previous_user_relay, 'wss://previous.example/ws');
+  const deployments = await readdir(join(f.toolsRoot, 'deployments'));
+  assert.deepEqual(deployments, [deployBuildId], '同 buildId 重复安装只保留一个部署');
+  const active = JSON.parse(await readFile(join(f.toolsRoot, 'active-gateway.json'), 'utf8'));
+  assert.equal(active.build_id, deployBuildId);
   const waiting = await f.run('Status');
   assert.equal(waiting.configured, true);
   assert.equal(waiting.user_env_matches, true);
@@ -532,13 +565,17 @@ test('移除前拒绝切断 Desktop；退出后恢复原用户环境或保留外
   }
 });
 
-test('启动失败或健康接口属于其他实例时明确失败，不写网关环境变量', { skip: process.platform !== 'win32' }, async (t) => {
+test('启动失败或健康接口属于其他实例时明确失败，首次安装撤销注册、配置与部署且不写网关环境变量', { skip: process.platform !== 'win32' }, async (t) => {
   for (const health of ['failure', 'foreign']) {
     const f = await fixture(t, { health });
-    await assert.rejects(f.run('Install'), health === 'failure' ? /fixture: 网关启动失败/ : /different instance/);
-    assert.equal((await f.state()).relay, 'wss://previous.example/ws');
-    const config = JSON.parse(await readFile(join(f.dataDir, 'config.json'), 'utf8'));
-    assert.equal(config.previous_user_relay, 'wss://previous.example/ws');
+    await assert.rejects(f.run('Install'), health === 'failure' ? /fixture: 网关启动失败|rolled back|not installed/ : /different instance|rolled back|not installed/);
+    const state = await f.state();
+    assert.equal(state.relay, 'wss://previous.example/ws');
+    assert.equal(state.broadcasts.length, 0);
+    assert.equal(state.task, null, '首次安装失败必须撤销新增任务注册');
+    await assert.rejects(readFile(join(f.dataDir, 'config.json')), { code: 'ENOENT' }, '首次安装失败必须删除本次配置');
+    await assert.rejects(readFile(join(f.toolsRoot, 'active-gateway.json')), { code: 'ENOENT' }, '首次安装失败必须撤销活动记录');
+    await assert.rejects(readFile(join(f.toolsRoot, 'deployments', deployBuildId, 'deployment.json')), { code: 'ENOENT' }, '首次安装失败必须清理本次部署');
   }
 });
 
@@ -567,11 +604,11 @@ test('重载拒绝切断远控；暂停远控后迁移旧目录并保留端口�
   const result = await f.run('Restart');
   const updated = JSON.parse(await readFile(configFile, 'utf8'));
   assert.equal(result.action, 'restarted');
-  assert.equal(updated.gateway_root, gatewayRoot);
+  assert.equal(updated.gateway_root, join(f.toolsRoot, 'deployments', deployBuildId), '迁移后 config 指向缓存外部署目录');
   for (const field of ['port', 'upstream_url', 'previous_user_relay', 'control_token'])
     assert.equal(updated[field], old[field]);
   state = await f.state();
-  assert.equal(state.registrations, 2);
+  assert.equal(state.registrations, 1, '稳定任务参数与版本无关，重载不重新注册');
   assert.equal(state.starts, 2);
   assert.equal(state.shutdowns, 1);
   assert.equal(state.relay, 'ws://127.0.0.1:17330/ws');
@@ -735,4 +772,154 @@ test('健康端点不可达与任务状态分别报告，配置保留以供安�
   state.task.State = 'Ready';
   await writeFile(f.stateFile, JSON.stringify(state));
   assert.equal((await f.run('Restart')).gateway_running, true);
+});
+
+// 构造内容不同的源码候选（复制真实源码根并修改运行文件），用于候选/活动/运行三态与切换测试。
+async function variantSource(t) {
+  const copyRoot = await mkdtemp(join(tmpdir(), 'zcode-gateway-variant-'));
+  t.after(() => rm(copyRoot, { recursive: true, force: true }));
+  await cp(gatewayRoot, copyRoot, { recursive: true, filter: path => {
+    const rel = relative(gatewayRoot, path);
+    return rel === '' || (!rel.startsWith('tests') && !rel.startsWith('docs') && !rel.startsWith('.scratch') && !rel.startsWith('experiments') && !/node_modules[\\/]esbuild/.test(rel) && !rel.includes('node_modules\\.bin'));
+  } });
+  const { readFile: rf, writeFile: wf, appendFile } = await import('node:fs/promises');
+  await appendFile(join(copyRoot, 'terminal-relay.mjs'), '\n// variant probe\n');
+  const buildId = await computeGatewayBuildId(copyRoot);
+  const manifest = JSON.parse(await rf(join(copyRoot, 'package.json'), 'utf8'));
+  assert.ok(manifest.name, '副本源码根完整');
+  return { copyRoot, buildId };
+}
+
+const readActive = async toolsRoot => JSON.parse(await readFile(join(toolsRoot, 'active-gateway.json'), 'utf8'));
+
+test('Status 区分候选、活动与运行版本；Desktop 活跃时不切换活动网关，暂停远控后原子切换', { skip: process.platform !== 'win32' }, async t => {
+  const variant = await variantSource(t);
+  const variantSetup = join(variant.copyRoot, 'setup.ps1');
+  const f = await fixture(t);
+  await f.run('Install');
+  assert.notEqual(variant.buildId, deployBuildId, '副本必须是不同候选');
+
+  // 候选（副本）不同时：Desktop 活跃 → Status 报待激活；Install 复用旧服务只报告；Restart 拒绝切换。
+  let state = await f.state();
+  state.desktop = true;
+  await writeFile(f.stateFile, JSON.stringify(state));
+  const pending = await f.run('Status', { setupScript: variantSetup });
+  assert.equal(pending.code_status, 'changed', '运行实例仍是旧代码');
+  assert.equal(pending.candidate_build_id, variant.buildId);
+  assert.equal(pending.active_build_id, deployBuildId);
+  assert.equal(pending.candidate_pending_activation, true);
+  assert.equal(pending.gateway_restart_required, true);
+  assert.equal((await readActive(f.toolsRoot)).build_id, deployBuildId, '待激活不改变活动记录');
+
+  const reused = await f.run('Install', { setupScript: variantSetup });
+  assert.equal(reused.ok, true);
+  assert.equal(reused.candidate_pending_activation, true, 'Install 复用旧服务时明确报告待激活');
+  state = await f.state();
+  assert.equal(state.registrations, 1, '复用不重复注册');
+  assert.equal(state.starts, 1);
+  assert.equal((await readActive(f.toolsRoot)).build_id, deployBuildId);
+
+  await assert.rejects(f.run('Restart', { setupScript: variantSetup }), /Stop mobile remote control/);
+  assert.equal((await readActive(f.toolsRoot)).build_id, deployBuildId, '拒绝切换时活动记录保持不变');
+
+  // Desktop 未知（任务运行但健康不可达）同样拒绝切换。
+  state = await f.state();
+  state.desktop = false;
+  state.health_available = false;
+  state.task.State = 'Running';
+  await writeFile(f.stateFile, JSON.stringify(state));
+  await assert.rejects(f.run('Restart', { setupScript: variantSetup }), /running state is unknown/);
+  assert.equal((await readActive(f.toolsRoot)).build_id, deployBuildId);
+
+  // 暂停远控并恢复健康后切换：健康报告候选 buildId 才算成功；任务参数不变，仅复用启动。
+  state = await f.state();
+  state.health_available = true;
+  state.build = { id: variant.buildId, version: gatewayBuild.version };
+  await writeFile(f.stateFile, JSON.stringify(state));
+  const switched = await f.run('Restart', { setupScript: variantSetup });
+  assert.equal(switched.ok, true);
+  assert.equal(switched.active_build_id, variant.buildId);
+  assert.equal((await readActive(f.toolsRoot)).build_id, variant.buildId, '原子切换活动记录到候选');
+  state = await f.state();
+  assert.equal(state.registrations, 1, '稳定任务参数与版本无关，切换不重注册');
+  assert.equal(state.starts, 2);
+  const deployments = await readdir(join(f.toolsRoot, 'deployments'));
+  assert.ok(deployments.includes(deployBuildId) && deployments.includes(variant.buildId), '新旧部署并存，不自动清理旧部署');
+  const statusAfter = await f.run('Status', { setupScript: variantSetup });
+  assert.equal(statusAfter.candidate_pending_activation, false);
+  assert.equal(statusAfter.code_status, 'current');
+});
+
+test('候选启动失败回退旧活动部署：恢复活动记录、配置与任务并重启，报告原错误与回退结果', { skip: process.platform !== 'win32' }, async t => {
+  const variant = await variantSource(t);
+  const variantSetup = join(variant.copyRoot, 'setup.ps1');
+  const f = await fixture(t);
+  await f.run('Install');
+  const configBefore = await readFile(join(f.dataDir, 'config.json'), 'utf8');
+
+  // 候选 B 启动后健康仍报告旧 build（候选未真正运行部署文件）→ 触发回退。
+  const state = await f.state();
+  state.build = { id: deployBuildId, version: gatewayBuild.version };
+  await writeFile(f.stateFile, JSON.stringify(state));
+  const failure = await f.run('Restart', { setupScript: variantSetup }).then(value => value, error => error);
+  assert.ok(failure instanceof Error, '候选启动失败必须明确失败');
+  assert.match(failure.message, /candidate|failed|different/i);
+  assert.match(failure.message, /fallback|回退|restored/i, '必须报告回退结果');
+
+  assert.equal((await readActive(f.toolsRoot)).build_id, deployBuildId, '回退恢复旧活动记录');
+  assert.equal(await readFile(join(f.dataDir, 'config.json'), 'utf8'), configBefore, '回退恢复本次修改前的配置');
+  const after = await f.state();
+  assert.equal(after.task.State, 'Running', '回退后旧部署任务重新运行');
+  assert.equal(after.registrations, 1);
+  assert.equal(after.starts, 3, '候选试启动一次，回退重启旧部署一次');
+  assert.equal(after.relay, 'ws://127.0.0.1:17329/ws', '网关环境在回退成功后保持已写状态');
+  assert.ok((await readdir(join(f.toolsRoot, 'deployments'))).includes(variant.buildId), '候选部署保留待修复重试，不冒充已激活');
+});
+
+test('旧安装迁移：核对任务归属后切换稳定参数并删除已确认的旧启动文件，配置归属字段保留', { skip: process.platform !== 'win32' }, async t => {
+  const f = await fixture(t);
+  await f.run('Install');
+  const state = await f.state();
+  // 旧安装形态：任务指向 DataDir 内 VBS，EncodedCommand 引用旧缓存 run.ps1。
+  const legacyVbs = join(f.dataDir, 'gateway-launch.vbs');
+  await writeFile(legacyVbs, 'Option Explicit\nSet s = CreateObject("WScript.Shell")\n');
+  state.task.Actions.Arguments = '//B //NoLogo "' + legacyVbs + '" ' + Buffer.from("& 'D:\\旧缓存\\run.ps1' -NodePath 'C:\\node.exe' -DataDir '" + f.dataDir.replaceAll("'", "''") + "'", 'utf16le').toString('base64');
+  state.task.Actions.WorkingDirectory = 'D:\\旧缓存';
+  await writeFile(f.stateFile, JSON.stringify(state));
+  const before = JSON.parse(await readFile(join(f.dataDir, 'config.json'), 'utf8'));
+
+  const migrated = await f.run('Restart');
+  assert.equal(migrated.ok, true);
+  const after = await f.state();
+  assert.ok(after.task.Actions.Arguments.includes('"' + join(f.toolsRoot, 'launchers', 'gateway-launch.vbs') + '"'), '任务切换到缓存外稳定启动器');
+  assert.equal(after.task.Actions.WorkingDirectory, f.dataDir, '工作目录改到数据目录');
+  assert.equal(after.registrations, 2, '迁移重新注册同一任务身份');
+  await assert.rejects(readFile(legacyVbs), { code: 'ENOENT' }, '切换成功后删除已确认归属的旧启动文件');
+  const updated = JSON.parse(await readFile(join(f.dataDir, 'config.json'), 'utf8'));
+  for (const field of ['port', 'upstream_url', 'previous_user_relay', 'control_token']) assert.equal(updated[field], before[field]);
+});
+
+test('网关活动记录与 Toast 活动记录独立：安装、切换与移除网关不触碰 Toast 记录', { skip: process.platform !== 'win32' }, async t => {
+  const f = await fixture(t);
+  const toastRecord = { version: 1, build_id: 'b'.repeat(64), note: 'pkg-06 fixture' };
+  await mkdir(f.toolsRoot, { recursive: true });
+  await writeFile(join(f.toolsRoot, 'active-toast.json'), JSON.stringify(toastRecord));
+  await f.run('Install');
+  assert.deepEqual(JSON.parse(await readFile(join(f.toolsRoot, 'active-toast.json'), 'utf8')), toastRecord);
+  await f.run('Restart');
+  assert.deepEqual(JSON.parse(await readFile(join(f.toolsRoot, 'active-toast.json'), 'utf8')), toastRecord);
+  const removed = await f.run('Remove');
+  assert.deepEqual(JSON.parse(await readFile(join(f.toolsRoot, 'active-toast.json'), 'utf8')), toastRecord, '移除网关不得删除 Toast 活动记录');
+  assert.equal(removed.toast_record, 'preserved');
+  assert.ok((await readdir(join(f.toolsRoot, 'deployments'))).includes(deployBuildId), 'Toast 仍引用部署时不清理部署目录');
+});
+
+test('Remove 在无 Toast 记录时清理网关部署产物与活动记录', { skip: process.platform !== 'win32' }, async t => {
+  const f = await fixture(t);
+  await f.run('Install');
+  const removed = await f.run('Remove');
+  assert.equal(removed.ok, true);
+  await assert.rejects(readFile(join(f.toolsRoot, 'active-gateway.json')), { code: 'ENOENT' });
+  await assert.rejects(stat(join(f.toolsRoot, 'launchers')), { code: 'ENOENT' });
+  await assert.rejects(stat(join(f.toolsRoot, 'deployments')), { code: 'ENOENT' });
 });

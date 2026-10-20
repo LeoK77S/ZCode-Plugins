@@ -260,7 +260,7 @@ test('同 ref 的 PR 与议题按拉取规格隔离：各自起子进程、快�
 
 async function connect(t, f, options, capabilities, name = 'plain-client') {
   const { createMcpServer } = await import('../server.mjs');
-  const server = createMcpServer(f, options);
+  const server = await createMcpServer(f, options);
   const client = new Client({ name, version: name === 'zcode' ? '3.15.1' : '1.0.0' }, capabilities ? { capabilities } : undefined);
   const [ct, st] = InMemoryTransport.createLinkedPair();
   t.after(async () => { await client.close(); await server.close(); });

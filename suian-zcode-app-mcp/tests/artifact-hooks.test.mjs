@@ -29,7 +29,7 @@ function hook(f, event, sessionId = 'sess_parent', turnId = 'turn_A') {
   return JSON.parse(run.stdout);
 }
 async function connect(t, f, options) {
-  const server = createMcpServer(f, options), client = new Client({ name: 'artifact-hooks-contract', version: '1' });
+  const server = await createMcpServer(f, options), client = new Client({ name: 'artifact-hooks-contract', version: '1' });
   const [ct, st] = InMemoryTransport.createLinkedPair();
   t.after(async () => { await client.close(); await server.close(); });
   await server.connect(st); await client.connect(ct);

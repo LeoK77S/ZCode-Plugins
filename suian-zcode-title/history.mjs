@@ -2,9 +2,18 @@ import {execFile} from "node:child_process";
 import {promisify} from "node:util";
 import {win32} from "node:path";
 import {createHash} from "node:crypto";
-import {getConversationMessageProjectionPolicy} from "suian-zcode-common/vendor/projection.js";
+import {commonRuntime} from "./common-access.mjs";
+
+// 会话消息投影策略来自 common（client 契约）。readHistory 先确保就绪；
+// recentSnapshot 是纯函数，同步消费已加载的策略。
+let projectionPolicy;
+export async function ensureProjectionPolicy(options={}) {
+  projectionPolicy??=(await commonRuntime(options)).getConversationMessageProjectionPolicy;
+  return projectionPolicy;
+}
 
 export async function readHistory({dbPath,sessionId,workspacePath,sqliteBin="sqlite3"}) {
+  await ensureProjectionPolicy();
   if(!/^sess(?:ion)?_[A-Za-z0-9_-]+$/.test(sessionId))throw new Error("无效会话 ID");
   const quoted="'"+sessionId+"'";
   const sql=[
@@ -32,6 +41,7 @@ export async function readHistory({dbPath,sessionId,workspacePath,sqliteBin="sql
 }
 
 export function recentSnapshot({session,messages},workspacePath) {
+  if(!projectionPolicy)throw new Error("投影策略未就绪：recentSnapshot 需在 readHistory 或 ensureProjectionPolicy 之后调用");
   let active=messages;
   const revert=session.revert;
   if(revert?.targetMessageID) {
@@ -44,7 +54,7 @@ export function recentSnapshot({session,messages},workspacePath) {
   }
   const users=[],byUser=new Map();
   for(const message of active) {
-    const policy=getConversationMessageProjectionPolicy(message);
+    const policy=projectionPolicy(message);
     const text=message.parts.filter(p=>p.type==="text"&&!p.ignored&&!p.synthetic).map(p=>p.text).join("").trim();
     if(message.info.role==="user"&&policy==="realUserInput") {
       const turn={id:message.info.id,user:text,assistant:[]};users.push(turn);byUser.set(turn.id,turn);

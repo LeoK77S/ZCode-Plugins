@@ -11,7 +11,7 @@ const entry = { kind: 'link', ref: 'https://example.com/issue-54', label: 'å®žæ–
 
 async function pair(t, f) {
   const { createMcpServer } = await import('../server.mjs');
-  const server = createMcpServer(f);
+  const server = await createMcpServer(f);
   const client = new Client({ name: 'artifact-resources-contract', version: '1.0.0' });
   const [ct, st] = InMemoryTransport.createLinkedPair();
   t.after(async () => { await client.close(); await server.close(); });

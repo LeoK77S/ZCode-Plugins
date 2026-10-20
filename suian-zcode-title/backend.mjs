@@ -1,13 +1,17 @@
 import {execFile} from "node:child_process";
 import {promisify} from "node:util";
 import {win32} from "node:path";
-import {connectHost} from "suian-zcode-common/remote.mjs";
+import {commonRuntime} from "./common-access.mjs";
 import {readHistory,recentSnapshot} from "./history.mjs";
-import {readTitlePolicy as loadTitlePolicy} from "suian-zcode-common/title-policy.mjs";
 
 const SESSION_ID_RE=/^sess(?:ion)?_[A-Za-z0-9_-]+$/;
 
-export function createBackend({event,config,saveState,prompt,connect=connectHost,readTitlePolicy=loadTitlePolicy}) {
+let cachedCommon;
+// 公共网关连接与标题策略默认经客户端契约解析；测试与宿主桩注入的参数仍然优先。
+const defaultConnect=async options=>((cachedCommon??=await commonRuntime()),cachedCommon.connectHost(options));
+const defaultReadTitlePolicy=async options=>((cachedCommon??=await commonRuntime()),cachedCommon.readTitlePolicy(options));
+
+export function createBackend({event,config,saveState,prompt,connect=defaultConnect,readTitlePolicy=defaultReadTitlePolicy}) {
   const sessionId=event.session_id;
   if(!SESSION_ID_RE.test(sessionId??""))throw new Error("输入需要有效 session_id");
   let remote;

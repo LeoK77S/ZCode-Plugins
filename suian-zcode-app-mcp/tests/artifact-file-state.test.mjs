@@ -15,7 +15,7 @@ import { fixture } from './fixtures.mjs';
 const UNC_UNREACHABLE = '\\\\nonexistent-host-xyz\\share\\a.md';
 
 async function connect(t, config, options) {
-  const server = createMcpServer(config, options);
+  const server = await createMcpServer(config, options);
   const client = new Client({ name: 'artifact-file-state', version: '1.0.0' });
   const [ct, st] = InMemoryTransport.createLinkedPair();
   t.after(async () => { await client.close(); await server.close(); });

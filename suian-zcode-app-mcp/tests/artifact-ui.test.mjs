@@ -8,7 +8,7 @@ import { fixture } from './fixtures.mjs';
 const uri = 'ui://suian-zcode-app-mcp/artifacts.html';
 const mime = 'text/html;profile=mcp-app';
 async function connect(t, f, version, capabilities, name = 'zcode') {
-  const server = createMcpServer(f), client = new Client({ name, version }, { capabilities });
+  const server = await createMcpServer(f), client = new Client({ name, version }, { capabilities });
   const [ct, st] = InMemoryTransport.createLinkedPair();
   t.after(async () => { await client.close(); await server.close(); });
   await server.connect(st); await client.connect(ct);

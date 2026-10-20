@@ -126,21 +126,25 @@ test('原生迁移保留旧 CLI 等号形式的自定义路径和参数优先级
   assert.equal(JSON.parse(await readFile(configFile,'utf8')).mcp.servers['suian-zcode-app'],undefined);
 });
 
-test('CLI MCP 依赖缺失时先报 npm ci，保留已有技能',async t=>{
-  const f=await skillFixture(t),common=join(f.root,'suian-zcode-common'),plugin=join(f.root,'suian-zcode-app-mcp');
-  await mkdir(join(common,'node_modules','ws'),{recursive:true});
-  await mkdir(plugin);
-  await mkdir(join(plugin,'node_modules'));
-  await symlink(common,join(plugin,'node_modules','suian-zcode-common'),process.platform==='win32'?'junction':'dir');
-  await writeFile(join(common,'node_modules','ws','package.json'),'{"type":"module","exports":"./index.mjs"}');
-  await writeFile(join(common,'node_modules','ws','index.mjs'),'export default class WebSocket {}');
-  for(const name of ['windows.mjs','prerequisites.mjs'])await copyFile(new URL('../../suian-zcode-common/'+name,import.meta.url),join(common,name));
+test('技能部署与运行检查不依赖 npm 依赖和包链接，公共不可用仅作诊断',async t=>{
+  const f=await skillFixture(t),plugin=join(f.root,'suian-zcode-app-mcp');
+  await mkdir(join(f.root,'suian-zcode-common'));await mkdir(plugin);await mkdir(join(plugin,'node_modules')); // 空业务依赖目录：无 SDK、无 junction
+  
   const cli=join(plugin,'install.mjs');
+  // 按源码相对结构放置：install→common-client→../suian-zcode-common/locate.mjs
   await copyFile(new URL('../install.mjs',import.meta.url),cli);
-  await mkdir(dirname(f.skillFile),{recursive:true});
-  await writeFile(f.skillFile,'既有副本');
-  await assert.rejects(promisify(execFile)(process.execPath,[cli,'--skills-dir',join(f.root,'skills')],{windowsHide:true}),error=>{
-    assert.match(error.stderr,/MCP 缺少 npm 依赖/);assert.match(error.stderr,/npm ci/);return true;
-  });
-  assert.equal(await readFile(f.skillFile,'utf8'),'既有副本');
+  await copyFile(new URL('../common-client.mjs',import.meta.url),join(plugin,'common-client.mjs'));
+  await copyFile(new URL('../../suian-zcode-common/locate.mjs',import.meta.url),join(f.root,'suian-zcode-common','locate.mjs'));
+  await copyFile(new URL('../SKILL.md',import.meta.url),join(plugin,'SKILL.md'));
+  await copyFile(new URL('../package.json',import.meta.url),join(plugin,'package.json'));
+  const skillsDir=join(f.root,'skills');
+  // 独立 CLI 无宿主注入、无安装记录：部署仍完成，公共层状态进入诊断而非 npm ci 报错
+  const {stdout}=await promisify(execFile)(process.execPath,[cli,'--skills-dir',skillsDir],{windowsHide:true});
+  const result=JSON.parse(stdout);
+  assert.equal(result.ok,true);
+  assert.equal(result.action,'written');
+  assert.equal(result.common.ok,false);
+  assert.match(result.common.error,/anchor_missing/);
+  const installed=await readFile(join(skillsDir,'suian-zcode-app-mcp','SKILL.md'),'utf8');
+  assert.ok(installed.includes(`**本机插件根**：\`${plugin}\``));
 });
