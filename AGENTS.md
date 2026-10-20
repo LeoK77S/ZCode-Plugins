@@ -50,9 +50,11 @@ ZCode-Plugins/
 │   ├── AGENTS.md          # 本插件规则与文档入口
 │   ├── CLAUDE.md          # 导入 AGENTS.md
 │   ├── .zcode-plugin/     # 原生侧栏元信息与市场版本
-│   ├── skills/setup/     # 独立缓存的依赖初始化与公共包链接
+│   ├── skills/setup/     # 安装核对与公共客户端定位；正式包即装即用，不 npm、不链接
 │   ├── .mcp.json          # stdio 与宿主工作区绑定
-│   ├── cli.mjs / server.mjs # 启动入口与 app-only 上下文、目录、读写工具
+│   ├── cli.mjs / server.mjs # 启动入口与 app-only 上下文、目录、读写工具；入口先加载公共客户端
+│   ├── common-client.mjs / locate.mjs # 业务薄适配与 PKG-01 定位器副本：经已安装 common 加载公共实现，不依赖链接
+│   ├── build-release.mjs   # 正式发布目录构建：CLI 打包（SDK/zod 内联）、实际页面与许可、release.json
 │   ├── text-files.mjs     # 工作区边界、按层目录、UTF-8 读取与版本检查写回
 │   ├── text-resources.mjs # 已登记只读快照、版本通知／退订，后台发送失败报告并停止监测
 │   ├── comment-state.mjs # 可信评论状态、V4临时快照与当前分支历史分页、已观测批次证明
