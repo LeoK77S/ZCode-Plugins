@@ -1251,6 +1251,50 @@ test('已应用当前补丁的目标放行且不再准备候选；旧版本补�
   assert.equal((await failed.state()).broadcasts.length, 0, '准备失败不写任何用户环境');
 });
 
+test('v1→v2 升级场景：外部 apply 命令对已打 v1 补丁的目标调用补丁 CLI 升级，而非跳过后伪装成功', { skip: process.platform !== 'win32' }, async t => {
+  const f = await fixture(t, { patch_stub: 'upgrade' });
+  const result = await f.run('Install', { ...loInstallOptions, localOnlyDataRoot: f.root });
+  assert.equal(result.local_only.state, 'prepared_upgrade');
+
+  // 真实执行生成的外部 apply 脚本：node 解释器保持真实，只把渲染进脚本的补丁 CLI
+  // 路径换成桩 CLI（记录每次调用并按 patch_stub='upgrade' 语义回执）——被测的是
+  // 外部脚本"是否调用补丁 CLI"的 apply 决策，不是 CLI 本身。
+  const callsFile = join(f.root, 'stub-patch-calls.log');
+  const stubCli = join(f.root, 'stub-patch-cli.mjs');
+  const stubReceipt = {
+    status: { ok: true, supported: true, patchState: 'patched', patchInfo: { patchVersion: 1, upgradeAvailable: 2 }, package: { exeFileVersion: '3.16.2.8769', appAsarSha256: 'v1-digest' }, backup: { exists: true, sha256: 'original-digest', matchesOriginal: true } },
+    apply: { ok: true, upgradedFromPatchVersion: 1, patchVersion: 2, patchedAsarSha256: 'cb54-patched-digest' },
+  };
+  await writeFile(stubCli, `import { appendFileSync } from 'node:fs';
+const callsFile = ${JSON.stringify(callsFile)};
+const argv = process.argv.slice(2);
+appendFileSync(callsFile, JSON.stringify(argv) + '\\n');
+const receipts = ${JSON.stringify(stubReceipt)};
+const receipt = receipts[argv[0]] ?? { ok: false, code: 'internal', reason: 'stub: unexpected command ' + argv[0] };
+console.log(JSON.stringify(receipt));
+`);
+  const generated = await readFile(result.local_only.apply_script, 'utf8');
+  const harness = join(f.root, 'apply-upgrade-run.ps1');
+  const injected = generated.replace(/^(\$patchCli = ')[^']*(')$/m, (m, head, tail) => head + stubCli + tail);
+  assert.notEqual(injected, generated, '测试注入点命中：外部脚本内嵌的补丁 CLI 路径');
+  await writeFile(harness, injected);
+
+  const { stdout } = await nativeExec('powershell.exe', ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File', harness], { windowsHide: true });
+  const receipt = JSON.parse(stdout.trim());
+
+  // 升级决策：已打 v1 补丁（patchState=patched + upgradeAvailable）必须触达补丁 CLI 的
+  // apply（工具内部 restore→re-apply），不得因"已 patched"跳过并回执 already。
+  const calls = (await readFile(callsFile, 'utf8')).trim().split('\n').map(line => JSON.parse(line));
+  assert.deepEqual(calls.map(call => call[0]), ['status', 'apply'], 'v1 补丁目标的外部 apply 必须调用补丁 CLI 升级');
+  assert.deepEqual(calls[1].slice(0, 2), ['apply', '--target'], 'apply 锚定精确目标');
+  assert.ok(calls[1].includes('--candidate'), '升级 apply 携带本次准备的新候选');
+  assert.ok(calls[1].includes('D:\\fake\\ZCode'));
+  assert.equal(receipt.ok, true);
+  assert.equal(receipt.applied, 'applied', '升级真实发生，回执不得伪装 already');
+  assert.equal(receipt.activated, true);
+  assert.equal(await readFile(join(f.root, '.zcode', 'local-only.flag'), 'utf8'), 'D:\\ws\r\n', '开关激活写入工作区');
+});
+
 test('切回 relay 关闭本地开关、恢复网关模式与环境值，不重写应用包', { skip: process.platform !== 'win32' }, async t => {
   const f = await fixture(t, { patch_stub: 'original' });
   await f.run('Install', { ...loInstallOptions, localOnlyDataRoot: f.root });

@@ -5,7 +5,7 @@ description: 调试隔离 ZCode Desktop/CLI 实验环境（local-only lab）：l
 
 # 调试隔离 ZCode 环境
 
-隔离 ZCode 环境 = 复制的运行包 + 独立数据根 + 进程级环境变量集，用于在不触及日常安装（`D:/APP/_ForCoder/ZCode`）、日常 `~/.zcode` 与日常网关（127.0.0.1:17329）的前提下验证 Desktop/CLI/补丁行为。本技能沉淀 local-only 系列（LO-01 起）的排查方法与踩坑实录。
+隔离 ZCode 环境 = 复制的运行包 + 独立数据根 + 进程级环境变量集，用于在不触及日常安装（`{{日常安装目录}}`）、日常 `~/.zcode` 与日常网关（127.0.0.1:17329）的前提下验证 Desktop/CLI/补丁行为。本技能沉淀 local-only 系列（LO-01 起）的排查方法与踩坑实录。
 
 ## 适用场景
 

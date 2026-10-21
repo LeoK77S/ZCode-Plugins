@@ -193,9 +193,12 @@ if (-not $status.ok -or -not $status.supported) {
     Write-Output 'Nothing was changed. Diagnosis: run the local-only patch tool status or follow the local-only debug skill.'
     exit 10
 }
-# 2) 应用补丁：原版/旧版本目标走 apply（内含运行实例检查与备份验证）；已是当前补丁版则跳过。
+# 2) 应用补丁：原版或旧版本补丁目标走 apply（内含运行实例检查与备份验证；旧版本补丁由工具
+#    自动 restore 后重应用新候选，即 v1→v2 升级）；已是当前补丁版且无可用升级时才跳过。
+$patchInfo = if ($status.PSObject.Properties['patchInfo']) { $status.patchInfo } else { $null }
+$upgradeAvailable = ($null -ne $patchInfo -and $null -ne $patchInfo.PSObject.Properties['upgradeAvailable'])
 $applied = 'already'
-if ($status.patchState -ne 'patched') {
+if ($status.patchState -ne 'patched' -or $upgradeAvailable) {
     $apply = Invoke-Patch @('apply', '--target', $target, '--candidate', $candidate)
     if (-not $apply.ok) {
         Write-Output ('FAILED: patch apply failed (' + $apply.code + '): ' + $apply.reason)

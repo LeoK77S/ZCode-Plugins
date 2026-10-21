@@ -39,12 +39,12 @@ async function exists(p) {
 
 // ---------- P1 门控行为（vm 沙箱） ----------
 
-function runGate({ env = {}, flags = {}, flagContent = '' } = {}) {
+function runGate({ env = {}, flags = {}, flagContent = '', sA = null } = {}) {
   const sandbox = {
     process: { env },
     __loExists: (p) => Boolean(flags[p]),
     __loRead: (p) => { if (!flags[p]) throw new Error(`ENOENT: ${p}`); return flagContent; },
-    sA: null,
+    sA,
     iA: null,
   };
   vm.createContext(sandbox);
@@ -80,8 +80,12 @@ test('P1 门控行为：env 显式 0 覆盖标志文件（优先级 env > 标志
 
 test('P1 门控行为：外部 ZCODE_WEB_REMOTE_CONTROL_RELAY_WS_URL 已设置时不覆盖（官方 env 优先保留）', () => {
   const home = 'D:/lab/home';
-  const sandbox = runGate({ env: { HOME: home }, flags: { [homeFlag(home)]: true } });
-  // renderP1GateCode 只在 sA 为空时改写；此处直接验证守卫形态：注入文本含 !sA 条件
+  const official = 'wss://official-relay.example/ws';
+  // 预置官方 relay 覆盖值后执行门控：sA 保持外部值，未被 local-only 默认网关改写。
+  const sandbox = runGate({ env: { HOME: home }, flags: { [homeFlag(home)]: true }, sA: official });
+  assert.equal(sandbox.__LO_MODE, true);
+  assert.equal(sandbox.sA, official, '外部已设置的官方 relay 地址保持原值');
+  // 辅助：注入文本的守卫形态（仅在 sA 为空时改写）。
   assert.ok(renderP1GateCode().includes('if(__LO_MODE&&!sA){'));
 });
 

@@ -99,8 +99,8 @@ P5 短路生效。**开关关闭对照（原撤销语义）未验**：撤销目�
 ## 4. 收尾与日常环境核对
 
 - lab 副本 `restore`：恢复后 asar SHA-256 == 原包 `1f960ba2...`；lab 网关与 17431/9223 端口已停；lab 目录（含标志、令牌、日志）留在忽略的 `.scratch/` 不入库。
-- 日常网关 127.0.0.1:17329（PID 91244）验证前后正常 LISTENING；源安装目录 `D:/APP/_ForCoder/ZCode` 全程只读。
-- 日常 `~/.zcode/v2/credentials.json` mtime 在验证窗口内有一次刷新（21:47:19），归属核对：日常 Desktop（`D:\APP\_ForCoder\ZCode\ZCode.exe`，PID 3600 等）自 15:27 常驻运行的 token 自刷新，与 lab 副本无关（lab 全部进程 env 隔离且写路径均在 lab 内）。
+- 日常网关 127.0.0.1:17329 验证前后正常 LISTENING（日常 Desktop 进程持有）；源安装目录（`{{日常安装目录}}`）全程只读。
+- 日常 `~/.zcode/v2/credentials.json` mtime 在验证窗口内有一次刷新；归属核对：日常 Desktop 进程（日常安装目录下 `ZCode.exe`，验证窗口前已常驻）运行的 token 自刷新，与 lab 副本无关（lab 全部进程 env 隔离且写路径均在 lab 内）。
 - token：lab 网关 control_token 仅存 lab `gateway/config.json`，未进入任何日志与本文档。
 
 ## 5. 票面验收条件自评
