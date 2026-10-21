@@ -19,7 +19,36 @@ description: 安装、升级、仅检查、迁移或移除 ZCode 公共运行时
 
 在桌面端打开移动端远程控制面板并开启服务，出现等待连接或已连接的状态后，再检查插件连接。插件不要求手机扫码或保持在线；暂停远控时在面板内点击“停止”。
 
-**ZCode 3.16 暂不支持 local-only**，需要登录 ZCode 账号，并能连接官方远控服务。面板停在“启动中”或显示失败时，结合面板错误与日志检查登录、网络及版本配置，不能直接认定网络不可达，也不能将 local-only 作为 3.16 的回退方案。已支持的旧版是否使用本地模式，按[configuration](../configuration/SKILL.md)处理。
+**ZCode 3.16.2 的 local-only 需要走补丁安装流程**（见下节）：仅支持补丁工具按字节身份判定的受支持包，其余 3.16 包明确拒绝，不能泛化。relay（在线）模式需要登录 ZCode 账号并能连接官方远控服务；面板停在“启动中”或显示失败时，结合面板错误与日志检查登录、网络及版本配置，不能直接认定网络不可达，也不能把 local-only 当作网络故障的静默回退。已支持的旧版如何使用本地模式，按[configuration](../configuration/SKILL.md)处理。
+
+## local-only 安装（ZCode 3.16.2 受支持包）
+
+用户选择 local-only 时，Agent 负责预检与准备并交付外部命令；**应用补丁与激活由用户在关闭目标实例后自行执行**，Agent 不强退承载当前会话的 ZCode、不启动等待助手。准备成功不宣称已应用或已生效。
+
+安装命令（一次性完成预检、候选准备、网关安装与外部命令生成）：
+
+```powershell
+powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "{{common_root}}/setup.ps1" -Action Install -ZcodeAppVersion "{{app_version}}" -Mode local-only -ZcodeInstallDir "{{zcode_install_dir}}" -LocalOnlyWorkspace "{{workspace}}" -NativePlugin
+```
+
+- `-ZcodeInstallDir`：用户指定的 ZCode Desktop **原安装目录**（外部应用的目标；不确定时先让用户确认，不要猜测）。
+- `-LocalOnlyWorkspace`：local-only 自动启动的工作区；省略时外部命令仍会激活开关，但自动启动不生效。
+- 仅当补丁工具 `status` 判定目标为受支持包（字节身份匹配）时放行；版本未知或摘要不符会明确报错并给诊断指引。已有网关实例时沿用既有暂停远控/安全重载纪律，本流程不迁移日常 relay 网关数据。
+
+**回执语义表**（区分真实状态，不把上一步当下一步）：
+
+| 回执 | 含义 | 下一步 |
+| --- | --- | --- |
+| 预检通过（`patch_state: original`） | 目标是受支持原版包，候选已准备（`local_only.state: prepared`） | 交付外部命令，向用户说明退出安排 |
+| `already_patched` | 目标已是当前版本补丁（无需再准备） | 只需激活开关与网关就绪检查 |
+| `prepared_upgrade` | 目标是旧版本补丁，升级候选已自备份准备 | 交付外部命令（apply 会自动还原后重应用） |
+| 待应用 | 外部命令已生成（`apply_script`/`restore_script`），用户尚未执行 | 等待用户关闭全部实例后自行执行 |
+| 已应用未生效 | 外部命令回执 `applied` 且 `activated:true`，但 Desktop 尚未重开 | 提示用户用原快捷方式重开 |
+| 验证就绪 | 重开后网关健康 `desktop_ready:true` 且原 Host 探针通过 | 汇报完成；仅连接不等于业务验收 |
+
+外部命令产物在公共数据目录 `local-only/` 下：`apply-local-only.ps1`（复核身份→应用→写开关标志→回执，工具自带运行实例检查，绝不强退进程）与 `restore-local-only.ps1`（复核→按备份恢复原版→复用 setup 切回 relay 配置并关闭开关→回执）。向用户交付时说明：**先保存工作并从托盘退出该安装目录的全部 ZCode 实例，再在外部 PowerShell 执行 apply 脚本，然后用原快捷方式重开**。重开后按上表“验证就绪”检查实际模式/端点、desktop_ready 与原 Host 探针。完整还原若只完成应用恢复，回执为 `local-only-restore-incomplete`，排除网关错误后可重试；不得宣称全部恢复。
+
+Status 传 `-ZcodeInstallDir` 可附加只读补丁状态报告（`local_only_patch` 字段）。日常排障见[debug](../debug/SKILL.md)的 local-only 故障分层。
 
 ## 首次初始化
 

@@ -15,9 +15,13 @@ const DIST_ENTRIES = { client: 'dist/client.mjs', 'client-install': 'dist/client
 const MANAGEMENT_ENTRIES = { 'depcheck-hook': 'depcheck-hook.mjs', migration: 'migration.mjs', 'legacy-cleanup': 'legacy-cleanup.mjs' };
 // 随包分发的管理链文件（相对源根路径）：hooks.json 的 Stop 命令、depcheck 修复链、
 // setup/run 安装器与稳定启动器、setup.ps1 读取的源码兼容路由技能。
+// local-only 补丁工具按"安装期工具"定位随包分发：patch CLI 与其单一数据源（patch-env
+// 复用 lab-env 的单包字节身份，故 lab-env 一并进入）；lab.mjs 是隔离验证环境的实验
+// 工具（面向开发者复现），不属于安装入口，不进入发布目录。
 const MANAGEMENT_STATIC = [
   'depcheck.mjs', 'depcheck-prompt.mjs', 'hooks/hooks.json',
   'gateway-deploy.mjs', 'setup.ps1', 'run.ps1', 'run.vbs', 'gateway-launcher.ps1', 'SKILL.md',
+  'local-only/lab-env.mjs', 'local-only/patch-env.mjs', 'local-only/patch.mjs',
 ];
 
 // esbuild 的 esm 产物中 __require shim 在 ESM 作用域没有 require 可用，ws 的 CJS 路径会

@@ -22,7 +22,7 @@ const nativeExec = promisify(execFile);
 
 // 只替换 Windows 系统边界，真实执行 setup.ps1 与临时目录内的文件读写。
 const systemFixture = String.raw`
-param([string]$Script, [string]$Action, [string]$DataDir, [string]$SkillsDir, [string]$ToolsRoot, [string]$StateFile, [int]$HealthTimeoutSec, [int]$Port, [string]$Mode, [int]$RelayProtocolVersion, [string]$ZcodeAppVersion, [string]$UpstreamUrl, [int]$BusyTimeoutSec, [int]$BusyRetryMs, [switch]$NativePlugin)
+param([string]$Script, [string]$Action, [string]$DataDir, [string]$SkillsDir, [string]$ToolsRoot, [string]$StateFile, [int]$HealthTimeoutSec, [int]$Port, [string]$Mode, [int]$RelayProtocolVersion, [string]$ZcodeAppVersion, [string]$UpstreamUrl, [int]$BusyTimeoutSec, [int]$BusyRetryMs, [string]$ZcodeInstallDir, [string]$LocalOnlyWorkspace, [string]$LocalOnlyDataRoot, [switch]$NativePlugin)
 $ErrorActionPreference = 'Stop'
 [Console]::OutputEncoding = New-Object System.Text.UTF8Encoding($false)
 $global:fixture = Get-Content -LiteralPath $StateFile -Raw | ConvertFrom-Json
@@ -63,6 +63,31 @@ function Get-ItemProperty { param([string]$LiteralPath) if ($LiteralPath -ne 'HK
 function New-ItemProperty { param([string]$LiteralPath, [string]$Name, [string]$Value, [string]$PropertyType, [switch]$Force) if ($LiteralPath -ne 'HKCU:\Environment' -or $Name -ne 'ZCODE_WEB_REMOTE_CONTROL_RELAY_WS_URL') { throw '修改了非目标变量' }; $global:fixture.relay = $Value; Save-Fixture }
 function Remove-ItemProperty { param([string]$LiteralPath, [string]$Name) if ($LiteralPath -ne 'HKCU:\Environment' -or $Name -ne 'ZCODE_WEB_REMOTE_CONTROL_RELAY_WS_URL') { throw '删除了非目标变量' }; $global:fixture.relay = $null; Save-Fixture }
 function Get-ScheduledTask { if ($null -ne $global:fixture.task) { return $global:fixture.task } }
+# LO-04：补丁工具桩。patch_stub 决定 status/prepare 回执；对 apply/restore 一律失败——
+# setup 的任何 Action 都不得直接执行应用或还原（票面：准备成功不宣称已应用）。
+function Invoke-PatchCli {
+    param([string[]]$CliArguments)
+    $cmd = $CliArguments[0]
+    $stub = [string]$global:fixture.patch_stub
+    $outDir = $null
+    for ($i = 0; $i -lt $CliArguments.Count - 1; $i++) { if ($CliArguments[$i] -eq '--out') { $outDir = $CliArguments[$i + 1] } }
+    $global:fixture.patch_calls += ,@($CliArguments); Save-Fixture
+    if ($cmd -eq 'status') {
+        switch ($stub) {
+            'unsupported' { return [pscustomobject]@{ ok=$true; exitCode=0; supported=$false; patchState='unknown'; package=[pscustomobject]@{exeFileVersion='3.17.0'; appAsarSha256='3.17.0-digest'; appAsarBytes=1}; mismatches=@('exe 版本不符：实际 3.17.0，期望 3.16.2.8769'); backup=[pscustomobject]@{exists=$false; sha256=$null; matchesOriginal=$false} } }
+            'digest' { return [pscustomobject]@{ ok=$true; exitCode=0; supported=$false; patchState='conflict'; package=[pscustomobject]@{exeFileVersion='3.16.2.8769'; appAsarSha256='foreign-digest'; appAsarBytes=1}; mismatches=@('app.asar 摘要不属于已登记原版或补丁版：foreign-digest'); backup=[pscustomobject]@{exists=$false; sha256=$null; matchesOriginal=$false} } }
+            'resolve_fail' { return [pscustomobject]@{ ok=$false; exitCode=10; code='unsupported_package'; reason='目标身份解析失败：目标目录缺少必需文件' } }
+            'patched' { return [pscustomobject]@{ ok=$true; exitCode=0; supported=$true; patchState='patched'; patchInfo=[pscustomobject]@{patchVersion=2}; package=[pscustomobject]@{exeFileVersion='3.16.2.8769'; appAsarSha256='patched-digest'; appAsarBytes=1}; backup=[pscustomobject]@{exists=$true; sha256='original-digest'; matchesOriginal=$true} } }
+            'upgrade' { return [pscustomobject]@{ ok=$true; exitCode=0; supported=$true; patchState='patched'; patchInfo=[pscustomobject]@{patchVersion=1; upgradeAvailable=2}; package=[pscustomobject]@{exeFileVersion='3.16.2.8769'; appAsarSha256='v1-digest'; appAsarBytes=1}; backup=[pscustomobject]@{exists=$true; sha256='original-digest'; matchesOriginal=$true} } }
+            default { return [pscustomobject]@{ ok=$true; exitCode=0; supported=$true; patchState='original'; package=[pscustomobject]@{exeFileVersion='3.16.2.8769'; appAsarSha256='1f96-original'; appAsarBytes=341334118}; backup=[pscustomobject]@{exists=$false; sha256=$null; matchesOriginal=$false} } }
+        }
+    }
+    if ($cmd -eq 'prepare') {
+        if ($stub -eq 'prepare_fail') { return [pscustomobject]@{ ok=$false; exitCode=16; code='anchor_mismatch'; reason='锚点 P1-mode-gate 未命中（结构变化，需人工分析）' } }
+        return [pscustomobject]@{ ok=$true; exitCode=0; outDir=$outDir; candidateAsarPath=(Join-Path $outDir 'app.asar'); candidateMetaPath=(Join-Path $outDir 'candidate.json'); candidate=[pscustomobject]@{ patchVersion=2; patched=[pscustomobject]@{appAsarSha256='cb54-patched-digest'}; injections=@('P0-fs-import','P1-mode-gate') } }
+    }
+    throw ('fixture: setup 不得直接调用补丁工具的 ' + $cmd)
+}
 function New-ScheduledTaskAction { param([string]$Execute, [string]$Argument, [string]$WorkingDirectory) return [pscustomobject]@{ Execute=$Execute; Arguments=$Argument; WorkingDirectory=$WorkingDirectory } }
 function New-ScheduledTaskTrigger { param([switch]$AtLogOn, [string]$User) return [pscustomobject]@{ AtLogOn=[bool]$AtLogOn; User=$User } }
 function New-ScheduledTaskPrincipal { param([string]$UserId, [string]$LogonType, [string]$RunLevel) return [pscustomobject]@{ UserId=$UserId; LogonType=$LogonType; RunLevel=$RunLevel } }
@@ -128,6 +153,9 @@ if ($PSBoundParameters.ContainsKey('ZcodeAppVersion')) { $params.ZcodeAppVersion
 if ($PSBoundParameters.ContainsKey('UpstreamUrl')) { $params.UpstreamUrl=$UpstreamUrl }
 if ($PSBoundParameters.ContainsKey('BusyTimeoutSec')) { $params.BusyTimeoutSec=$BusyTimeoutSec }
 if ($PSBoundParameters.ContainsKey('BusyRetryMs')) { $params.BusyRetryMs=$BusyRetryMs }
+if ($PSBoundParameters.ContainsKey('ZcodeInstallDir')) { $params.ZcodeInstallDir=$ZcodeInstallDir }
+if ($PSBoundParameters.ContainsKey('LocalOnlyWorkspace')) { $params.LocalOnlyWorkspace=$LocalOnlyWorkspace }
+if ($PSBoundParameters.ContainsKey('LocalOnlyDataRoot')) { $params.LocalOnlyDataRoot=$LocalOnlyDataRoot }
 if ($NativePlugin) { $params.NativePlugin=$true }
 & $Script @params
 `;
@@ -140,11 +168,11 @@ async function fixture(t, overrides = {}, { setupScript = setup } = {}) {
   const dataDir = join(root, '公共 data');
   const skillsDir = join(root, 'skills');
   const toolsRoot = join(root, '稳定 网关 tools');
-  const initial = { relay: 'wss://previous.example/ws', app_version_env: null, task: null, registrations: 0, starts: 0, shutdowns: 0, health: 'ready', health_protocol: null, real_health: false, build: { id: deployBuildId, version: gatewayBuild.version }, reject_build: null, desktop: false, rpc_in_flight: null, busy_reads_left: 0, idle_shutdown_rejects: 0, legacy_health: false, health_min_timeout: 0, timeouts_left: 0, health_requests: 0, http_attempts: 0, health_available: false, draining: false, shutdown_health_reads: 0, broadcasts: [], broadcast_fail: false, broadcast_declaration: null, unregister_fail: false, fail_start_count: 0, fail_register_count: 0, ...overrides };
+  const initial = { relay: 'wss://previous.example/ws', app_version_env: null, task: null, registrations: 0, starts: 0, shutdowns: 0, health: 'ready', health_protocol: null, real_health: false, build: { id: deployBuildId, version: gatewayBuild.version }, reject_build: null, desktop: false, rpc_in_flight: null, busy_reads_left: 0, idle_shutdown_rejects: 0, legacy_health: false, health_min_timeout: 0, timeouts_left: 0, health_requests: 0, http_attempts: 0, health_available: false, draining: false, shutdown_health_reads: 0, broadcasts: [], broadcast_fail: false, broadcast_declaration: null, unregister_fail: false, fail_start_count: 0, fail_register_count: 0, patch_stub: 'original', patch_calls: [], ...overrides };
   await writeFile(stateFile, JSON.stringify(initial));
   await writeFile(script, '\uFEFF' + systemFixture);
-  const run = async (action, { healthTimeoutSec, port, mode, nativePlugin, relayProtocolVersion, zcodeAppVersion, upstreamUrl, busyTimeoutSec, busyRetryMs, setupScript: scriptOverride } = {}) => {
-    const { stdout } = await nativeExec('powershell.exe', ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File', script, '-Script', scriptOverride ?? setupScript, '-Action', action, '-DataDir', dataDir, '-SkillsDir', skillsDir, '-ToolsRoot', toolsRoot, '-StateFile', stateFile, ...(healthTimeoutSec === undefined ? [] : ['-HealthTimeoutSec', String(healthTimeoutSec)]), ...(port === undefined ? [] : ['-Port', String(port)]), ...(mode === undefined ? [] : ['-Mode', mode]), ...(relayProtocolVersion === undefined ? [] : ['-RelayProtocolVersion', String(relayProtocolVersion)]), ...(zcodeAppVersion === undefined ? [] : ['-ZcodeAppVersion', zcodeAppVersion]), ...(upstreamUrl === undefined ? [] : ['-UpstreamUrl', upstreamUrl]), ...(busyTimeoutSec === undefined ? [] : ['-BusyTimeoutSec', String(busyTimeoutSec)]), ...(busyRetryMs === undefined ? [] : ['-BusyRetryMs', String(busyRetryMs)]), ...(nativePlugin ? ['-NativePlugin'] : [])], { windowsHide: true });
+  const run = async (action, { healthTimeoutSec, port, mode, nativePlugin, relayProtocolVersion, zcodeAppVersion, upstreamUrl, busyTimeoutSec, busyRetryMs, zcodeInstallDir, localOnlyWorkspace, localOnlyDataRoot, setupScript: scriptOverride } = {}) => {
+    const { stdout } = await nativeExec('powershell.exe', ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File', script, '-Script', scriptOverride ?? setupScript, '-Action', action, '-DataDir', dataDir, '-SkillsDir', skillsDir, '-ToolsRoot', toolsRoot, '-StateFile', stateFile, ...(healthTimeoutSec === undefined ? [] : ['-HealthTimeoutSec', String(healthTimeoutSec)]), ...(port === undefined ? [] : ['-Port', String(port)]), ...(mode === undefined ? [] : ['-Mode', mode]), ...(relayProtocolVersion === undefined ? [] : ['-RelayProtocolVersion', String(relayProtocolVersion)]), ...(zcodeAppVersion === undefined ? [] : ['-ZcodeAppVersion', zcodeAppVersion]), ...(upstreamUrl === undefined ? [] : ['-UpstreamUrl', upstreamUrl]), ...(busyTimeoutSec === undefined ? [] : ['-BusyTimeoutSec', String(busyTimeoutSec)]), ...(busyRetryMs === undefined ? [] : ['-BusyRetryMs', String(busyRetryMs)]), ...(zcodeInstallDir === undefined ? [] : ['-ZcodeInstallDir', zcodeInstallDir]), ...(localOnlyWorkspace === undefined ? [] : ['-LocalOnlyWorkspace', localOnlyWorkspace]), ...(localOnlyDataRoot === undefined ? [] : ['-LocalOnlyDataRoot', localOnlyDataRoot]), ...(nativePlugin ? ['-NativePlugin'] : [])], { windowsHide: true });
     return JSON.parse(stdout.trim());
   };
   const state = async () => JSON.parse(await readFile(stateFile, 'utf8'));
@@ -245,14 +273,14 @@ test('旧版按 V1 安装；显式版本覆盖宿主变量，回退旧版时同�
   assert.equal(downgraded.upstream_url, 'wss://zcode.z.ai/ws');
 });
 
-test('协议、版本或旧官方地址冲突，以及 3.16 local-only，均在写配置与停网关前拒绝', { skip: process.platform !== 'win32' }, async t => {
+test('协议、版本或旧官方地址冲突，以及 3.16 local-only 缺安装目录，均在写配置与停网关前拒绝', { skip: process.platform !== 'win32' }, async t => {
   const f = await fixture(t);
   for (const [options, error] of [
     [{ zcodeAppVersion: '0.16.9' }, /actual ZCode Desktop application version/],
     [{ zcodeAppVersion: 'unknown' }, /actual ZCode Desktop application version/],
     [{ zcodeAppVersion: '3.16.1', relayProtocolVersion: 1 }, /conflicts/],
     [{ zcodeAppVersion: '3.15.1', relayProtocolVersion: 2 }, /conflicts/],
-    [{ zcodeAppVersion: '3.16.1', mode: 'local-only' }, /does not support local-only/],
+    [{ zcodeAppVersion: '3.16.1', mode: 'local-only' }, /requires -ZcodeInstallDir/],
     [{ relayProtocolVersion: 2, upstreamUrl: 'wss://zcode.z.ai/ws' }, /does not match/],
     [{ relayProtocolVersion: 1, upstreamUrl: 'wss://zcode.z.ai/api/v1/remote/ws2' }, /does not match/],
   ]) {
@@ -261,6 +289,7 @@ test('协议、版本或旧官方地址冲突，以及 3.16 local-only，均在�
     const state = await f.state();
     assert.equal(state.registrations + state.starts + state.shutdowns + state.broadcasts.length, 0);
   }
+  assert.deepEqual((await f.state()).patch_calls, [], '缺安装目录时不调补丁工具');
 });
 
 test('实际 health 协议不符会报告重载，首次启动协议未生效时不写 Desktop 环境', { skip: process.platform !== 'win32' }, async t => {
@@ -1125,4 +1154,208 @@ test('共享启动器写入在事务锁内：持锁期间其他实例拿锁失�
   await new Promise(resolve => holder.once('exit', resolve));
   const switched = await f.run('Install', { setupScript: variantSetup });
   assert.equal(switched.ok, true, '持锁进程退出后可正常切换，此时允许写入新启动器');
+});
+
+// ---------- LO-04：3.16 local-only setup 产品集成（Close #147） ----------
+
+const loInstallOptions = { zcodeAppVersion: '3.16.1', mode: 'local-only', zcodeInstallDir: 'D:\\fake\\ZCode', localOnlyWorkspace: 'D:\\ws' };
+
+test('local-only 预检在写配置与停网关前拒绝：未知包、摘要变化、身份解析失败各自明确报错并给诊断指引', { skip: process.platform !== 'win32' }, async t => {
+  for (const [stub, error] of [
+    ['unsupported', /not supported for local-only[\s\S]*exe 版本不符[\s\S]*debug skill/],
+    ['digest', /not supported for local-only[\s\S]*摘要/],
+    ['resolve_fail', /preflight failed \(unsupported_package\)[\s\S]*目标身份解析失败/],
+  ]) {
+    const f = await fixture(t, { patch_stub: stub });
+    await assert.rejects(f.run('Install', { ...loInstallOptions, localOnlyDataRoot: f.root }), error);
+    await assert.rejects(stat(join(f.dataDir, 'config.json')), { code: 'ENOENT' });
+    const state = await f.state();
+    assert.equal(state.registrations + state.starts + state.shutdowns + state.broadcasts.length, 0, '拒绝发生在任何写入之前');
+    assert.deepEqual(state.patch_calls, [['status', '--target', 'D:\\fake\\ZCode']], '只做只读预检');
+  }
+});
+
+test('受支持包放行 3.16 local-only 安装：默认端口 17331、生成外部命令、setup 自身不 apply 不杀进程', { skip: process.platform !== 'win32' }, async t => {
+  const f = await fixture(t, { patch_stub: 'original' });
+  const result = await f.run('Install', { ...loInstallOptions, localOnlyDataRoot: f.root });
+  assert.equal(result.ok, true);
+  assert.equal(result.mode, 'local-only');
+  assert.equal(result.relay_url, 'ws://127.0.0.1:17331/ws', 'local-only 默认端口与补丁默认网关地址一致');
+  const config = JSON.parse(await readFile(join(f.dataDir, 'config.json'), 'utf8'));
+  assert.equal(config.mode, 'local-only');
+  assert.equal(config.relay_protocol_version, 2);
+  assert.equal(config.port, 17331);
+  assert.equal(config.previous_user_relay, 'wss://previous.example/ws', '原环境备份保留');
+
+  // 外部命令产物：apply 与 restore 各一个 .ps1，落在公共数据目录。
+  assert.equal(result.local_only.state, 'prepared');
+  assert.equal(result.local_only.install_dir, 'D:\\fake\\ZCode');
+  assert.equal(result.local_only.patch_state, 'original');
+  assert.equal(result.local_only.patch_version, 2);
+  assert.equal(result.local_only.apply_script, join(f.dataDir, 'local-only', 'apply-local-only.ps1'));
+  assert.equal(result.local_only.restore_script, join(f.dataDir, 'local-only', 'restore-local-only.ps1'));
+  const applyScript = await readFile(result.local_only.apply_script, 'utf8');
+  assert.ok(applyScript.includes('D:\\fake\\ZCode'), '外部命令锚定精确目标');
+  assert.ok(applyScript.includes(join(f.dataDir, 'local-only', 'candidate')), '外部命令引用本次候选');
+  assert.ok(applyScript.includes(join(f.root, '.zcode', 'local-only.flag')), '外部命令写标志文件');
+  assert.ok(applyScript.includes('D:\\ws'), '标志首行携带工作区');
+  assert.ok(applyScript.includes('status'), '外部命令重新核对身份');
+  for (const banned of ['Stop-Process', 'taskkill', 'Stop-ScheduledTask']) {
+    assert.ok(!applyScript.includes(banned), `外部命令不得包含 ${banned}，不强退进程`);
+  }
+  const restoreScript = await readFile(result.local_only.restore_script, 'utf8');
+  assert.ok(restoreScript.includes('restore'));
+  assert.ok(restoreScript.includes('D:\\fake\\ZCode'));
+
+  // setup 只做 status/prepare；apply/restore 一律留给外部命令（桩对 apply/restore 直接失败）。
+  const calls = (await f.state()).patch_calls.map(call => call[0]).sort();
+  assert.deepEqual(calls, ['prepare', 'status']);
+  // 环境变量写入与广播沿用既有纪律。
+  const state = await f.state();
+  assert.equal(state.relay, 'ws://127.0.0.1:17331/ws');
+  assert.equal(state.broadcasts.length, 1);
+  // Status 可附加报告补丁状态（只读）。
+  const status = await f.run('Status', { zcodeInstallDir: 'D:\\fake\\ZCode' });
+  assert.equal(status.local_only_patch.patchState, 'original');
+});
+
+test('重复 local-only 准备幂等：候选重备、外部命令重写、不重复注册任务', { skip: process.platform !== 'win32' }, async t => {
+  const f = await fixture(t, { patch_stub: 'original' });
+  const first = await f.run('Install', { ...loInstallOptions, localOnlyDataRoot: f.root });
+  const second = await f.run('Install', { ...loInstallOptions, localOnlyDataRoot: f.root });
+  assert.equal(second.ok, true);
+  assert.equal(second.local_only.state, 'prepared');
+  const state = await f.state();
+  assert.equal(state.registrations, 1, '重复安装不重复注册');
+  const prepares = state.patch_calls.filter(call => call[0] === 'prepare');
+  assert.equal(prepares.length, 2, '重复调用重新生成候选');
+  assert.ok((await readFile(first.local_only.apply_script, 'utf8')).includes('D:\\fake\\ZCode'), '外部命令保持可读');
+});
+
+test('已应用当前补丁的目标放行且不再准备候选；旧版本补丁走升级准备；prepare 失败拒绝安装', { skip: process.platform !== 'win32' }, async t => {
+  const patched = await fixture(t, { patch_stub: 'patched' });
+  const patchedResult = await patched.run('Install', { ...loInstallOptions, localOnlyDataRoot: patched.root });
+  assert.equal(patchedResult.local_only.state, 'already_patched');
+  assert.equal(patchedResult.local_only.patch_version, 2);
+  assert.deepEqual((await patched.state()).patch_calls.map(call => call[0]), ['status'], '当前版本已 patched 不再 prepare');
+  assert.ok((await readFile(patchedResult.local_only.apply_script, 'utf8')).includes('patched'), '外部命令覆盖已打补丁分支');
+
+  const upgrade = await fixture(t, { patch_stub: 'upgrade' });
+  const upgradeResult = await upgrade.run('Install', { ...loInstallOptions, localOnlyDataRoot: upgrade.root });
+  assert.equal(upgradeResult.local_only.state, 'prepared_upgrade');
+  assert.deepEqual((await upgrade.state()).patch_calls.map(call => call[0]).sort(), ['prepare', 'status']);
+
+  const failed = await fixture(t, { patch_stub: 'prepare_fail' });
+  await assert.rejects(failed.run('Install', { ...loInstallOptions, localOnlyDataRoot: failed.root }), /local-only prepare failed \(anchor_mismatch\)/);
+  await assert.rejects(stat(join(failed.dataDir, 'config.json')), { code: 'ENOENT' });
+  assert.equal((await failed.state()).broadcasts.length, 0, '准备失败不写任何用户环境');
+});
+
+test('v1→v2 升级场景：外部 apply 命令对已打 v1 补丁的目标调用补丁 CLI 升级，而非跳过后伪装成功', { skip: process.platform !== 'win32' }, async t => {
+  const f = await fixture(t, { patch_stub: 'upgrade' });
+  const result = await f.run('Install', { ...loInstallOptions, localOnlyDataRoot: f.root });
+  assert.equal(result.local_only.state, 'prepared_upgrade');
+
+  // 真实执行生成的外部 apply 脚本：node 解释器保持真实，只把渲染进脚本的补丁 CLI
+  // 路径换成桩 CLI（记录每次调用并按 patch_stub='upgrade' 语义回执）——被测的是
+  // 外部脚本"是否调用补丁 CLI"的 apply 决策，不是 CLI 本身。
+  const callsFile = join(f.root, 'stub-patch-calls.log');
+  const stubCli = join(f.root, 'stub-patch-cli.mjs');
+  const stubReceipt = {
+    status: { ok: true, supported: true, patchState: 'patched', patchInfo: { patchVersion: 1, upgradeAvailable: 2 }, package: { exeFileVersion: '3.16.2.8769', appAsarSha256: 'v1-digest' }, backup: { exists: true, sha256: 'original-digest', matchesOriginal: true } },
+    apply: { ok: true, upgradedFromPatchVersion: 1, patchVersion: 2, patchedAsarSha256: 'cb54-patched-digest' },
+  };
+  await writeFile(stubCli, `import { appendFileSync } from 'node:fs';
+const callsFile = ${JSON.stringify(callsFile)};
+const argv = process.argv.slice(2);
+appendFileSync(callsFile, JSON.stringify(argv) + '\\n');
+const receipts = ${JSON.stringify(stubReceipt)};
+const receipt = receipts[argv[0]] ?? { ok: false, code: 'internal', reason: 'stub: unexpected command ' + argv[0] };
+console.log(JSON.stringify(receipt));
+`);
+  const generated = await readFile(result.local_only.apply_script, 'utf8');
+  const harness = join(f.root, 'apply-upgrade-run.ps1');
+  const injected = generated.replace(/^(\$patchCli = ')[^']*(')$/m, (m, head, tail) => head + stubCli + tail);
+  assert.notEqual(injected, generated, '测试注入点命中：外部脚本内嵌的补丁 CLI 路径');
+  await writeFile(harness, injected);
+
+  const { stdout } = await nativeExec('powershell.exe', ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File', harness], { windowsHide: true });
+  const receipt = JSON.parse(stdout.trim());
+
+  // 升级决策：已打 v1 补丁（patchState=patched + upgradeAvailable）必须触达补丁 CLI 的
+  // apply（工具内部 restore→re-apply），不得因"已 patched"跳过并回执 already。
+  const calls = (await readFile(callsFile, 'utf8')).trim().split('\n').map(line => JSON.parse(line));
+  assert.deepEqual(calls.map(call => call[0]), ['status', 'apply'], 'v1 补丁目标的外部 apply 必须调用补丁 CLI 升级');
+  assert.deepEqual(calls[1].slice(0, 2), ['apply', '--target'], 'apply 锚定精确目标');
+  assert.ok(calls[1].includes('--candidate'), '升级 apply 携带本次准备的新候选');
+  assert.ok(calls[1].includes('D:\\fake\\ZCode'));
+  assert.equal(receipt.ok, true);
+  assert.equal(receipt.applied, 'applied', '升级真实发生，回执不得伪装 already');
+  assert.equal(receipt.activated, true);
+  assert.equal(await readFile(join(f.root, '.zcode', 'local-only.flag'), 'utf8'), 'D:\\ws\r\n', '开关激活写入工作区');
+});
+
+test('完整还原外部命令在恢复应用后恢复 relay 配置，原版重试同样完成模式恢复', { skip: process.platform !== 'win32' }, async t => {
+  for (const scenario of ['patched', 'original', 'gateway_failure']) {
+    const patchState = scenario === 'gateway_failure' ? 'original' : scenario;
+    const f = await fixture(t);
+    const installed = await f.run('Install', { ...loInstallOptions, localOnlyDataRoot: f.root });
+    const flagPath = join(f.root, '.zcode', 'local-only.flag');
+    await mkdir(dirname(flagPath), { recursive: true });
+    await writeFile(flagPath, 'D:\\ws\r\n');
+    const callsFile = join(f.root, 'restore-calls.jsonl');
+    const stubCli = join(f.root, 'restore-cli.mjs');
+    await writeFile(stubCli, `import { appendFileSync } from 'node:fs';
+const command = process.argv[2];
+appendFileSync(${JSON.stringify(callsFile)}, JSON.stringify(command) + '\\n');
+console.log(JSON.stringify(command === 'status' ? {ok:true,supported:true,patchState:${JSON.stringify(patchState)},package:{appAsarSha256:'original-digest'}} : {ok:true,restoredAsarSha256:'original-digest'}));
+`);
+    const script = (await readFile(installed.local_only.restore_script, 'utf8')).replace(/^(\$patchCli = ')[^']*(')$/m, (_, head, tail) => head + stubCli + tail);
+    const harness = join(f.root, 'restore-run.ps1');
+    await writeFile(harness, script);
+    if (scenario === 'gateway_failure') {
+      const state = await f.state();
+      state.fail_start_count = 1;
+      await writeFile(f.stateFile, JSON.stringify(state));
+      // fixture 通过 & 调用脚本，exit 只退出该脚本作用域；此处核对真实失败回执。
+      const partial = await f.run('Status', { setupScript: harness });
+      assert.equal(partial.ok, false);
+      assert.equal(partial.application_original, true);
+      assert.equal(partial.gateway_restored, false);
+      assert.match(partial.reason, /start denied/);
+      assert.equal(JSON.parse(await readFile(join(f.dataDir, 'config.json'), 'utf8')).mode, 'local-only');
+      continue;
+    }
+    const receipt = await f.run('Status', { setupScript: harness });
+    assert.equal(receipt.ok, true);
+    const config = JSON.parse(await readFile(join(f.dataDir, 'config.json'), 'utf8'));
+    assert.equal(config.mode, 'relay', '完整还原必须恢复网关模式');
+    assert.equal(config.port, 17331);
+    assert.equal(config.previous_user_relay, 'wss://previous.example/ws');
+    assert.equal((await f.state()).relay, 'ws://127.0.0.1:17331/ws');
+    assert.equal(receipt.gateway_mode, 'relay');
+    assert.equal(receipt.restoredAsarSha256, 'original-digest');
+    await assert.rejects(stat(flagPath), { code: 'ENOENT' });
+    const calls = (await readFile(callsFile, 'utf8')).trim().split('\n').map(line => JSON.parse(line));
+    assert.deepEqual(calls, patchState === 'patched' ? ['status', 'restore'] : ['status']);
+  }
+});
+
+test('切回 relay 关闭本地开关、恢复网关模式与环境值，不重写应用包', { skip: process.platform !== 'win32' }, async t => {
+  const f = await fixture(t, { patch_stub: 'original' });
+  await f.run('Install', { ...loInstallOptions, localOnlyDataRoot: f.root });
+  // 模拟用户已按指引执行外部命令：补丁已应用、开关已激活（标志文件存在）。
+  const flagPath = join(f.root, '.zcode', 'local-only.flag');
+  await mkdir(dirname(flagPath), { recursive: true });
+  await writeFile(flagPath, 'D:\\ws\r\n');
+  const callsBefore = (await f.state()).patch_calls.length;
+  const switched = await f.run('Restart', { mode: 'relay', localOnlyDataRoot: f.root });
+  assert.equal(switched.mode, 'relay');
+  assert.equal(switched.local_only_switch, 'disabled', '切回 relay 删除模式开关');
+  await assert.rejects(stat(flagPath), { code: 'ENOENT' }, '标志文件被删除');
+  const config = JSON.parse(await readFile(join(f.dataDir, 'config.json'), 'utf8'));
+  assert.equal(config.mode, 'relay');
+  assert.equal((await f.state()).patch_calls.length, callsBefore, '切回 relay 不触碰补丁工具，不重写应用包');
+  const again = await f.run('Restart', { mode: 'relay', localOnlyDataRoot: f.root });
+  assert.equal(again.local_only_switch, 'already_off', '开关已关时报告 already_off');
 });
