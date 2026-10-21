@@ -131,13 +131,13 @@ powershell -ExecutionPolicy Bypass -File "{{common_release}}/setup.ps1" `
 
 ```json
 {"ok":true,"action":"installed","mode":"local-only","relay_url":"ws://127.0.0.1:17331/ws",
- "local_only":{"state":"prepared","patch_state":"original","patch_version":2,
+ "local_only":{"state":"prepared","patch_state":"original","patch_version":3,
    "apply_script":"{{lab_dir}}/gateway-data/local-only/apply-local-only.ps1",
    "restore_script":"…/restore-local-only.ps1",
    "expected_receipt":"ok=true; applied=applied|already; activated=true; after reopen desktop_ready=true"}}
 ```
 
-**prepared ≠ applied**：setup 只做预检（补丁工具 status，按字节身份放行）与候选准备（候选 asar 摘要应等于登记的 v2 补丁摘要 `71c640b5…`，同输入同字节）；不执行应用、不强退进程。
+**prepared ≠ applied**：setup 只做预检（补丁工具 status，按字节身份放行）与候选准备（当前 v3 候选摘要为 `b9574e12…`，同输入同字节；v2 为历史补丁，工具会提示升级）；不执行应用、不强退进程。当前版本的验证见[开发集成总验收](09-development-acceptance.md)。
 
 lab 桩模式下网关任务由桩代答；随后从部署目录真实直启一次，验证 setup 产物 config 自包含可用：
 
@@ -220,7 +220,7 @@ powershell … -File "{{common_release}}/setup.ps1" -Action Restart -Mode relay 
 powershell -ExecutionPolicy Bypass -File "{{lab_dir}}/gateway-data/local-only/restore-local-only.ps1"
 ```
 
-预期：`restoredAsarSha256` == 原版摘要 `1f960ba2…`；补丁工具 status 回 `original`；备份与状态文件清理。还原时目标包摘要不再匹配记录则明确拒绝（不用旧备份覆盖未知新版本）。
+预期：`restoredAsarSha256` == 原版摘要 `1f960ba2…`；补丁工具 status 回 `original`；备份与状态文件清理；`gateway_mode:relay`，网关配置及开关恢复。还原时目标包摘要不再匹配记录则明确拒绝（不用旧备份覆盖未知新版本）。应用已恢复但网关步骤失败时返回退出码 14 与 `local-only-restore-incomplete`，排除错误后重试同一命令；已原版状态仍会补做模式恢复。
 
 ## 11. 清理
 

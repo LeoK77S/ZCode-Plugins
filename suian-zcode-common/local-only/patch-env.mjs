@@ -30,8 +30,8 @@ export { SUPPORTED_PACKAGE };
 // 补丁版本：注入内容或锚点变化时递增；candidate/状态记录均携带此版本。
 // v2 = v1 五点 + P5 账号事件隔离 + P6 自动启动 + P1 回环校验/__LO_WS。
 // v1→v2 升级：apply 检测到目标已是本工具旧版本补丁时自动 restore 原版后重新应用（见 patch.mjs），
-// 不允许在 v1 注入之上静默叠加 v2 注入。
-export const PATCH_VERSION = 2;
+// 不允许在旧注入之上静默叠加新注入。v3 对最终 WS 目标统一做 URL 回环校验。
+export const PATCH_VERSION = 3;
 
 // 主入口文件（asar 内路径）：远控启动链全部运行时逻辑内联于此单文件（05 笔记 §2）。
 export const MAIN_ENTRY = 'out/main/index.js';
@@ -83,10 +83,8 @@ const P0_IMPORT = 'import{existsSync as __loExists,readFileSync as __loRead}from
 // 门控语句在其后直接重新赋值 sA。manager 构造（li=gC）与 getEndpointUrls 回调都以闭包
 // 引用 sA 绑定，运行期读到新值；resolveWebRemoteControlRelayWsUrl 对 overrideUrl 整体直用
 // （zcodeEndpoint.ts，无协议校验），因此 ws://127.0.0.1:port/ws 直接生效。
-// 开关关闭（无标志、无 env）时零行为变化（仅新增无副作用的 var 声明）；开关开启且 sA 未被
-// 外部 env 设置时才改写，外部显式值优先（lab 或用户可用官方 env 覆盖网关地址）。
-// v2：网关覆盖仅接受回环目标（localhost/::1/127.*），非回环忽略覆盖、保留默认回环——
-// 本地开关不把 loopback URL 本身当模式标识，也不允许经 env 引出非回环远控目标。
+// 开关关闭时保留原覆盖值；开启时两个 env 入口都只接受实际主机为回环的 HTTP/WS URL。
+// 已有回环 WS 覆盖优先；非回环、凭据伪装或无效 URL 忽略，最终使用回环网关。
 export function renderP1GateCode() {
   const gatewayExpression = `(process.env.${LOCAL_ONLY_GATEWAY_ENV}||${JSON.stringify(LOCAL_ONLY_GATEWAY_DEFAULT_ORIGIN)}).trim()`;
   return [
@@ -110,12 +108,13 @@ export function renderP1GateCode() {
     'if(process.env.APPDATA)c.push(process.env.APPDATA+"/ZCode/local-only.flag");',
     'for(var i=0;i<c.length;i++){try{var t=__loRead(c[i],"utf8").split(/\\r?\\n/)[0].trim();if(t)return t}catch(x){}}',
     '}catch(x){}return "";})();',
-    // 回环校验后改写 sA。
-    'if(__LO_MODE&&!sA){',
-    `var __loGw=${gatewayExpression};`,
-    'var __loHost=__loGw.replace(/^https?:\\/\\//,"").replace(/^\\[/,"").split(/[:\\/]/)[0].replace(/\\]$/,"").toLowerCase();',
-    `if(!(__loHost==="localhost"||__loHost==="::1"||__loHost.startsWith("127.")))__loGw=${JSON.stringify(LOCAL_ONLY_GATEWAY_DEFAULT_ORIGIN)};`,
-    `sA=__loGw.replace(/^http/,"ws")+"${LOCAL_ONLY_GATEWAY_WS_PATH}";}`,
+    // URL 是外部环境输入；只捕获解析错误。内部变量全部保留在 IIFE 中。
+    'if(__LO_MODE)sA=(function(){',
+    'var local=function(v,p){var u;try{u=new URL(v)}catch(e){return null}',
+    'var h=u.hostname;return p.indexOf(u.protocol)>=0&&!u.username&&!u.password&&(h==="localhost"||h==="[::1]"||/^127(?:\\.[0-9]{1,3}){3}$/.test(h))?u:null};',
+    'var w=local(sA,["ws:","wss:"]);if(w)return w.href;',
+    `var g=local(${gatewayExpression},["http:","https:"])||new URL(${JSON.stringify(LOCAL_ONLY_GATEWAY_DEFAULT_ORIGIN)});`,
+    `g.protocol=g.protocol==="https:"?"wss:":"ws:";g.pathname="${LOCAL_ONLY_GATEWAY_WS_PATH}";g.search="";g.hash="";return g.href})();`,
     'var __LO_TOKEN=function(){var a="ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_",s="";',
     'for(var i=0;i<21;i++)s+=a.charAt(Math.floor(Math.random()*a.length));return s+"A"};',
   ].join('');

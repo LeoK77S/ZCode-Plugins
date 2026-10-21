@@ -42,6 +42,7 @@ async function exists(p) {
 function runGate({ env = {}, flags = {}, flagContent = '', sA = null } = {}) {
   const sandbox = {
     process: { env },
+    URL,
     __loExists: (p) => Boolean(flags[p]),
     __loRead: (p) => { if (!flags[p]) throw new Error(`ENOENT: ${p}`); return flagContent; },
     sA,
@@ -78,15 +79,24 @@ test('P1 门控行为：env 显式 0 覆盖标志文件（优先级 env > 标志
   assert.equal(sandbox.sA, null);
 });
 
-test('P1 门控行为：外部 ZCODE_WEB_REMOTE_CONTROL_RELAY_WS_URL 已设置时不覆盖（官方 env 优先保留）', () => {
+test('P1 门控行为：local-only 拒绝非回环官方 relay 覆盖，relay 模式保持原值', () => {
   const home = 'D:/lab/home';
   const official = 'wss://official-relay.example/ws';
-  // 预置官方 relay 覆盖值后执行门控：sA 保持外部值，未被 local-only 默认网关改写。
   const sandbox = runGate({ env: { HOME: home }, flags: { [homeFlag(home)]: true }, sA: official });
   assert.equal(sandbox.__LO_MODE, true);
-  assert.equal(sandbox.sA, official, '外部已设置的官方 relay 地址保持原值');
-  // 辅助：注入文本的守卫形态（仅在 sA 为空时改写）。
-  assert.ok(renderP1GateCode().includes('if(__LO_MODE&&!sA){'));
+  assert.equal(sandbox.sA, 'ws://127.0.0.1:17331/ws');
+  assert.equal(runGate({ env: { [LOCAL_ONLY_ENV_OVERRIDE]: '0' }, sA: official }).sA, official);
+  assert.equal(runGate({ env: { [LOCAL_ONLY_ENV_OVERRIDE]: '1' }, sA: 'ws://127.0.0.1:17431/ws' }).sA, 'ws://127.0.0.1:17431/ws');
+  assert.equal(runGate({ env: { [LOCAL_ONLY_ENV_OVERRIDE]: '1' }, sA: 'ws://127.0.0.1@remote.example:9999/ws' }).sA, 'ws://127.0.0.1:17331/ws');
+});
+
+test('P1 回环约束以实际 URL 主机为准，拒绝凭据伪装、域名前缀及非 HTTP/WS 协议', () => {
+  for (const value of ['http://127.0.0.1@remote.example:9999', 'http://127.evil.example:9999', 'ftp://127.0.0.1:9999', 'invalid']) {
+    const sandbox = runGate({ env: { [LOCAL_ONLY_ENV_OVERRIDE]: '1', [LOCAL_ONLY_GATEWAY_ENV]: value } });
+    assert.equal(sandbox.sA, 'ws://127.0.0.1:17331/ws', value);
+  }
+  const gateway = runGate({ env: { [LOCAL_ONLY_ENV_OVERRIDE]: '1', [LOCAL_ONLY_GATEWAY_ENV]: 'http://[::1]:17431' } });
+  assert.equal(gateway.sA, 'ws://[::1]:17431/ws');
 });
 
 test('P1 回环约束：网关 env 指向非回环目标时忽略覆盖、保留默认回环', () => {
@@ -260,7 +270,7 @@ test('v2 注入输出：P5/P6 守卫存在且官方代码路径保留（开关�
 // ---------- v1→v2 升级路径（apply 全链） ----------
 
 // 构造"已应用 v1 补丁"的目标：v1 补丁 asar（模拟）+ v1 状态记录 + 完好备份。
-async function makeV1AppliedTarget(root) {
+async function makeV1AppliedTarget(root, patchVersion = 1) {
   const targetDir = join(root, 'target');
   const target = await makeSupportedTarget(targetDir);
   const v1Index = Buffer.from(FIXTURE_INDEX.toString('utf8') + '\n/* simulated v1 patch payload */\n');
@@ -273,7 +283,7 @@ async function makeV1AppliedTarget(root) {
   await writeFile(target.asarPath + '.lo02state.json', JSON.stringify({
     formatVersion: 1,
     kind: 'local-only-patch-state',
-    patchVersion: 1,
+    patchVersion,
     appliedAt: '2026-10-20T00:00:00.000Z',
     targetExeFileVersion: target.identity.exeFileVersion,
     originalAsarSha256: target.identity.appAsarSha256,
@@ -284,9 +294,10 @@ async function makeV1AppliedTarget(root) {
   return { ...target, v1Sha };
 }
 
-test('v1→v2 升级：apply v2 自动 restore 原版后重新应用，不叠加注入，输出 upgradedFromPatchVersion', async () => {
+test('v1/v2→当前补丁升级：先 restore 原版再应用新候选，不叠加注入', async () => {
+  for (const previousVersion of [1, 2]) {
   const root = await mkdtemp(join(tmpdir(), 'lo03-upgrade-'));
-  const target = await makeV1AppliedTarget(root);
+  const target = await makeV1AppliedTarget(root, previousVersion);
   const candidateDir = join(root, 'candidate');
   const b = boundaries(target);
   const prepared = await patchPrepare({ targetDir: join(root, 'target'), outDir: candidateDir, ...b });
@@ -294,7 +305,7 @@ test('v1→v2 升级：apply v2 自动 restore 原版后重新应用，不叠加
   const applied = await patchApply({ targetDir: join(root, 'target'), candidateDir, ...b });
   assert.equal(applied.ok, true);
   assert.equal(applied.alreadyApplied, false);
-  assert.equal(applied.upgradedFromPatchVersion, 1);
+  assert.equal(applied.upgradedFromPatchVersion, previousVersion);
   assert.equal(applied.patchVersion, PATCH_VERSION);
   // 最终字节 == v2 候选（restore→re-apply，非叠加）
   const finalSha = sha256(await readFile(target.asarPath));
@@ -304,13 +315,14 @@ test('v1→v2 升级：apply v2 自动 restore 原版后重新应用，不叠加
   assert.ok(finalIndex.includes('__LO_MODE'));
   // 状态记录升级为 v2；备份仍为原版
   const state = JSON.parse(await readFile(target.asarPath + '.lo02state.json', 'utf8'));
-  assert.equal(state.patchVersion, 2);
+  assert.equal(state.patchVersion, PATCH_VERSION);
   assert.equal(sha256(await readFile(target.asarPath + '.lo02bak')), target.identity.appAsarSha256);
   // status 报告 patched v2
   const status = await patchStatus({ targetDir: join(root, 'target'), ...b });
   assert.equal(status.patchState, 'patched');
-  assert.equal(status.patchInfo.patchVersion, 2);
+  assert.equal(status.patchInfo.patchVersion, PATCH_VERSION);
   await rm(root, { recursive: true, force: true });
+  }
 });
 
 test('v1→v2 升级：prepare 从完好备份生成候选（preparedFromBackup），目标只读', async () => {

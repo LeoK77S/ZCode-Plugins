@@ -56,9 +56,10 @@ node "{{common_root}}/local-only/patch.mjs" status --target "{{zcode_install_dir
 | 包不支持/摘要变化 | `unsupported_package`（exe 版本不符或身份解析失败）、`digest_mismatch`（摘要不属于登记原版/补丁版） | 应用被升级或其它工具改写；停止套用旧候选/旧备份，等适配新包的工具版本，不做模糊匹配 |
 | 宿主仍运行 | `running_instance`（外部命令/apply/restore 均列 PID） | 请用户从托盘正常退出后重试；工具与外部命令都不强退进程 |
 | 备份或写入失败 | `backup_missing`、`write_failed`（含恢复 `recovery` 结果） | 按回执核对备份文件与目标摘要；恢复失败保留现场证据，不宣称已恢复 |
-| 环境未生效 | 已 applied/activated 但 Desktop 行为不变 | 开关在启动时一次性求值：确认标志文件在启动前存在、重开 Desktop；`ZCODE_LOCAL_ONLY=0` 或残留的官方 relay 覆盖变量会压制本地分支 |
+| 环境未生效 | 已 applied/activated 但 Desktop 行为不变 | 开关在启动时一次性求值：确认标志文件在启动前存在、重开 Desktop；检查是否有 `ZCODE_LOCAL_ONLY=0` 显式关闭。v3 开启时仅接受回环 WS 覆盖，旧补丁应先升级 |
+| 完整还原未完成 | `local-only-restore-incomplete`（退出码 14），`application_original:true`、`gateway_restored:false` | 应用包已恢复，网关恢复失败；保留回执，保持 Desktop 关闭，排除网关错误后重试同一还原命令 |
 | 网关未就绪 | 健康不可达或 `desktop_connected:false` | 核对网关任务/进程与端口（local-only 默认 17331）；网关恢复后 Desktop 自动重连（退避上限约 90 秒级） |
 | Host 未附着 | 连接在但 `desktop_ready:false`、探针 `workspaceFound:false` | 标志首行工作区与实际打开的工作区不一致时 attach 失败；按外部命令生成参数核对工作区 |
 | 模型服务不可达 | local-only 链路正常但会话无回复 | local-only 只免除官方远控连接；模型服务、登录与额度仍需各自服务可达 |
 
-外部命令（apply/restore .ps1）的失败输出与上表同一分类（REFUSED/FAILED + 退出码 10/12/13），向用户转述时保留 code 与指引，不省略为“失败”。
+外部命令（apply/restore .ps1）的失败输出与上表同一分类（退出码 10/12/13；完整还原的网关步骤失败为 14），向用户转述时保留 code 与指引，不省略为“失败”。

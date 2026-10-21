@@ -1295,6 +1295,52 @@ console.log(JSON.stringify(receipt));
   assert.equal(await readFile(join(f.root, '.zcode', 'local-only.flag'), 'utf8'), 'D:\\ws\r\n', '开关激活写入工作区');
 });
 
+test('完整还原外部命令在恢复应用后恢复 relay 配置，原版重试同样完成模式恢复', { skip: process.platform !== 'win32' }, async t => {
+  for (const scenario of ['patched', 'original', 'gateway_failure']) {
+    const patchState = scenario === 'gateway_failure' ? 'original' : scenario;
+    const f = await fixture(t);
+    const installed = await f.run('Install', { ...loInstallOptions, localOnlyDataRoot: f.root });
+    const flagPath = join(f.root, '.zcode', 'local-only.flag');
+    await mkdir(dirname(flagPath), { recursive: true });
+    await writeFile(flagPath, 'D:\\ws\r\n');
+    const callsFile = join(f.root, 'restore-calls.jsonl');
+    const stubCli = join(f.root, 'restore-cli.mjs');
+    await writeFile(stubCli, `import { appendFileSync } from 'node:fs';
+const command = process.argv[2];
+appendFileSync(${JSON.stringify(callsFile)}, JSON.stringify(command) + '\\n');
+console.log(JSON.stringify(command === 'status' ? {ok:true,supported:true,patchState:${JSON.stringify(patchState)},package:{appAsarSha256:'original-digest'}} : {ok:true,restoredAsarSha256:'original-digest'}));
+`);
+    const script = (await readFile(installed.local_only.restore_script, 'utf8')).replace(/^(\$patchCli = ')[^']*(')$/m, (_, head, tail) => head + stubCli + tail);
+    const harness = join(f.root, 'restore-run.ps1');
+    await writeFile(harness, script);
+    if (scenario === 'gateway_failure') {
+      const state = await f.state();
+      state.fail_start_count = 1;
+      await writeFile(f.stateFile, JSON.stringify(state));
+      // fixture 通过 & 调用脚本，exit 只退出该脚本作用域；此处核对真实失败回执。
+      const partial = await f.run('Status', { setupScript: harness });
+      assert.equal(partial.ok, false);
+      assert.equal(partial.application_original, true);
+      assert.equal(partial.gateway_restored, false);
+      assert.match(partial.reason, /start denied/);
+      assert.equal(JSON.parse(await readFile(join(f.dataDir, 'config.json'), 'utf8')).mode, 'local-only');
+      continue;
+    }
+    const receipt = await f.run('Status', { setupScript: harness });
+    assert.equal(receipt.ok, true);
+    const config = JSON.parse(await readFile(join(f.dataDir, 'config.json'), 'utf8'));
+    assert.equal(config.mode, 'relay', '完整还原必须恢复网关模式');
+    assert.equal(config.port, 17331);
+    assert.equal(config.previous_user_relay, 'wss://previous.example/ws');
+    assert.equal((await f.state()).relay, 'ws://127.0.0.1:17331/ws');
+    assert.equal(receipt.gateway_mode, 'relay');
+    assert.equal(receipt.restoredAsarSha256, 'original-digest');
+    await assert.rejects(stat(flagPath), { code: 'ENOENT' });
+    const calls = (await readFile(callsFile, 'utf8')).trim().split('\n').map(line => JSON.parse(line));
+    assert.deepEqual(calls, patchState === 'patched' ? ['status', 'restore'] : ['status']);
+  }
+});
+
 test('切回 relay 关闭本地开关、恢复网关模式与环境值，不重写应用包', { skip: process.platform !== 'win32' }, async t => {
   const f = await fixture(t, { patch_stub: 'original' });
   await f.run('Install', { ...loInstallOptions, localOnlyDataRoot: f.root });

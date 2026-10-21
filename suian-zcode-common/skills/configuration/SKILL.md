@@ -36,7 +36,7 @@ powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "{{commo
 
 **切回 relay**：执行 `Restart -Mode relay`（同前述暂停远控流程）。它一次完成：删除模式开关标志（`local_only_switch: disabled`）、网关配置切回 relay、环境值恢复——**不重写应用包，补丁保留**。手机连接恢复需要已登录账号与官方远控可达。
 
-**完整还原**：用户关闭实例后执行 setup 生成的外部还原命令（公共数据目录 `local-only/restore-local-only.ps1`）：按本工具备份恢复原版 app.asar 并核对摘要、删除开关标志；网关模式不变，不再需要本地网关时另行 Restart/Remove。
+**完整还原**：用户关闭实例后执行 setup 生成的外部还原命令（公共数据目录 `local-only/restore-local-only.ps1`）：按本工具备份恢复原版 app.asar 并核对摘要，再复用 setup 的 Restart 事务恢复 relay 模式、环境与开关；端口、control_token 和原环境备份保留。已是原版时仍执行模式恢复，便于部分失败后重试。只有包与模式均恢复才报告成功；应用已恢复但网关失败时，保持 Desktop 关闭、排除错误后重试同一命令。
 
 应用升级后包摘要变化：旧候选停止套用（外部命令在身份复核时拒绝），须等适配新包的工具版本；不要尝试对未知新包复用旧备份。
 

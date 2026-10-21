@@ -42,7 +42,7 @@ import {
 // ---------- patch-env 契约 ----------
 
 test('INJECTIONS 定义完整：P0-P6 各就其位，replace 注入含 find/replacement/semantic', () => {
-  assert.equal(PATCH_VERSION, 2);
+  assert.equal(PATCH_VERSION, 3);
   assert.deepEqual(INJECTIONS.map((i) => i.id), [
     'P0-fs-import',
     'P1-mode-gate',
@@ -67,10 +67,8 @@ test('applyInjections：真实锚点切片全部命中且注入结果含短路�
   assert.equal(applied.length, INJECTIONS.length);
   // P0：文件首行 import（v2 加 readFileSync，供标志文件首行读取）
   assert.ok(content.startsWith('import{existsSync as __loExists,readFileSync as __loRead}from"node:fs";'));
-  // P1：门控三件套 + 只在 sA 未被外部设置时改写回环网关 /ws（var 语句边界后插入）
+  // P1：在 var 语句边界后注入门控；最终地址行为由 lifecycle 的 vm 契约验证。
   assert.ok(content.includes('var __LO_MODE='));
-  assert.ok(content.includes('+"/ws";'));
-  assert.ok(content.includes('if(__LO_MODE&&!sA){'));
   // P2-P4：三个回调短路
   assert.ok(content.includes('if(__LO_MODE)return{userId:"local-only-device",jwt:"local-only"};'));
   assert.ok(content.includes('__LO_MODE?"local-only-device":(Be=await kd(lt,ae)'));

@@ -42,6 +42,8 @@ Windows 副本仍会自动注册当前用户的 `zcode:` 协议和右键菜单�
 
 "设置了变量"不等于"实际生效"——以 check 输出与日志中的实际路径为判据。
 
+当前补丁为 v3：最终 WS 地址的两个 env 入口均受 URL 回环校验；setup 的完整还原同时恢复网关 relay 模式。旧 v2 证据保留历史口径，当前摘要、升级与负向原生验证见[开发集成总验收](../../../suian-zcode-app-mcp/docs/local-only/09-development-acceptance.md)。
+
 ## 坑索引
 
 按症状查编号，详录见 [references/known-pitfalls.md](references/known-pitfalls.md)。

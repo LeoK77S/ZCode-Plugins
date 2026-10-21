@@ -26,6 +26,8 @@
 
 ## 文件职责
 
+当前 local-only 补丁为 v3：最终 WS 地址统一按 URL 实际主机校验，完整还原通过现有 setup 事务恢复 relay 配置。v2 的历史证据不作为 v3 运行证明；当前摘要、真实升级与验收边界见[开发集成总验收](../suian-zcode-app-mcp/docs/local-only/09-development-acceptance.md)。
+
 | 路径 | 职责 |
 | --- | --- |
 | gateway.mjs | 唯一 relay V1/V2 网关、一次性 token 转发、同进程 bootstrap 分流及健康状态 |

@@ -46,7 +46,7 @@ powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "{{commo
 | 已应用未生效 | 外部命令回执 `applied` 且 `activated:true`，但 Desktop 尚未重开 | 提示用户用原快捷方式重开 |
 | 验证就绪 | 重开后网关健康 `desktop_ready:true` 且原 Host 探针通过 | 汇报完成；仅连接不等于业务验收 |
 
-外部命令产物在公共数据目录 `local-only/` 下：`apply-local-only.ps1`（复核身份→应用→写开关标志→回执，工具自带运行实例检查，绝不强退进程）与 `restore-local-only.ps1`（复核→按备份恢复原版→删标志→回执）。向用户交付时说明：**先保存工作并从托盘退出该安装目录的全部 ZCode 实例，再在外部 PowerShell 执行 apply 脚本，然后用原快捷方式重开**。重开后按上表“验证就绪”检查实际模式/端点、desktop_ready 与原 Host 探针。
+外部命令产物在公共数据目录 `local-only/` 下：`apply-local-only.ps1`（复核身份→应用→写开关标志→回执，工具自带运行实例检查，绝不强退进程）与 `restore-local-only.ps1`（复核→按备份恢复原版→复用 setup 切回 relay 配置并关闭开关→回执）。向用户交付时说明：**先保存工作并从托盘退出该安装目录的全部 ZCode 实例，再在外部 PowerShell 执行 apply 脚本，然后用原快捷方式重开**。重开后按上表“验证就绪”检查实际模式/端点、desktop_ready 与原 Host 探针。完整还原若只完成应用恢复，回执为 `local-only-restore-incomplete`，排除网关错误后可重试；不得宣称全部恢复。
 
 Status 传 `-ZcodeInstallDir` 可附加只读补丁状态报告（`local_only_patch` 字段）。日常排障见[debug](../debug/SKILL.md)的 local-only 故障分层。
 

@@ -217,38 +217,43 @@ $flagDir = Split-Path -Parent $flagPath
     $restoreBody = @'
 # suian-zcode-common local-only 完整还原命令（setup 生成）。
 # 执行前：请先正常退出目标安装目录下的全部 ZCode Desktop 实例。
-# 步骤：复核身份 -> 按本工具备份恢复原版 app.asar -> 关闭 local-only 开关（删标志文件）-> 回执。
+# 步骤：复核身份 -> 按备份恢复 app.asar -> 复用 setup 恢复 relay 配置与开关 -> 回执。
 __SHARED__
-$flagPath = __FLAG__
-# 1) 身份复核：已是原版时只需关闭开关；无法解析身份时拒绝盲操作。
+# 1) 身份复核：已是原版时仍须完成模式恢复，便于部分失败后重试。
 $status = Invoke-Patch @('status', '--target', $target)
-if ($status.patchState -eq 'original') {
-    if (Test-Path -LiteralPath $flagPath) { Remove-Item -LiteralPath $flagPath -Force }
-    Write-Output '{"ok":true,"action":"local-only-restored","restored":"already_original","note":"target is already the original package; the local-only flag was removed"}'
-    exit 0
-}
-if (-not $status.ok) {
+if (-not $status.ok -or -not $status.supported) {
     Write-Output ('REFUSED: target identity could not be resolved (' + $status.code + '): ' + $status.reason)
     Write-Output 'Nothing was changed. Diagnosis: run the local-only patch tool status or follow the local-only debug skill.'
     exit 10
 }
 # 2) 按备份恢复原版（内含运行实例检查与摘要核对；目标被外部修改时明确拒绝）。
-$restore = Invoke-Patch @('restore', '--target', $target)
-if (-not $restore.ok) {
-    Write-Output ('FAILED: patch restore failed (' + $restore.code + '): ' + $restore.reason)
-    Write-Output 'Nothing beyond the flag was changed. The patch tool never kills running instances; close ZCode from its tray and retry.'
-    exit 13
+$restore = $null
+if ($status.patchState -ne 'original') {
+    $restore = Invoke-Patch @('restore', '--target', $target)
+    if (-not $restore.ok) {
+        Write-Output ('FAILED: patch restore failed (' + $restore.code + '): ' + $restore.reason)
+        Write-Output 'Gateway configuration was not changed. Close ZCode from its tray and retry.'
+        exit 13
+    }
 }
-# 3) 关闭 local-only 开关。
-if (Test-Path -LiteralPath $flagPath) { Remove-Item -LiteralPath $flagPath -Force }
+# 3) 复用现有 Restart 事务恢复 relay 模式、环境与标志；保留端口、令牌和原环境备份。
+try {
+    $modeOutput = & __SETUP__ -Action Restart -Mode relay -DataDir __DATA__ -ToolsRoot __TOOLS__ -SkillsDir __SKILLS__ -LocalOnlyDataRoot __DATA_ROOT__ __NATIVE__
+    $modeReceipt = (($modeOutput | Where-Object { $_ -is [string] }) -join "`n") | ConvertFrom-Json
+    if (-not $modeReceipt.ok -or $modeReceipt.action -ne 'restarted' -or $modeReceipt.mode -ne 'relay') { throw ('Relay restore incomplete: ' + ($modeOutput -join "`n")) }
+} catch {
+    [ordered]@{ ok=$false; action='local-only-restore-incomplete'; application_original=$true; gateway_restored=$false; reason=$_.Exception.Message; next_steps='Keep ZCode closed, resolve the gateway error, then rerun this restore script.' } | ConvertTo-Json -Compress
+    exit 14
+}
 # 4) 回执。
-[ordered]@{ ok=$true; action='local-only-restored'; restoredAsarSha256=$restore.restoredAsarSha256; target=$target; next_steps='Reopen ZCode with the original shortcut; original relay behavior is restored. Gateway mode is unchanged - use setup Restart/Remove if the local gateway is no longer needed.' } | ConvertTo-Json -Compress
+[ordered]@{ ok=$true; action='local-only-restored'; restored=$(if ($null -eq $restore) { 'already_original' } else { 'restored' }); restoredAsarSha256=$(if ($null -eq $restore) { $status.package.appAsarSha256 } else { $restore.restoredAsarSha256 }); gateway_mode=$modeReceipt.mode; target=$target; next_steps='Reopen ZCode with the original shortcut; the package and gateway relay mode are restored.' } | ConvertTo-Json -Compress
 '@
     $render = {
         param([string]$template)
         $text = $template.Replace('__SHARED__', $sharedHeader)
         $text = $text.Replace('__NODE__', (& $q $NodePath)).Replace('__PATCH_CLI__', (& $q $PatchCliPath)).Replace('__TARGET__', (& $q $Target))
         $text = $text.Replace('__CANDIDATE__', (& $q $CandidateDir)).Replace('__FLAG__', (& $q $FlagPath)).Replace('__WORKSPACE__', (& $q $Workspace))
+        $text = $text.Replace('__SETUP__', (& $q $PSCommandPath)).Replace('__DATA__', (& $q $DataDir)).Replace('__TOOLS__', (& $q $ToolsRoot)).Replace('__SKILLS__', (& $q $SkillsDir)).Replace('__DATA_ROOT__', (& $q $LocalOnlyDataRoot)).Replace('__NATIVE__', $(if ($NativePlugin) { '-NativePlugin' } else { '' }))
         return $text
     }
     return @{ apply = (& $render $applyBody); restore = (& $render $restoreBody) }
