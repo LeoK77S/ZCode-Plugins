@@ -19,7 +19,7 @@
 - 写入或恢复用户环境后广播 WM_SETTINGCHANGE / Environment；Status 与保留外部环境值不广播。使用 Unicode SendMessageTimeoutW，等待有超时，失败明确报出，不把已运行进程视为已更新。自动测试替换原生广播边界，不通知真实桌面。
 - 为兼容既有安装，网关数据仍在 `~/.zcode/tools/suian-zcode-gateway`，任务名和健康接口 service 仍为网关身份。源码兼容路由 skill 部署到 `~/.zcode/skills/suian-zcode-common`，原生拆分技能由宿主加载；迁移不另建任务或丢失原环境备份。
 - 网关运行文件部署在缓存外 `~/.zcode/tools/suian-zcode-common/deployments/<buildId>`（真实文件副本，不用 junction；buildId 只由部署清单内容决定，与路径无关）；计划任务指向 `launchers` 稳定启动器，经活动网关记录 `active-gateway.json` 选择部署版本与实际 Node。任务参数、工作目录与子进程路径不得引用版本缓存；EncodedCommand 外层必须 `exit $LASTEXITCODE`（`&` 调用脚本内的 exit 只退出脚本作用域）。
-- 升级按规格 7.2 六步：暂存候选不改活动记录 → 查询状态（Desktop 活跃或未知时拒绝切换，只报待激活）→ 暂停远控并等待网关、监听与监督启动器退出 → 原子切换活动记录并复用原任务 → 核对健康 buildId/协议/模式后写环境广播 → 候选失败回退先前活动部署与自有配置（首次失败撤销本次新增注册、环境修改与部署）。回退失败不宣称恢复成功；Toast 活动记录独立，网关切换不触碰。
+- 升级按规格 7.2 六步：暂存候选不改活动记录 → 查询状态（状态未知拒绝切换；远控忙时保留旧服务只报待激活）→ 切换事务以独占句柄锁文件互斥，忙退避重探（默认 60 秒上限；V2 连接空闲即升级关闭闪断，旧网关健康无 rpc_in_flight 字段或 V1 保守等连接断开），超时输出 remote_busy 放弃且记录不动 → 原子切换活动记录并复用原任务 → 核对健康 buildId/协议/模式后写环境广播 → 候选失败回退先前活动部署与自有配置（首次失败撤销本次新增注册、环境修改与部署）。回退失败不宣称恢复成功；Toast 活动记录独立，网关切换不触碰。
 - 部署目录只含网关运行闭包（gateway/terminal/rpc-broker/vendor/ws 与清单、许可），不携带 client/locate/depcheck 等业务模块；业务 common 缓存缺失不从网关部署目录补代码。健康接口 Content-Type 带 charset=utf-8，中文部署路径经 PowerShell Invoke-RestMethod 不乱码。
 - 新行为先写契约测试。Windows 设置测试使用隔离文件与模拟系统命令，不修改真实用户环境、计划任务或正在运行的 ZCode。
 - `vendor/` 固定第三方来源并保留许可；不修改 `../sources/`。验证日志落忽略的 `.scratch/`，入库只保留脱敏汇总。
@@ -38,7 +38,7 @@
 | skills/ | setup / configuration / debug，paths.md 统一位置与数据归属 |
 | rpc-broker.mjs | 单一 Host 桥、RPC 编号与 v4 握手身份映射、手机虚拟桥与本地客户端分流 |
 | gateway-client.mjs | 插件默认 connectHost/probeHost，本地配置与鉴权、RPC call／listen 附着、原事件参数与释放语义及明确失败 |
-| setup.ps1 / run.ps1 / run.vbs | 用户任务、变量、公共 skill；按 Desktop 版本选择 V1/V2，保留协议与迁移官方地址；setup 按六步顺序部署候选、安全切换与失败回退；run.ps1/run.vbs 保留为源码开发直启链 |
+| setup.ps1 / run.ps1 / run.vbs | 用户任务、变量、公共 skill；按 Desktop 版本选择 V1/V2，保留协议与迁移官方地址；setup 按六步顺序部署候选、忙退避安全切换（升级事务锁互斥、空闲闪断或超时报 remote_busy）与失败回退；run.ps1/run.vbs 保留为源码开发直启链 |
 | remote.mjs | 官方 relay 鉴权、workspace bridge、Channel RPC 与分层探活 |
 | auth-store.mjs | 调用方数据目录内的当前用户 DPAPI 授权存取 |
 | title-policy.mjs | 当前用户跨插件的会话锁定策略：MCP 写入，命名插件读取 |

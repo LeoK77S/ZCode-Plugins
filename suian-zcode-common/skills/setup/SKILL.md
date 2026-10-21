@@ -52,9 +52,9 @@ Install 把网关运行文件部署到缓存外 `~/.zcode/tools/suian-zcode-comm
 
 更新后**不再重装依赖或修链接**：重跑第 2 步发布完整性检查确认新缓存就绪，再从新公共根执行 Status -ZcodeAppVersion {{app_version}}，核对 code_status、candidate_pending_activation、gateway_path_matches、protocol_update_required、upstream_update_required 与 gateway_restart_required。代码已变化、候选待激活（candidate_build_id 与 active_build_id 不同）、目录不匹配、协议待升级或旧进程没有指纹时安排安全重载；不要用 health.version 或仅有的连接正常来判断已加载新代码。只修改文档或 skill 时，代码指纹不变；是否重开 Desktop 看环境变更与实际连接，不能仅凭 restart_required 汇总标志决定。
 
-需要重载网关时，等插件调用收尾，请用户只暂停 ZCode 的移动端远控，保留 ZCode 与当前 Agent 完成升级。Status 确认 desktop_connected:false 后执行 Restart -ZcodeAppVersion {{app_version}}，原生模式加 -NativePlugin。脚本等待网关和启动器退出后才更新任务，保留端口、控制令牌、原环境备份及自定义上游；应用升级时同步协议与官方地址。单纯重载且未提供新版本时，保留已配置协议。业务安装器同时更新通知脚本的代码路径。
+需要重载网关时，等插件调用收尾后直接执行 Restart -ZcodeAppVersion {{app_version}}，原生模式加 -NativePlugin。脚本先以切换事务锁防止并发升级，再忙退避重探：V2 下远控连接空闲（rpc_in_flight 为 0）即用升级关闭闪断，Desktop 连接层会自动重连；忙时指数退避、默认 60 秒上限（-BusyTimeoutSec 可调），超时输出 restart_deferred 与 remote_busy 并保留旧服务，稍后重试即可。旧网关健康无 rpc_in_flight 字段或 V1 协议时保守等待连接断开，用户可随时手动暂停远控让出窗口。脚本等待网关和启动器退出后才更新任务，保留端口、控制令牌、原环境备份及自定义上游；应用升级时同步协议与官方地址。单纯重载且未提供新版本时，保留已配置协议。业务安装器同时更新通知脚本的代码路径。
 
-网关经 Restart 生效；地址未变且原窗口已连接正确网关时，重新开启远控即可。首次接入或改变启动环境时，先交付本机配置与待验证报告，最后请用户保存工作、择时从托盘退出并重开 ZCode，再开启远控。重连后继续业务模型、探活及临时暂停的恢复，不能把待恢复项当作升级完成。
+网关经 Restart 生效；地址未变且 V2 协议时 Desktop 连接层自动重连，手机端通常随官方 relay 重连配对（真实手机表现以验收为准，未恢复时在手机上重进即可）。首次接入或改变启动环境时，先交付本机配置与待验证报告，最后请用户保存工作、择时从托盘退出并重开 ZCode，再开启远控。重连后继续业务模型、探活及临时暂停的恢复，不能把待恢复项当作升级完成。
 
 新进程加载新的公共模块；既有 MCP 仍可能是旧版，按 MCP setup 安排断开重连或择时重开并核验。只改文档或不涉及常驻代码的配置时可说明无需重载。配置、模型选择、开关等业务状态在升级中保留，配置变化不会触发依赖重装。
 
