@@ -68,14 +68,18 @@ async function fixture(t, pairStatus = 'matched', options = {}) {
           ...(options.gateway?.relayProtocolVersion === 2 ? { desktopAppVersion: '3.16.1', windowControlSessionId: 'fixture-window', mobileTaskViewEpoch: 1 } : { tasks: [] }) } } }));
     } else if (p?.zcode_type === 'workspace-bridge-open') {
       bridgeOpens.push(p);
+      const navError = p.taskId != null ? options.taskNavigationErrors?.[p.taskId] : undefined;
+      if (navError) { desktop.send(JSON.stringify({ type: 'data', payload: { zcode_type: 'workspace-bridge-error', requestId: p.requestId, reason: 'task_not_found', error: navError } })); return; }
       if (options.ignoreBridge) return;
       identity = { bridgeSessionId: p.bridgeSessionId, bridgeGeneration: p.bridgeGeneration };
       assembler = new Assembler({ identity }); physical = 1; message = 1;
       helloIssued = false; boundClientId = undefined;
       const prepared = options.projectDirectories?.[p.project?.projectId];
+      // 任务导航：宿主按 taskId 解析归属目录并以解析结果作为桥目标（模拟 buildWorkspaceBridge 的 task intent）
+      const navigated = p.taskId != null ? options.taskDirectories?.[p.taskId] : undefined;
       desktop.send(JSON.stringify({ type: 'data', payload: { zcode_type: 'workspace-bridge-ready', requestId: p.requestId,
         bridge: { ...identity, kind: p.workspaceKey === 'remote:fixture' ? 'remote' : 'local', workspaceKey: p.workspaceKey,
-          workspacePath: prepared?.workspacePath ?? (p.workspaceKey === 'remote:fixture' ? '/remote' : workspace) } } }));
+          workspacePath: prepared?.workspacePath ?? navigated ?? (p.workspaceKey === 'remote:fixture' ? '/remote' : workspace) } } }));
       respond([200], undefined);
     } else if (p?.zcode_type === 'rpc-frame') {
       const result = assembler.accept(parse(p));
@@ -871,4 +875,141 @@ test('手机离线时本地鉴权客户端可调用，虚拟配对不新增官�
   assert.equal(after.upstream_paired, false);
   assert.equal(after.paired, false);
   assert.equal(after.local_clients, 0);
+});
+
+test('V2 未登记工作区携带会话身份时经任务导航附着，宿主解析目录后完成归属校验', { timeout: 4000 }, async t => {
+  const { connectHost } = await import('../gateway-client.mjs');
+  const draft = 'C:\\Users\\fixture\\workspace\\draft-unregistered';
+  const f = await fixture(t, 'matched', { gateway: { relayProtocolVersion: 2 }, taskDirectories: { session_draft1: draft } });
+  const dir = await mkdtemp(join(tmpdir(), 'zcode-task-nav-'));
+  t.after(() => rm(dir, { recursive: true }));
+  const gatewayConfigPath = join(dir, 'config.json');
+  await writeFile(gatewayConfigPath, JSON.stringify({ version: 1, port: Number(new URL(f.gateway.url).port), control_token: 'fixture-rpc-token' }));
+  const observed = connectHost({ workspacePath: draft, sessionId: 'session_draft1', gatewayConfigPath, handshakeTimeoutMs: 2000 })
+    .then(value => ({ value }), error => ({ error }));
+  await until(() => f.bridgeOpens.some(p => p.taskId === 'session_draft1'));
+  const open = f.bridgeOpens.find(p => p.taskId === 'session_draft1');
+  assert.equal(open.workspaceKey, draft);
+  assert.equal(open.taskHostId, 'local');
+  await until(() => f.requests.some(([header]) => header[3] === 'getTaskMeta'));
+  const [header, body] = f.requests.find(([header]) => header[3] === 'getTaskMeta');
+  assert.equal(body[0].taskId, 'session_draft1');
+  assert.equal(body[0].workspacePath, draft);
+  f.respond([201, header[1]], { taskId: 'session_draft1', workspacePath: draft });
+  const { value: client, error } = await observed;
+  assert.ok(client, '未登记工作区应经任务导航完成附着，实际错误：' + (error?.message ?? '无'));
+  t.after(() => client?.close());
+});
+
+test('V2 手机打开未登记工作区的会话：任务身份透传宿主导航，ready 返回归属目录', { timeout: 3000 }, async t => {
+  const draft = 'C:\\Users\\fixture\\workspace\\draft-phone';
+  const f = await fixture(t, 'matched', { gateway: { relayProtocolVersion: 2 }, taskDirectories: { session_draft2: draft } });
+  const outcome = Promise.withResolvers();
+  f.phone.on('message', data => {
+    const payload = JSON.parse(data).payload;
+    if (payload?.zcode_type === 'workspace-bridge-ready') outcome.resolve(payload);
+    else if (payload?.zcode_type === 'workspace-bridge-error') outcome.reject(new Error(payload.error));
+  });
+  f.phone.send(JSON.stringify({ type: 'data', payload: { zcode_type: 'workspace-bridge-open', requestId: 'phone-task-open',
+    bridgeSessionId: 'phone-task-bridge', bridgeGeneration: 1, workspaceKey: draft, taskId: 'session_draft2', taskHostId: 'local' } }));
+  const ready = await outcome.promise;
+  assert.equal(ready.bridge.workspacePath, draft);
+  assert.equal(ready.bridge.initialTaskId, 'session_draft2');
+  const open = f.bridgeOpens.find(p => p.taskId === 'session_draft2');
+  assert.equal(open?.taskHostId, 'local');
+  assert.equal(open?.workspaceKey, draft);
+});
+
+test('V2 桥已被插件占用时手机打开未登记会话：复用桥并经 Host 复核任务归属', { timeout: 4000 }, async t => {
+  const { connectHost } = await import('../gateway-client.mjs');
+  const draft = 'C:\\Users\\fixture\\workspace\\draft-reused';
+  const f = await fixture(t, 'matched', { gateway: { relayProtocolVersion: 2 }, taskDirectories: { session_draft3: draft } });
+  const dir = await mkdtemp(join(tmpdir(), 'zcode-task-reused-'));
+  t.after(() => rm(dir, { recursive: true }));
+  const gatewayConfigPath = join(dir, 'config.json');
+  await writeFile(gatewayConfigPath, JSON.stringify({ version: 1, port: Number(new URL(f.gateway.url).port), control_token: 'fixture-rpc-token' }));
+  const plugin = await connectHost({ workspacePath: workspace, gatewayConfigPath, handshakeTimeoutMs: 2000 });
+  t.after(() => plugin.close());
+  const outcome = Promise.withResolvers();
+  f.phone.on('message', data => {
+    const payload = JSON.parse(data).payload;
+    if (payload?.zcode_type === 'workspace-bridge-ready') outcome.resolve(payload);
+    else if (payload?.zcode_type === 'workspace-bridge-error') outcome.reject(new Error(payload.error));
+  });
+  f.phone.send(JSON.stringify({ type: 'data', payload: { zcode_type: 'workspace-bridge-open', requestId: 'phone-task-reused',
+    bridgeSessionId: 'phone-reused-bridge', bridgeGeneration: 1, workspaceKey: draft, taskId: 'session_draft3', taskHostId: 'local' } }));
+  await until(() => f.requests.some(([header]) => header[3] === 'getTaskMeta'));
+  const [header, body] = f.requests.find(([header]) => header[3] === 'getTaskMeta');
+  assert.equal(body[0].taskId, 'session_draft3');
+  assert.equal(body[0].workspacePath, draft);
+  f.respond([201, header[1]], { taskId: 'session_draft3', workspacePath: draft });
+  const ready = await outcome.promise;
+  assert.equal(ready.bridge.workspacePath, draft);
+  assert.equal(ready.bridge.initialTaskId, 'session_draft3');
+});
+
+test('V2 未登记工作区且无任务身份仍拒绝：手机与本地插件两条路径', { timeout: 3000 }, async t => {
+  const f = await fixture(t, 'matched', { gateway: { relayProtocolVersion: 2 } });
+  const phoneError = Promise.withResolvers();
+  f.phone.on('message', data => { const p = JSON.parse(data).payload; if (p?.zcode_type === 'workspace-bridge-error') phoneError.resolve(p); });
+  f.phone.send(JSON.stringify({ type: 'data', payload: { zcode_type: 'workspace-bridge-open', requestId: 'phone-no-task',
+    bridgeSessionId: 'phone-no-task-b', bridgeGeneration: 1, workspaceKey: 'D:\\never-registered' } }));
+  assert.match((await phoneError.promise).error, /not open in the Desktop window/);
+  const peer = new WebSocket(f.gateway.url.replace('/ws', '/rpc'), { headers: { Authorization: 'Bearer fixture-rpc-token' } });
+  t.after(() => peer.terminate());
+  await once(peer, 'open');
+  const localError = new Promise(resolve => peer.on('message', (d, binary) => { if (!binary) { const m = JSON.parse(d); if (m.type === 'error') resolve(m); } }));
+  peer.send(JSON.stringify({ type: 'attach', workspace_path: 'D:\\never-registered' }));
+  const local = await localError;
+  assert.equal(local.code, 'gateway_rpc_failed');
+  assert.match(local.message, /not open in the Desktop window/);
+});
+
+test('V2 非 local 任务主机的未登记请求维持拒绝，不进入任务导航', { timeout: 3000 }, async t => {
+  const f = await fixture(t, 'matched', { gateway: { relayProtocolVersion: 2 } });
+  const phoneError = Promise.withResolvers();
+  f.phone.on('message', data => { const p = JSON.parse(data).payload; if (p?.zcode_type === 'workspace-bridge-error') phoneError.resolve(p); });
+  f.phone.send(JSON.stringify({ type: 'data', payload: { zcode_type: 'workspace-bridge-open', requestId: 'phone-remote-host',
+    bridgeSessionId: 'phone-remote-b', bridgeGeneration: 1, workspaceKey: 'D:\\remote-host-task', taskId: 'session_remote', taskHostId: 'ssh-1' } }));
+  assert.match((await phoneError.promise).error, /not open in the Desktop window/);
+  assert.ok(!f.bridgeOpens.some(p => p.taskId === 'session_remote'), '不应向宿主转发远端任务导航帧');
+});
+
+test('V2 桥复用下任务归属复核不符时拒绝打开并回错误', { timeout: 4000 }, async t => {
+  const { connectHost } = await import('../gateway-client.mjs');
+  const draft = 'C:\\Users\\fixture\\workspace\\draft-forged';
+  const f = await fixture(t, 'matched', { gateway: { relayProtocolVersion: 2 } });
+  const dir = await mkdtemp(join(tmpdir(), 'zcode-task-forged-'));
+  t.after(() => rm(dir, { recursive: true }));
+  const gatewayConfigPath = join(dir, 'config.json');
+  await writeFile(gatewayConfigPath, JSON.stringify({ version: 1, port: Number(new URL(f.gateway.url).port), control_token: 'fixture-rpc-token' }));
+  const plugin = await connectHost({ workspacePath: workspace, gatewayConfigPath, handshakeTimeoutMs: 2000 });
+  t.after(() => plugin.close());
+  const phoneError = Promise.withResolvers();
+  f.phone.on('message', data => { const p = JSON.parse(data).payload; if (p?.zcode_type === 'workspace-bridge-error') phoneError.resolve(p); });
+  f.phone.send(JSON.stringify({ type: 'data', payload: { zcode_type: 'workspace-bridge-open', requestId: 'phone-task-forged',
+    bridgeSessionId: 'phone-forged-b', bridgeGeneration: 1, workspaceKey: draft, taskId: 'session_forged', taskHostId: 'local' } }));
+  await until(() => f.requests.some(([header]) => header[3] === 'getTaskMeta'));
+  const [header] = f.requests.find(([header]) => header[3] === 'getTaskMeta');
+  f.respond([201, header[1]], { taskId: 'session_forged', workspacePath: workspace });
+  assert.match((await phoneError.promise).error, /Session is not present/);
+});
+
+test('V2 宿主任务导航失败时错误回传手机，本地附着同因失败', { timeout: 3000 }, async t => {
+  const { connectHost } = await import('../gateway-client.mjs');
+  const f = await fixture(t, 'matched', { gateway: { relayProtocolVersion: 2 },
+    taskNavigationErrors: { session_missing: 'project.task-not-found' } });
+  const phoneError = Promise.withResolvers();
+  f.phone.on('message', data => { const p = JSON.parse(data).payload; if (p?.zcode_type === 'workspace-bridge-error') phoneError.resolve(p); });
+  f.phone.send(JSON.stringify({ type: 'data', payload: { zcode_type: 'workspace-bridge-open', requestId: 'phone-task-missing',
+    bridgeSessionId: 'phone-missing-b', bridgeGeneration: 1, workspaceKey: 'D:\\ghost-draft', taskId: 'session_missing', taskHostId: 'local' } }));
+  assert.match((await phoneError.promise).error, /project.task-not-found/);
+  const dir = await mkdtemp(join(tmpdir(), 'zcode-task-missing-'));
+  t.after(() => rm(dir, { recursive: true }));
+  const gatewayConfigPath = join(dir, 'config.json');
+  await writeFile(gatewayConfigPath, JSON.stringify({ version: 1, port: Number(new URL(f.gateway.url).port), control_token: 'fixture-rpc-token' }));
+  const observed = connectHost({ workspacePath: 'D:\\ghost-draft', sessionId: 'session_missing', gatewayConfigPath, handshakeTimeoutMs: 1500 })
+    .then(value => ({ value }), error => ({ error }));
+  const { error } = await observed;
+  assert.match(error?.message, /原 Host 桥初始化超时|project.task-not-found|workspace-bridge/);
 });
