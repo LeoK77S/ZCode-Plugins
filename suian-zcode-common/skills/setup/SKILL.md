@@ -120,7 +120,7 @@ node "{{common_root}}/migration.mjs" --restore --record "{{private_dir}}/migrati
 
 ## 移除
 
-单独卸载业务插件保留 common 和网关。只有用户明确要求恢复官方直连或移除公共工具，才执行 setup.ps1 -Action Remove。先保存工作并完整退出 ZCode；入口让网关自行退出，移除自己的任务，恢复原用户环境并广播。外部改过的变量保留。
+单独卸载业务插件保留 common 和网关。只有用户明确要求恢复官方直连或移除公共工具，才执行 setup.ps1 -Action Remove。Remove 与 Restart 共用忙退避：远控忙时等待（V2 空闲闪断同理），超时输出 remove_deferred 与 remote_busy 且不动配置与任务，稍后重试。空闲或已退出时入口让网关自行退出，移除自己的任务，恢复原用户环境并广播。外部改过的变量保留。
 
 Remove 不删除业务授权、通知身份、Hook、MCP 或标题策略。若用户还要求清理业务端链接和运行入口，只删除已确认的链接本身，不递归删除目标。报告移除结果和重开后待验证事项。
 

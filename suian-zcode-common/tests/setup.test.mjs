@@ -991,6 +991,7 @@ test('切换事务由独占句柄锁保护：持锁时第二实例明确失败�
   });
   assert.equal((await f.state()).registrations, 0, '拿锁失败不得注册任务');
   await assert.rejects(stat(join(f.dataDir, 'config.json')), { code: 'ENOENT' }, '拿锁失败不得写配置');
+  await assert.rejects(stat(join(f.toolsRoot, 'active-gateway.json')), { code: 'ENOENT' }, '拿锁失败不得写活动记录');
   const status = await f.run('Status');
   assert.equal(status.ok, true, 'Status 只读操作不受锁影响');
   holder.kill();

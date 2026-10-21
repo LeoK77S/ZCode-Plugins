@@ -36,3 +36,5 @@ common 的 gateway.mjs（健康字段、shutdown 分流）、rpc-broker.mjs（in
 ## 验证与完成边界
 
 验证全部在回环测试内完成，不需要真实手机或 Desktop；真实 Desktop 闪断恢复验收属 GUL-03 的升级链路范畴，本票不宣称。手机 App 侧行为是外部黑盒，本票不承诺。
+
+**已知限制（2026-10-21 审查记录）**：rpc-broker 的物理桥中途重建（resetPhysical）不清理已发送的在飞路由，旧应答因 bridgeSessionId 不匹配永不到达，该客户端断开前 rpc_in_flight 会持续大于 0，期间升级关闭保持 409。业务客户端有故障超时自愈；桥重建语义的深入修复超出本票范围，留待后续独立处理。

@@ -206,9 +206,9 @@ function Release-UpgradeLock {
 $busyBackoffCapMs = 15000
 
 function Start-BusyBackoff {
-    # 睡一拍、倍增封顶后重读健康；[ref] 递增退避间隔。
-    param([ref]$Delay)
-    Start-Sleep -Milliseconds $Delay.Value
+    # 睡一拍（不越过 deadline）、倍增封顶后重读健康；[ref] 递增退避间隔。
+    param([ref]$Delay, [datetime]$Deadline)
+    Start-Sleep -Milliseconds ([Math]::Min($Delay.Value, [Math]::Max(0, [int](($Deadline - [DateTime]::UtcNow).TotalMilliseconds))))
     $Delay.Value = [Math]::Min($busyBackoffCapMs, $Delay.Value * 2)
     return Read-GatewayHealth -AllowUnavailable
 }
@@ -216,7 +216,8 @@ function Start-BusyBackoff {
 # 忙退避重探：运行中网关健康自报 V2 且含 rpc_in_flight 时，连接在但无飞行操作即视为空闲，用升级关闭闪断
 # （Desktop 连接层自带断线自愈）；健康自报 V1 或无该字段时保守等待连接断开——判定用运行实例自报协议，
 # 不用本次请求的目标协议，避免对 V1 Desktop 误发闪断。
-# 关闭失败（服务端 409 busy 竞争窗口、瞬断）回到重探；401/404 等确定性错误直接抛出；总时长由 BusyTimeoutSec 限制，超时返回 busy。
+# 关闭失败（服务端 409 busy 竞争窗口、瞬断）先重探再判超时：网关可能已退出，此时等待收尾并按已停止处理；
+# 401/404 等确定性错误直接抛出；总时长由 BusyTimeoutSec 限制（最后一拍钳制到剩余时间），超时返回 busy。
 function Stop-GatewayForUpgrade {
     param([object]$CurrentHealth)
     $deadline = [DateTime]::UtcNow.AddSeconds($BusyTimeoutSec)
@@ -228,7 +229,7 @@ function Stop-GatewayForUpgrade {
             if ($CurrentHealth.PSObject.Properties['relay_protocol_version'] -and $CurrentHealth.relay_protocol_version -eq 2 -and $CurrentHealth.PSObject.Properties['rpc_in_flight'] -and [int]$CurrentHealth.rpc_in_flight -eq 0) { $query = '?idle=1' }
             elseif ([DateTime]::UtcNow -ge $deadline) { return 'busy' }
             else {
-                $CurrentHealth = Start-BusyBackoff ([ref]$delay)
+                $CurrentHealth = Start-BusyBackoff ([ref]$delay) $deadline
                 continue
             }
         }
@@ -241,8 +242,17 @@ function Stop-GatewayForUpgrade {
         catch [Net.WebException] {
             $failureStatus = if ($_.Exception.Response) { [int]$_.Exception.Response.StatusCode } else { $null }
             if ($failureStatus -eq 401 -or $failureStatus -eq 404) { throw }
-            if ([DateTime]::UtcNow -ge $deadline) { return 'busy' }
-            $CurrentHealth = Start-BusyBackoff ([ref]$delay)
+            if ([DateTime]::UtcNow -lt $deadline) {
+                $CurrentHealth = Start-BusyBackoff ([ref]$delay) $deadline
+                if ($null -ne $CurrentHealth) { continue }
+            }
+            else {
+                $CurrentHealth = Read-GatewayHealth -AllowUnavailable
+                if ($null -ne $CurrentHealth) { return 'busy' }
+            }
+            # 网关已退出（瞬断或恰在收尾）：等待监听与启动器实际退出，按已停止处理。
+            Wait-GatewayExit
+            return 'stopped'
         }
     }
 }
