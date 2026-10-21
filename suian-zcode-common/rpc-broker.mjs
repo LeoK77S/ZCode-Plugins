@@ -298,6 +298,16 @@ export function createRpcBroker({ bootstrap, sendDesktop, sendPhone, bridgeTimeo
       socket.on('close', () => { localPeers.delete(peer); cancelPeer(peer); });
     },
     phoneDisconnected() { if (phone) { cancelPeer(phone); phone = undefined; } },
+    // 忙判定 = 请求在飞（call/取消/排队 initialize）+ 未完成的共享桥初始化 + 手机远端透传盲区；
+    // 订阅型路由与纯连接不计。透传期间网关看不到请求/应答边界，保守按忙，手机断开或切回本地工作区后解除；
+    // 桥初始化有 bridgeTimeoutMs 上界，超时或失败即释放。
+    inFlight() {
+      let count = 0;
+      for (const route of routes.values()) if (!route.event) count++;
+      if (physical && !physical.initialized) count++;
+      if (phone?.passthrough) count++;
+      return count;
+    },
     close(error) {
       resetPhysical(error);
       const affected = new Set([...peers, ...localPeers, ...(phone ? [phone] : [])]);

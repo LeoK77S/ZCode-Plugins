@@ -5,6 +5,7 @@ import { tmpdir } from 'node:os';
 import { join, dirname, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { execFile, spawn } from 'node:child_process';
+import { existsSync } from 'node:fs';
 import { promisify } from 'node:util';
 import { createHash } from 'node:crypto';
 import { createServer } from 'node:net';
@@ -21,7 +22,7 @@ const nativeExec = promisify(execFile);
 
 // 只替换 Windows 系统边界，真实执行 setup.ps1 与临时目录内的文件读写。
 const systemFixture = String.raw`
-param([string]$Script, [string]$Action, [string]$DataDir, [string]$SkillsDir, [string]$ToolsRoot, [string]$StateFile, [int]$HealthTimeoutSec, [int]$Port, [string]$Mode, [int]$RelayProtocolVersion, [string]$ZcodeAppVersion, [string]$UpstreamUrl, [switch]$NativePlugin)
+param([string]$Script, [string]$Action, [string]$DataDir, [string]$SkillsDir, [string]$ToolsRoot, [string]$StateFile, [int]$HealthTimeoutSec, [int]$Port, [string]$Mode, [int]$RelayProtocolVersion, [string]$ZcodeAppVersion, [string]$UpstreamUrl, [int]$BusyTimeoutSec, [int]$BusyRetryMs, [switch]$NativePlugin)
 $ErrorActionPreference = 'Stop'
 [Console]::OutputEncoding = New-Object System.Text.UTF8Encoding($false)
 $global:fixture = Get-Content -LiteralPath $StateFile -Raw | ConvertFrom-Json
@@ -80,6 +81,13 @@ function Invoke-RestMethod {
     if ($global:fixture.real_health) { return Microsoft.PowerShell.Utility\Invoke-RestMethod @PSBoundParameters }
     if ($Method -eq 'Post') {
         if ($Headers.Authorization -ne ('Bearer ' + $config.control_token)) { throw '控制令牌错误' }
+        # 升级关闭（idle）：模拟忙拒绝（rpc_in_flight>0 或可数的人为拒绝），由 setup 侧回到退避循环。
+        $isIdle = ([Uri]$Uri).Query -like '*idle=*'
+        if ($isIdle -and $global:fixture.desktop -and (($null -ne $global:fixture.rpc_in_flight -and [int]$global:fixture.rpc_in_flight -gt 0) -or $global:fixture.idle_shutdown_rejects -gt 0)) {
+            if ($global:fixture.idle_shutdown_rejects -gt 0) { $global:fixture.idle_shutdown_rejects-- }
+            Save-Fixture
+            throw [Net.WebException]::new('fixture: upgrade shutdown busy', [Net.WebExceptionStatus]::ProtocolError)
+        }
         $global:fixture.shutdowns++; $global:fixture.draining=($global:fixture.shutdown_health_reads -gt 0); $global:fixture.health_available=$global:fixture.draining; if ($null -ne $global:fixture.task) { $global:fixture.task.State='Ready' }; Save-Fixture
         return [pscustomobject]@{ ok=$true }
     }
@@ -96,7 +104,12 @@ function Invoke-RestMethod {
     $mode = if ($config.PSObject.Properties['mode']) { $config.mode } else { 'relay' }
     $protocol = if ($config.PSObject.Properties['relay_protocol_version']) { $config.relay_protocol_version } else { 1 }
     if ($null -ne $global:fixture.health_protocol) { $protocol = $global:fixture.health_protocol }
-    $reply = [pscustomobject]@{ service='suian-zcode-gateway'; version=1; instance_id=$id; upstream_url=$config.upstream_url; mode=$mode; desktop_connected=$global:fixture.desktop; desktop_ready=$global:fixture.desktop; upstream_connected=$false; paired=$false; rpc_protocol_version=1; upstream_paired=$false; local_clients=0 }
+    # busy_reads_left：剩余忙读取次数——大于 0 时强制 desktop_connected=true 且 rpc_in_flight 递减，耗尽后回落 state.desktop 与 state.rpc_in_flight。
+    $connected = $global:fixture.desktop
+    $inFlight = $global:fixture.rpc_in_flight
+    if ($global:fixture.busy_reads_left -gt 0) { $connected = $true; $inFlight = [Math]::Max(1, $global:fixture.busy_reads_left); $global:fixture.busy_reads_left--; Save-Fixture }
+    $reply = [pscustomobject]@{ service='suian-zcode-gateway'; version=1; instance_id=$id; upstream_url=$config.upstream_url; mode=$mode; desktop_connected=$connected; desktop_ready=$connected; upstream_connected=$false; paired=$false; rpc_protocol_version=1; upstream_paired=$false; local_clients=0 }
+    if ($null -ne $inFlight) { Add-Member -InputObject $reply -NotePropertyName rpc_in_flight -NotePropertyValue ([int]$inFlight) }
     if ($null -ne $global:fixture.build) {
         $b = $global:fixture.build
         if ($b -is [string]) { $b = @{ id=$b }.psobject } elseif ($b.PSObject.Properties['root'] -and $null -ne $b.root) { } else { $b = [pscustomobject]@{ id=$b.id; version=$b.version; root=(Join-Path $ToolsRoot ('deployments\' + $b.id)) } }
@@ -113,6 +126,8 @@ if ($PSBoundParameters.ContainsKey('Mode')) { $params.Mode=$Mode }
 if ($PSBoundParameters.ContainsKey('RelayProtocolVersion')) { $params.RelayProtocolVersion=$RelayProtocolVersion }
 if ($PSBoundParameters.ContainsKey('ZcodeAppVersion')) { $params.ZcodeAppVersion=$ZcodeAppVersion }
 if ($PSBoundParameters.ContainsKey('UpstreamUrl')) { $params.UpstreamUrl=$UpstreamUrl }
+if ($PSBoundParameters.ContainsKey('BusyTimeoutSec')) { $params.BusyTimeoutSec=$BusyTimeoutSec }
+if ($PSBoundParameters.ContainsKey('BusyRetryMs')) { $params.BusyRetryMs=$BusyRetryMs }
 if ($NativePlugin) { $params.NativePlugin=$true }
 & $Script @params
 `;
@@ -125,11 +140,11 @@ async function fixture(t, overrides = {}, { setupScript = setup } = {}) {
   const dataDir = join(root, '公共 data');
   const skillsDir = join(root, 'skills');
   const toolsRoot = join(root, '稳定 网关 tools');
-  const initial = { relay: 'wss://previous.example/ws', app_version_env: null, task: null, registrations: 0, starts: 0, shutdowns: 0, health: 'ready', health_protocol: null, real_health: false, build: { id: deployBuildId, version: gatewayBuild.version }, reject_build: null, desktop: false, legacy_health: false, health_min_timeout: 0, timeouts_left: 0, health_requests: 0, http_attempts: 0, health_available: false, draining: false, shutdown_health_reads: 0, broadcasts: [], broadcast_fail: false, broadcast_declaration: null, unregister_fail: false, fail_start_count: 0, fail_register_count: 0, ...overrides };
+  const initial = { relay: 'wss://previous.example/ws', app_version_env: null, task: null, registrations: 0, starts: 0, shutdowns: 0, health: 'ready', health_protocol: null, real_health: false, build: { id: deployBuildId, version: gatewayBuild.version }, reject_build: null, desktop: false, rpc_in_flight: null, busy_reads_left: 0, idle_shutdown_rejects: 0, legacy_health: false, health_min_timeout: 0, timeouts_left: 0, health_requests: 0, http_attempts: 0, health_available: false, draining: false, shutdown_health_reads: 0, broadcasts: [], broadcast_fail: false, broadcast_declaration: null, unregister_fail: false, fail_start_count: 0, fail_register_count: 0, ...overrides };
   await writeFile(stateFile, JSON.stringify(initial));
   await writeFile(script, '\uFEFF' + systemFixture);
-  const run = async (action, { healthTimeoutSec, port, mode, nativePlugin, relayProtocolVersion, zcodeAppVersion, upstreamUrl, setupScript: scriptOverride } = {}) => {
-    const { stdout } = await nativeExec('powershell.exe', ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File', script, '-Script', scriptOverride ?? setupScript, '-Action', action, '-DataDir', dataDir, '-SkillsDir', skillsDir, '-ToolsRoot', toolsRoot, '-StateFile', stateFile, ...(healthTimeoutSec === undefined ? [] : ['-HealthTimeoutSec', String(healthTimeoutSec)]), ...(port === undefined ? [] : ['-Port', String(port)]), ...(mode === undefined ? [] : ['-Mode', mode]), ...(relayProtocolVersion === undefined ? [] : ['-RelayProtocolVersion', String(relayProtocolVersion)]), ...(zcodeAppVersion === undefined ? [] : ['-ZcodeAppVersion', zcodeAppVersion]), ...(upstreamUrl === undefined ? [] : ['-UpstreamUrl', upstreamUrl]), ...(nativePlugin ? ['-NativePlugin'] : [])], { windowsHide: true });
+  const run = async (action, { healthTimeoutSec, port, mode, nativePlugin, relayProtocolVersion, zcodeAppVersion, upstreamUrl, busyTimeoutSec, busyRetryMs, setupScript: scriptOverride } = {}) => {
+    const { stdout } = await nativeExec('powershell.exe', ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File', script, '-Script', scriptOverride ?? setupScript, '-Action', action, '-DataDir', dataDir, '-SkillsDir', skillsDir, '-ToolsRoot', toolsRoot, '-StateFile', stateFile, ...(healthTimeoutSec === undefined ? [] : ['-HealthTimeoutSec', String(healthTimeoutSec)]), ...(port === undefined ? [] : ['-Port', String(port)]), ...(mode === undefined ? [] : ['-Mode', mode]), ...(relayProtocolVersion === undefined ? [] : ['-RelayProtocolVersion', String(relayProtocolVersion)]), ...(zcodeAppVersion === undefined ? [] : ['-ZcodeAppVersion', zcodeAppVersion]), ...(upstreamUrl === undefined ? [] : ['-UpstreamUrl', upstreamUrl]), ...(busyTimeoutSec === undefined ? [] : ['-BusyTimeoutSec', String(busyTimeoutSec)]), ...(busyRetryMs === undefined ? [] : ['-BusyRetryMs', String(busyRetryMs)]), ...(nativePlugin ? ['-NativePlugin'] : [])], { windowsHide: true });
     return JSON.parse(stdout.trim());
   };
   const state = async () => JSON.parse(await readFile(stateFile, 'utf8'));
@@ -202,7 +217,9 @@ test('升级 3.16 时 Status 报协议待更新，暂停远控后 Restart 迁移
     assert.equal(pending.gateway_restart_required, true);
     assert.equal(await readFile(configFile, 'utf8'), oldBytes);
     await assert.rejects(f.run('Install'), /use Restart/);
-    await assert.rejects(f.run('Restart'), /Stop mobile remote control/);
+    const deferredUpgrade = await f.run('Restart', { busyTimeoutSec: 1, busyRetryMs: 50 });
+    assert.equal(deferredUpgrade.action, 'restart_deferred');
+    assert.equal(deferredUpgrade.upgrade_deferred, 'remote_busy');
     assert.equal(await readFile(configFile, 'utf8'), oldBytes);
     assert.equal((await f.state()).shutdowns, 0);
     state.desktop = false; await writeFile(f.stateFile, JSON.stringify(state));
@@ -506,7 +523,8 @@ test('本地模式可首次安装，重载保留模式，切换模式先暂停�
   assert.equal(ready.desktop_ready, true);
   assert.equal(ready.upstream_connected, false);
   await assert.rejects(f.run('Install', { mode: 'relay' }), /use Restart/);
-  await assert.rejects(f.run('Restart', { mode: 'relay' }), /Stop mobile remote control/);
+  const deferredMode = await f.run('Restart', { mode: 'relay', busyTimeoutSec: 1, busyRetryMs: 50 });
+  assert.equal(deferredMode.action, 'restart_deferred');
   assert.deepEqual(JSON.parse(await readFile(join(f.dataDir, 'config.json'), 'utf8')), before);
   state = await f.state(); state.desktop = false;
   await writeFile(f.stateFile, JSON.stringify(state));
@@ -569,7 +587,9 @@ test('移除前拒绝切断 Desktop；退出后恢复原用户环境或保留外
     let state = await f.state();
     state.desktop = true;
     await writeFile(f.stateFile, JSON.stringify(state));
-    await assert.rejects(f.run('Remove'), /quit ZCode/);
+    const deferredRemove = await f.run('Remove', { busyTimeoutSec: 1, busyRetryMs: 50 });
+    assert.equal(deferredRemove.action, 'remove_deferred');
+    assert.equal(deferredRemove.upgrade_deferred, 'remote_busy');
     assert.equal((await f.state()).task.State, 'Running');
     state.desktop = false;
     if (original === 'external') state.relay = 'wss://external.example/ws';
@@ -618,7 +638,9 @@ test('重载拒绝切断远控；暂停远控后迁移旧目录并保留端口�
   let state = await f.state();
   state.desktop = true;
   await writeFile(f.stateFile, JSON.stringify(state));
-  await assert.rejects(f.run('Restart'), /Stop mobile remote control in ZCode.*keep ZCode open/);
+  const deferredReload = await f.run('Restart', { busyTimeoutSec: 1, busyRetryMs: 50 });
+  assert.equal(deferredReload.action, 'restart_deferred');
+  assert.equal(deferredReload.upgrade_deferred, 'remote_busy');
   assert.equal((await f.state()).shutdowns, 0);
   assert.deepEqual(JSON.parse(await readFile(configFile, 'utf8')), old);
   state.desktop = false;
@@ -646,7 +668,9 @@ test('修改端口先停止旧端口实例，再完成新配置；应用重启�
   state.desktop = true;
   await writeFile(f.stateFile, JSON.stringify(state));
   await assert.rejects(f.run('Install', { port: 17331 }), /use Restart/);
-  await assert.rejects(f.run('Restart', { port: 17331 }), /Stop mobile remote control in ZCode.*keep ZCode open/);
+  const deferredPort = await f.run('Restart', { port: 17331, busyTimeoutSec: 1, busyRetryMs: 50 });
+  assert.equal(deferredPort.action, 'restart_deferred');
+  assert.equal(deferredPort.upgrade_deferred, 'remote_busy');
   assert.equal(await readFile(configFile, 'utf8'), before);
   assert.equal((await f.state()).shutdowns, 0);
   state = await f.state();
@@ -728,7 +752,8 @@ test('旧 PowerShell 启动任务在活跃连接时只报告待升级，安全�
   const installed = await f.run('Install');
   assert.equal(installed.launcher_update_required, true);
   assert.equal((await f.state()).registrations, 1);
-  await assert.rejects(f.run('Restart'), /Stop mobile remote control in ZCode.*keep ZCode open/);
+  const deferredLegacy = await f.run('Restart', { busyTimeoutSec: 1, busyRetryMs: 50 });
+  assert.equal(deferredLegacy.action, 'restart_deferred');
   state = await f.state();
   state.desktop = false;
   await writeFile(f.stateFile, JSON.stringify(state));
@@ -758,8 +783,10 @@ test('任务已结束但网关仍存活时状态以健康为准，活跃 Desktop
   assert.equal(reused.launcher_update_required, true);
   assert.equal((await f.state()).registrations, 1);
   const before = await readFile(join(f.dataDir, 'config.json'), 'utf8');
-  await assert.rejects(f.run('Remove'), /quit ZCode/);
-  await assert.rejects(f.run('Restart'), /Stop mobile remote control in ZCode.*keep ZCode open/);
+  const deferredHeldRemove = await f.run('Remove', { busyTimeoutSec: 1, busyRetryMs: 50 });
+  assert.equal(deferredHeldRemove.action, 'remove_deferred');
+  const deferredHeldRestart = await f.run('Restart', { busyTimeoutSec: 1, busyRetryMs: 50 });
+  assert.equal(deferredHeldRestart.action, 'restart_deferred');
   assert.equal(await readFile(join(f.dataDir, 'config.json'), 'utf8'), before);
   assert.equal((await f.state()).shutdowns, 0);
   state = await f.state();
@@ -841,8 +868,9 @@ test('Status 区分候选、活动与运行版本；Desktop 活跃时不切换�
   assert.equal(state.starts, 1);
   assert.equal((await readActive(f.toolsRoot)).build_id, deployBuildId);
 
-  await assert.rejects(f.run('Restart', { setupScript: variantSetup }), /Stop mobile remote control/);
-  assert.equal((await readActive(f.toolsRoot)).build_id, deployBuildId, '拒绝切换时活动记录保持不变');
+  const deferredSwitch = await f.run('Restart', { setupScript: variantSetup, busyTimeoutSec: 1, busyRetryMs: 50 });
+  assert.equal(deferredSwitch.action, 'restart_deferred');
+  assert.equal((await readActive(f.toolsRoot)).build_id, deployBuildId, '放弃切换时活动记录保持不变');
 
   // Desktop 未知（任务运行但健康不可达）同样拒绝切换。
   state = await f.state();
@@ -944,4 +972,157 @@ test('Remove 在无 Toast 记录时清理网关部署产物与活动记录', { s
   await assert.rejects(readFile(join(f.toolsRoot, 'active-gateway.json')), { code: 'ENOENT' });
   await assert.rejects(stat(join(f.toolsRoot, 'launchers')), { code: 'ENOENT' });
   await assert.rejects(stat(join(f.toolsRoot, 'deployments')), { code: 'ENOENT' });
+});
+
+test('切换事务由独占句柄锁保护：持锁时第二实例明确失败不动文件，持锁进程退出后立即可重试，Status 不受影响', { skip: process.platform !== 'win32' }, async t => {
+  const f = await fixture(t);
+  const lockPath = join(f.dataDir, 'upgrade.lock');
+  const heldSignal = join(f.root, 'lock-held.signal');
+  const singleQuote = path => path.replace(/'/g, "''");
+  const holder = spawn('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command',
+    `[IO.Directory]::CreateDirectory('${singleQuote(f.dataDir)}') | Out-Null; $fs=[IO.File]::Open('${singleQuote(lockPath)}','Create','ReadWrite','Read'); $b=[Text.Encoding]::UTF8.GetBytes("$PID\`n"); $fs.Write($b,0,$b.Length); $fs.Flush(); Set-Content -LiteralPath '${singleQuote(heldSignal)}' 'held'; Start-Sleep -Seconds 120; $fs.Close()`], { windowsHide: true, stdio: 'ignore' });
+  t.after(() => holder.kill());
+  for (let i = 0; i < 100 && !existsSync(heldSignal); i++) await new Promise(resolve => setTimeout(resolve, 50));
+  assert.ok(existsSync(heldSignal), '外部持锁进程应就绪');
+  await assert.rejects(f.run('Install'), error => {
+    assert.match(error.stderr, /already running/);
+    assert.match(error.stderr, new RegExp('pid ' + holder.pid), '报错应带持锁进程 pid');
+    return true;
+  });
+  assert.equal((await f.state()).registrations, 0, '拿锁失败不得注册任务');
+  await assert.rejects(stat(join(f.dataDir, 'config.json')), { code: 'ENOENT' }, '拿锁失败不得写配置');
+  await assert.rejects(stat(join(f.toolsRoot, 'active-gateway.json')), { code: 'ENOENT' }, '拿锁失败不得写活动记录');
+  const status = await f.run('Status');
+  assert.equal(status.ok, true, 'Status 只读操作不受锁影响');
+  holder.kill();
+  await new Promise(resolve => holder.once('exit', resolve));
+  const installed = await f.run('Install');
+  assert.equal(installed.ok, true, '持锁进程退出后锁应自动释放');
+  await assert.rejects(stat(lockPath), { code: 'ENOENT' }, '成功事务结束后清理锁文件');
+});
+
+test('锁内事务失败回退后锁已释放，后续实例可立即重试', { skip: process.platform !== 'win32' }, async t => {
+  const f = await fixture(t);
+  await f.run('Install');
+  const state = await f.state();
+  state.fail_start_count = 1;
+  await writeFile(f.stateFile, JSON.stringify(state));
+  await assert.rejects(f.run('Restart', { port: 17331 }), /fallback: restored/);
+  const retried = await f.run('Restart');
+  assert.equal(retried.ok, true, '失败事务的 throw 退出进程即释放锁');
+});
+
+test('忙退避重探：远控忙两次后转空闲，V2 以空闲闪断完成升级', { skip: process.platform !== 'win32' }, async t => {
+  const f = await fixture(t);
+  await f.run('Install', { zcodeAppVersion: '3.16.1' });
+  const state = await f.state();
+  state.desktop = true; state.rpc_in_flight = 0; state.busy_reads_left = 2;
+  await writeFile(f.stateFile, JSON.stringify(state));
+  const result = await f.run('Restart', { busyRetryMs: 50, busyTimeoutSec: 30 });
+  assert.equal(result.ok, true);
+  assert.equal(result.action, 'restarted');
+  const after = await f.state();
+  assert.equal(after.shutdowns, 1, '忙转闲后恰好一次升级关闭');
+  const active = JSON.parse(await readFile(join(f.toolsRoot, 'active-gateway.json'), 'utf8'));
+  assert.equal(active.build_id, deployBuildId);
+});
+
+test('持续忙到上限放弃切换：输出 remote_busy，活动记录、配置与任务未动且不发出 shutdown', { skip: process.platform !== 'win32' }, async t => {
+  const f = await fixture(t);
+  await f.run('Install', { zcodeAppVersion: '3.16.1' });
+  const activeBefore = await readFile(join(f.toolsRoot, 'active-gateway.json'), 'utf8');
+  const configBefore = await readFile(join(f.dataDir, 'config.json'), 'utf8');
+  const state = await f.state();
+  state.desktop = true; state.rpc_in_flight = 1;
+  await writeFile(f.stateFile, JSON.stringify(state));
+  const deferred = await f.run('Restart', { busyRetryMs: 50, busyTimeoutSec: 1 });
+  assert.equal(deferred.ok, true);
+  assert.equal(deferred.action, 'restart_deferred');
+  assert.equal(deferred.upgrade_deferred, 'remote_busy');
+  assert.equal(await readFile(join(f.toolsRoot, 'active-gateway.json'), 'utf8'), activeBefore);
+  assert.equal(await readFile(join(f.dataDir, 'config.json'), 'utf8'), configBefore);
+  const after = await f.state();
+  assert.equal(after.shutdowns, 0, '放弃切换不得发出 shutdown');
+  assert.equal(after.task.State, 'Running');
+});
+
+test('旧网关健康无 rpc_in_flight 字段时保守等待连接断开，不启用空闲闪断', { skip: process.platform !== 'win32' }, async t => {
+  const f = await fixture(t);
+  await f.run('Install', { zcodeAppVersion: '3.16.1' });
+  const state = await f.state();
+  state.desktop = true;
+  await writeFile(f.stateFile, JSON.stringify(state));
+  const deferred = await f.run('Restart', { busyRetryMs: 50, busyTimeoutSec: 1 });
+  assert.equal(deferred.upgrade_deferred, 'remote_busy');
+  const after = await f.state();
+  assert.equal(after.shutdowns, 0, '保守模式不得在连接仍在时发出关闭');
+});
+
+test('升级关闭被服务端拒绝时回到退避重探，不直接失败', { skip: process.platform !== 'win32' }, async t => {
+  const f = await fixture(t);
+  await f.run('Install', { zcodeAppVersion: '3.16.1' });
+  const state = await f.state();
+  state.desktop = true; state.rpc_in_flight = 0; state.idle_shutdown_rejects = 1;
+  await writeFile(f.stateFile, JSON.stringify(state));
+  const result = await f.run('Restart', { busyRetryMs: 50, busyTimeoutSec: 30 });
+  assert.equal(result.ok, true);
+  assert.equal(result.action, 'restarted');
+  assert.equal((await f.state()).shutdowns, 1);
+});
+
+test('Remove 在远控忙时同样退避（V1 保守等待），超时放弃不动配置与任务', { skip: process.platform !== 'win32' }, async t => {
+  const f = await fixture(t);
+  await f.run('Install');
+  const configBefore = await readFile(join(f.dataDir, 'config.json'), 'utf8');
+  const state = await f.state();
+  state.desktop = true; state.rpc_in_flight = 1;
+  await writeFile(f.stateFile, JSON.stringify(state));
+  const deferred = await f.run('Remove', { busyRetryMs: 50, busyTimeoutSec: 1 });
+  assert.equal(deferred.ok, true);
+  assert.equal(deferred.action, 'remove_deferred');
+  assert.equal(deferred.upgrade_deferred, 'remote_busy');
+  assert.equal(await readFile(join(f.dataDir, 'config.json'), 'utf8'), configBefore);
+  const after = await f.state();
+  assert.notEqual(after.task, null, '放弃移除不得删除任务');
+  assert.equal(after.shutdowns, 0);
+});
+
+test('运行中 V1 网关升级到 V2 时不启用空闲闪断：按健康自报协议保守等待', { skip: process.platform !== 'win32' }, async t => {
+  const f = await fixture(t);
+  await f.run('Install');
+  const state = await f.state();
+  state.desktop = true; state.rpc_in_flight = 0; state.app_version_env = '3.16.1';
+  await writeFile(f.stateFile, JSON.stringify(state));
+  const deferred = await f.run('Restart', { zcodeAppVersion: '3.16.1', busyTimeoutSec: 1, busyRetryMs: 50 });
+  assert.equal(deferred.upgrade_deferred, 'remote_busy');
+  assert.equal((await f.state()).shutdowns, 0, '不得对运行中 V1 Desktop 发出空闲闪断关闭');
+});
+
+test('共享启动器写入在事务锁内：持锁期间其他实例拿锁失败且不覆盖 launchers 文件', { skip: process.platform !== 'win32' }, async t => {
+  const f = await fixture(t);
+  await f.run('Install');
+  const launcherPs = join(f.toolsRoot, 'launchers', 'run.ps1');
+  const launcherVbs = join(f.toolsRoot, 'launchers', 'gateway-launch.vbs');
+  const psBefore = await readFile(launcherPs);
+  const vbsBefore = await readFile(launcherVbs);
+  const variant = await variantSource(t);
+  const { appendFile } = await import('node:fs/promises');
+  await appendFile(join(variant.copyRoot, 'gateway-launcher.ps1'), '\n# variant launcher probe\n');
+  await appendFile(join(variant.copyRoot, 'run.vbs'), "\n' variant vbs probe\n");
+  const variantSetup = join(variant.copyRoot, 'setup.ps1');
+  const lockPath = join(f.dataDir, 'upgrade.lock');
+  const heldSignal = join(f.root, 'launchers-lock-held.signal');
+  const singleQuote = path => path.replace(/'/g, "''");
+  const holder = spawn('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command',
+    `$fs=[IO.File]::Open('${singleQuote(lockPath)}','Create','ReadWrite','Read'); $b=[Text.Encoding]::UTF8.GetBytes("$PID\`n"); $fs.Write($b,0,$b.Length); $fs.Flush(); Set-Content -LiteralPath '${singleQuote(heldSignal)}' 'held'; Start-Sleep -Seconds 120; $fs.Close()`], { windowsHide: true, stdio: 'ignore' });
+  t.after(() => holder.kill());
+  for (let i = 0; i < 100 && !existsSync(heldSignal); i++) await new Promise(resolve => setTimeout(resolve, 50));
+  assert.ok(existsSync(heldSignal), '外部持锁进程应就绪');
+  await assert.rejects(f.run('Install', { setupScript: variantSetup }), /already running/);
+  assert.deepEqual(await readFile(launcherPs), psBefore, '拿锁失败不得覆盖共享 PowerShell 启动器');
+  assert.deepEqual(await readFile(launcherVbs), vbsBefore, '拿锁失败不得覆盖共享 VBS 启动器');
+  holder.kill();
+  await new Promise(resolve => holder.once('exit', resolve));
+  const switched = await f.run('Install', { setupScript: variantSetup });
+  assert.equal(switched.ok, true, '持锁进程退出后可正常切换，此时允许写入新启动器');
 });

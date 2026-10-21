@@ -1013,3 +1013,111 @@ test('V2 宿主任务导航失败时错误回传手机，本地附着同因失�
   const { error } = await observed;
   assert.match(error?.message, /原 Host 桥初始化超时|project.task-not-found|workspace-bridge/);
 });
+
+test('本地与手机的飞行中请求计入 rpc_in_flight，应答后归零且订阅不误计', { timeout: 3000 }, async t => {
+  const f = await fixture(t);
+  const health = async () => (await fetch(f.gateway.url.replace('ws:', 'http:').replace('/ws', '/health'))).json();
+  const settle = async (expected, message) => {
+    for (let i = 0; i < 150; i++) { if ((await health()).rpc_in_flight === expected) return; await new Promise(resolve => setTimeout(resolve, 2)); }
+    assert.fail(message + '；当前 rpc_in_flight=' + (await health()).rpc_in_flight);
+  };
+  const phoneIdentity = { bridgeSessionId: 'phone-idle-bridge', bridgeGeneration: 1 };
+  const phoneReady = Promise.withResolvers();
+  f.phone.on('message', data => { if (JSON.parse(data).payload?.zcode_type === 'workspace-bridge-ready') phoneReady.resolve(); });
+  f.phone.send(JSON.stringify({ type: 'data', payload: { zcode_type: 'workspace-bridge-open', requestId: 'phone-idle-open', ...phoneIdentity, workspaceKey: workspace } }));
+  await phoneReady.promise;
+  const peer = new WebSocket(f.gateway.url.replace('/ws', '/rpc'), { headers: { Authorization: 'Bearer fixture-rpc-token' } });
+  t.after(() => peer.terminate());
+  peer.on('error', () => {});
+  await once(peer, 'open');
+  const localReplies = [];
+  const attached = Promise.withResolvers();
+  peer.on('message', (data, binary) => { if (binary) localReplies.push(unpack(data)); else if (JSON.parse(data).type === 'attached') attached.resolve(); });
+  peer.send(JSON.stringify({ type: 'attach', workspace_path: workspace }));
+  await attached.promise;
+  await settle(0, '附着完成后无飞行中请求');
+  peer.send(pack([100, 0, 'fixture', 'local-busy'], ['local']));
+  for (const frame of encode(pack([100, 0, 'fixture', 'phone-busy'], ['phone']), { ...phoneIdentity, firstPhysicalSeq: 1, messageSeq: 1 })) f.phone.send(JSON.stringify({ type: 'data', payload: frame }));
+  await until(() => f.requests.length === 2);
+  await settle(2, '本地与手机的飞行中调用同时计入');
+  for (const [header] of f.requests) f.respond([201, header[1]], { done: true });
+  await until(() => localReplies.some(([h]) => h[0] === 201));
+  await settle(0, '应答完成即归零');
+  peer.send(pack([102, 1, 'fixture', 'subscribe'], []));
+  await until(() => f.requests.some(([h]) => h[0] === 102));
+  await settle(0, '长生命周期订阅路由不占用忙判定');
+});
+
+test('升级关闭按空闲放行：忙时 409 busy 不退出，空闲或无连接时接受并退出，旧关闭语义不变', { timeout: 3000 }, async t => {
+  const f = await fixture(t);
+  const base = f.gateway.url.replace('ws:', 'http:').replace('/ws', '');
+  const healthUrl = base + '/health';
+  const shutdown = query => fetch(base + '/shutdown' + query, { method: 'POST', headers: { Authorization: 'Bearer fixture-rpc-token' } });
+  const peer = new WebSocket(f.gateway.url.replace('/ws', '/rpc'), { headers: { Authorization: 'Bearer fixture-rpc-token' } });
+  t.after(() => peer.terminate());
+  peer.on('error', () => {});
+  await once(peer, 'open');
+  const attached = Promise.withResolvers();
+  peer.on('message', (data, binary) => { if (!binary && JSON.parse(data).type === 'attached') attached.resolve(); });
+  peer.send(JSON.stringify({ type: 'attach', workspace_path: workspace }));
+  await attached.promise;
+  peer.send(pack([100, 0, 'fixture', 'busy'], ['busy']));
+  await until(() => f.requests.length === 1);
+  const busy = await shutdown('?idle=1');
+  assert.equal(busy.status, 409);
+  const busyBody = await busy.json();
+  assert.equal(busyBody.reason, 'busy');
+  assert.equal(busyBody.rpc_in_flight, 1);
+  assert.equal((await (await fetch(healthUrl)).json()).rpc_in_flight, 1, '忙时升级关闭不得退出网关');
+  const legacy = await shutdown('');
+  assert.equal(legacy.status, 409);
+  assert.match(await legacy.text(), /Stop mobile remote control in ZCode/);
+  f.respond([201, f.requests[0][0][1]], { done: true });
+  for (let i = 0; i < 150; i++) { if ((await (await fetch(healthUrl)).json()).rpc_in_flight === 0) break; await new Promise(resolve => setTimeout(resolve, 2)); }
+  const desktopClosed = once(f.desktop, 'close');
+  const accepted = await shutdown('?idle=1');
+  assert.equal(accepted.status, 200);
+  assert.equal((await accepted.json()).ok, true);
+  await desktopClosed;
+  await assert.rejects(fetch(healthUrl), '网关接受升级关闭后应实际退出');
+});
+
+test('建桥未完成与远端透传期间 rpc_in_flight 不为零，升级关闭保持 409 且不退出', { timeout: 4000 }, async t => {
+  // 场景一：本地 attach 的 bootstrap 已应答、共享桥初始化挂起（bridge-open 无响应）。
+  const f = await fixture(t, 'matched', { ignoreBridge: true, gateway: { bridgeTimeoutMs: 3600 } });
+  const healthOf = async ff => (await fetch(ff.gateway.url.replace('ws:', 'http:').replace('/ws', '/health'))).json();
+  const shutdownIdle = async ff => fetch(ff.gateway.url.replace('ws:', 'http:').replace('/ws', '/shutdown?idle=1'), { method: 'POST', headers: { Authorization: 'Bearer fixture-rpc-token' } });
+  const peer = new WebSocket(f.gateway.url.replace('/ws', '/rpc'), { headers: { Authorization: 'Bearer fixture-rpc-token' } });
+  t.after(() => peer.terminate());
+  peer.on('error', () => {});
+  await once(peer, 'open');
+  const attached = Promise.withResolvers();
+  peer.on('message', (data, binary) => { if (!binary && JSON.parse(data).type === 'attached') attached.resolve(); });
+  peer.send(JSON.stringify({ type: 'attach', workspace_path: workspace }));
+  await until(() => f.bridgeOpens.length === 1);
+  assert.equal((await healthOf(f)).rpc_in_flight, 1, '建桥等待期间必须计入忙判定');
+  let busy = await shutdownIdle(f);
+  assert.equal(busy.status, 409, '建桥在途时升级关闭不得放行');
+  // 桥就绪并完成初始化后释放（ignoreBridge 下 fixture 未建立 identity，手工按桥身份编码初始化帧）。
+  const open = f.bridgeOpens[0];
+  f.desktop.send(JSON.stringify({ type: 'data', payload: { zcode_type: 'workspace-bridge-ready', requestId: open.requestId, bridge: { bridgeSessionId: open.bridgeSessionId, bridgeGeneration: 1, kind: 'local', workspacePath: workspace } } }));
+  const bridgeIdentity = { bridgeSessionId: open.bridgeSessionId, bridgeGeneration: 1 };
+  for (const frame of encode(pack([200], undefined), { ...bridgeIdentity, firstPhysicalSeq: 1, messageSeq: 1 })) f.desktop.send(JSON.stringify({ type: 'data', payload: frame }));
+  await attached.promise;
+  assert.equal((await healthOf(f)).rpc_in_flight, 0, '桥初始化完成后释放忙判定');
+
+  // 场景二：手机打开远端工作区进入透传，网关看不到请求边界，保守按忙。
+  const f2 = await fixture(t, 'matched');
+  f2.phone.send(JSON.stringify({ type: 'data', payload: { zcode_type: 'workspace-bridge-open', requestId: 'phone-remote-open', bridgeSessionId: 'phone-remote-bridge', bridgeGeneration: 1, workspaceKey: 'remote:fixture' } }));
+  await until(() => f2.desktopMessages.some(m => m.payload?.zcode_type === 'workspace-bridge-open'));
+  assert.ok((await healthOf(f2)).rpc_in_flight >= 1, '远端透传会话期间保守计入忙判定');
+  busy = await shutdownIdle(f2);
+  assert.equal(busy.status, 409, '透传期间升级关闭不得放行');
+  // relay 报 INTERNAL 使手机配对断开（phoneDisconnected 清透传 peer），盲区解除。
+  f2.phone.send(JSON.stringify({ type: 'error', code: 'INTERNAL' }));
+  await new Promise(resolve => setImmediate(resolve));
+  for (let i = 0; i < 150; i++) { if ((await healthOf(f2)).rpc_in_flight === 0) break; await new Promise(resolve => setTimeout(resolve, 2)); }
+  assert.equal((await healthOf(f2)).rpc_in_flight, 0, '手机断开后透传盲区解除');
+  const accepted = await shutdownIdle(f2);
+  assert.equal(accepted.status, 200, '盲区解除且无飞行操作时升级关闭放行');
+});
