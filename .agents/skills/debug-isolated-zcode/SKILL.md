@@ -136,6 +136,34 @@ description: 调试隔离 ZCode Desktop/CLI 实验环境（local-only lab）：l
 - **对齐点**：① 桩 fixture 的 `build.id` 必须是**部署 CLI 从构建目录实算的 candidateBuildId**（`gateway-deploy.mjs --status`），不是 release.json 的构建指纹——部署清单输入与构建清单不同，setup 健康核对按前者；`version` 字段也要带上。② 移除 `Invoke-PatchCli` 桩后 setup.ps1 的守卫式默认定义自动生效，补丁工具即真实执行（apply/restore 拒绝语义同理可证）。③ 从测试文件正则提取 fixture 时注意文件是 CRLF（正则 `\`;\r?\n`），Windows 边界桩模板对属性访问要防御 `Set-StrictMode`（StrictMode 随调用栈传播到桩函数）。
 - **来源**：LO-04 实录（lab runner 三次红灯后对齐）。
 
+### K15 lab 中独立 MCP/CLI 进程必须注入 lab HOME/USERPROFILE
+
+- **症状**：宿主 stdio 语义下直接以日常 env 启动 lab 安装的 app-mcp CLI，title-policy 等按 `homedir()` 落盘的路径会写到**日常** `~/.zcode/tools/…`（越界）。
+- **根因**：`title-policy.mjs` 等公共实现用 `os.homedir()` 取默认目录；真实宿主里 MCP 子进程继承宿主 env（lab Desktop 进程树的 HOME=lab home），独立验证进程没继承就落到日常主目录。
+- **解法**：独立验证时给 CLI 进程显式注入 `HOME`/`USERPROFILE` 指向 lab home（与 `ZCODE_PLUGIN_DATA` 一同注入）；收尾用目录 mtime 复核日常 `session-titles` 无新写入。
+- **来源**：LO-05 实录（`05-mcp-closure-evidence.md` §4）。
+
+### K16 lab CLI 会话库落点是 ZCODE_SESSION_DB_PATH，不是 home/.zcode/cli/db/
+
+- **症状**：app-mcp 外置 config 按日常默认习惯把 sessionDbPath 指到 `<lab>/home/.zcode/cli/db/db.sqlite`，`sessionMode`/`sessionTitle` 报 `unable to open database file`（node:sqlite 标准错；该路径根本不存在）。
+- **根因**：lab env 注入的 `ZCODE_SESSION_DB_PATH=<lab>/session-db/db.sqlite` 才是 Host 侧 CLI 会话库实际落点（LO-05 文件实证；与 LO-03 当时观察不同，以启动后实际落盘为准）。
+- **解法**：写外置 config 前先枚举 lab 内 `*.sqlite` 实证落点；task index 在 `home/.zcode/v2/tasks-index.sqlite` 不变。
+- **来源**：LO-05 实录（首轮两次 start_session 部分失败后定位）。
+
+### K17 probeHost 必须 workspacePath；漏传时网关报 Invalid workspace attachment
+
+- **症状**：`probeHost({gatewayConfigPath})` 稳定返回 `gateway_rpc_failed / Invalid workspace attachment`，而同参数的 `connectHost` 却成功——看似网关缺陷。
+- **根因**：probeHost 是 connectHost+probe 的组合，其 attach 消息的 `workspace_path` 直接来自参数；漏传时为 undefined，网关（rpc-broker `acceptLocal`）按协议正确拒绝。LO-02/03 的成功调用都带 workspacePath。
+- **解法**：`probeHost({gatewayConfigPath, workspacePath})` 两个都传。
+- **来源**：LO-05 实录（两次复现后回源码定位）。
+
+### K18 无登录态 Host 拒绝创建会话：需 personal provider（受控本地服务）才可验 start_session
+
+- **症状**：local-only 链路全部就绪（paired/ready/探针 ok），MCP `start_session` 仍报 `当前没有可用的模型供应商和模型，请先登录或配置 API Key。`（Host 侧 zcodeAgentService 的 provider not ready）。
+- **根因**：provider 全部来自账号（登录态）或 personal provider 配置；无登录 lab 里 providerCount=0，Host 在创建会话入口直接拒绝（与网关/补丁无关）。
+- **解法（验证构造，非产品步骤）**：按规格"受控本地服务"写 `<lab home>/.zcode/v2/provider_config.json`（schemaVersion 1，api-key 型 openai-chat-completions 指向回环 mock，含 personalModelIds 与 defaultModelSelection；schema 依官方 provider 包）。注意：**受理（accepted）后轮次仍可能失败**（LO-05 实测 `Turn execution failed` 于模型调用前，mock 零调用）——ACK ≠ 模型完成，深因未定位。
+- **来源**：LO-05 实录（`05-mcp-closure-evidence.md` §3）。
+
 ## 维护约定
 
 - 每张 LO 票收尾时，实施者（或协调者）把该票**新**踩的坑回填到"已知坑实录"，注明票号与证据路径；修正既有条目的"待确认"标注。
