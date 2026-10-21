@@ -44,14 +44,13 @@ description: 调试隔离 ZCode Desktop/CLI 实验环境（local-only lab）：l
 
 > 每条注明来源票与证据位置；未核实的推测单独标注。**新增坑按 K 编号追加，格式：症状 / 根因 / 解法。**
 
-### K1 首次启动卡欢迎页（人工可跳过，脚本难跳过）
+### K1 首次启动卡欢迎页（可用 workspace 启动参数绕过）
 
 - **症状**：隔离副本首次启动停在欢迎/引导页，无登录态时脚本自动化无法继续；远控面板等入口不可达。
-- **根因**：欢迎引导是首启必经流程，完成状态记在 userData 内（具体持久化文件名待回填）。
-- **解法**：人工点击跳过一次（LO-02 由用户完成）；此后 userData 记忆引导完成，重启直接进主页。CDP 自动点击跳过尝试三轮未稳定成功（证据：`.scratch/lo02-cdp-start*.log`）。
-- **CDP 补充（LO-02 实证）**：CDP 可越过 UI 直接调用官方 IPC（如 `zcode:start-web-remote-control`）验证 main 链路——UI 卡点不阻断链路级验证；CDP 连接需给 Electron 显式传 `--user-data-dir`。
-- **把"首启需要一次人工跳过"写进可复现步骤，不要假装全自动**。
-- **来源**：LO-02 实录（证据文档 `02-patch-evidence.md`）。
+- **根因**：欢迎引导是首启必经流程，完成状态记在 userData 内（具体持久化文件名仍未定位，未回填）。
+- **解法（LO-03 升级）**：启动时把工作区路径作为**位置参数**传给 exe（官方 argv 语义 `extractOpenWorkspacePathFromArgs`），Desktop 直开该工作区、绕过欢迎页，无需人工或 UI 自动化——`lab.mjs launch --workspace <路径>` 已内置。远控 attach 的 workspace 与窗口一致时 connectHost 才能通过（不一致报 "Requested local workspace is not open in the Desktop window"）。历史手段（人工点击一次、CDP 直调 IPC）保留为备选。
+- **CDP 补充（LO-02 实证）**：CDP 可越过 UI 直接调用官方 IPC 验证 main 链路；CDP 连接需给 Electron **命令行**传 `--user-data-dir`（env 不够，见 K11）。
+- **来源**：LO-02 实录；LO-03 升级解法（证据文档 `03-lifecycle-evidence.md` §3.1/§6）。
 
 ### K2 PowerShell 5.1 启动链五坑（LO-01 全部踩过）
 
@@ -100,8 +99,29 @@ description: 调试隔离 ZCode Desktop/CLI 实验环境（local-only lab）：l
 
 - **症状**：补丁就绪、开关开启，但 Desktop 起来后远控不启动、网关 `desktop_connected:false`。
 - **根因（LO-02 已证实）**：官方 `manager.start` 仅由 renderer IPC（`zcode:start-web-remote-control`）触发；无登录态首屏不出远控入口，main 侧无人调用 start。main 日志零条目佐证（远控链路完全未启动，不是启动失败）。
-- **解法方向（LO-03 范围）**：开关开启时 main 启动后自动触发 start（跳过 renderer 依赖），或等价的最小注入；链路级验证可先用 CDP 调 IPC 过渡（见 K1 CDP 补充）。
-- **来源**：LO-02 具名缺口（证据文档 §10 未验项）。
+- **解法（LO-03 已落地）**：补丁 v2 P6 自动启动——开关开启且标志文件首行（或 env `ZCODE_LOCAL_ONLY_WORKSPACE`）给出工作区时，main 初始化后轮询触发 `li.start`（getStatus 非 idle 即停，与 renderer 手动 start 并存幂等）。冷启动闭环已实证（`03-lifecycle-evidence.md` §3.1）。CDP 调 IPC 仍是有效的链路级诊断过渡手段。
+- **来源**：LO-02 具名缺口（证据文档 §10 未验项）；LO-03 补齐。
+
+### K10 向 minified 模块顶层注入 var 会与产物压缩名冲突（LO-03 首个真实红灯）
+
+- **症状**：注入后副本进程启动即退出、零远控日志；对注入结果跑 `node --check` 报 `SyntaxError: Identifier 'b2' has already been declared`。
+- **根因**：注入体的 `var b2` 位于 `if` 块内但 var 提升到模块顶层，与产物顶层已有的 `let b2` 冲突；minified bundle 顶层占满 1-2 字符压缩名，任一裸 var 都可能撞车。
+- **解法**：注入求值逻辑全部收进 IIFE（函数作用域隔离），模块顶层只声明 `__LO_*` 唯一前缀变量；契约 fixture 顶层预置 `let b2` 占位，使 `node --check` 用例能抓同类回归；**每次 prepare 后对真实产物注入结果跑一次 `node --check`**（fixture 通过不代表真实包通过）。
+- **来源**：LO-03 实录（`03-lifecycle-evidence.md` §6 踩坑 1）。
+
+### K11 lab launcher 每次启动前重渲染；CDP 需命令行 --user-data-dir
+
+- **症状一**：手工给 `launcher.ps1` 加的 env/参数在下次 `launch` 后消失。
+- **根因**：`launchLab` 每次启动前用当前工具版本重渲染 launcher，覆盖一切手工修改。
+- **解法**：lab 需要的启动条件一律走 `lab.mjs` 选项（本票已固化：`--remote-debugging-port` 自动附命令行 `--user-data-dir`；`--workspace` 位置参数；网关 env 自动与 `gateway/config.json` 端口一致）。
+- **症状二**：CDP 端口在监听但 `/json/list` 空。**根因**：Electron 41/Chromium 146 对默认数据目录下的远程调试有安全缓解，**必须命令行传 `--user-data-dir`**（仅设 env 不够）；且 PowerShell `Start-Process -ArgumentList` 数组元素不自动加引号，含空格路径需自行内嵌双引号（单引号会成为路径字面量）。
+- **来源**：LO-03 实录（`03-lifecycle-evidence.md` §6 踩坑 3/4）。
+
+### K12 绕过 lab 工具手动构造 env 启动的副本实例会早退（根因未定位）
+
+- **症状**：用自写 PowerShell 启动器（复刻 lab env 集 + 额外覆盖变量）启动副本，进程停在 crash-capture 日志后静默退出，三次复现。
+- **现状**：与 lab launcher 的差异未定位（env 传递路径或参数形态）；验证条件的构造应优先扩展 lab 工具选项而不是绕开它。涉及"非回环网关覆盖"的原生观察因此未达成（以契约层断言支撑，见 `03-lifecycle-evidence.md` §3.6）。
+- **来源**：LO-03 实录。
 
 ## 维护约定
 

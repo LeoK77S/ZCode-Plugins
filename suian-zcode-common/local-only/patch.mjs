@@ -325,7 +325,13 @@ export async function patchStatus({
   if (currentSha === originalSha) patchState = 'original';
   else if (state && currentSha === String(state.patchedAsarSha256).toLowerCase()) {
     patchState = 'patched';
-    patchInfo = { patchVersion: state.patchVersion };
+    patchInfo = {
+      patchVersion: state.patchVersion,
+      // 工具版本高于已应用补丁版本时提示可升级（apply 会自动 restore→re-apply）。
+      ...(Number.isFinite(Number(state.patchVersion)) && Number(state.patchVersion) < PATCH_VERSION
+        ? { upgradeAvailable: PATCH_VERSION }
+        : {}),
+    };
   } else if (state) patchState = 'conflict';
   let backupInfo = null;
   if (await exists(backup)) {
@@ -373,16 +379,38 @@ export async function patchPrepare({
     return { ok: false, code: 'unsupported_package', reason: `目标身份解析失败：${error.message}` };
   }
   const identity = await resolveTargetIdentity(targetDir, { packageIdentity, resolveIdentity: async () => actual });
+  // v1→v2 升级入口（LO-03）：目标已是本工具旧版本补丁且备份完好时，从备份（原版字节）提取
+  // 入口并生成新候选；目标自身只读不被修改，candidate 仍登记原版身份（apply 走自动
+  // restore→re-apply 升级路径）。备份缺失/摘要不符时不放宽身份核对（按原分类失败）。
+  let asarSourceForExtract = asarPath;
+  let preparedFromBackup = false;
   if (!identity.matches) {
-    const code = classifyIdentityFailure(actual, packageIdentity, identity.mismatches);
-    return { ok: false, code, reason: `目标包身份不匹配：${identity.mismatches.join('；')}` };
+    const state = await readState(asarPath);
+    const { backup } = statePathsFor(asarPath);
+    const statePatchedSha = state ? String(state.patchedAsarSha256).toLowerCase() : null;
+    const stateOriginalSha = state ? String(state.originalAsarSha256).toLowerCase() : null;
+    if (
+      state?.kind === 'local-only-patch-state'
+      && stateOriginalSha === String(packageIdentity.appAsarSha256).toLowerCase()
+      && String(actual.appAsarSha256).toLowerCase() === statePatchedSha
+      && Number.isFinite(Number(state.patchVersion))
+      && Number(state.patchVersion) < PATCH_VERSION
+      && (await exists(backup))
+      && String(await sha256File(backup)).toLowerCase() === stateOriginalSha
+    ) {
+      asarSourceForExtract = backup;
+      preparedFromBackup = true;
+    } else {
+      const code = classifyIdentityFailure(actual, packageIdentity, identity.mismatches);
+      return { ok: false, code, reason: `目标包身份不匹配：${identity.mismatches.join('；')}` };
+    }
   }
   const fuse = await readFuses(exePath);
   if (!fuse.ok) return { ok: false, code: 'fuse_validation_enabled', reason: `fuse 前置检查失败：${fuse.reason}` };
   if (fuse.asarIntegrityValidation === 'ENABLE') {
     return { ok: false, code: 'fuse_validation_enabled', reason: 'EnableEmbeddedAsarIntegrityValidation 为 ENABLE，修改 app.asar 会被完整性校验拒绝' };
   }
-  const originalIndex = await extractAsarFile(asarPath, MAIN_ENTRY);
+  const originalIndex = await extractAsarFile(asarSourceForExtract, MAIN_ENTRY);
   let injected;
   try {
     injected = applyInjections(originalIndex.toString('utf8'));
@@ -393,7 +421,7 @@ export async function patchPrepare({
   await mkdir(outDir, { recursive: true });
   const candidateAsarPath = join(outDir, 'app.asar');
   try {
-    await writePatchedAsar({ srcPath: asarPath, outPath: candidateAsarPath, replacements: new Map([[MAIN_ENTRY, patchedIndex]]) });
+    await writePatchedAsar({ srcPath: asarSourceForExtract, outPath: candidateAsarPath, replacements: new Map([[MAIN_ENTRY, patchedIndex]]) });
   } catch (error) {
     return { ok: false, code: 'internal', reason: `补丁 asar 写出失败：${error.message}` };
   }
@@ -404,6 +432,7 @@ export async function patchPrepare({
     kind: 'local-only-patch-candidate',
     patchVersion: PATCH_VERSION,
     preparedAt: now().toISOString(),
+    ...(preparedFromBackup ? { preparedFromBackup: true, note: '目标已是本工具旧版本补丁，候选自完好备份（原版字节）生成；apply 将自动还原后重新应用' } : {}),
     target: {
       exeName: packageIdentity.exeName,
       exeFileVersion: packageIdentity.exeFileVersion,
@@ -468,10 +497,10 @@ export async function patchApply({
   if (actual.exeFileVersion !== candidate.target.exeFileVersion) {
     return { ok: false, code: 'unsupported_package', reason: `目标 exe 版本与候选不符：实际 ${actual.exeFileVersion}，候选 ${candidate.target.exeFileVersion}` };
   }
-  const currentSha = String(actual.appAsarSha256).toLowerCase();
+  let currentSha = String(actual.appAsarSha256).toLowerCase();
   const originalSha = String(candidate.target.appAsarSha256).toLowerCase();
   const patchedSha = String(candidate.patched.appAsarSha256).toLowerCase();
-  const previousState = await readState(asarPath);
+  let previousState = await readState(asarPath);
   if (currentSha === patchedSha) {
     const backupOk = (await exists(backup)) && String(await sha256File(backup)).toLowerCase() === originalSha;
     return {
@@ -481,6 +510,43 @@ export async function patchApply({
       backupIntact: backupOk,
       note: backupOk ? '目标已是该补丁版，未做任何写入' : '目标已是补丁版，但备份缺失或不匹配，restore 前需人工核对',
     };
+  }
+  // v1→v2 升级路径（LO-03）：目标是本工具旧版本补丁且备份完好时，先自动 restore 原版
+  // （restore 内含运行实例检查），再走正常 apply 流程重新应用新候选；不在旧注入之上
+  // 静默叠加。备份缺失或摘要不符时明确失败，要求人工处理。
+  let upgradedFromPatchVersion = null;
+  if (
+    previousState
+    && previousState.kind === 'local-only-patch-state'
+    && Number.isFinite(Number(previousState.patchVersion))
+    && Number(previousState.patchVersion) < Number(candidate.patchVersion)
+    && currentSha === String(previousState.patchedAsarSha256).toLowerCase()
+  ) {
+    if (!(await exists(backup))) {
+      return {
+        ok: false,
+        code: 'backup_missing',
+        reason: `目标已是本工具补丁 v${previousState.patchVersion}，升级到 v${candidate.patchVersion} 须先还原原版，但备份缺失：${backup}；请人工核对或完整还原后再应用`,
+      };
+    }
+    const upgradeBackupSha = String(await sha256File(backup)).toLowerCase();
+    const stateOriginalSha = String(previousState.originalAsarSha256).toLowerCase();
+    if (upgradeBackupSha !== stateOriginalSha) {
+      return {
+        ok: false,
+        code: 'digest_mismatch',
+        reason: `目标已是本工具补丁 v${previousState.patchVersion}，但备份摘要 ${upgradeBackupSha} 与记录原版 ${stateOriginalSha} 不符，拒绝自动升级；请人工核对`,
+      };
+    }
+    const restored = await patchRestore({ targetDir, packageIdentity, resolveIdentity: async () => actual, readProcesses });
+    if (!restored.ok) {
+      return { ok: false, code: restored.code, reason: `升级前自动还原失败：${restored.reason}` };
+    }
+    upgradedFromPatchVersion = previousState.patchVersion;
+    // restore 已恢复原版并清理状态/备份：重读身份与状态，后续按全新 apply 流程走。
+    actual = await resolveIdentity(targetDir);
+    currentSha = String(actual.appAsarSha256).toLowerCase();
+    previousState = null;
   }
   if (currentSha !== originalSha) {
     return {
@@ -574,6 +640,9 @@ export async function patchApply({
     ok: true,
     alreadyApplied: false,
     patchVersion: candidate.patchVersion,
+    ...(upgradedFromPatchVersion !== null
+      ? { upgradedFromPatchVersion, upgradeNote: `检测到本工具补丁 v${upgradedFromPatchVersion}，已自动还原原版后重新应用 v${candidate.patchVersion}（未叠加注入）` }
+      : {}),
     originalAsarSha256: originalSha,
     patchedAsarSha256: appliedSha,
     backupFile: backup,

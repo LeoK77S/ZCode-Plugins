@@ -23,147 +23,35 @@ import {
   patchApply,
   patchRestore,
 } from '../local-only/patch.mjs';
+import {
+  FIXTURE_INDEX,
+  sha256,
+  FUSE_SENTINEL_TEXT,
+  fixtureIntegrity,
+  buildAsarBuffer,
+  buildFakeExe,
+  makeSupportedTarget,
+  noProcesses,
+  boundaries,
+  exists,
+} from './local-only-fixture.mjs';
 
-// 契约测试全部使用合成 fixture（假 exe + 合成 asar + 真实锚点切片），
-// 不读真实安装目录、不启动进程、不执行 PowerShell 身份/进程枚举（桩注入）。
-// 锚点切片取自 3.16.2 真实产物（探索笔记 05 的 asar-extract 实测，脱敏：仅编译产物代码，
-// 不含个人路径/凭据），保证注入断言对真实包成立。
-
-const sha256 = (buffer) => createHash('sha256').update(buffer).digest('hex');
-const FUSE_SENTINEL_TEXT = 'dL7pKGdnNz796PbbjQWNKmHXBZaB9tsX';
-
-// 真实产物锚点切片（嵌入合成 index.js，与 INJECTIONS.find 精确一致）。
-const FIXTURE_INDEX = Buffer.from([
-  'import{helper}from"./chunk-FIXTURE.js";',
-  'var Ae="https://zcode.z.ai",ff="3.16.2";',
-  '$2=Et(Ae,{appVersion:ff}),sA=process.env.ZCODE_WEB_REMOTE_CONTROL_RELAY_WS_URL?.trim(),iA=process.env.ZCODE_WEB_REMOTE_CONTROL_URL?.trim();',
-  'async function start(h,v){let Be="",le,Mf=!1,Of,t=new Map(),ne=new AbortController().signal,e={deviceMid:"mid"},kd=async()=>{},Gn=async()=>({}),zn=async()=>{};',
-  'const options={',
-  'getToken:s(async ae=>{let lt=await Gn(),jo=await zn.token(lt.jwt,AbortSignal.any([ne,ae]));return await Gn(),e.logger.info("[web-remote-control] V2 device token acquired"),jo},"getToken"),',
-  'resolveDeviceSid:s(async(ae,lt)=>(Be=await kd(lt,ae),t.get(h)===le&&(le.deviceSid=Be,le.qrUrl=le.connectUrl=""),Be),"resolveDeviceSid"),',
-  'getLogin:s(async()=>{let e=await N2(),t=await U2(e);return t?{userId:e,jwt:t.slice(7)}:void 0},"getLogin"),',
-  '};',
-  'return options;',
-  '}',
-  'start("w","ctx");',
-].join('\n') + '\n', 'utf8');
-
-// ---------- 合成 asar（与真实 3.16.2 头格式一致：pickle 前缀 + 紧凑 JSON + 空格 pad） ----------
-
-function fixtureIntegrity(buffer) {
-  const blocks = [];
-  for (let i = 0; i < buffer.length; i += 4194304) {
-    blocks.push(sha256(buffer.subarray(i, Math.min(i + 4194304, buffer.length))));
-  }
-  return { algorithm: 'SHA256', hash: sha256(buffer), blockSize: 4194304, blocks };
-}
-
-function buildTree(files) {
-  const root = { files: {} };
-  for (const file of files) {
-    let node = root;
-    const segments = file.path.split('/');
-    for (const segment of segments.slice(0, -1)) {
-      node = node.files[segment] ??= { files: {} };
-    }
-    const name = segments.at(-1);
-    if (file.unpacked) node.files[name] = { size: file.content.length, unpacked: true, integrity: fixtureIntegrity(file.content) };
-    else node.files[name] = { size: file.content.length, offset: null, integrity: fixtureIntegrity(file.content) };
-  }
-  return root;
-}
-
-function buildAsarBuffer(files) {
-  const root = buildTree(files);
-  let cursor = 0;
-  for (const file of files) {
-    if (file.unpacked) continue;
-    const segments = file.path.split('/');
-    let node = root;
-    for (const segment of segments.slice(0, -1)) node = node.files[segment];
-    node.files[segments.at(-1)].offset = String(cursor);
-    cursor += file.content.length;
-  }
-  const json = Buffer.from(JSON.stringify(root), 'utf8');
-  const paddedLen = (json.length + 3) & ~3;
-  const prefix = Buffer.alloc(16);
-  prefix.writeUInt32LE(4, 0);
-  prefix.writeUInt32LE(4 + 4 + paddedLen, 4);
-  prefix.writeUInt32LE(4 + paddedLen, 8);
-  prefix.writeUInt32LE(json.length, 12);
-  const pad = Buffer.alloc(paddedLen - json.length, 0x20);
-  const parts = [prefix, json, pad];
-  for (const file of files) {
-    if (!file.unpacked) parts.push(file.content);
-  }
-  return Buffer.concat(parts);
-}
-
-function buildFakeExe({ wire = '101000011' } = {}) {
-  const sentinel = Buffer.from(FUSE_SENTINEL_TEXT, 'latin1');
-  return Buffer.concat([
-    Buffer.from('MZ fake exe for local-only patch contract test ' + 'A'.repeat(64), 'latin1'),
-    sentinel,
-    Buffer.from([0x01, wire.length]),
-    Buffer.from(wire, 'latin1'),
-    Buffer.from([0x00]),
-  ]);
-}
-
-async function exists(p) {
-  try { await stat(p); return true; } catch { return false; }
-}
-
-// 搭建受支持目标（合成安装目录）：假 exe（fuse DISABLE）+ 合成 asar（含真实锚点切片）。
-async function makeSupportedTarget(root, { wire = '101000011', extraFiles = [] } = {}) {
-  const exePath = join(root, 'ZCode.exe');
-  const asarPath = join(root, 'resources', 'app.asar');
-  await mkdir(dirname(asarPath), { recursive: true });
-  await writeFile(exePath, buildFakeExe({ wire }));
-  const files = [
-    { path: 'package.json', content: Buffer.from('{"name":"@zcode/desktop","version":"3.16.2","main":"out/main/index.js"}\n') },
-    { path: 'out/main/index.js', content: FIXTURE_INDEX },
-    { path: 'out/main/chunk-FIXTURE.js', content: Buffer.from('export const helper=1;\n' + randomBytes(32).toString('hex')) },
-    { path: 'node_modules/node-pty/prebuilds/win32-x64/pty.dll', content: Buffer.from('unpacked-native-' + randomBytes(16).toString('hex')), unpacked: true },
-    ...extraFiles,
-  ];
-  const asarBuffer = buildAsarBuffer(files);
-  await writeFile(asarPath, asarBuffer);
-  const identity = {
-    exeName: 'ZCode.exe',
-    exeFileVersion: '3.16.2.8769',
-    appAsarRelativePath: 'resources/app.asar',
-    appAsarSha256: sha256(asarBuffer),
-    appAsarBytes: asarBuffer.length,
-  };
-  return {
-    exePath,
-    asarPath,
-    identity,
-    files,
-    // 桩：真实实现会读 exe VersionInfo / 全量 asar 摘要，这里直接返回登记身份的磁盘真值。
-    resolveIdentity: async () => {
-      const actual = await readFile(asarPath).then(sha256);
-      return { exeFileVersion: identity.exeFileVersion, appAsarSha256: actual, appAsarBytes: (await stat(asarPath)).size };
-    },
-  };
-}
-
-const noProcesses = async () => [];
-
-function boundaries(target, { processes = noProcesses } = {}) {
-  return {
-    packageIdentity: target.identity,
-    resolveIdentity: target.resolveIdentity,
-    readProcesses: processes,
-  };
-}
+// fixture 与构造辅助提取至 local-only-fixture.mjs（LO-03：与 lifecycle 契约共用单一 fixture 源，
+// 避免测试文件互相 import 导致重复执行）。锚点切片取自真实产物（探索笔记 05 asar-extract 实测）。
 
 // ---------- patch-env 契约 ----------
 
-test('INJECTIONS 定义完整：P0-P4 各就其位，replace 注入含 find/replacement/semantic', () => {
-  assert.equal(PATCH_VERSION, 1);
-  assert.deepEqual(INJECTIONS.map((i) => i.id), ['P0-fs-import', 'P1-mode-gate', 'P2-login-short-circuit', 'P3-device-sid-short-circuit', 'P4-token-short-circuit']);
+test('INJECTIONS 定义完整：P0-P6 各就其位，replace 注入含 find/replacement/semantic', () => {
+  assert.equal(PATCH_VERSION, 2);
+  assert.deepEqual(INJECTIONS.map((i) => i.id), [
+    'P0-fs-import',
+    'P1-mode-gate',
+    'P2-login-short-circuit',
+    'P3-device-sid-short-circuit',
+    'P4-token-short-circuit',
+    'P5-signed-out-isolation',
+    'P6-auto-start',
+  ]);
   for (const injection of INJECTIONS) {
     assert.ok(injection.semantic, `${injection.id} 需要 semantic 说明`);
     if (injection.kind === 'replace') {
@@ -174,11 +62,11 @@ test('INJECTIONS 定义完整：P0-P4 各就其位，replace 注入含 find/repl
   }
 });
 
-test('applyInjections：真实锚点切片全部命中且注入结果含四个短路点与门控', () => {
+test('applyInjections：真实锚点切片全部命中且注入结果含短路点与门控', () => {
   const { content, applied } = applyInjections(FIXTURE_INDEX.toString('utf8'));
   assert.equal(applied.length, INJECTIONS.length);
-  // P0：文件首行 import
-  assert.ok(content.startsWith('import{existsSync as __loExists}from"node:fs";'));
+  // P0：文件首行 import（v2 加 readFileSync，供标志文件首行读取）
+  assert.ok(content.startsWith('import{existsSync as __loExists,readFileSync as __loRead}from"node:fs";'));
   // P1：门控三件套 + 只在 sA 未被外部设置时改写回环网关 /ws（var 语句边界后插入）
   assert.ok(content.includes('var __LO_MODE='));
   assert.ok(content.includes('+"/ws";'));

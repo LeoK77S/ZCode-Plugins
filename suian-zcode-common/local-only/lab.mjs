@@ -14,6 +14,7 @@ import { join, resolve } from 'node:path';
 
 import {
   LAB_ENV_CLEAR,
+  LAB_GATEWAY_DEFAULT_PORT,
   SUPPORTED_PACKAGE,
   isInsideLab,
   labDirectories,
@@ -106,13 +107,17 @@ async function nodeCopyTree(from, to) {
 // 不以 detached 启动引导器：Windows 上 detached+windowsHide 的 PowerShell 子进程会静默不执行
 // （真实运行暴露的缺陷，勿回退）。副本 exe 由 Start-Process 独立创建，父进程（引导器与本 CLI）
 // 退出不影响其存活，语义上仍是 detached 启动；同步等待可拿到引导器真实退出码。
-async function defaultRunLauncher({ launcherPath, proxyServer }) {
+async function defaultRunLauncher({ launcherPath, proxyServer, remoteDebuggingPort = 0, workspace }) {
   return await new Promise((resolveRun, rejectRun) => {
     // stdio: 'ignore' 是关键：Start-Process 的副本 exe 会继承引导器的 stdio 管道，
     // 若引导器持有 node 管道，副本存活期间管道不 EOF，node 的 close 事件永不触发（真实运行暴露）。
-    const child = spawn('powershell.exe', [
-      '-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', launcherPath, '-ProxyServer', proxyServer,
-    ], { windowsHide: true, stdio: 'ignore' });
+    const args = [
+      '-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', launcherPath,
+      '-ProxyServer', proxyServer,
+      '-RemoteDebuggingPort', String(remoteDebuggingPort),
+    ];
+    if (workspace) args.push('-Workspace', workspace);
+    const child = spawn('powershell.exe', args, { windowsHide: true, stdio: 'ignore' });
     child.on('error', (error) => rejectRun(new Error(`启动器进程启动失败：${error.message}`)));
     child.on('close', (code) => {
       if (code === 0) resolveRun({ code });
@@ -245,7 +250,7 @@ export async function setupLab({
       reason: `副本 app.asar 摘要与源不一致：${copySha} != ${actual.appAsarSha256}`,
     };
   }
-  // 5. 生成 env 定义、启动器、网关配置与清单。
+  // 5. 生成 env 定义、启动器、网关配置与清单（env/启动器的网关地址与网关配置端口一致）。
   const gatewayConfig = renderGatewayConfig(gatewayPort === undefined ? {} : { port: gatewayPort });
   const manifest = {
     formatVersion: 1,
@@ -270,8 +275,8 @@ export async function setupLab({
     },
   };
   try {
-    await writeFile(dirs.envPath, JSON.stringify(renderEnvDocument(labDir), null, 2));
-    await writeFile(dirs.launcherPath, renderLauncherPs1(labDir), 'utf8');
+    await writeFile(dirs.envPath, JSON.stringify(renderEnvDocument(labDir, { gatewayPort: gatewayConfig.port }), null, 2));
+    await writeFile(dirs.launcherPath, renderLauncherPs1(labDir, { gatewayPort: gatewayConfig.port }), 'utf8');
     await writeFile(dirs.gatewayConfigPath, JSON.stringify(gatewayConfig, null, 2));
     await writeFile(dirs.manifestPath, JSON.stringify(manifest, null, 2));
   } catch (error) {
@@ -308,6 +313,14 @@ export async function checkLab({ labDir, packageIdentity = SUPPORTED_PACKAGE } =
       if (key === 'ZCODE_DESKTOP_APPLICATION_NAME') {
         if (value && value !== 'ZCode') add(`env:${key}`, true);
         else add(`env:${key}`, false, '应用名沿用日常默认 "ZCode"，无法隔离单实例锁');
+        continue;
+      }
+      // 网关地址是回环 URL 而非路径：核对格式与清单端口一致，不做 lab 归属判定。
+      if (key === 'ZCODE_LOCAL_ONLY_GATEWAY') {
+        const expectedPort = manifest?.gateway?.port ?? LAB_GATEWAY_DEFAULT_PORT;
+        const matchLoopback = /^http:\/\/(127\.\d+\.\d+\.\d+|localhost|\[::1\])(:\d+)?$/.test(String(value));
+        const portMatch = String(value).endsWith(`:${expectedPort}`);
+        add(`env:${key}`, matchLoopback && portMatch, `期望回环地址且端口 ${expectedPort}（与 gateway/config.json 一致），实际 ${value}`);
         continue;
       }
       if (isInsideLab(labDir, value)) add(`env:${key}`, true);
@@ -359,12 +372,17 @@ export async function checkLab({ labDir, packageIdentity = SUPPORTED_PACKAGE } =
 }
 
 // launch：以隔离 env 启动副本（detached），向 exe 传 Chromium 死代理参数阻断官方外连路径之一。
+// remoteDebuggingPort 可选：CDP 诊断（Electron 41 需配合已显式的 --user-data-dir 才暴露 targets）。
+// workspace 可选：作为启动位置参数直开工作区（官方 argv 语义，绕过首启欢迎页），
+// 与 local-only 标志首行一致时远控 attach 与窗口工作区匹配。
 export async function launchLab({
   labDir,
   proxyDeadPort = 1,
   runLauncher = defaultRunLauncher,
   waitStateMs = 15000,
   pollMs = 250,
+  remoteDebuggingPort = 0,
+  workspace,
 } = {}) {
   labDir = resolve(labDir);
   const dirs = labDirectories(labDir);
@@ -375,15 +393,27 @@ export async function launchLab({
     return { ok: false, reason: `已有运行记录（${dirs.runStatePath}）；先 teardown 再 launch` };
   }
   const proxyServer = `http://127.0.0.1:${proxyDeadPort}`;
+  let gatewayPort;
   try {
-    // 每次启动前重渲染启动器：生成物与工具当前版本保持一致，并自保障工作目录存在
-    // （teardown 清理后 workspace 不再存在，真实运行暴露的 DirectoryNotFoundException）。
-    await writeFile(dirs.launcherPath, renderLauncherPs1(labDir), 'utf8');
+    gatewayPort = (await readJsonFile(dirs.manifestPath)).gateway?.port;
+  } catch {
+    gatewayPort = undefined;
+  }
+  try {
+    // 每次启动前重渲染启动器：生成物与工具当前版本保持一致（含与网关配置一致的
+    // ZCODE_LOCAL_ONLY_GATEWAY），并自保障工作目录存在（teardown 清理后 workspace 不再存在，
+    // 真实运行暴露的 DirectoryNotFoundException）。重渲染会覆盖对 launcher.ps1 的手工修改——
+    // lab 需要的启动参数一律走本工具选项，不要手工改 launcher。
+    await writeFile(dirs.launcherPath, renderLauncherPs1(labDir, {
+      ...(gatewayPort === undefined ? {} : { gatewayPort }),
+      ...(remoteDebuggingPort > 0 ? { remoteDebuggingPort } : {}),
+      ...(workspace ? { workspace } : {}),
+    }), 'utf8');
   } catch (error) {
     return { ok: false, reason: `更新启动器失败：${error.message}` };
   }
   try {
-    await runLauncher({ labDir, launcherPath: dirs.launcherPath, proxyServer });
+    await runLauncher({ labDir, launcherPath: dirs.launcherPath, proxyServer, remoteDebuggingPort, workspace });
   } catch (error) {
     return { ok: false, reason: `启动器执行失败：${error.message}` };
   }
@@ -403,7 +433,7 @@ export async function launchLab({
       reason: `启动器未在 ${waitStateMs}ms 内写出运行记录；检查 ${join(dirs.logsDir, 'launcher-error.log')}`,
     };
   }
-  return { ok: true, pid: runState.pid, runState, proxyServer };
+  return { ok: true, pid: runState.pid, runState, proxyServer, remoteDebuggingPort };
 }
 
 function parseForeignAddress(address) {
@@ -666,6 +696,8 @@ export async function main(argv) {
   if (command === 'launch') {
     const options = {};
     if (values['proxy-dead-port']) options.proxyDeadPort = Number(values['proxy-dead-port']);
+    if (values['remote-debugging-port']) options.remoteDebuggingPort = Number(values['remote-debugging-port']);
+    if (values.workspace && typeof values.workspace === 'string') options.workspace = values.workspace;
     const result = await launchLab({ labDir, ...options });
     console.log(JSON.stringify(result.ok ? { ok: true, pid: result.pid, proxyServer: result.proxyServer, runState: result.runState } : result, null, 2));
     return result.ok ? 0 : 1;
@@ -686,7 +718,7 @@ export async function main(argv) {
     console.log(JSON.stringify(result, null, 2));
     return result.ok ? 0 : 1;
   }
-  console.error('用法：node local-only/lab.mjs <setup|check|launch|report|teardown> --lab <dir> [--source <安装目录>] [--proxy-dead-port <port>] [--gateway-port <port>] [--copy-tool robocopy|node] [--package-identity <json>] [--purge]');
+  console.error('用法：node local-only/lab.mjs <setup|check|launch|report|teardown> --lab <dir> [--source <安装目录>] [--proxy-dead-port <port>] [--gateway-port <port>] [--copy-tool robocopy|node] [--package-identity <json>] [--purge] [--remote-debugging-port <port>]');
   return 2;
 }
 
