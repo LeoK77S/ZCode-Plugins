@@ -5,6 +5,7 @@ import { tmpdir } from 'node:os';
 import { join, dirname, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { execFile, spawn } from 'node:child_process';
+import { existsSync } from 'node:fs';
 import { promisify } from 'node:util';
 import { createHash } from 'node:crypto';
 import { createServer } from 'node:net';
@@ -944,4 +945,37 @@ test('Remove 在无 Toast 记录时清理网关部署产物与活动记录', { s
   await assert.rejects(readFile(join(f.toolsRoot, 'active-gateway.json')), { code: 'ENOENT' });
   await assert.rejects(stat(join(f.toolsRoot, 'launchers')), { code: 'ENOENT' });
   await assert.rejects(stat(join(f.toolsRoot, 'deployments')), { code: 'ENOENT' });
+});
+
+test('切换事务由独占句柄锁保护：持锁时第二实例明确失败不动文件，持锁进程退出后立即可重试，Status 不受影响', { skip: process.platform !== 'win32' }, async t => {
+  const f = await fixture(t);
+  const lockPath = join(f.dataDir, 'upgrade.lock');
+  const heldSignal = join(f.root, 'lock-held.signal');
+  const singleQuote = path => path.replace(/'/g, "''");
+  const holder = spawn('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command',
+    `[IO.Directory]::CreateDirectory('${singleQuote(f.dataDir)}') | Out-Null; $fs=[IO.File]::Open('${singleQuote(lockPath)}','Create','ReadWrite','None'); Set-Content -LiteralPath '${singleQuote(heldSignal)}' 'held'; Start-Sleep -Seconds 120; $fs.Close()`], { windowsHide: true, stdio: 'ignore' });
+  t.after(() => holder.kill());
+  for (let i = 0; i < 100 && !existsSync(heldSignal); i++) await new Promise(resolve => setTimeout(resolve, 50));
+  assert.ok(existsSync(heldSignal), '外部持锁进程应就绪');
+  await assert.rejects(f.run('Install'), error => { assert.match(error.stderr, /already running/); return true; });
+  assert.equal((await f.state()).registrations, 0, '拿锁失败不得注册任务');
+  await assert.rejects(stat(join(f.dataDir, 'config.json')), { code: 'ENOENT' }, '拿锁失败不得写配置');
+  const status = await f.run('Status');
+  assert.equal(status.ok, true, 'Status 只读操作不受锁影响');
+  holder.kill();
+  await new Promise(resolve => holder.once('exit', resolve));
+  const installed = await f.run('Install');
+  assert.equal(installed.ok, true, '持锁进程退出后锁应自动释放');
+  await assert.rejects(stat(lockPath), { code: 'ENOENT' }, '成功事务结束后清理锁文件');
+});
+
+test('锁内事务失败回退后锁已释放，后续实例可立即重试', { skip: process.platform !== 'win32' }, async t => {
+  const f = await fixture(t);
+  await f.run('Install');
+  const state = await f.state();
+  state.fail_start_count = 1;
+  await writeFile(f.stateFile, JSON.stringify(state));
+  await assert.rejects(f.run('Restart', { port: 17331 }), /fallback: restored/);
+  const retried = await f.run('Restart');
+  assert.equal(retried.ok, true, '失败事务的 throw 退出进程即释放锁');
 });

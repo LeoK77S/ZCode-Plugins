@@ -169,6 +169,19 @@ function Wait-GatewayExit {
     throw 'Gateway or launcher did not exit; configuration was not changed'
 }
 
+# 切换事务锁：独占句柄随进程退出由系统自动释放，崩溃或被杀无需陈旧清理；
+# 残留锁文件在下一次 Create 打开时被覆盖，不阻塞后续实例。暂存部署（--deploy）在锁外，保持幂等可并发。
+function Acquire-UpgradeLock {
+    [IO.Directory]::CreateDirectory($DataDir) | Out-Null
+    try { $script:upgradeLock = [IO.File]::Open((Join-Path $DataDir 'upgrade.lock'), 'Create', 'ReadWrite', 'None') }
+    catch [IO.IOException] { throw 'Another gateway setup is already running (upgrade.lock is held); nothing was changed' }
+}
+
+function Release-UpgradeLock {
+    if ($null -ne $script:upgradeLock) { $script:upgradeLock.Dispose(); $script:upgradeLock = $null }
+    Remove-Item -LiteralPath (Join-Path $DataDir 'upgrade.lock') -ErrorAction SilentlyContinue
+}
+
 function Send-EnvironmentChange {
     if (-not ('SuianZcodeGateway.EnvironmentBroadcast' -as [type])) {
         Add-Type -TypeDefinition @'
@@ -224,6 +237,7 @@ if ($Action -eq 'Status') {
 }
 if ($Action -eq 'Remove') {
     if ($null -eq $config) { @{ ok=$true; action='not_installed' } | ConvertTo-Json -Compress; return }
+    Acquire-UpgradeLock
     $health = Read-GatewayHealth -AllowUnavailable
     if ($taskRunning -and $null -eq $health) { throw 'Gateway task is running but health is unavailable; running state is unknown, configuration was not changed' }
     if ($null -ne $health) {
@@ -264,6 +278,7 @@ if ($Action -eq 'Remove') {
         }
     }
     [ordered]@{ ok=$true; action='removed'; user_env_action=$environmentAction; environment_broadcast=$environmentBroadcast; toast_record=$toastRecord; restart_required=$true } | ConvertTo-Json -Compress
+    Release-UpgradeLock
     return
 }
 
@@ -287,6 +302,8 @@ $deployResult = Invoke-DeployCli @('--deploy', '--source-root', $PSScriptRoot, '
 $buildId = $deployResult.buildId
 $deploymentDir = $deployResult.deploymentDir
 Invoke-DeployCli @('--ensure-launchers', '--source-root', $PSScriptRoot, '--tools-root', $ToolsRoot) | Out-Null
+# 切换事务从这里开始：shutdown、活动记录切换、任务注册与健康确认须整体互斥。
+Acquire-UpgradeLock
 
 # 复用在运行的实例。修改地址或安装位置时不能悄悄切断 Desktop。
 $health = $null
@@ -432,4 +449,5 @@ Send-EnvironmentChange
 $status = [ordered]@{ ok=$true; action=$(if ($restarting) { 'restarted' } else { 'installed' }); mode=$Mode; relay_url=$relayUrl; health_url=$healthUrl; gateway_running=$true; task_running=$taskRunning; health_status='reachable'; desktop_connected=$health.desktop_connected; paired=$health.paired; vbs_launcher=$vbsLauncher; environment_broadcast='sent' }
 $upgrade = Get-GatewayUpgradeStatus ([pscustomobject]$nextConfig) $health
 foreach ($field in $upgrade.Keys) { $status[$field] = $upgrade[$field] }
+Release-UpgradeLock
 $status | ConvertTo-Json -Depth 4 -Compress
