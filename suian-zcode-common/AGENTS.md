@@ -69,6 +69,9 @@
 | tests/depcheck.test.mjs / tests/depcheck-hook.test.mjs / tests/toast-executor.test.mjs | PKG-08 发布契约扫描：无 node_modules 发布产物不再误判（红色证明在案）、缺文件/错身份/API 不兼容检出、Hook 通知链与缓存外执行器快照对齐 |
 | tests/migration.test.mjs / tests/legacy-cleanup.test.mjs | PKG-08 迁移链：开关与路径记录（不含令牌）、恢复不覆盖自定义字段、端到端记录→清理→部署→恢复；链接清理归属核对、只删链接、真实目录与他人目标保留 |
 | experiments/ | 仅发合成 auth_init 的研究探针，不自动执行 |
+| local-only/lab-env.mjs | LO-01 隔离环境单一数据源：目录树、进程级 env 集（ZCODE_DATA_BASE_DIR 指向 .zcode 父目录、清除官方 relay 覆盖变量）、单包字节身份（3.16.2.8769 + app.asar SHA-256）、启动器与 lab 网关配置渲染 |
+| local-only/lab.mjs | LO-01 lab CLI（setup/check/launch/report/teardown）：身份核对先于写入、路径归属 check、启动器启动副本并写运行记录、report 按 exe 枚举进程并分类回环/外部连接、teardown 只杀记录 PID 树并等待退出后清理；系统边界参数化注入供契约测试 |
+| tests/local-only-lab.test.mjs | LO-01 契约测试：目录树/启动器/清单、身份不匹配拒绝、越界路径检出、副本篡改检出、BOM 与 WQL 转义回归、teardown 只清 lab 内 |
 | package.json / package-lock.json | 固定 Node/ws 版本与测试入口 |
 | docs/ | [共享运行时与 Release 规格](docs/shared-runtime-release-spec.md)、[开票索引](docs/shared-runtime-release-tickets.md)及脱敏验证证据；历史与本次验证分开 |
 | docs/client-contract.md | PKG-01 公共加载契约：锚点事实、定位规则、失败分类、导出清单、release.json 与构建输入说明及业务迁移指引 |
