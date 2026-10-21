@@ -29,11 +29,18 @@ export async function startGateway({ mode = 'relay', relayProtocolVersion = 1, u
   if (mode === 'terminal') return startTerminalGateway({port,instanceId,controlToken,upstreamUrl,deviceSid,deviceMid,getToken,bridgeTimeoutMs,WebSocketImpl,onError});
   if (!['relay', 'local-only'].includes(mode)) throw new Error('Invalid gateway mode');
   let active;
+  // 忙判定聚合：RPC 路由在飞数 + 发往 Desktop 尚未应答的 bootstrap 请求；无活动连接时为 0。
+  const rpcInFlight = () => (active?.broker.inFlight?.() ?? 0) + (active?.pending.size ?? 0);
   const http = createServer(async (request, response) => {
     if (request.headers.origin !== undefined) { response.writeHead(403).end(); return; }
-    if (request.method === 'POST' && request.url === '/shutdown' && controlToken) {
+    if (request.method === 'POST' && request.url.split('?')[0] === '/shutdown' && controlToken) {
       if (request.headers.authorization !== `Bearer ${controlToken}`) { response.writeHead(401).end(); return; }
-      if (active) { response.writeHead(409).end('Stop mobile remote control in ZCode first'); return; }
+      const idleOnly = new URL(request.url, 'http://127.0.0.1').searchParams.has('idle');
+      if (active && !idleOnly) { response.writeHead(409).end('Stop mobile remote control in ZCode first'); return; }
+      if (active && idleOnly && rpcInFlight() > 0) {
+        response.writeHead(409, { 'Content-Type': 'application/json; charset=utf-8' }).end(JSON.stringify({ ok: false, reason: 'busy', rpc_in_flight: rpcInFlight() }));
+        return;
+      }
       response.writeHead(200, { 'Content-Type': 'application/json', Connection: 'close' }).end('{"ok":true}');
       await closeGateway();
       return;
@@ -48,6 +55,7 @@ export async function startGateway({ mode = 'relay', relayProtocolVersion = 1, u
       paired: active?.paired ?? false,
       upstream_paired: active?.phonePaired ?? false,
       local_clients: active?.localClients.size ?? 0,
+      rpc_in_flight: rpcInFlight(),
       rpc_protocol_version: 1,
     }));
   });
@@ -76,7 +84,9 @@ export async function startGateway({ mode = 'relay', relayProtocolVersion = 1, u
       if (!connection.paired && connection.authenticated) connection.sendPairStatus(connection.lastPairAck.pair_status);
     });
   });
-  const closeGateway = async () => {
+  let closing = null;
+  // 升级关闭成功后调用方仍可能再次 close（fixture/测试清理）；重复关闭无操作而非报错。
+  const closeGateway = () => closing ??= (async () => {
     active?.desktop.terminate();
     active?.upstream?.terminate();
     for (const socket of rpcServer.clients) socket.terminate();
@@ -85,7 +95,7 @@ export async function startGateway({ mode = 'relay', relayProtocolVersion = 1, u
       new Promise((resolve, reject) => rpcServer.close((error) => error ? reject(error) : resolve())),
       new Promise((resolve, reject) => http.close((error) => error ? reject(error) : resolve())),
     ]);
-  };
+  })();
   server.on('connection', (desktop, request) => {
     if (active) {
       desktop.close(1008, 'Only one Desktop is allowed');

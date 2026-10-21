@@ -298,6 +298,8 @@ export function createRpcBroker({ bootstrap, sendDesktop, sendPhone, bridgeTimeo
       socket.on('close', () => { localPeers.delete(peer); cancelPeer(peer); });
     },
     phoneDisconnected() { if (phone) { cancelPeer(phone); phone = undefined; } },
+    // 忙判定只看请求在飞（call/取消/排队 initialize）；订阅型路由与纯连接不计。
+    inFlight() { let count = 0; for (const route of routes.values()) if (!route.event) count++; return count; },
     close(error) {
       resetPhysical(error);
       const affected = new Set([...peers, ...localPeers, ...(phone ? [phone] : [])]);

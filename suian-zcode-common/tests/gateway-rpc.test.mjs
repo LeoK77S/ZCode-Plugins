@@ -1013,3 +1013,71 @@ test('V2 宿主任务导航失败时错误回传手机，本地附着同因失�
   const { error } = await observed;
   assert.match(error?.message, /原 Host 桥初始化超时|project.task-not-found|workspace-bridge/);
 });
+
+test('本地与手机的飞行中请求计入 rpc_in_flight，应答后归零且订阅不误计', { timeout: 3000 }, async t => {
+  const f = await fixture(t);
+  const health = async () => (await fetch(f.gateway.url.replace('ws:', 'http:').replace('/ws', '/health'))).json();
+  const settle = async (expected, message) => {
+    for (let i = 0; i < 150; i++) { if ((await health()).rpc_in_flight === expected) return; await new Promise(resolve => setTimeout(resolve, 2)); }
+    assert.fail(message + '；当前 rpc_in_flight=' + (await health()).rpc_in_flight);
+  };
+  const phoneIdentity = { bridgeSessionId: 'phone-idle-bridge', bridgeGeneration: 1 };
+  const phoneReady = Promise.withResolvers();
+  f.phone.on('message', data => { if (JSON.parse(data).payload?.zcode_type === 'workspace-bridge-ready') phoneReady.resolve(); });
+  f.phone.send(JSON.stringify({ type: 'data', payload: { zcode_type: 'workspace-bridge-open', requestId: 'phone-idle-open', ...phoneIdentity, workspaceKey: workspace } }));
+  await phoneReady.promise;
+  const peer = new WebSocket(f.gateway.url.replace('/ws', '/rpc'), { headers: { Authorization: 'Bearer fixture-rpc-token' } });
+  t.after(() => peer.terminate());
+  peer.on('error', () => {});
+  await once(peer, 'open');
+  const localReplies = [];
+  const attached = Promise.withResolvers();
+  peer.on('message', (data, binary) => { if (binary) localReplies.push(unpack(data)); else if (JSON.parse(data).type === 'attached') attached.resolve(); });
+  peer.send(JSON.stringify({ type: 'attach', workspace_path: workspace }));
+  await attached.promise;
+  await settle(0, '附着完成后无飞行中请求');
+  peer.send(pack([100, 0, 'fixture', 'local-busy'], ['local']));
+  for (const frame of encode(pack([100, 0, 'fixture', 'phone-busy'], ['phone']), { ...phoneIdentity, firstPhysicalSeq: 1, messageSeq: 1 })) f.phone.send(JSON.stringify({ type: 'data', payload: frame }));
+  await until(() => f.requests.length === 2);
+  await settle(2, '本地与手机的飞行中调用同时计入');
+  for (const [header] of f.requests) f.respond([201, header[1]], { done: true });
+  await until(() => localReplies.some(([h]) => h[0] === 201));
+  await settle(0, '应答完成即归零');
+  peer.send(pack([102, 1, 'fixture', 'subscribe'], []));
+  await until(() => f.requests.some(([h]) => h[0] === 102));
+  await settle(0, '长生命周期订阅路由不占用忙判定');
+});
+
+test('升级关闭按空闲放行：忙时 409 busy 不退出，空闲或无连接时接受并退出，旧关闭语义不变', { timeout: 3000 }, async t => {
+  const f = await fixture(t);
+  const base = f.gateway.url.replace('ws:', 'http:').replace('/ws', '');
+  const healthUrl = base + '/health';
+  const shutdown = query => fetch(base + '/shutdown' + query, { method: 'POST', headers: { Authorization: 'Bearer fixture-rpc-token' } });
+  const peer = new WebSocket(f.gateway.url.replace('/ws', '/rpc'), { headers: { Authorization: 'Bearer fixture-rpc-token' } });
+  t.after(() => peer.terminate());
+  peer.on('error', () => {});
+  await once(peer, 'open');
+  const attached = Promise.withResolvers();
+  peer.on('message', (data, binary) => { if (!binary && JSON.parse(data).type === 'attached') attached.resolve(); });
+  peer.send(JSON.stringify({ type: 'attach', workspace_path: workspace }));
+  await attached.promise;
+  peer.send(pack([100, 0, 'fixture', 'busy'], ['busy']));
+  await until(() => f.requests.length === 1);
+  const busy = await shutdown('?idle=1');
+  assert.equal(busy.status, 409);
+  const busyBody = await busy.json();
+  assert.equal(busyBody.reason, 'busy');
+  assert.equal(busyBody.rpc_in_flight, 1);
+  assert.equal((await (await fetch(healthUrl)).json()).rpc_in_flight, 1, '忙时升级关闭不得退出网关');
+  const legacy = await shutdown('');
+  assert.equal(legacy.status, 409);
+  assert.match(await legacy.text(), /Stop mobile remote control in ZCode/);
+  f.respond([201, f.requests[0][0][1]], { done: true });
+  for (let i = 0; i < 150; i++) { if ((await (await fetch(healthUrl)).json()).rpc_in_flight === 0) break; await new Promise(resolve => setTimeout(resolve, 2)); }
+  const desktopClosed = once(f.desktop, 'close');
+  const accepted = await shutdown('?idle=1');
+  assert.equal(accepted.status, 200);
+  assert.equal((await accepted.json()).ok, true);
+  await desktopClosed;
+  await assert.rejects(fetch(healthUrl), '网关接受升级关闭后应实际退出');
+});
