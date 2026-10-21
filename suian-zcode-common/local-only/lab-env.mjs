@@ -127,9 +127,9 @@ export function renderLauncherPs1(labDir, { gatewayPort, remoteDebuggingPort } =
     // 路径以双引号内嵌（Start-Process 对数组元素不自动加引号，含空格路径会断裂）。
     '  $udir = ' + psQuote(dirs.userData),
     '  if ($RemoteDebuggingPort -gt 0) { $desktopArgs += "--remote-debugging-port=$RemoteDebuggingPort"; $desktopArgs += (\'--user-data-dir="{0}"\' -f $udir) }',
-    // Workspace 位置参数（官方 index.ts extractOpenWorkspacePathFromArgs 语义）：启动即打开
-    // 指定工作区，绕过首启欢迎页；与 local-only 标志首行一致时远控 attach 与窗口工作区匹配。
-    "  if ($Workspace) { $desktopArgs += ('\"{0}\"' -f $Workspace) }",
+    // Desktop 仅识别 --open-workspace；裸位置参数会被忽略，首启仍打开默认会话目录。
+    // 内嵌双引号保留 Start-Process 拼接后的含空格路径。
+    "  if ($Workspace) { $desktopArgs += ('--open-workspace=\"{0}\"' -f $Workspace) }",
     '  $proc = Start-Process -FilePath $exe -ArgumentList $desktopArgs -WorkingDirectory $workingDir -PassThru -RedirectStandardOutput ' + psQuote(join(dirs.logsDir, 'desktop.out.log')) + ' -RedirectStandardError ' + psQuote(join(dirs.logsDir, 'desktop.err.log')),
     '  $state = [ordered]@{',
     '    pid = $proc.Id',

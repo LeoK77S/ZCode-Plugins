@@ -4,6 +4,7 @@ import { cp, mkdtemp, mkdir, readFile, rm, stat, writeFile } from 'node:fs/promi
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { createHash, randomBytes } from 'node:crypto';
+import { spawnSync } from 'node:child_process';
 
 import {
   SUPPORTED_PACKAGE,
@@ -267,6 +268,37 @@ test('launch 经启动器启动并等待 run-state 记录（注入启动边界�
   assert.equal(result.pid, 47110815);
   assert.equal(calls[0].launcherPath, dirs.launcherPath);
   assert.match(calls[0].proxyServer, /127\.0\.0\.1:47821/);
+});
+
+test('launch 将含空格工作区作为 Desktop 的 --open-workspace 参数交付', { skip: process.platform !== 'win32' }, async t => {
+  const outer = await mkdtemp(join(tmpdir(), 'lo-lab-'));
+  t.after(() => rm(outer, { recursive: true, force: true }));
+  const labDir = join(outer, 'lab');
+  const sourceDir = join(outer, 'fake-install');
+  const install = await makeFakeInstall(sourceDir);
+  await setupLab({ labDir, sourceDir, ...fixtureBoundaries(install.identity) });
+  const dirs = labDirectories(labDir);
+  const workspace = join(labDir, 'project with spaces');
+  await mkdir(workspace);
+  const capture = join(labDir, 'argv.json');
+  const psQuote = value => "'" + value.replaceAll("'", "''") + "'";
+  const stub = join(labDir, 'launch-test.ps1');
+  await writeFile(stub, [
+    '$ErrorActionPreference = "Stop"',
+    'function Start-Process {',
+    '  param($FilePath, $ArgumentList, $WorkingDirectory, [switch]$PassThru, $RedirectStandardOutput, $RedirectStandardError)',
+    `  ConvertTo-Json -InputObject @($ArgumentList) | Set-Content -LiteralPath ${psQuote(capture)} -Encoding UTF8`,
+    '  return @{ Id = 4242 }',
+    '}',
+    `& ${psQuote(dirs.launcherPath)} -Workspace ${psQuote(workspace)}`,
+  ].join('\r\n'));
+  const result = await launchLab({ labDir, workspace, runLauncher: async () => {
+    const run = spawnSync('powershell.exe', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', stub], { encoding: 'utf8' });
+    assert.equal(run.status, 0, run.stderr);
+  }});
+  assert.equal(result.ok, true, result.reason);
+  const argv = JSON.parse((await readFile(capture, 'utf8')).replace(/^\uFEFF/, ''));
+  assert.ok(argv.includes(`--open-workspace="${workspace}"`), `Desktop 未收到具名工作区参数：${JSON.stringify(argv)}`);
 });
 
 test('report 生成证据文件并分类回环与外部连接', async t => {

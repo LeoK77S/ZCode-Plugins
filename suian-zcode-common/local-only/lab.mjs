@@ -373,7 +373,7 @@ export async function checkLab({ labDir, packageIdentity = SUPPORTED_PACKAGE } =
 
 // launch：以隔离 env 启动副本（detached），向 exe 传 Chromium 死代理参数阻断官方外连路径之一。
 // remoteDebuggingPort 可选：CDP 诊断（Electron 41 需配合已显式的 --user-data-dir 才暴露 targets）。
-// workspace 可选：作为启动位置参数直开工作区（官方 argv 语义，绕过首启欢迎页），
+// workspace 可选：以 Desktop 的 --open-workspace 参数直开工作区，
 // 与 local-only 标志首行一致时远控 attach 与窗口工作区匹配。
 export async function launchLab({
   labDir,
