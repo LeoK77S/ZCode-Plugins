@@ -80,9 +80,13 @@
 
 ## K12 手动构造 env 启动的副本实例会早退（根因未定位）
 
-- **症状**：用自写 PowerShell 启动器（复刻 lab env 集 + 额外覆盖变量）启动副本，进程停在 crash-capture 日志后静默退出，三次复现。
-- **现状**：与 lab launcher 的差异未定位（env 传递路径或参数形态）。验证条件的构造优先扩展 lab 工具选项，不走绕开工具的路径。涉及"非回环网关覆盖"的原生观察因此未达成，以契约层断言支撑（[生命周期证据](../../../../suian-zcode-app-mcp/docs/local-only/03-lifecycle-evidence.md) §3.6）。
-- **来源**：LO-03。
+- **症状**：自写 PowerShell 启动器（从 `lab-env.json` 的 `values` 复刻全部隔离 env，`Remove-Item` 清 relay 覆盖变量，追加 `ZCODE_LOCAL_ONLY_GATEWAY=<非回环>`，再 `Start-Process` 副本 exe 并重定向日志）启动后，进程只写一行 crash-capture 日志（约 357 字节）便静默退出；三次复现，无任何远控日志。
+- **已排除**：补丁或包问题（同一副本用 `lab.mjs launch` 正常启动）；env 集缺项（与 lab launcher 同源 `lab-env.json.values`）；P1 回环校验异常（实现为纯字符串 host 提取 + 白名单比较，非回环值只触发"重置为默认回环"，没有抛异常路径）；`Start-Process` 失败（PID 写盘成功说明进程已创建）。
+- **已尝试无效**：对齐 lab launcher 的 `--proxy-server` 死代理参数并把 workspace 参数改成带引号形态；启动前删除 userData 的 `SingletonLock` / `SingletonCookie` / `SingletonSocket`。
+- **首要怀疑**：前序实例被强杀后 userData 单实例锁残留——官方 `requestSingleInstanceLock` 失败即静默 `app.quit()`（index.ts:2011-2013），与"一行日志后退出"高度吻合；Electron 41 在 Windows 上还可能使用命名 mutex 或不同锁文件名，删 `Singleton*` 不必然生效。
+- **复现要点**：先 `lab.mjs launch` 确认副本可用 → 正常停止（而非强杀）并确认按 exe 路径枚举为 0 进程、端口释放、等待数秒 → 再用手动启动器；给 exe 加 `--enable-logging --v=1`，或对 `ZCode.exe` 的进程退出做 Process Monitor 过滤。
+- **副产品**：验证条件的构造优先扩展 `lab.mjs` 选项（例如透传网关覆盖），不走绕开工具的路径。非回环负向的原生观察因此未达成，以契约层 vm 断言支撑（[生命周期证据](../../../../suian-zcode-app-mcp/docs/local-only/03-lifecycle-evidence.md) §3.6）。
+- **来源**：LO-03。原始脚本与三次命令可从子代理会话库恢复：`sqlite3 ~/.zcode/cli/db/db.sqlite "SELECT data FROM part WHERE session_id LIKE '%<agent-id>%' AND data LIKE '%nonloopback%'"`，再按 `$.tool` 取 `$.state.input.command`（Bash）或 `$.state.input.content`（Write）；worktree 删除后这是唯一副本。
 
 ## K13 重置 userData 后 workspace 直开不创建主窗口；判断窗口存在要用 CDP targets
 
