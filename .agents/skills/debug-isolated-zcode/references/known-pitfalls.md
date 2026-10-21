@@ -70,31 +70,30 @@
 - **解法**：注入求值逻辑全部收进 IIFE（函数作用域隔离），模块顶层只声明 `__LO_*` 唯一前缀变量；契约 fixture 顶层预置 `let b2` 占位，使 `node --check` 用例能抓同类回归；每次 prepare 后对真实产物注入结果跑一次 `node --check`（fixture 通过不代表真实包通过）。
 - **来源**：LO-03（[生命周期证据](../../../../suian-zcode-app-mcp/docs/local-only/03-lifecycle-evidence.md) §6 踩坑 1）。
 
-## K11 lab launcher 每次启动前重渲染；CDP 需命令行 --user-data-dir
+## K11 lab launcher 每次启动前重渲染；启动始终显式传 userData
 
 - **症状一**：手工给 `launcher.ps1` 加的 env/参数在下次 `launch` 后消失。
 - **根因**：`launchLab` 每次启动前用当前工具版本重渲染 launcher，覆盖手工修改。
-- **解法**：lab 需要的启动条件一律走 `lab.mjs` 选项（已固化：`--remote-debugging-port` 自动附命令行 `--user-data-dir`；`--workspace` 内部渲染为 `--open-workspace="<路径>"`；网关 env 自动与 `gateway/config.json` 端口一致）。
+- **解法**：lab 需要的启动条件一律走 `lab.mjs` 选项（已固化：启动始终传命令行 `--user-data-dir`，CDP 独立可选；`--workspace` 内部渲染为 `--open-workspace="<路径>"`；网关 env 自动与 `gateway/config.json` 端口一致）。
 - **症状二**：CDP 端口在监听但 `/json/list` 空。**根因**：Electron 41/Chromium 146 对默认数据目录下的远程调试有安全缓解，必须命令行传 `--user-data-dir`（仅设 env 不够）；PowerShell `Start-Process -ArgumentList` 数组元素不自动加引号，含空格路径需自行内嵌双引号（单引号会成为路径字面量）。
 - **来源**：LO-03（[生命周期证据](../../../../suian-zcode-app-mcp/docs/local-only/03-lifecycle-evidence.md) §6 踩坑 3/4）。
 
-## K12 手动构造 env 启动的副本实例会早退（根因未定位）
+## K12 手动启动早退：先区分单实例锁与初始化失败
 
 - **症状**：自写 PowerShell 启动器（从 `lab-env.json` 的 `values` 复刻全部隔离 env，`Remove-Item` 清 relay 覆盖变量，追加 `ZCODE_LOCAL_ONLY_GATEWAY=<非回环>`，再 `Start-Process` 副本 exe 并重定向日志）启动后，进程只写一行 crash-capture 日志（约 357 字节）便静默退出；三次复现，无任何远控日志。
-- **已排除**：补丁或包问题（同一副本用 `lab.mjs launch` 正常启动）；env 集缺项（与 lab launcher 同源 `lab-env.json.values`）；P1 回环校验异常（实现为纯字符串 host 提取 + 白名单比较，非回环值只触发"重置为默认回环"，没有抛异常路径）；`Start-Process` 失败（PID 写盘成功说明进程已创建）。
-- **已尝试无效**：对齐 lab launcher 的 `--proxy-server` 死代理参数并把 workspace 参数改成带引号形态；启动前删除 userData 的 `SingletonLock` / `SingletonCookie` / `SingletonSocket`。
-- **首要怀疑**：前序实例被强杀后 userData 单实例锁残留——官方 `requestSingleInstanceLock` 失败即静默 `app.quit()`（index.ts:2011-2013），与"一行日志后退出"高度吻合；Electron 41 在 Windows 上还可能使用命名 mutex 或不同锁文件名，删 `Singleton*` 不必然生效。
-- **复现要点**：先 `lab.mjs launch` 确认副本可用 → 正常停止（而非强杀）并确认按 exe 路径枚举为 0 进程、端口释放、等待数秒 → 再用手动启动器；给 exe 加 `--enable-logging --v=1`，或对 `ZCode.exe` 的进程退出做 Process Monitor 过滤。手动脚本里的 workspace 参数用 `--open-workspace="<路径>"`（裸位置参数会被 Desktop 忽略，见 K1，会干扰对现象的判读）。
-- **副产品**：验证条件的构造优先扩展 `lab.mjs` 选项（例如透传网关覆盖），不走绕开工具的路径。非回环负向的原生观察因此未达成，以契约层 vm 断言支撑（[生命周期证据](../../../../suian-zcode-app-mcp/docs/local-only/03-lifecycle-evidence.md) §3.6）。
-- **来源**：LO-03。原始脚本与三次命令可从子代理会话库恢复：`sqlite3 ~/.zcode/cli/db/db.sqlite "SELECT data FROM part WHERE session_id LIKE '%<agent-id>%' AND data LIKE '%nonloopback%'"`，再按 `$.tool` 取 `$.state.input.command`（Bash）或 `$.state.input.content`（Write）；worktree 删除后这是唯一副本。
+- **已证实**：已有实例存活时，第二进程的 `requestSingleInstanceLock` 返回 false，随后退出码 0。结束持锁实例后，同一数据目录的锁重新返回 true；本轮未复现“强杀后残留锁”。历史三次运行缺少完整的持锁进程记录，不能逐次反推旧根因。
+- **另一种失败**：没有已有实例时，原脚本因缺少 `--user-data-dir` 触发 ARMS 路径错误，进程存活但无主窗口（K13）。补上参数后，手动启动及非回环覆盖验证均成功。
+- **解法**：lab 启动前按副本 exe 路径枚举进程；即使 `run-state.json` 缺失，有存活实例也明确拒绝并列出 PID。关闭自己的 lab 实例后重试，不删锁文件或强退日常 Desktop。临时探针已从副本移除。
+- **原生覆盖**：设置非回环 `ZCODE_LOCAL_ONLY_GATEWAY` 后，真实主进程选择 `ws://127.0.0.1:17331/ws`，lab 网关达到 `desktop_ready=true`；不扩大到任意 env 组合。
+- **来源**：LO-03 原始脚本可从子代理会话库 `part` 表恢复（Bash 的 `$.state.input.command`、Write 的 `$.state.input.content`）；2026-10-22 对照与日志见[启动器诊断](../../../../suian-zcode-app-mcp/docs/local-only/08-launcher-diagnostics.md)。
 
 ## K13 重置 userData 后 workspace 直开不创建主窗口；判断窗口存在要用 CDP targets
 
 - **症状**：lab 重置 userData/sessionData/home 后 `launch --workspace` 启动，主进程存活但零 `[web-remote-control]` 日志、P6 不触发；补丁版与**原版 asar 对照**同样无窗口——与补丁无关的环境行为。userData 完成过一次首启初始化后（哪怕由原版完成）再启动一切正常。
-- **根因**：未定位。注意前提已变：修正前 lab 传的是裸位置参数，Desktop 根本不识别（见 K1），因此"按 workspace 参数创建主窗口"这个假设本身不成立；用 `--open-workspace` 修正后需重新评估本坑是否仍存在。main 日志特征：停在 crash-capture/deep-link/startup/auto-update 一段，无窗口创建迹象。
-- **解法**：验证依赖窗口的链路前确认 userData 已完成首启（先用一轮普通启动初始化）；判断"有没有窗口/页面"以 CDP `--remote-debugging-port` 的 `/json/list` targets 为准——`MainWindowTitle` 为空与按 exe 的 WQL 进程枚举都曾给出假阴性（枚举漏 renderer）。
-- **补充**：全新 userData 的另一种表现是窗口存在但停在 provider 欢迎门（K28），两种形态分开判定。零窗口根因仍未定位。
-- **来源**：LO-04（[setup 集成证据](../../../../suian-zcode-app-mcp/docs/local-only/04-setup-integration-evidence.md) §4）；LO-07 补区分。
+- **根因**：ARMS 在 ESM 依赖导入期读取 Electron userData，早于主模块按 env 执行 `app.setPath`；只设 `ZCODE_DESKTOP_USER_DATA_DIR` 时可报 `Failed to get 'userData' path`。主窗口创建前等待的 `armsInitPromise` 被拒绝，进程存活但不创建窗口。旧启动器只在启用 CDP 时传 `--user-data-dir`，开启调试会掩盖此故障。
+- **解法**：启动器始终显式传隔离的 `--user-data-dir`；全新目录可直接启动，无需先跑一轮普通首启或预置标记。Desktop 工作区用具名 `--open-workspace` 参数（K1）。判断窗口时，启用 CDP 用 `/json/list` 的 page target，无 CDP 看主窗口 dom-ready 日志；不拿进程存活或 `MainWindowTitle` 代替。
+- **补充**：窗口存在但停在 provider 欢迎门属于 K28，仍需独立配置。数据目录隔离也不隔离当前用户的协议/右键菜单注册，须按[启动器诊断的边界说明](../../../../suian-zcode-app-mcp/docs/local-only/08-launcher-diagnostics.md#5-windows-注册表隔离边界)处理。
+- **来源**：LO-04 历史观察；2026-10-22 无 CDP 契约及原生冷启动红绿证据见[启动器诊断](../../../../suian-zcode-app-mcp/docs/local-only/08-launcher-diagnostics.md)。
 
 ## K14 复用 setup 契约测试桩做 lab 端到端 runner 的三个对齐点
 

@@ -21,6 +21,7 @@ description: 隔离 ZCode lab 的搭建、启动与故障诊断：lab/patch 工�
 | 状态锚点 | `run-state.json`：主进程 PID、全部隔离 env、代理端口；读前剥 UTF-8 BOM |
 | 日志 | lab 内 `logs/desktop.{out,err}.log`；流程日志在 worktree `.scratch/logs/`（不入库） |
 | CDP | `launch --remote-debugging-port <port>`，目标列表 `/json/list` |
+| 启动约定 | 始终传隔离 `--user-data-dir`；`--workspace` 渲染为 Desktop 的 `--open-workspace`；启动前按副本 exe 路径拒绝已有进程（即使无 run-state） |
 | 受控模型 | 回环 OpenAI 兼容端点（本轮 18081）；调用锚点只记类型与长度 |
 | 面板入口 | 侧栏"查看所有插件"→`个人`→插件卡片"打开"（推荐位依赖远端配置） |
 
@@ -36,6 +37,8 @@ description: 隔离 ZCode lab 的搭建、启动与故障诊断：lab/patch 工�
 6. **环境层**：`lab.mjs check` 核对实际解析路径，重点 `ZCODE_DATA_BASE_DIR` 语义（K4）与独立进程 HOME 注入（K15）。判据：check 全项通过或列出越界项。
 7. **时序层**：开关、标志、provider 配置的求值时机 vs 创建时机（K5、K28）。判据：每个求值点都晚于其输入的创建点。
 8. **归属层**：会话、策略、安装记录、恢复副本、评论状态只落 lab；源文件、恢复副本、评论是三份独立回执（K29）。判据：每份回执都有落点证据。
+
+Windows 副本仍会自动注册当前用户的 `zcode:` 协议和右键菜单，数据目录隔离不覆盖这些注册。严格隔离需独立 Windows 用户或虚拟环境；同用户运行须事先备份并核对恢复（见 K13 的证据链接）。
 
 "设置了变量"不等于"实际生效"——以 check 输出与日志中的实际路径为判据。
 

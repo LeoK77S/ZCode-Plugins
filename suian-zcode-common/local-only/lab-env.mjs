@@ -122,11 +122,12 @@ export function renderLauncherPs1(labDir, { gatewayPort, remoteDebuggingPort } =
     '  if (-not (Test-Path -LiteralPath $workingDir)) { New-Item -ItemType Directory -Path $workingDir -Force | Out-Null }',
     '  $desktopArgs = @()',
     '  if ($ProxyServer) { $desktopArgs += "--proxy-server=$ProxyServer" }',
-    // CDP 需要同时传命令行 --user-data-dir：Chromium 对默认数据目录下的远程调试有安全缓解，
-    // 仅设 env ZCODE_DESKTOP_USER_DATA_DIR 不够，targets 不暴露（LO-02 实证，LO-03 固化进工具）。
-    // 路径以双引号内嵌（Start-Process 对数组元素不自动加引号，含空格路径会断裂）。
+    // 主模块设置 env 对应的 app 路径之前，导入依赖已可能读取 Electron userData。
+    // 即使不启用 CDP，也须在 Chromium 启动时指定目录，避免全新隔离环境下 ARMS 初始化失败。
+    // 路径以双引号内嵌（Start-Process 对数组元素不自动加引号）。
     '  $udir = ' + psQuote(dirs.userData),
-    '  if ($RemoteDebuggingPort -gt 0) { $desktopArgs += "--remote-debugging-port=$RemoteDebuggingPort"; $desktopArgs += (\'--user-data-dir="{0}"\' -f $udir) }',
+    '  $desktopArgs += (\'--user-data-dir="{0}"\' -f $udir)',
+    '  if ($RemoteDebuggingPort -gt 0) { $desktopArgs += "--remote-debugging-port=$RemoteDebuggingPort" }',
     // Desktop 仅识别 --open-workspace；裸位置参数会被忽略，首启仍打开默认会话目录。
     // 内嵌双引号保留 Start-Process 拼接后的含空格路径。
     "  if ($Workspace) { $desktopArgs += ('--open-workspace=\"{0}\"' -f $Workspace) }",

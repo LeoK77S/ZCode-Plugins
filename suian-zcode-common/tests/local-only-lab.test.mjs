@@ -253,6 +253,7 @@ test('launch 经启动器启动并等待 run-state 记录（注入启动边界�
   const result = await launchLab({
     labDir,
     proxyDeadPort: 47821,
+    readLabProcesses: async () => [],
     runLauncher: async ({ launcherPath, proxyServer }) => {
       calls.push({ launcherPath, proxyServer });
       await writeFile(dirs.runStatePath, JSON.stringify({
@@ -270,7 +271,7 @@ test('launch 经启动器启动并等待 run-state 记录（注入启动边界�
   assert.match(calls[0].proxyServer, /127\.0\.0\.1:47821/);
 });
 
-test('launch 将含空格工作区作为 Desktop 的 --open-workspace 参数交付', { skip: process.platform !== 'win32' }, async t => {
+test('launch 无调试端口仍传隔离 userData，并以具名参数交付含空格工作区', { skip: process.platform !== 'win32' }, async t => {
   const outer = await mkdtemp(join(tmpdir(), 'lo-lab-'));
   t.after(() => rm(outer, { recursive: true, force: true }));
   const labDir = join(outer, 'lab');
@@ -292,13 +293,31 @@ test('launch 将含空格工作区作为 Desktop 的 --open-workspace 参数交�
     '}',
     `& ${psQuote(dirs.launcherPath)} -Workspace ${psQuote(workspace)}`,
   ].join('\r\n'));
-  const result = await launchLab({ labDir, workspace, runLauncher: async () => {
+  const result = await launchLab({ labDir, workspace, readLabProcesses: async () => [], runLauncher: async () => {
     const run = spawnSync('powershell.exe', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', stub], { encoding: 'utf8' });
     assert.equal(run.status, 0, run.stderr);
   }});
   assert.equal(result.ok, true, result.reason);
   const argv = JSON.parse((await readFile(capture, 'utf8')).replace(/^\uFEFF/, ''));
   assert.ok(argv.includes(`--open-workspace="${workspace}"`), `Desktop 未收到具名工作区参数：${JSON.stringify(argv)}`);
+  assert.ok(argv.includes(`--user-data-dir="${dirs.userData}"`), `Chromium 必须在加载主模块前取得隔离 userData：${JSON.stringify(argv)}`);
+});
+
+test('launch 在运行记录缺失但副本实例仍存活时拒绝重复启动', async t => {
+  const outer = await mkdtemp(join(tmpdir(), 'lo-lab-'));
+  t.after(() => rm(outer, { recursive: true, force: true }));
+  const labDir = join(outer, 'lab');
+  const sourceDir = join(outer, 'fake-install');
+  const install = await makeFakeInstall(sourceDir);
+  await setupLab({ labDir, sourceDir, ...fixtureBoundaries(install.identity) });
+  let launched = false;
+  const result = await launchLab({ labDir, waitStateMs: 1, readLabProcesses: async exePath => {
+    assert.equal(exePath, labDirectories(labDir).appExe);
+    return [{ pid: 4242 }];
+  }, runLauncher: async () => { launched = true; }});
+  assert.equal(launched, false, '已有副本实例时不得再启动 Electron');
+  assert.equal(result.ok, false);
+  assert.match(result.reason, /4242/);
 });
 
 test('report 生成证据文件并分类回环与外部连接', async t => {

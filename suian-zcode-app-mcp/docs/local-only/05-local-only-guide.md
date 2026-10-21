@@ -28,7 +28,7 @@ local-only 按**字节身份**只支持一个运行包；其它构建（包括�
 
 ## 2. 隔离环境搭建
 
-一切安装、应用、网关动作只落在 lab 目录，不触日常安装、日常 `~/.zcode` 与日常网关（127.0.0.1:17329）。
+插件安装、补丁应用和网关配置只落在 lab 目录，日常安装、日常 `~/.zcode` 与日常网关（127.0.0.1:17329）不作为测试目标。原版 Desktop 副本仍会自动改写当前用户的 `zcode:` 协议与右键菜单注册；严格隔离这些系统注册时，使用独立 Windows 用户或虚拟环境。同一用户下运行须备份并核对恢复，见[启动器诊断](08-launcher-diagnostics.md#5-windows-注册表隔离边界)。
 
 ### 2.1 lab 与运行包副本
 
@@ -164,14 +164,14 @@ powershell -ExecutionPolicy Bypass -File "{{lab_dir}}/gateway-data/local-only/ap
 
 ## 6. 正常重开与就绪验证
 
-用原快捷方式（lab 中为 launcher）重开，工作区经 **`--open-workspace`** 直开（Desktop 只识别该具名参数，裸位置参数会被忽略——见 K1；欢迎页是首启必经，无登录态脚本无法点击，人工完成一次首启是兜底手段）：
+用原快捷方式（lab 中为 launcher）重开；lab 的 `--workspace` 经 Desktop 的 **`--open-workspace`** 参数直开工作区。裸位置参数会被忽略；provider 门禁仍按 §2.4 配置。
 
 ```powershell
 node "{{repo}}/suian-zcode-common/local-only/lab.mjs" launch --lab "{{lab_dir}}" `
   --proxy-dead-port {{dead_port}} --remote-debugging-port {{cdp_port}} --workspace "{{lab_dir}}/workspace"
 ```
 
-> **首启注意（K1/K13）**：全新 userData 下先跑一轮**普通启动**（不带 `--workspace`）完成首启初始化，CDP `http://127.0.0.1:{{cdp_port}}/json/list` 见 page target 即窗口已创建；随后杀进程、删 `run-state.json` 再走完整流程。跳过此步时 workspace 直开可能不创建主窗口（根因未定位，与补丁无关）。
+> **首启与重开**：当前 lab 启动器始终显式传 `--user-data-dir`，全新目录可直接启动，不需要额外跑普通首启。CDP 仅用于诊断，可以省略。进程存活不等于窗口就绪；启用 CDP 时用 `/json/list` 的 page target 判断窗口，无 CDP 时核对主窗口 dom-ready 日志。已有副本进程时先关闭该 lab 实例；工具会按 exe 路径列出 PID，不以删除运行记录或锁文件代替退出。根因与验证见[启动器诊断](08-launcher-diagnostics.md)。
 
 就绪判断（从插件视角，两条都要过）：
 

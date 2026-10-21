@@ -379,6 +379,7 @@ export async function launchLab({
   labDir,
   proxyDeadPort = 1,
   runLauncher = defaultRunLauncher,
+  readLabProcesses = defaultReadLabProcesses,
   waitStateMs = 15000,
   pollMs = 250,
   remoteDebuggingPort = 0,
@@ -391,6 +392,15 @@ export async function launchLab({
   }
   if (await exists(dirs.runStatePath)) {
     return { ok: false, reason: `已有运行记录（${dirs.runStatePath}）；先 teardown 再 launch` };
+  }
+  let processes;
+  try {
+    processes = await readLabProcesses(dirs.appExe);
+  } catch (error) {
+    return { ok: false, reason: `启动前枚举副本实例失败：${error.message}` };
+  }
+  if (processes.length) {
+    return { ok: false, reason: `副本实例仍在运行（PID ${processes.map(item => item.pid).join(', ')}）；请关闭该 lab 实例后重试` };
   }
   const proxyServer = `http://127.0.0.1:${proxyDeadPort}`;
   let gatewayPort;
