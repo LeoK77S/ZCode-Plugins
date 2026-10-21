@@ -13,7 +13,7 @@
 
 仓库的 [marketplace.json](./marketplace.json) 提供四个原生插件并登记各自版本。公共插件是三个业务插件的依赖，自动命名、会话 MCP 和文本编辑器可分别选择。
 
-市场从 [plugins-2026.10.20 预发布](https://github.com/ONEGAYI/ZCode-Plugins/releases/tag/plugins-2026.10.20) 下载四个独立 ZIP，按清单中的 SHA-256 校验。四包匿名公开下载已核验，插件安装使用发布目录；真实 Desktop 界面、系统注册与人工通知点击等验收边界见 [#121](https://github.com/ONEGAYI/ZCode-Plugins/issues/121)。
+插件 ZIP 托管在本仓库的 GitHub Releases，各插件的版本与 SHA-256 登记在市场清单中，由插件市场自动下载并校验。
 
 | 插件 | 独立技能 |
 | --- | --- |
@@ -142,7 +142,7 @@ git -C "{{repo_dir}}" sparse-checkout set suian-zcode-title suian-zcode-common
 
 公共层还会检查插件依赖。发现缺失时，Windows 通知会提供可复制的修复说明，交给 Agent 处理即可。版本信息见[市场清单](./marketplace.json)，连接条件与使用方法见[公共插件说明](./suian-zcode-common/README.md)。
 
-**可以在 ZCode 当前会话里完成安装或升级**。重载网关时，只需暂时关闭 ZCode 内的移动端远控（面板内点"停止"），让 Agent 继续配置。首次接入或修改启动地址时，Agent 也会先完成配置和本机检查，最后再提示你择时重启生效；已经连接正确网关且地址未变时，重新开启远控即可。
+**可以在 ZCode 当前会话里完成安装或升级**。重载网关时，Agent 会自动避开进行中的远控操作：空闲时直接切换，Desktop 连接层自动重连；持续忙碌时最多等待约一分钟，可稍后重试或暂停远控让出窗口。首次接入或修改启动地址时，Agent 也会先完成配置和本机检查，最后再提示你择时重启生效；已经连接正确网关且地址未变时，重新开启远控即可。
 
 手机控制本机项目时，插件可以同时操作。手机切换到 SSH、WSL 等远程开发工作区后，本地会话操作会暂时不可用；切回本机项目后可以继续。
 
