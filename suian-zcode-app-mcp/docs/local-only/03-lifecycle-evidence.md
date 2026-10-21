@@ -31,7 +31,7 @@ P1 同步扩展：`__LO_WS` 求值（IIFE 内收拢，见 §6 踩坑）与网关
 - **更新** `tests/local-only-patch.test.mjs`（v2 断言）与 `tests/local-only-lab.test.mjs`（网关 env/调试端口断言）。
 - 红→绿记录：`.scratch/logs/lo03-lifecycle-red.log`（实现缺失时 12 项失败）→ `lo03-lifecycle-green.log`（41/41）。修复过程中的真实红灯（`var b2` 与产物顶层 `let b2` 冲突导致 main bundle SyntaxError、锚点跨行断裂）均被测试与真实产物 `node --check` 抓出。
 - 全量：`suian-zcode-common` 324/324 通过（`.scratch/logs/lo03-common-full.log`；LO-02 基线 303 + 本票 21）。
-- **lab 工具增强**（验证条件所需，随契约测试）：启动器设置 `ZCODE_LOCAL_ONLY_GATEWAY`（与网关配置端口一致）；`--remote-debugging-port`（自动附命令行 `--user-data-dir`，见 §6）；`--workspace`（启动位置参数，官方 argv 语义直开工作区）。`lab-env.mjs`/`lab.mjs` 单一数据源同步更新，check 对网关 env 做回环与端口一致性校验。
+- **lab 工具增强**（验证条件所需，随契约测试）：启动器设置 `ZCODE_LOCAL_ONLY_GATEWAY`（与网关配置端口一致）；`--remote-debugging-port`（自动附命令行 `--user-data-dir`，见 §6）；`--workspace`（当时渲染为裸位置参数；**后续修正**：官方 `extractOpenWorkspacePathFromArgs` 只识别 `--open-workspace`，裸参数被忽略，lab 已改为 `--open-workspace="<路径>"`，见 K1）。`lab-env.mjs`/`lab.mjs` 单一数据源同步更新，check 对网关 env 做回环与端口一致性校验。
 
 ## 3. 原生验证逐项结论（真实 lab）
 
@@ -46,7 +46,7 @@ probeHost: {"ok":true,"stage":"gateway","mode":"local-only","paired":true,"hostR
 connectHost: desktopAppVersion 3.16.2, workspaces [{"kind":"local","label":"workspace"}]
 ```
 
-首启欢迎页以 workspace 位置参数直开工作区绕过（官方 argv 语义，非 UI 自动化），远控 attach 的 workspace 与窗口一致。
+首启欢迎页以 workspace 参数直开工作区绕过（当时为裸位置参数，**后续确认该形态被 Desktop 忽略**，已改为 `--open-workspace`；本轮"绕过"结论需在修正参数后重新确认，见 K1 与 §6），远控 attach 的 workspace 与窗口一致。
 
 ### 3.2 网关重启恢复与重连退避（票面验收 3 前半）
 

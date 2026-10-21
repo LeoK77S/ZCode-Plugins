@@ -6,8 +6,8 @@
 ## K1 首次启动卡欢迎页（provider 门禁与 workspace 参数）
 
 - **症状**：隔离副本首次启动停在欢迎/引导页，无登录态时脚本自动化无法继续；远控面板等入口不可达。
-- **根因**（两层）：欢迎引导是首启流程的一部分，完成状态记在 userData 内（具体持久化文件名仍未定位）；3.16.2 还会因 `providerFamilyDomain` 为空或"无登录且无可用 Provider"打开登录门禁（K28）。workspace 位置参数绕过首启引导，provider 门禁另需 K28 的配置。
-- **解法**：启动时把工作区路径作为**位置参数**传给 exe（官方 argv 语义 `extractOpenWorkspacePathFromArgs`），Desktop 直开该工作区、绕过首启引导——`lab.mjs launch --workspace <路径>` 已内置。lab 无登录验收还需写入受控 provider 与 `providerFamilyDomain` 后重启（K28）。远控 attach 的 workspace 与窗口一致时 connectHost 才能通过（不一致报 "Requested local workspace is not open in the Desktop window"）。
+- **根因**（两层）：欢迎引导是首启流程的一部分，完成状态记在 userData 内（具体持久化文件名仍未定位）；3.16.2 还会因 `providerFamilyDomain` 为空或"无登录且无可用 Provider"打开登录门禁（K28）。`--open-workspace` 参数可绕过首启引导（裸位置参数无效，见解法），provider 门禁另需 K28 的配置。
+- **解法**：用 `--open-workspace="<路径>"` 交付工作区——官方 `desktopDeepLinkUrl.ts:224-244` 只识别 `--open-workspace <path>` 与 `--open-workspace=<path>` 两种形式，**裸位置参数被忽略**（这一点于 LO-07 后由源码核对并修正 lab 工具）。`lab.mjs launch --workspace <路径>` 已内置该形态。lab 无登录验收还需写入受控 provider 与 `providerFamilyDomain` 后重启（K28）。远控 attach 的 workspace 与窗口一致时 connectHost 才能通过（不一致报 "Requested local workspace is not open in the Desktop window"）。
 - **CDP 补充**：CDP 可越过 UI 直接调用官方 IPC 验证 main 链路；CDP 连接需给 Electron **命令行**传 `--user-data-dir`（env 不够，见 K11）。人工点击一次、CDP 直调 IPC 是备选手段。
 - **来源**：LO-02、LO-03 升级（[生命周期证据](../../../../suian-zcode-app-mcp/docs/local-only/03-lifecycle-evidence.md) §3.1/§6）；LO-07 补 provider 门禁（[LO-07 证据](../../../../suian-zcode-app-mcp/docs/local-only/07-editor-acceptance-evidence.md) §4）。
 
@@ -74,7 +74,7 @@
 
 - **症状一**：手工给 `launcher.ps1` 加的 env/参数在下次 `launch` 后消失。
 - **根因**：`launchLab` 每次启动前用当前工具版本重渲染 launcher，覆盖手工修改。
-- **解法**：lab 需要的启动条件一律走 `lab.mjs` 选项（已固化：`--remote-debugging-port` 自动附命令行 `--user-data-dir`；`--workspace` 位置参数；网关 env 自动与 `gateway/config.json` 端口一致）。
+- **解法**：lab 需要的启动条件一律走 `lab.mjs` 选项（已固化：`--remote-debugging-port` 自动附命令行 `--user-data-dir`；`--workspace` 内部渲染为 `--open-workspace="<路径>"`；网关 env 自动与 `gateway/config.json` 端口一致）。
 - **症状二**：CDP 端口在监听但 `/json/list` 空。**根因**：Electron 41/Chromium 146 对默认数据目录下的远程调试有安全缓解，必须命令行传 `--user-data-dir`（仅设 env 不够）；PowerShell `Start-Process -ArgumentList` 数组元素不自动加引号，含空格路径需自行内嵌双引号（单引号会成为路径字面量）。
 - **来源**：LO-03（[生命周期证据](../../../../suian-zcode-app-mcp/docs/local-only/03-lifecycle-evidence.md) §6 踩坑 3/4）。
 
@@ -84,14 +84,14 @@
 - **已排除**：补丁或包问题（同一副本用 `lab.mjs launch` 正常启动）；env 集缺项（与 lab launcher 同源 `lab-env.json.values`）；P1 回环校验异常（实现为纯字符串 host 提取 + 白名单比较，非回环值只触发"重置为默认回环"，没有抛异常路径）；`Start-Process` 失败（PID 写盘成功说明进程已创建）。
 - **已尝试无效**：对齐 lab launcher 的 `--proxy-server` 死代理参数并把 workspace 参数改成带引号形态；启动前删除 userData 的 `SingletonLock` / `SingletonCookie` / `SingletonSocket`。
 - **首要怀疑**：前序实例被强杀后 userData 单实例锁残留——官方 `requestSingleInstanceLock` 失败即静默 `app.quit()`（index.ts:2011-2013），与"一行日志后退出"高度吻合；Electron 41 在 Windows 上还可能使用命名 mutex 或不同锁文件名，删 `Singleton*` 不必然生效。
-- **复现要点**：先 `lab.mjs launch` 确认副本可用 → 正常停止（而非强杀）并确认按 exe 路径枚举为 0 进程、端口释放、等待数秒 → 再用手动启动器；给 exe 加 `--enable-logging --v=1`，或对 `ZCode.exe` 的进程退出做 Process Monitor 过滤。
+- **复现要点**：先 `lab.mjs launch` 确认副本可用 → 正常停止（而非强杀）并确认按 exe 路径枚举为 0 进程、端口释放、等待数秒 → 再用手动启动器；给 exe 加 `--enable-logging --v=1`，或对 `ZCode.exe` 的进程退出做 Process Monitor 过滤。手动脚本里的 workspace 参数用 `--open-workspace="<路径>"`（裸位置参数会被 Desktop 忽略，见 K1，会干扰对现象的判读）。
 - **副产品**：验证条件的构造优先扩展 `lab.mjs` 选项（例如透传网关覆盖），不走绕开工具的路径。非回环负向的原生观察因此未达成，以契约层 vm 断言支撑（[生命周期证据](../../../../suian-zcode-app-mcp/docs/local-only/03-lifecycle-evidence.md) §3.6）。
 - **来源**：LO-03。原始脚本与三次命令可从子代理会话库恢复：`sqlite3 ~/.zcode/cli/db/db.sqlite "SELECT data FROM part WHERE session_id LIKE '%<agent-id>%' AND data LIKE '%nonloopback%'"`，再按 `$.tool` 取 `$.state.input.command`（Bash）或 `$.state.input.content`（Write）；worktree 删除后这是唯一副本。
 
 ## K13 重置 userData 后 workspace 直开不创建主窗口；判断窗口存在要用 CDP targets
 
 - **症状**：lab 重置 userData/sessionData/home 后 `launch --workspace` 启动，主进程存活但零 `[web-remote-control]` 日志、P6 不触发；补丁版与**原版 asar 对照**同样无窗口——与补丁无关的环境行为。userData 完成过一次首启初始化后（哪怕由原版完成）再启动一切正常。
-- **根因**：未定位（疑似首启引导流程在全新 userData 下未按 workspace 参数创建主窗口）。main 日志特征：停在 crash-capture/deep-link/startup/auto-update 一段，无窗口创建迹象。
+- **根因**：未定位。注意前提已变：修正前 lab 传的是裸位置参数，Desktop 根本不识别（见 K1），因此"按 workspace 参数创建主窗口"这个假设本身不成立；用 `--open-workspace` 修正后需重新评估本坑是否仍存在。main 日志特征：停在 crash-capture/deep-link/startup/auto-update 一段，无窗口创建迹象。
 - **解法**：验证依赖窗口的链路前确认 userData 已完成首启（先用一轮普通启动初始化）；判断"有没有窗口/页面"以 CDP `--remote-debugging-port` 的 `/json/list` targets 为准——`MainWindowTitle` 为空与按 exe 的 WQL 进程枚举都曾给出假阴性（枚举漏 renderer）。
 - **补充**：全新 userData 的另一种表现是窗口存在但停在 provider 欢迎门（K28），两种形态分开判定。零窗口根因仍未定位。
 - **来源**：LO-04（[setup 集成证据](../../../../suian-zcode-app-mcp/docs/local-only/04-setup-integration-evidence.md) §4）；LO-07 补区分。

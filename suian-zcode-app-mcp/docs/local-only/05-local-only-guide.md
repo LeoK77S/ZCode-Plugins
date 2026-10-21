@@ -164,7 +164,7 @@ powershell -ExecutionPolicy Bypass -File "{{lab_dir}}/gateway-data/local-only/ap
 
 ## 6. 正常重开与就绪验证
 
-用原快捷方式（lab 中为 launcher）重开，工作区以**位置参数**直开（官方 argv 语义，绕过首启欢迎页——欢迎页是首启必经，无登录态脚本无法点击；人工完成一次首启是兜底手段）：
+用原快捷方式（lab 中为 launcher）重开，工作区经 **`--open-workspace`** 直开（Desktop 只识别该具名参数，裸位置参数会被忽略——见 K1；欢迎页是首启必经，无登录态脚本无法点击，人工完成一次首启是兜底手段）：
 
 ```powershell
 node "{{repo}}/suian-zcode-common/local-only/lab.mjs" launch --lab "{{lab_dir}}" `
