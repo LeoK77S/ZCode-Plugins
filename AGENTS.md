@@ -90,7 +90,7 @@ ZCode-Plugins/
 │   ├── migration.mjs / legacy-cleanup.mjs # 旧源码迁移链（PKG-08）：开关与路径记录/恢复；旧 junction 归属核对后只删链接
 │   ├── toast-action.mjs    # Toast 按钮协议入口：重扫→复制修复提示词→打开 ZCode
 │   ├── toast-runtime.mjs / toast-executor.mjs # 缓存外共享 Toast 稳定运行时与自包含执行器（PKG-06）
-│   ├── local-only/         # LO-01 隔离测试 lab：lab-env.mjs 环境定义（单包字节身份）+ lab.mjs CLI（setup/check/launch/report/teardown）
+│   ├── local-only/         # LO 隔离验证与补丁：lab-env.mjs 环境定义（单包字节身份）+ lab.mjs CLI（setup/check/launch/report/teardown）+ LO-02 补丁工具（patch-env.mjs 单一数据源：锚点/开关约定/退出码；patch.mjs CLI：status/prepare/apply/restore，完全短路方案，网关字节不改）
 │   ├── vendor/             # 固定协议／投影及官方V4 decoder；保留来源和独立许可
 │   └── skills/             # setup / configuration / debug
 │
