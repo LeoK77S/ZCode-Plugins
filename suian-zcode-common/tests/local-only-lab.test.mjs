@@ -90,6 +90,10 @@ test('lab 环境变量定义：ZCODE_DATA_BASE_DIR 指向 .zcode 父目录，覆
   assert.equal(values.LOCALAPPDATA, dirs.localappdata);
   // 单实例锁隔离：userData 与应用名都偏离日常默认。
   assert.equal(values.ZCODE_DESKTOP_APPLICATION_NAME, 'ZCode Lab');
+  // LO-03：网关地址 env 与网关配置端口一致（补丁 P1 只接受回环目标）；
+  // lab 网关端口自定义时（如 17431 避开 17331），副本必须显式指向同端口。
+  assert.equal(values.ZCODE_LOCAL_ONLY_GATEWAY, 'http://127.0.0.1:17331');
+  assert.equal(labEnvValues(labDir, { gatewayPort: 17431 }).ZCODE_LOCAL_ONLY_GATEWAY, 'http://127.0.0.1:17431');
   for (const key of ['HOME', 'USERPROFILE', 'APPDATA', 'LOCALAPPDATA', 'ZCODE_DATA_BASE_DIR',
     'ZCODE_DESKTOP_HOME_DIR', 'ZCODE_DESKTOP_USER_DATA_DIR', 'ZCODE_DESKTOP_SESSION_DATA_DIR',
     'ZCODE_STORAGE_DIR', 'ZCODE_SESSION_DB_PATH']) {
@@ -122,6 +126,10 @@ test('setup 创建完整目录树、启动器、网关配置与清单，并记�
   assert.match(launcher, /Remove-Item Env:ZCODE_WEB_REMOTE_CONTROL_URL/);
   assert.ok(launcher.includes(join(dirs.app, 'ZCode.exe')));
   assert.match(launcher, /-RedirectStandardOutput/);
+  // LO-03：启动器设置 local-only 网关地址 env（与网关配置端口一致），并支持可选
+  // CDP 远程调试端口参数（renderer 触发缺口的诊断与账号事件注入用；userData 已显式）。
+  assert.match(launcher, /\$env:ZCODE_LOCAL_ONLY_GATEWAY\s*=\s*'http:\/\/127\.0\.0\.1:17331'/);
+  assert.match(launcher, /RemoteDebuggingPort/);
   // 网关配置模板：local-only + V2 + 独立端口 + 随机令牌（LO-01 只交付配置，不启动网关）。
   const gatewayConfig = JSON.parse(await readFile(dirs.gatewayConfigPath, 'utf8'));
   assert.equal(gatewayConfig.version, 1);

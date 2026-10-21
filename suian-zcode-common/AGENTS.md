@@ -7,7 +7,7 @@
 - 只有网关是常驻独立进程，其他能力是调用方导入的模块；提取代码不代表所有插件自动增加这些行为。
 - 网关只绑定 `127.0.0.1`，不读取远控链接或 ZCode 凭据、不记录消息体。本地工作区复用窗口 Host 的一个物理桥，隔离客户端 RPC 编号；共存声明必须区分隔离测试与真实手机验收。实验性 terminal 模式通过调用方的 `getToken` 获取一次性终端 token，Desktop 直连官方 relay；同设备只允许一个 terminal，收到 KICKED 后停止连接，不自动争抢。
 - 默认 relay 模式保留官方鉴权与手机共存；显式 local-only 模式仅处理回环 Desktop 的注册、就绪和心跳，不连接官方 relay、不使用传入的 pass_hash，也不宣称官方身份已验证。本地 RPC 仍要求当前用户 control_token；设备入口信任本机进程，拒绝浏览器 Origin。旧配置无 mode 时按 relay 兼容，不因网络失败自动切换。
-- relay 的 `relayProtocolVersion`／配置 `relay_protocol_version` 缺省为 1；3.16 显式选择 2，转发 Desktop 一次性 token 与 MID，不另占 terminal。V2 消息严格区分 server_ts／client_ts，使用 Unix 秒；将 auth_ack 转成配对通知时不得带 device_sid。3.16 原版 local-only 不支持；LO-02 已交付完全短路补丁（登录/HTTP 注册/取令牌短路 + 回环 WS，网关字节不改）并在 lab 内完成握手与原 Host 探针验证，renderer 无登录触发缺口与 setup 产品闭环仍为后续票（见 [补丁证据](../suian-zcode-app-mcp/docs/local-only/02-patch-evidence.md)），旧模式测试不构成 3.16 离线证据。
+- relay 的 `relayProtocolVersion`／配置 `relay_protocol_version` 缺省为 1；3.16 显式选择 2，转发 Desktop 一次性 token 与 MID，不另占 terminal。V2 消息严格区分 server_ts／client_ts，使用 Unix 秒；将 auth_ack 转成配对通知时不得带 device_sid。3.16 原版 local-only 不支持；LO-02 已交付完全短路补丁（登录/HTTP 注册/取令牌短路 + 回环 WS，网关字节不改）并在 lab 内完成握手与原 Host 探针验证（[补丁证据](../suian-zcode-app-mcp/docs/local-only/02-patch-evidence.md)）；LO-03 升级补丁 v2 补齐无登录冷启动自动触发、重连恢复与 signed-out 事件隔离并在 lab 完成离线生命周期验证（[生命周期证据](../suian-zcode-app-mcp/docs/local-only/03-lifecycle-evidence.md)），setup 产品闭环与在线 relay 验收仍为后续票，旧模式测试不构成 3.16 离线证据。
 - Windows 安装器按显式 ZcodeAppVersion 或宿主 ZCODE_APP_VERSION 自动选择协议与官方地址；没有新版本信息时保留已配置协议。升级时只迁移旧官方地址，自定义上游、端口、令牌和原环境备份保留；旧配置缺少协议字段按 V1 兼容，不能把无版本依据的默认值当作 3.16 就绪证据。
 - 公共远控模块使用调用方提供的授权。DPAPI 明文只在进程内，保存位置由调用方的 `dataDir` 决定；不回显或复制凭据到公共配置。
 - Toast 的两小时冷却与互斥实现共用，状态范围由调用方的 `dataDir` 决定。协议、快捷方式和 AUMID 属于调用方，卸载一个插件不删除另一个身份。
@@ -69,12 +69,14 @@
 | tests/depcheck.test.mjs / tests/depcheck-hook.test.mjs / tests/toast-executor.test.mjs | PKG-08 发布契约扫描：无 node_modules 发布产物不再误判（红色证明在案）、缺文件/错身份/API 不兼容检出、Hook 通知链与缓存外执行器快照对齐 |
 | tests/migration.test.mjs / tests/legacy-cleanup.test.mjs | PKG-08 迁移链：开关与路径记录（不含令牌）、恢复不覆盖自定义字段、端到端记录→清理→部署→恢复；链接清理归属核对、只删链接、真实目录与他人目标保留 |
 | experiments/ | 仅发合成 auth_init 的研究探针，不自动执行 |
-| local-only/lab-env.mjs | LO-01 隔离环境单一数据源：目录树、进程级 env 集（ZCODE_DATA_BASE_DIR 指向 .zcode 父目录、清除官方 relay 覆盖变量）、单包字节身份（3.16.2.8769 + app.asar SHA-256）、启动器与 lab 网关配置渲染 |
-| local-only/lab.mjs | LO-01 lab CLI（setup/check/launch/report/teardown）：身份核对先于写入、路径归属 check、启动器启动副本并写运行记录、report 按 exe 枚举进程并分类回环/外部连接、teardown 只杀记录 PID 树并等待退出后清理；系统边界参数化注入供契约测试 |
-| local-only/patch-env.mjs | LO-02 补丁单一数据源：补丁版本、注入点锚点（真实产物唯一命中的精确字节串，失配即 anchor_mismatch）、开关载体约定（env 覆盖 > 数据根/userData 标志文件）、备份/状态文件名与失败退出码；包身份复用 lab-env 不另立 |
-| local-only/patch.mjs | LO-02 补丁 CLI（status/prepare/apply/restore）：asar 头解析与确定性重写（紧凑 JSON、紧排 offset、integrity 重算）、fuse wire 前置检查（EnableEmbeddedAsarIntegrityValidation=ENABLE 拒绝）、apply 备份验证后替换并复核、restore 按记录恢复并核对原包摘要、目标变化/运行实例/摘要不符明确失败不强退；随构建分发（安装期工具定位），lab.mjs 实验工具不进发布目录 |
+| local-only/lab-env.mjs | LO-01 隔离环境单一数据源：目录树、进程级 env 集（ZCODE_DATA_BASE_DIR 指向 .zcode 父目录、清除官方 relay 覆盖变量、LO-03 增 ZCODE_LOCAL_ONLY_GATEWAY 与网关配置端口一致）、单包字节身份（3.16.2.8769 + app.asar SHA-256）、启动器与 lab 网关配置渲染（LO-03 增 CDP 调试端口——自动附命令行 --user-data-dir——与 workspace 位置参数直开工作区） |
+| local-only/lab.mjs | LO-01 lab CLI（setup/check/launch/report/teardown）：身份核对先于写入、路径归属 check、启动器启动副本并写运行记录（每次启动前重渲染，手工改 launcher 会被覆盖）、report 按 exe 枚举进程并分类回环/外部连接、teardown 只杀记录 PID 树并等待退出后清理；系统边界参数化注入供契约测试 |
+| local-only/patch-env.mjs | LO-02 建立、LO-03 升 v2 的补丁单一数据源：补丁版本、注入点锚点 P0-P6（真实产物唯一命中的精确字节串，失配即 anchor_mismatch；v2 新增 signed-out 隔离与 main 自动启动，注入求值守则 IIFE 收拢不占顶层压缩名）、开关载体约定（env 覆盖 > 数据根/userData 标志文件；工作区 env > 标志首行；网关地址仅回环目标）、备份/状态文件名与失败退出码；包身份复用 lab-env 不另立 |
+| local-only/patch.mjs | LO-02 建立、LO-03 升 v2 的补丁 CLI（status/prepare/apply/restore）：asar 头解析与确定性重写（紧凑 JSON、紧排 offset、integrity 重算）、fuse wire 前置检查（EnableEmbeddedAsarIntegrityValidation=ENABLE 拒绝）、apply 备份验证后替换并复核、restore 按记录恢复并核对原包摘要、目标变化/运行实例/摘要不符明确失败不强退；v1→v2 升级：prepare 对旧版补丁目标自完好备份生成候选，apply 自动 restore→re-apply 不叠加注入（备份缺失/不符明确失败）；随构建分发（安装期工具定位），lab.mjs 实验工具不进发布目录 |
 | tests/local-only-lab.test.mjs | LO-01 契约测试：目录树/启动器/清单、身份不匹配拒绝、越界路径检出、副本篡改检出、BOM 与 WQL 转义回归、teardown 只清 lab 内 |
+| tests/local-only-fixture.mjs | LO-03 提取的契约共享 fixture：真实产物锚点切片（含 v2 注入点）与合成 asar 构造；顶层预置压缩名占位（let b2）防注入体向模块顶层引入裸 var 的回归 |
 | tests/local-only-patch.test.mjs | LO-02 契约测试：真实锚点切片注入与 ESM 语法检查、asar 往返/确定性/unpacked 保留、fuse wire 解析、status 三态、身份/锚点失配拒绝、apply 全链与重复识别、运行实例拒绝、restore 摘要核对与目标变化拒绝 |
+| tests/local-only-lifecycle.test.mjs | LO-03 生命周期契约：v2 注入点输出与原版失败契约（官方路径零改写、开关关闭零行为变化）、P1 门控 vm 三态与回环约束、P6 自动启动 vm 行为（幂等/重试/零启动）、v1→v2 升级三路径 |
 | package.json / package-lock.json | 固定 Node/ws 版本与测试入口 |
 | docs/ | [共享运行时与 Release 规格](docs/shared-runtime-release-spec.md)、[开票索引](docs/shared-runtime-release-tickets.md)及脱敏验证证据；历史与本次验证分开 |
 | docs/client-contract.md | PKG-01 公共加载契约：锚点事实、定位规则、失败分类、导出清单、release.json 与构建输入说明及业务迁移指引 |

@@ -63,7 +63,7 @@ export function labDirectories(labDir) {
   };
 }
 
-export function labEnvValues(labDir) {
+export function labEnvValues(labDir, { gatewayPort = LAB_GATEWAY_DEFAULT_PORT } = {}) {
   const dirs = labDirectories(labDir);
   return {
     HOME: dirs.home,
@@ -77,6 +77,8 @@ export function labEnvValues(labDir) {
     ZCODE_DESKTOP_APPLICATION_NAME: LAB_APPLICATION_NAME,
     ZCODE_STORAGE_DIR: dirs.storage,
     ZCODE_SESSION_DB_PATH: join(dirs.sessionDbDir, 'db.sqlite'),
+    // LO-03：local-only 补丁 P1 的网关地址通道（仅接受回环目标）；与 lab 网关配置端口一致。
+    ZCODE_LOCAL_ONLY_GATEWAY: `http://127.0.0.1:${gatewayPort}`,
   };
 }
 
@@ -95,9 +97,11 @@ const psQuote = (s) => `'${s.replaceAll("'", "''")}'`;
 // 隔离 env 只存在于本进程及其子进程（副本 exe），不改用户环境变量。
 // --proxy-server 适用边界：仅约束 Chromium 网络栈；Desktop main 进程的远控 HTTP 走 Node fetch
 // （官方 webRemoteControlV2Http.ts），不受该开关控制，其官方连接证据以 report 的 TCP 观察为准。
-export function renderLauncherPs1(labDir) {
+// LO-03：gatewayPort 生成与网关配置一致的 ZCODE_LOCAL_ONLY_GATEWAY；RemoteDebuggingPort 可选
+// （CDP 诊断/账号事件注入；Electron 41 需配合已显式的 --user-data-dir 才暴露 targets）。
+export function renderLauncherPs1(labDir, { gatewayPort, remoteDebuggingPort } = {}) {
   const dirs = labDirectories(labDir);
-  const values = labEnvValues(labDir);
+  const values = labEnvValues(labDir, gatewayPort === undefined ? {} : { gatewayPort });
   const envLines = Object.entries(values).map(([key, value]) => `$env:${key} = ${psQuote(value)}`);
   const clearLines = LAB_ENV_CLEAR.map((key) => `Remove-Item Env:${key} -ErrorAction SilentlyContinue`);
   const envSnapshotLines = Object.keys(values).map((key) => `    ${key} = $env:${key}`);
@@ -105,7 +109,9 @@ export function renderLauncherPs1(labDir) {
     '# local-only lab 启动器（LO-01 生成，勿手工编辑）。',
     '# 隔离 env 仅在当前 PowerShell 进程内设置，副本 exe 及其子进程继承；不修改用户环境变量。',
     'param(',
-    "    [string]$ProxyServer = ''",
+    "    [string]$ProxyServer = '',",
+    '    [int]$RemoteDebuggingPort = 0,',
+    "    [string]$Workspace = ''",
     ')',
     "$ErrorActionPreference = 'Stop'",
     'try {',
@@ -116,12 +122,21 @@ export function renderLauncherPs1(labDir) {
     '  if (-not (Test-Path -LiteralPath $workingDir)) { New-Item -ItemType Directory -Path $workingDir -Force | Out-Null }',
     '  $desktopArgs = @()',
     '  if ($ProxyServer) { $desktopArgs += "--proxy-server=$ProxyServer" }',
+    // CDP 需要同时传命令行 --user-data-dir：Chromium 对默认数据目录下的远程调试有安全缓解，
+    // 仅设 env ZCODE_DESKTOP_USER_DATA_DIR 不够，targets 不暴露（LO-02 实证，LO-03 固化进工具）。
+    // 路径以双引号内嵌（Start-Process 对数组元素不自动加引号，含空格路径会断裂）。
+    '  $udir = ' + psQuote(dirs.userData),
+    '  if ($RemoteDebuggingPort -gt 0) { $desktopArgs += "--remote-debugging-port=$RemoteDebuggingPort"; $desktopArgs += (\'--user-data-dir="{0}"\' -f $udir) }',
+    // Workspace 位置参数（官方 index.ts extractOpenWorkspacePathFromArgs 语义）：启动即打开
+    // 指定工作区，绕过首启欢迎页；与 local-only 标志首行一致时远控 attach 与窗口工作区匹配。
+    "  if ($Workspace) { $desktopArgs += ('\"{0}\"' -f $Workspace) }",
     '  $proc = Start-Process -FilePath $exe -ArgumentList $desktopArgs -WorkingDirectory $workingDir -PassThru -RedirectStandardOutput ' + psQuote(join(dirs.logsDir, 'desktop.out.log')) + ' -RedirectStandardError ' + psQuote(join(dirs.logsDir, 'desktop.err.log')),
     '  $state = [ordered]@{',
     '    pid = $proc.Id',
     '    exePath = $exe',
     "    startedAt = (Get-Date).ToUniversalTime().ToString('o')",
     '    proxyServer = $ProxyServer',
+    '    remoteDebuggingPort = $RemoteDebuggingPort',
     `    labDir = ${psQuote(dirs.root)}`,
     '    env = @{',
     ...envSnapshotLines,
@@ -148,18 +163,19 @@ export function renderGatewayConfig({ port = LAB_GATEWAY_DEFAULT_PORT } = {}) {
   };
 }
 
-// lab env 定义文件内容（setup 写出、check 消费）。
-export function renderEnvDocument(labDir) {
+// lab env 定义文件内容（setup 写出、check 消费）。gatewayPort 与网关配置一致。
+export function renderEnvDocument(labDir, { gatewayPort } = {}) {
   const dirs = labDirectories(labDir);
   return {
     formatVersion: 1,
     kind: 'local-only-lab-env',
     labDir: dirs.root,
-    values: labEnvValues(labDir),
+    values: labEnvValues(labDir, gatewayPort === undefined ? {} : { gatewayPort }),
     clear: LAB_ENV_CLEAR,
     semantics: {
       ZCODE_DATA_BASE_DIR: '指向 .zcode 父目录（官方 services paths.ts：getZCodeDataRootDir = join(getDataBaseDir(), ".zcode")）',
       ZCODE_DESKTOP_USER_DATA_DIR: 'Electron 单实例锁按 userData 派生；独立 userData + 独立应用名避免锁转交日常窗口',
+      ZCODE_LOCAL_ONLY_GATEWAY: 'local-only 补丁 P1 的网关地址通道（仅回环目标生效）；端口与 gateway/config.json 一致',
       clear: '启动器进程内删除；日常 HKCU 的 relay 覆盖指向 17329 日常网关，副本不得继承',
     },
   };
