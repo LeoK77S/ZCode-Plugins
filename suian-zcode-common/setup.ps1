@@ -223,7 +223,8 @@ function Stop-GatewayForUpgrade {
     $deadline = [DateTime]::UtcNow.AddSeconds($BusyTimeoutSec)
     $delay = $BusyRetryMs
     while ($true) {
-        if ($null -eq $CurrentHealth) { return 'stopped' }
+        # 探活不可达（含退避中途网关退出）：等待监听与启动器收尾后按已停止处理，与 catch 分支语义一致。
+        if ($null -eq $CurrentHealth) { Wait-GatewayExit; return 'stopped' }
         $query = ''
         if ($CurrentHealth.desktop_connected) {
             if ($CurrentHealth.PSObject.Properties['relay_protocol_version'] -and $CurrentHealth.relay_protocol_version -eq 2 -and $CurrentHealth.PSObject.Properties['rpc_in_flight'] -and [int]$CurrentHealth.rpc_in_flight -eq 0) { $query = '?idle=1' }
