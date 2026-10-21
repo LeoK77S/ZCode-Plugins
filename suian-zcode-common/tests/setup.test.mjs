@@ -980,11 +980,15 @@ test('切换事务由独占句柄锁保护：持锁时第二实例明确失败�
   const heldSignal = join(f.root, 'lock-held.signal');
   const singleQuote = path => path.replace(/'/g, "''");
   const holder = spawn('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command',
-    `[IO.Directory]::CreateDirectory('${singleQuote(f.dataDir)}') | Out-Null; $fs=[IO.File]::Open('${singleQuote(lockPath)}','Create','ReadWrite','None'); Set-Content -LiteralPath '${singleQuote(heldSignal)}' 'held'; Start-Sleep -Seconds 120; $fs.Close()`], { windowsHide: true, stdio: 'ignore' });
+    `[IO.Directory]::CreateDirectory('${singleQuote(f.dataDir)}') | Out-Null; $fs=[IO.File]::Open('${singleQuote(lockPath)}','Create','ReadWrite','Read'); $b=[Text.Encoding]::UTF8.GetBytes("$PID\`n"); $fs.Write($b,0,$b.Length); $fs.Flush(); Set-Content -LiteralPath '${singleQuote(heldSignal)}' 'held'; Start-Sleep -Seconds 120; $fs.Close()`], { windowsHide: true, stdio: 'ignore' });
   t.after(() => holder.kill());
   for (let i = 0; i < 100 && !existsSync(heldSignal); i++) await new Promise(resolve => setTimeout(resolve, 50));
   assert.ok(existsSync(heldSignal), '外部持锁进程应就绪');
-  await assert.rejects(f.run('Install'), error => { assert.match(error.stderr, /already running/); return true; });
+  await assert.rejects(f.run('Install'), error => {
+    assert.match(error.stderr, /already running/);
+    assert.match(error.stderr, new RegExp('pid ' + holder.pid), '报错应带持锁进程 pid');
+    return true;
+  });
   assert.equal((await f.state()).registrations, 0, '拿锁失败不得注册任务');
   await assert.rejects(stat(join(f.dataDir, 'config.json')), { code: 'ENOENT' }, '拿锁失败不得写配置');
   const status = await f.run('Status');
@@ -1080,4 +1084,15 @@ test('Remove 在远控忙时同样退避（V1 保守等待），超时放弃不�
   const after = await f.state();
   assert.notEqual(after.task, null, '放弃移除不得删除任务');
   assert.equal(after.shutdowns, 0);
+});
+
+test('运行中 V1 网关升级到 V2 时不启用空闲闪断：按健康自报协议保守等待', { skip: process.platform !== 'win32' }, async t => {
+  const f = await fixture(t);
+  await f.run('Install');
+  const state = await f.state();
+  state.desktop = true; state.rpc_in_flight = 0; state.app_version_env = '3.16.1';
+  await writeFile(f.stateFile, JSON.stringify(state));
+  const deferred = await f.run('Restart', { zcodeAppVersion: '3.16.1', busyTimeoutSec: 1, busyRetryMs: 50 });
+  assert.equal(deferred.upgrade_deferred, 'remote_busy');
+  assert.equal((await f.state()).shutdowns, 0, '不得对运行中 V1 Desktop 发出空闲闪断关闭');
 });

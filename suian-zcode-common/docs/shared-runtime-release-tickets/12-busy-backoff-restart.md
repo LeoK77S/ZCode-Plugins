@@ -1,6 +1,6 @@
 # GUL-03：升级忙退避重探与超时放弃
 
-**状态**：用户已确认（2026-10-21）；已发布为 #136；等待 GUL-01（#134）、GUL-02（#135）。
+**状态**：用户已确认（2026-10-21）；已发布为 #136；已在 feat/gateway-upgrade-backoff-lock 实施完成（2026-10-21，含审查修复），待正式集成。
 
 ## 问题与交付行为
 
@@ -20,19 +20,19 @@ common 的 setup.ps1（Restart/Remove 分支的退避循环、参数、deferred 
 ## 接口与约束
 
 - 冷启动降级：运行中的旧网关没有 `rpc_in_flight` 字段，升级它的第一次探测降级为保守判定（等 desktop_connected:false）；升级完成后的下一次起才启用"连接在但空闲放行"。
-- V1 协议不启用"连接在但空闲放行"（旧版 Desktop 断线自愈无源码证据），保持保守等待连接断开；判定依据 config 的 relay_protocol_version。
+- V1 协议不启用"连接在但空闲放行"（旧版 Desktop 断线自愈无源码证据），保持保守等待连接断开；判定依据运行中网关健康自报的 relay_protocol_version。（实施审查修订：config 可能指向尚未生效的目标协议，自报值防止对 V1 Desktop 误发闪断。）
 - 本地 RPC 客户端（title 命名 worker 等）的飞行中请求同样构成"忙"（rpc_in_flight 已涵盖）；闪断会 reject 其 pending，技能文档的"等插件调用收尾"语义由本票的自动等待承接。
 - 探测节奏不超过 Desktop 重连退避量级；超时放弃不强制切换、不回退候选部署（切换尚未发生，无回退对象）。
 - Remove 复用同一退避逻辑，但超时语义与 Restart 一致：明确放弃并报告，不删除任何东西。
 
 ## 验收条件
 
-- [ ] 测试：忙若干次探测后转为空闲，升级完成且活动记录切换正确。
-- [ ] 测试：持续忙到超时，输出含 `upgrade_deferred: 'remote_busy'`，active-gateway.json、config.json 与计划任务均未变动。
-- [ ] 测试：运行中网关无 `rpc_in_flight` 字段时按保守判定等待（冷启动降级）。
-- [ ] 测试：升级关闭返回 409 时回到退避循环，不直接失败。
-- [ ] 测试：`-BusyTimeoutSec` 注入 1 秒级小值生效，默认 60 秒。
-- [ ] 既有 Restart/Remove 成功路径（desktop_connected:false 直通）测试全绿。
+- [x] 测试：忙若干次探测后转为空闲，升级完成且活动记录切换正确。
+- [x] 测试：持续忙到超时，输出含 `upgrade_deferred: 'remote_busy'`，active-gateway.json、config.json 与计划任务均未变动。
+- [x] 测试：运行中网关无 `rpc_in_flight` 字段时按保守判定等待（冷启动降级）。
+- [x] 测试：升级关闭返回 409 时回到退避循环，不直接失败。
+- [x] 测试：`-BusyTimeoutSec` 注入 1 秒级小值生效；默认 60 秒经参数声明与 ValidateRange 保证，未做真实 60 秒等待。
+- [x] 既有 Restart/Remove 成功路径（desktop_connected:false 直通）测试全绿。
 
 ## 验证与完成边界
 

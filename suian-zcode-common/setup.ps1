@@ -172,11 +172,29 @@ function Wait-GatewayExit {
 }
 
 # 切换事务锁：独占句柄随进程退出由系统自动释放，崩溃或被杀无需陈旧清理；
+# 持锁方写入自身 pid 并以读共享打开，拿锁失败方可读出持锁者身份。
 # 残留锁文件在下一次 Create 打开时被覆盖，不阻塞后续实例。暂存部署（--deploy）在锁外，保持幂等可并发。
 function Acquire-UpgradeLock {
     [IO.Directory]::CreateDirectory($DataDir) | Out-Null
-    try { $script:upgradeLock = [IO.File]::Open((Join-Path $DataDir 'upgrade.lock'), 'Create', 'ReadWrite', 'None') }
-    catch [IO.IOException] { throw 'Another gateway setup is already running (upgrade.lock is held); nothing was changed' }
+    $lockPath = Join-Path $DataDir 'upgrade.lock'
+    try {
+        $script:upgradeLock = [IO.File]::Open($lockPath, 'Create', 'ReadWrite', 'Read')
+        $pidBytes = [Text.Encoding]::UTF8.GetBytes("$PID`n")
+        $script:upgradeLock.Write($pidBytes, 0, $pidBytes.Length)
+        $script:upgradeLock.Flush()
+    }
+    catch [IO.IOException] {
+        $holderPid = $null
+        try {
+            $holderStream = [IO.File]::Open($lockPath, 'Open', 'Read', 'ReadWrite')
+            try {
+                $buffer = New-Object byte[] $holderStream.Length
+                [void]$holderStream.Read($buffer, 0, $buffer.Length)
+                $holderPid = [Text.Encoding]::UTF8.GetString($buffer).Trim()
+            } finally { $holderStream.Dispose() }
+        } catch [IO.IOException] {}
+        throw "Another gateway setup is already running (upgrade.lock is held$(if ($holderPid) { " by pid $holderPid" })); nothing was changed"
+    }
 }
 
 function Release-UpgradeLock {
@@ -184,9 +202,21 @@ function Release-UpgradeLock {
     Remove-Item -LiteralPath (Join-Path $DataDir 'upgrade.lock') -ErrorAction SilentlyContinue
 }
 
-# 忙退避重探：V2 且运行中网关健康含 rpc_in_flight 时，连接在但无飞行操作即视为空闲，用升级关闭闪断
-# （Desktop 连接层自带断线自愈）；旧网关无该字段或协议为 V1 时保守等待连接断开。
-# shutdown 的任何失败（含服务端 409 busy 竞争窗口）都回到重探；总时长由 BusyTimeoutSec 限制，超时返回 busy。
+# 忙退避封顶 15 秒：与 Desktop V2 连接层重连退避（1s–30s）同量级，覆盖切换窗口又不过度拉长等待。
+$busyBackoffCapMs = 15000
+
+function Start-BusyBackoff {
+    # 睡一拍、倍增封顶后重读健康；[ref] 递增退避间隔。
+    param([ref]$Delay)
+    Start-Sleep -Milliseconds $Delay.Value
+    $Delay.Value = [Math]::Min($busyBackoffCapMs, $Delay.Value * 2)
+    return Read-GatewayHealth -AllowUnavailable
+}
+
+# 忙退避重探：运行中网关健康自报 V2 且含 rpc_in_flight 时，连接在但无飞行操作即视为空闲，用升级关闭闪断
+# （Desktop 连接层自带断线自愈）；健康自报 V1 或无该字段时保守等待连接断开——判定用运行实例自报协议，
+# 不用本次请求的目标协议，避免对 V1 Desktop 误发闪断。
+# 关闭失败（服务端 409 busy 竞争窗口、瞬断）回到重探；401/404 等确定性错误直接抛出；总时长由 BusyTimeoutSec 限制，超时返回 busy。
 function Stop-GatewayForUpgrade {
     param([object]$CurrentHealth)
     $deadline = [DateTime]::UtcNow.AddSeconds($BusyTimeoutSec)
@@ -195,12 +225,10 @@ function Stop-GatewayForUpgrade {
         if ($null -eq $CurrentHealth) { return 'stopped' }
         $query = ''
         if ($CurrentHealth.desktop_connected) {
-            if ($RelayProtocolVersion -eq 2 -and $CurrentHealth.PSObject.Properties['rpc_in_flight'] -and [int]$CurrentHealth.rpc_in_flight -eq 0) { $query = '?idle=1' }
+            if ($CurrentHealth.PSObject.Properties['relay_protocol_version'] -and $CurrentHealth.relay_protocol_version -eq 2 -and $CurrentHealth.PSObject.Properties['rpc_in_flight'] -and [int]$CurrentHealth.rpc_in_flight -eq 0) { $query = '?idle=1' }
             elseif ([DateTime]::UtcNow -ge $deadline) { return 'busy' }
             else {
-                Start-Sleep -Milliseconds $delay
-                $delay = [Math]::Min(15000, $delay * 2)
-                $CurrentHealth = Read-GatewayHealth -AllowUnavailable
+                $CurrentHealth = Start-BusyBackoff ([ref]$delay)
                 continue
             }
         }
@@ -211,10 +239,10 @@ function Stop-GatewayForUpgrade {
             return 'stopped'
         }
         catch [Net.WebException] {
+            $failureStatus = if ($_.Exception.Response) { [int]$_.Exception.Response.StatusCode } else { $null }
+            if ($failureStatus -eq 401 -or $failureStatus -eq 404) { throw }
             if ([DateTime]::UtcNow -ge $deadline) { return 'busy' }
-            Start-Sleep -Milliseconds $delay
-            $delay = [Math]::Min(15000, $delay * 2)
-            $CurrentHealth = Read-GatewayHealth -AllowUnavailable
+            $CurrentHealth = Start-BusyBackoff ([ref]$delay)
         }
     }
 }

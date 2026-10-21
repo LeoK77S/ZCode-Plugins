@@ -66,7 +66,7 @@ PKG-01 至 PKG-08 是实现票，包含对应契约测试与必要文档；PKG-0
 
 ## GUL 系列：网关升级忙退避与幂等锁（2026-10-21）
 
-**状态**：2026-10-21 用户确认方案与四个设计决策（`rpc_in_flight` 空闲判定、超时放弃报 `remote_busy`、独占句柄事务锁、拿锁失败明确报错）后开票实施；四票已发布为 [#134](https://github.com/ONEGAYI/ZCode-Plugins/issues/134)–[#137](https://github.com/ONEGAYI/ZCode-Plugins/issues/137)，实施于独立工作树分支 `feat/gateway-upgrade-backoff-lock`。
+**状态**：2026-10-21 用户确认方案与四个设计决策（`rpc_in_flight` 空闲判定、超时放弃报 `remote_busy`、独占句柄事务锁、拿锁失败明确报错）后开票实施；四票已发布为 [#134](https://github.com/ONEGAYI/ZCode-Plugins/issues/134)–[#137](https://github.com/ONEGAYI/ZCode-Plugins/issues/137)，实施于独立工作树分支 `feat/gateway-upgrade-backoff-lock`，2026-10-21 已完成实施与双轴代码审查（含审查修复），待正式集成。
 
 背景：网关升级从"要求用户手动暂停远控"演进为"忙时自动退避、空闲闪断切换、幂等防重入"。依据是 Desktop V2 连接层自带断线自愈（官方源码快照证据），规格修订落在 GUL-04。沿用同一开票约定，不另建跟踪器。
 

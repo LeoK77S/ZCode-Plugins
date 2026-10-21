@@ -1,6 +1,6 @@
 # GUL-01：网关空闲信号与升级关闭的服务端确认
 
-**状态**：用户已确认（2026-10-21）；已发布为 #134；可以立即实施。
+**状态**：用户已确认（2026-10-21）；已发布为 #134；已在 feat/gateway-upgrade-backoff-lock 实施完成（2026-10-21，含审查修复），待正式集成。
 
 > GUL（Gateway Upgrade Lifecycle）系列：网关升级从"要求用户手动暂停远控"演进为"忙时自动退避、空闲闪断切换、幂等防重入"。本系列共四票，规格依据 2026-10-21 会话调查：Desktop V2 连接层自带断线自愈（指数退避 1s–30s 无上限、重连重取 token、恢复后重放未确认 RPC 批次，见 official-zcode 快照 webRemoteControlTransport.ts 与 retry.ts），网关闪断对 Desktop 等价于网络抖动；要改的是网关侧闸门而非宿主。
 
@@ -27,11 +27,11 @@ common 的 gateway.mjs（健康字段、shutdown 分流）、rpc-broker.mjs（in
 
 ## 验收条件
 
-- [ ] 回环测试：本地客户端发起飞行中 RPC 期间 `/health` 的 `rpc_in_flight > 0`，应答完成后归零。
-- [ ] 回环测试：手机侧桥请求进行中同样计入 `rpc_in_flight`。
-- [ ] 回环测试：desktop_connected 且 `rpc_in_flight == 0` 时升级关闭被接受，网关进程退出。
-- [ ] 回环测试：飞行中操作存在时升级关闭返回 409 且网关不退出，响应体带 busy 标识；不带 idle 标志的旧语义保持（有 Desktop 连接一律 409）。
-- [ ] 既有测试全绿：新增字段不破坏 setup Status、cli、deploy 等既有健康消费方。
+- [x] 回环测试：本地客户端发起飞行中 RPC 期间 `/health` 的 `rpc_in_flight > 0`，应答完成后归零。
+- [x] 回环测试：手机侧桥请求进行中同样计入 `rpc_in_flight`。
+- [x] 回环测试：desktop_connected 且 `rpc_in_flight == 0` 时升级关闭被接受，网关进程退出。
+- [x] 回环测试：飞行中操作存在时升级关闭返回 409 且网关不退出，响应体带 busy 标识；不带 idle 标志的旧语义保持（有 Desktop 连接一律 409）。
+- [x] 既有测试全绿：新增字段不破坏 setup Status、cli、deploy 等既有健康消费方。
 
 ## 验证与完成边界
 

@@ -1,6 +1,6 @@
 # GUL-04：规格、仓库约定与技能文档同步
 
-**状态**：用户已确认（2026-10-21）；已发布为 #137；等待 GUL-01（#134）、GUL-02（#135）、GUL-03（#136）。
+**状态**：用户已确认（2026-10-21）；已发布为 #137；已在 feat/gateway-upgrade-backoff-lock 实施完成（2026-10-21），待正式集成。
 
 ## 问题与交付行为
 
@@ -24,10 +24,10 @@ common 的 docs/shared-runtime-release-spec.md（7.2 节）、AGENTS.md（六步
 
 ## 验收条件
 
-- [ ] spec 7.2、common AGENTS.md 六步约定、skills/setup/SKILL.md 三处与实现行为一致，不再残留"必须手动暂停远控才能升级"的表述。
-- [ ] 冷启动降级与 V1 保守边界在技能文档中明确。
-- [ ] 开票索引文件追加 GUL 系列条目并引用实际 issue 编号。
-- [ ] 变更范围内的 Markdown 链接与渲染检查通过。
+- [x] spec 7.2、common AGENTS.md 六步约定、skills/setup/SKILL.md 三处与实现行为一致，不再残留"必须手动暂停远控才能升级"的表述。
+- [x] 冷启动降级与 V1 保守边界在技能文档中明确。
+- [x] 开票索引文件追加 GUL 系列条目并引用实际 issue 编号。
+- [x] 变更范围内的 Markdown 链接与渲染检查通过。
 
 ## 验证与完成边界
 
