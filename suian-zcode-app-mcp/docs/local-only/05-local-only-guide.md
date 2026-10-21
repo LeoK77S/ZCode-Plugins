@@ -44,15 +44,31 @@ lab 目录布局（lab 工具单一数据源，勿手工改）：`app/`（运行
 
 ### 2.2 隔离插件安装（PKG-01 形态）
 
-按官方宿主存储布局装进 lab：`{{storage_root}}` = `{{lab_dir}}/plugin-home/cli/plugins`。
+按官方宿主存储布局装进 lab：`{{storage_root}}` = `{{lab_dir}}/storage/cli/plugins`。
+
+**LO-06 实测修正**：宿主运行期插件根由 lab env 的 `ZCODE_STORAGE_DIR`（lab 注入为 `{{lab_dir}}/storage`）派生为 `<storage>/cli/plugins`；`{{lab_dir}}/plugin-home/cli/plugins` 不是宿主发现路径（只适合无宿主注入的独立 MCP 验证）。曾用三路径探针实测：仅 `<lab>/storage/cli/plugins` 的 SessionStart/UserPromptSubmit 被触发，`home/.zcode/cli/plugins` 与 `plugin-home/cli/plugins` 均为零。若移除 `ZCODE_STORAGE_DIR`，默认落到 `~/.zcode/cli/plugins`（lab 内即 `home/.zcode/cli/plugins`）。
 
 - 缓存：`{{storage_root}}/cache/suian-zcode-plugins/suian-zcode-common/{{common_version}}/` 与 `…/suian-zcode-app-mcp/{{app_mcp_version}}/`（各自复制发布目录内容，**分别缓存，不硬拼同级**）。
 - 安装记录：`{{storage_root}}/installed_plugins.json`，两条 `InstalledPluginRecord`（id 形如 `suian-zcode-common@suian-zcode-plugins`，含绝对 `installPath`）。
-- 外置配置：`{{storage_root}}/data/suian-zcode-app-mcp/config.json`，路径全部显式指向 lab：
+- **启用门槛（LO-06 实测）**：宿主只加载 `{{lab_dir}}/home/.zcode/cli/config.json` 中 `plugins.enabledPlugins[<id>] === true` 的第三方记录；只写 `installed_plugins.json` 不会让插件生效。lab 需显式写入：
 
 ```json
 {
-  "authDataDir": "{{lab_dir}}/plugin-home/cli/plugins/data/suian-zcode-app-mcp/auth",
+  "plugins": {
+    "enabledPlugins": {
+      "suian-zcode-common@suian-zcode-plugins": true,
+      "suian-zcode-app-mcp@suian-zcode-plugins": true,
+      "suian-zcode-title@suian-zcode-plugins": true
+    }
+  }
+}
+```
+
+- 数据目录：`{{storage_root}}/data/<plugin-id>/`（`<plugin-id>` 形如 `suian-zcode-app-mcp@suian-zcode-plugins`，`@` 保留）。外置配置 `{{storage_root}}/data/suian-zcode-app-mcp@suian-zcode-plugins/config.json`，路径全部显式指向 lab：
+
+```json
+{
+  "authDataDir": "{{storage_root}}/data/suian-zcode-app-mcp@suian-zcode-plugins/auth",
   "artifactDbPath": "…/artifacts.sqlite",
   "gatewayConfigPath": "{{lab_dir}}/gateway-data/config.json",
   "indexDbPath": "{{lab_dir}}/home/.zcode/v2/tasks-index.sqlite",
@@ -77,7 +93,7 @@ node "{{app_mcp_cache}}/dist/install.mjs" --native-plugin --config "{{…}}/conf
 ```
 command: node
 args:    ["{{app_mcp_cache}}/dist/cli.mjs", "--config", "{{…}}/config.json"]
-env:     ZCODE_PLUGIN_DATA={{storage_root}}/data/suian-zcode-app-mcp
+env:     ZCODE_PLUGIN_DATA={{storage_root}}/data/suian-zcode-app-mcp@suian-zcode-plugins
          HOME={{lab_dir}}/home ; USERPROFILE={{lab_dir}}/home
 ```
 
@@ -87,10 +103,12 @@ env:     ZCODE_PLUGIN_DATA={{storage_root}}/data/suian-zcode-app-mcp
 
 无 ZCode 登录态时 Host 没有可用模型供应商，`start_session` 会被拒（`当前没有可用的模型供应商和模型…`）。只做**查询类** MCP 检查（list/read）不需要模型；要验证**创建/发信**闭环，按规格配一个受控本地服务：
 
-1. 起一个回环 OpenAI 兼容端点（`{{loopback_model_url}}`，如 `http://127.0.0.1:{{port}}/v1`），固定合成回复。
+1. 起一个回环 OpenAI 兼容端点（`{{loopback_model_url}}`，如 `http://127.0.0.1:{{port}}/v1`），支持非流式与 SSE 两种响应；每次请求记录一条调用锚点，便于区分"Host 受理"与"模型真实被调用"。
 2. 写 `{{lab_dir}}/home/.zcode/v2/provider_config.json`（schemaVersion 1）：personal 层声明一个 `api-key` 型 `openai-chat-completions` 供应商指向该端点，含一个模型与 `defaultModelSelection`。文件字段以官方 provider 包 schema 为准。
 
-如实口径：合成回复只证明链路；**Host 受理（ACK）≠ 模型完成**，受控服务未被调用时不要宣称模型回复（首轮实测即出现"受理成功、轮次失败、服务零调用"的组合，见闭环证据 §3）。
+**LO-06 实测修正**：轮次能否真正完成取决于模型手动配置是否完整。仅声明 provider 时仍可能"受理成功、轮次失败、服务零调用"；补齐 `manualProviderModelRules[].config` 的 `properties`（`contextWindow`、`supportsJsonSchemaOutput`、`supportsNativeWebSearch`、`supportsMidConversationSystem`、`inputFormat.supportsImage/Video/Pdf`）与 `optionSpecs`（`reasoningLevel.values` + `map`、`maxOutputTokens.max`）后，受控轮次可真正完成并落库助手回复（LO-06 证据，14 次流式 turn 调用 + 8 次非流式标题调用）。`map` 可先用 `"{}"`（不回写请求体字段）。
+
+如实口径：合成回复只证明链路；**Host 受理（ACK）≠ 模型完成**，以受控服务的调用记录与落库助手消息双重核对；轮次失败时不会触发 Stop Hook，因此也不存在"命名 Hook 误报成功"。
 
 ## 3. 原版失败基线（对照用）
 
@@ -180,7 +198,7 @@ probeHost（lab common 的 dist/client.mjs，传 gatewayConfigPath + workspacePa
 
 ## 8. 故障定位
 
-统一入口为补丁工具只读 status：`node "{{common_root}}/local-only/patch.mjs" status --target "{{zcode_install_dir}}"`。按公共 debug 技能的 **local-only 七类分层表**对位：包不支持/摘要变化、宿主仍运行、备份或写入失败、环境未生效、网关未就绪、Host 未附着、模型服务不可达（表见 `suian-zcode-common/skills/debug/SKILL.md`）。隔离环境自身的排查方法论（进程/UI/日志/网络/环境/时序六层收缩）与已知坑 K1~K15 见项目技能 `debug-isolated-zcode`。
+统一入口为补丁工具只读 status：`node "{{common_root}}/local-only/patch.mjs" status --target "{{zcode_install_dir}}"`。按公共 debug 技能的 **local-only 七类分层表**对位：包不支持/摘要变化、宿主仍运行、备份或写入失败、环境未生效、网关未就绪、Host 未附着、模型服务不可达（表见 `suian-zcode-common/skills/debug/SKILL.md`）。隔离环境自身的排查方法论（进程/UI/日志/网络/环境/时序六层收缩）与已知坑 K1~K24 见项目技能 `debug-isolated-zcode`。
 
 ## 9. 切回 relay
 

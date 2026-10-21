@@ -164,6 +164,46 @@ description: 调试隔离 ZCode Desktop/CLI 实验环境（local-only lab）：l
 - **解法（验证构造，非产品步骤）**：按规格"受控本地服务"写 `<lab home>/.zcode/v2/provider_config.json`（schemaVersion 1，api-key 型 openai-chat-completions 指向回环 mock，含 personalModelIds 与 defaultModelSelection；schema 依官方 provider 包）。注意：**受理（accepted）后轮次仍可能失败**（LO-05 实测 `Turn execution failed` 于模型调用前，mock 零调用）——ACK ≠ 模型完成，深因未定位。
 - **来源**：LO-05 实录（`05-mcp-closure-evidence.md` §3）。
 
+### K19 宿主插件发现根是 `<storage>/cli/plugins`，且必须 `enabledPlugins[id]=true`
+
+- **症状**：插件按 LO-05 指南装到 `{{lab_dir}}/plugin-home/cli/plugins`、`installed_plugins.json` 也写了，Stop Hook 却从不触发；换成 `home/.zcode/cli/plugins` 也不行。
+- **根因（LO-06 三路径探针实测）**：lab 里宿主运行期插件根由 `ZCODE_STORAGE_DIR`（lab 注入 `{{lab_dir}}/storage`）派生为 `<storage>/cli/plugins`。此外 Host 的 `readEnabledPluginRecords` 只加载 `{{lab_dir}}/home/.zcode/cli/config.json` 中 `plugins.enabledPlugins[<id>]===true` 的第三方记录——只写安装记录不会生效。`plugin-home` 只适合无宿主注入的独立 MCP 验证。
+- **解法**：插件装 `<lab>/storage/cli/plugins`（cache + installed_plugins.json + `data/<plugin-id>/config.json`），并写入 `home/.zcode/cli/config.json` 的 `plugins.enabledPlugins`。判定是否生效用最小 SessionStart/UserPromptSubmit 探针写 marker，不要靠日志猜测。
+- **来源**：LO-06 实录（`06-title-acceptance-evidence.md` §2；探针 A/B/C：仅 storage 路径 21 次触发，其余 0）。
+
+### K20 受控 provider 要让轮次真正完成，必须补齐 manual model 配置
+
+- **症状**：LO-05 的"受理成功、轮次失败、受控服务零调用"（`Turn execution failed` / `processing_input`）。只声明 provider 与模型 ID 仍然失败。
+- **根因**：`manualProviderModelRules[].config` 缺失/不完整时，Host 在执行输入阶段无法构造模型（properties/optionSpecs 是模型创建必需项）。
+- **解法**：补 `properties`（`contextWindow`、`supportsJsonSchemaOutput`、`supportsNativeWebSearch`、`supportsMidConversationSystem`、`inputFormat.supportsImage/Video/Pdf`）与 `optionSpecs`（`reasoningLevel.values` + `map`，`maxOutputTokens.max`）；`map` 先用 `"{}"`。补齐后受控轮次真实完成、助手消息落库（LO-06 实证 14 次流式 turn + 8 次非流式标题调用）。
+- **来源**：LO-06 实录（证据 §3、指南 §2.4）。
+
+### K21 失败轮不触发 Stop Hook；命名失败要分层核对
+
+- **事实（源码 + 实测）**：Stop Hook 只在轮次正常完成（模型响应落盘）后运行；轮次失败走 TurnError 路径，**不触发 Stop**。因此"轮次模型不可达"不会产生任何命名记录，也不会误报命名成功。任务索引可能留下 `meta_json 非法` 的宿主日志（失败轮特有）。
+- **命名自身失败有两种时延与口径**：命名模型不可达约 60s 后 `status:"failed"`、`reasonCode:null`（模型错误无 stage，无 Toast，属已交付契约）；网关不可达在秒级返回 `reasonCode:"gateway_unreachable"`（远控类失败，才有 Toast 路径）。
+- **来源**：LO-06 实录（证据 §5）。
+
+### K22 title 原生安装会改写 HKCU 协议键；lab 需预建开始菜单目录
+
+- **症状**：lab 里跑 `title/dist/install.mjs --native-plugin`，报"无法保存快捷方式 … Start Menu\Programs\…lnk"（DirectoryNotFoundException）；成功后用户级 `suian-zcode-title` 协议键被改成 lab 路径。
+- **根因**：安装器按 `$env:APPDATA` 写开始菜单快捷方式，lab appdata 无 `Microsoft/Windows/Start Menu/Programs`；协议键是 HKCU 全局，不随 lab 隔离。
+- **解法**：先 `mkdir -p "<lab>/appdata/Microsoft/Windows/Start Menu/Programs"` 再安装；安装后把协议键还原为日常值并留还原记录（协议激活链路仍严禁触发）。只做命名链验收时可只跑 `--check-only`，但离线与 Toast 资产会不完整，失败字段可能出现 `toast:"unavailable"`。
+- **来源**：LO-06 实录（`lo06-title-install*.log`、`lo06-protocol-registry-remediation.log`）。
+
+### K23 `lab.mjs teardown` 会删 lab `home/`：装好插件后不能直接 teardown
+
+- **症状**：为做"首启初始化轮→重开"而 `lab.mjs teardown`，随后插件安装记录、provider 配置、local-only 标志全部消失。
+- **根因**：teardown 的 removable 列表包含 `dirs.home`、`storage`、`session-db` 等运行数据（保留 app 与日志）。
+- **解法**：首启后只杀 `run-state.json` 记录的进程树（taskkill /T /F）并删 `run-state.json`，再 `launch`；需要彻底清理时才 teardown（并预期重建安装）。
+- **来源**：LO-06 实录（lab.mjs teardownLab 源码 + 实例化流程）。
+
+### K24 网关闭环重连不是"秒级"；Stop 延迟窗内杀网关要提前起 watcher
+
+- **观察**：lab 网关重启后，Host 重新配对约需 50 秒（health `desktop_connected` 由 false 转 true）；此前把"秒级重连"当固定事实会误判故障。
+- **时序坑**：Stop Hook 有 8 秒派发延迟；若先发消息再开始轮询模型日志，往往在检测到调用时 8 秒已过、命名已完成（杀网关晚到）。要构造"网关不可达"必须在发消息前起 watcher，看到新的 turn 模型调用就立即杀（LO-06 用 100ms 轮询脚本，观测到调用后 0.65s，杀进程总耗时约 2.3s）。
+- **来源**：LO-06 实录（证据 §5；`gateway-fail-test.mjs`）。
+
 ## 维护约定
 
 - 每张 LO 票收尾时，实施者（或协调者）把该票**新**踩的坑回填到"已知坑实录"，注明票号与证据路径；修正既有条目的"待确认"标注。
