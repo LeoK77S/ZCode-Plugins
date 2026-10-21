@@ -55,7 +55,8 @@ ZCode-Plugins/
 │   ├── ui/                 # 原生只读工件侧栏资源（构建时随 dist 复制，服务按相对位置读取）
 │   ├── build-release.mjs   # 发布目录构建：SDK/zod 内联，公共层经 PKG-01 安装记录共享加载
 │   ├── common-client.mjs   # 薄适配：业务对公共函数的唯一入口（惰性 loadCommonModule）
-│   └── skills/             # setup / configuration / sessions / automations / artifacts / glm / debug
+│   ├── skills/             # setup / configuration / sessions / automations / artifacts / glm / debug
+│   └── docs/               # 研究、规格、ADR、开票与脱敏验证证据（含 local-only 产品接入规划）
 │
 ├── suian-side-editor/     # 本机文本编辑器 0.4.0；多目录切换，选区评论尽力保护，原#47缺口与Native待验
 │   ├── AGENTS.md          # 本插件规则与文档入口

@@ -31,6 +31,7 @@
 
 - 本项目沿用根 [CONTEXT.md](../CONTEXT.md) 与本目录 `docs/adr/` 的术语和决策，见 [领域文档入口](docs/agents/domain.md)。
 - 开票使用当前仓库 GitHub Issues。先完成本地规格与票草稿，发布须有用户明确授权；票的依赖须同时表达宿主能力条件，见 [开票约定](docs/agents/issue-tracker.md)。
+- local-only 产品接入已完成设计与开票，尚未实施：限定 Windows 3.16.2 单包，原位补丁与显式模式开关纳入 setup，网关/业务运行代码优先复用。见 [规格](docs/local-only-spec.md)、[开票索引](docs/local-only-tickets.md)和 [ADR 0003](docs/adr/0003-local-only-desktop-patch.md)。
 - 工件 demo 的两项工具、可累积摘要、历史断点快照和原生只读侧栏已在本地实施。完整版唯一投影继续等待上游。实施范围见 [demo 规格](docs/artifact-zone-spec.md)，开发与宿主限制见 [开发验证](docs/artifact-demo-verification.md)，历史研究见 [分叉核查](docs/artifact-host-fork-audit.md)，公开票同步状态和依赖见 [开票索引](docs/artifact-zone-tickets.md)。真实模型评估和用户验收不能用技术夹具代替。
 
 ## 文件职责
