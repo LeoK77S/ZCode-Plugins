@@ -106,7 +106,8 @@ export function createRpcBroker({ bootstrap, sendDesktop, sendPhone, bridgeTimeo
       drainInitializations();
     }
   };
-  const ensureHost = async (workspacePath, project) => {
+  // navigation 透传宿主两种建桥意图：{ project }（项目/草稿导航）或 { taskId, taskHostId }（按任务归属解析目录）。
+  const ensureHost = async (workspacePath, navigation) => {
     if (!physical) {
       const identity = { bridgeSessionId: randomUUID(), bridgeGeneration: 1 };
       const ready = Promise.withResolvers(), initialize = Promise.withResolvers();
@@ -114,7 +115,8 @@ export function createRpcBroker({ bootstrap, sendDesktop, sendPhone, bridgeTimeo
       physical.timer = setTimeout(() => resetPhysical(Object.assign(new Error('原 Host 桥初始化超时'), { code: 'gateway_bridge_timeout' })), bridgeTimeoutMs);
       bridgeRequests.add(physical.requestId);
       sendDesktop({ zcode_type: 'workspace-bridge-open', requestId: physical.requestId, ...identity, workspaceKey: workspacePath,
-        ...(project ? { project } : {}) });
+        ...(navigation?.project ? { project: navigation.project } : {}),
+        ...(navigation?.taskId != null ? { taskId: navigation.taskId, ...(navigation.taskHostId != null ? { taskHostId: navigation.taskHostId } : {}) } : {}) });
     }
     const [meta] = await Promise.all([physical.ready.promise, physical.initialize.promise]);
     return meta;
@@ -135,16 +137,19 @@ export function createRpcBroker({ bootstrap, sendDesktop, sendPhone, bridgeTimeo
     const result = suppliedBootstrap ?? await bootstrap();
     if (!result.success) throw new Error('Desktop bootstrap failed');
     const workspace = result.result.workspaces.find(w => w.kind === 'local' && samePath(w.workspacePath, workspacePath));
-    if (!workspace) throw new Error('Requested local workspace is not open in the Desktop window');
-    if (sessionId !== undefined && result.result.tasks !== undefined && !result.result.tasks.some(t => t.taskId === sessionId && samePath(t.workspacePath, workspace.workspacePath))) throw new Error('Session is not present in the requested workspace');
-    const meta = await ensureHost(workspace.workspacePath);
+    // 无项目会话的归属目录可能从未在窗口登记（draft 工作区）；无会话身份的附着仍以窗口列表为准，
+    // 带会话身份时改由宿主按任务导航建桥，归属最终统一以 getTaskMeta 复核。
+    if (!workspace && sessionId === undefined) throw new Error('Requested local workspace is not open in the Desktop window');
+    const anchorPath = workspace ? workspace.workspacePath : workspacePath;
+    if (workspace && sessionId !== undefined && result.result.tasks !== undefined && !result.result.tasks.some(t => t.taskId === sessionId && samePath(t.workspacePath, anchorPath))) throw new Error('Session is not present in the requested workspace');
+    const meta = await ensureHost(anchorPath, workspace ? undefined : { taskId: sessionId, taskHostId: 'local' });
     // 3.16 bootstrap 不再返回 tasks；由目标工作区 Host 查询会话归属。
-    if (sessionId !== undefined && result.result.tasks === undefined) {
-      const task = await callHost('zcode-task', 'getTaskMeta', [{ taskId: sessionId, workspacePath: workspace.workspacePath }], 'Host session lookup timed out');
-      if (!task || task.taskId !== sessionId || !samePath(task.workspacePath, workspace.workspacePath)) throw new Error('Session is not present in the requested workspace');
+    if (sessionId !== undefined && (result.result.tasks === undefined || !workspace)) {
+      const task = await callHost('zcode-task', 'getTaskMeta', [{ taskId: sessionId, workspacePath: anchorPath }], 'Host session lookup timed out');
+      if (!task || task.taskId !== sessionId || !samePath(task.workspacePath, anchorPath)) throw new Error('Session is not present in the requested workspace');
     }
     peers.add(peer);
-    return { bootstrap: result.result, workspace_path: workspace.workspacePath, meta };
+    return { bootstrap: result.result, workspace_path: anchorPath, meta };
   };
   return {
     async phoneOpen(payload) {
@@ -164,8 +169,11 @@ export function createRpcBroker({ bootstrap, sendDesktop, sendPhone, bridgeTimeo
         if (phone !== peer) return;
         if (!result.success) throw new Error('Desktop bootstrap failed');
         const workspace = result.result.workspaces.find(w => workspaceKey(w) === payload.workspaceKey);
-        if (!workspace && !payload.project) throw new Error('Requested workspace is not open in the Desktop window');
-        const remote = payload.project ? (payload.project.hostId ?? 'local') !== 'local' : workspace.kind !== 'local';
+        // 无项目会话的归属目录可能未在窗口登记；手机带 local 任务身份时交宿主按任务导航建桥。
+        const taskIntent = !workspace && !payload.project && payload.taskId != null && payload.taskHostId === 'local'
+          ? { taskId: payload.taskId, taskHostId: 'local' } : undefined;
+        if (!workspace && !payload.project && !taskIntent) throw new Error('Requested workspace is not open in the Desktop window');
+        const remote = payload.project ? (payload.project.hostId ?? 'local') !== 'local' : workspace ? workspace.kind !== 'local' : false;
         if (remote) {
           if (localPeers.size) throw Object.assign(new Error('本地 RPC 正在使用窗口 Host，暂不能切换远端工作区'), { code: 'remote_workspace_busy' });
           resetPhysical(new Error('Phone switched to a remote workspace'));
@@ -178,7 +186,7 @@ export function createRpcBroker({ bootstrap, sendDesktop, sendPhone, bridgeTimeo
           if (payload.taskId) throw new Error('Project navigation is unavailable.');
           const reused = Boolean(physical);
           // 新桥交给 Desktop 导航；已有桥通过同一 Host 解析项目目录，保留插件连接。
-          const meta = await ensureHost(workspace?.workspacePath ?? payload.workspaceKey, payload.project);
+          const meta = await ensureHost(workspace?.workspacePath ?? payload.workspaceKey, { project: payload.project });
           if (phone !== peer) return;
           let targetPath = meta.workspacePath;
           if (reused) {
@@ -186,6 +194,20 @@ export function createRpcBroker({ bootstrap, sendDesktop, sendPhone, bridgeTimeo
             if (input.projectId === null) delete input.projectId;
             const directories = await callHost('project', 'prepareSession', [input], 'Host project navigation timed out');
             targetPath = directories.workspacePath;
+          }
+          attached = { meta, workspace_path: targetPath };
+          peers.add(peer);
+        } else if (taskIntent) {
+          const reused = Boolean(physical);
+          // 新桥透传任务意图由宿主导航解析归属目录；桥复用时不重开桥，服务调用按参数路由，
+          // 任务归属经 Host getTaskMeta 复核后才对手机放行。
+          const meta = await ensureHost(payload.workspaceKey, taskIntent);
+          if (phone !== peer) return;
+          let targetPath = meta.workspacePath;
+          if (reused) {
+            const task = await callHost('zcode-task', 'getTaskMeta', [{ taskId: payload.taskId, workspacePath: payload.workspaceKey }], 'Host session lookup timed out');
+            if (!task || task.taskId !== payload.taskId || !samePath(task.workspacePath, payload.workspaceKey)) throw new Error('Session is not present in the requested workspace');
+            targetPath = payload.workspaceKey;
           }
           attached = { meta, workspace_path: targetPath };
           peers.add(peer);
@@ -276,6 +298,16 @@ export function createRpcBroker({ bootstrap, sendDesktop, sendPhone, bridgeTimeo
       socket.on('close', () => { localPeers.delete(peer); cancelPeer(peer); });
     },
     phoneDisconnected() { if (phone) { cancelPeer(phone); phone = undefined; } },
+    // 忙判定 = 请求在飞（call/取消/排队 initialize）+ 未完成的共享桥初始化 + 手机远端透传盲区；
+    // 订阅型路由与纯连接不计。透传期间网关看不到请求/应答边界，保守按忙，手机断开或切回本地工作区后解除；
+    // 桥初始化有 bridgeTimeoutMs 上界，超时或失败即释放。
+    inFlight() {
+      let count = 0;
+      for (const route of routes.values()) if (!route.event) count++;
+      if (physical && !physical.initialized) count++;
+      if (phone?.passthrough) count++;
+      return count;
+    },
     close(error) {
       resetPhysical(error);
       const affected = new Set([...peers, ...localPeers, ...(phone ? [phone] : [])]);

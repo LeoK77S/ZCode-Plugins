@@ -3,12 +3,12 @@
   "plugins": [
     {
       "name": "suian-zcode-common",
-      "version": "0.5.0",
+      "version": "0.6.0",
       "source": {
         "source": "url",
         "type": "zip",
-        "url": "https://github.com/ONEGAYI/ZCode-Plugins/releases/download/plugins-2026.10.20/suian-zcode-common-0.5.0.zip",
-        "sha256": "44c9c316369a1fcbb2851e3dac6c3ec6aeda96b40e05b379d3cb8c74b5d57b7e",
+        "url": "https://github.com/ONEGAYI/ZCode-Plugins/releases/download/plugins-2026.10.21/suian-zcode-common-0.6.0.zip",
+        "sha256": "e2ac76a28685731ab6262587425004d0c5ee53d3993fbd48c483bc977e8bd0c9",
         "stripRoot": false
       },
       "description": "ZCode 插件共用的网关、监听、官方 V4 协议、通知、初始化与依赖完整性检查能力"
@@ -19,12 +19,14 @@
       "source": {
         "source": "url",
         "type": "zip",
-        "url": "https://github.com/ONEGAYI/ZCode-Plugins/releases/download/plugins-2026.10.20/suian-zcode-title-0.2.0.zip",
+        "url": "https://github.com/ONEGAYI/ZCode-Plugins/releases/download/plugins-2026.10.21/suian-zcode-title-0.2.0.zip",
         "sha256": "87857ee6adb41c22eb08376ee9963fbb1a966ac2dc3bd8b00d755bf835264ccb",
         "stripRoot": false
       },
       "description": "会话 Stop 后自动命名、模型配置与标题保护",
-      "dependencies": ["suian-zcode-common"]
+      "dependencies": [
+        "suian-zcode-common"
+      ]
     },
     {
       "name": "suian-zcode-app-mcp",
@@ -32,12 +34,14 @@
       "source": {
         "source": "url",
         "type": "zip",
-        "url": "https://github.com/ONEGAYI/ZCode-Plugins/releases/download/plugins-2026.10.20/suian-zcode-app-mcp-0.11.0.zip",
+        "url": "https://github.com/ONEGAYI/ZCode-Plugins/releases/download/plugins-2026.10.21/suian-zcode-app-mcp-0.11.0.zip",
         "sha256": "e2685b59caf5581bdc134cecc4121ff05144acc39e5099420a54e90402d42427",
         "stripRoot": false
       },
       "description": "会话检索、历史读取、原 Host 操作与 GLM 额度 MCP",
-      "dependencies": ["suian-zcode-common"]
+      "dependencies": [
+        "suian-zcode-common"
+      ]
     },
     {
       "name": "suian-side-editor",
@@ -45,12 +49,14 @@
       "source": {
         "source": "url",
         "type": "zip",
-        "url": "https://github.com/ONEGAYI/ZCode-Plugins/releases/download/plugins-2026.10.20/suian-side-editor-0.4.0.zip",
-        "sha256": "6e2b711c329c2456efd93f34d2bc5082be9692cf5cb5dcaa1e713b370c43dcca",
+        "url": "https://github.com/ONEGAYI/ZCode-Plugins/releases/download/plugins-2026.10.21/suian-side-editor-0.4.0.zip",
+        "sha256": "bc5b84fcd28f908bdf9161ca021f5a2edf70ebd267d0a27683a3493114030734",
         "stripRoot": false
       },
       "description": "本机 UTF-8 文本侧栏编辑、自动保存、会话恢复与选区评论；发送状态采用尽力保护",
-      "dependencies": ["suian-zcode-common"]
+      "dependencies": [
+        "suian-zcode-common"
+      ]
     }
   ]
 }

@@ -63,3 +63,18 @@ PKG-01 至 PKG-08 是实现票，包含对应契约测试与必要文档；PKG-0
 ## 本轮文档检查
 
 已核对规格、索引与九票的本地文档链接、必需字段、独立验收条件和依赖无环；发布后补充实际编号并复核一致性。仅改 Markdown 文档及文档导航，未执行构建、功能回归或宿主试装，用户主工作树保持干净。
+
+## GUL 系列：网关升级忙退避与幂等锁（2026-10-21）
+
+**状态**：2026-10-21 用户确认方案与四个设计决策（`rpc_in_flight` 空闲判定、超时放弃报 `remote_busy`、独占句柄事务锁、拿锁失败明确报错）后开票实施；四票已发布为 [#134](https://github.com/ONEGAYI/ZCode-Plugins/issues/134)–[#137](https://github.com/ONEGAYI/ZCode-Plugins/issues/137)，实施于独立工作树分支 `feat/gateway-upgrade-backoff-lock`，2026-10-21 已完成实施与双轴代码审查（含审查修复），待正式集成。
+
+背景：网关升级从"要求用户手动暂停远控"演进为"忙时自动退避、空闲闪断切换、幂等防重入"。依据是 Desktop V2 连接层自带断线自愈（官方源码快照证据），规格修订落在 GUL-04。沿用同一开票约定，不另建跟踪器。
+
+| 本地票 | GitHub Issue | 交付行为 | Blocked by |
+| --- | --- | --- | --- |
+| [GUL-01](shared-runtime-release-tickets/10-gateway-idle-signal.md) | [#134](https://github.com/ONEGAYI/ZCode-Plugins/issues/134) | `/health` 暴露 `rpc_in_flight`；`/shutdown` 升级关闭模式（空闲放行、忙 409） | 无 |
+| [GUL-02](shared-runtime-release-tickets/11-upgrade-transaction-lock.md) | [#135](https://github.com/ONEGAYI/ZCode-Plugins/issues/135) | setup.ps1 切换事务独占句柄锁，崩溃自动释放，防 activate 交叉 | 无 |
+| [GUL-03](shared-runtime-release-tickets/12-busy-backoff-restart.md) | [#136](https://github.com/ONEGAYI/ZCode-Plugins/issues/136) | Restart/Remove 忙退避重探（默认 60 秒上限）、超时放弃报待激活 | #134、#135 |
+| [GUL-04](shared-runtime-release-tickets/13-spec-docs-sync.md) | [#137](https://github.com/ONEGAYI/ZCode-Plugins/issues/137) | spec 7.2、common AGENTS.md、skills/setup 与索引同步 | #134、#135、#136 |
+
+本轮授权范围：开票与本地实施（含测试）。推送、建 PR、合入 dev、关闭 issue 不在本次授权内，完成后交付验收。

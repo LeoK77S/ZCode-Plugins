@@ -142,8 +142,8 @@ Remove 只在用户要求移除公共网关时执行，先完整退出 ZCode。�
 | --- | --- |
 | WebSocket `/ws` | 一个 Desktop；认证及非 RPC 流量转发，RPC 桥由网关分流；第二个 Desktop 被拒绝 |
 | WebSocket `/rpc` | 当前用户插件的本地二进制 Channel RPC；Bearer 鉴权，不新增官方 terminal |
-| GET `/health` | 工具版本、安装标识、上游地址、连接与配对布尔值；不含凭据或消息正文 |
-| POST `/shutdown` | 仅供公共移除与重载流程，要求本地 Bearer 令牌，且无 Desktop 连接；不是 ZCode 远控 RPC |
+| GET `/health` | 工具版本、安装标识、上游地址、连接与配对布尔值及 `rpc_in_flight`（请求在飞计数，订阅不计）；不含凭据或消息正文 |
+| POST `/shutdown` | 仅供公共移除与重载流程，要求本地 Bearer 令牌，且无 Desktop 连接；不是 ZCode 远控 RPC。带 `?idle=1` 的升级关闭：Desktop 在连但无飞行操作时放行闪断，忙时 409 busy |
 
 带浏览器 `Origin` 的 HTTP 或 WebSocket 连接均拒绝。`config.json` 中的 `control_token` 用于本地 RPC 和停止接口；客户端从同一用户的文件读取，令牌只经本地请求头传递。它不是手机远控链接，不要把完整配置、令牌或请求头贴入报告和日志。
 
