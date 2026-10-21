@@ -6,6 +6,8 @@ param(
     [ValidateSet(1, 2)][int]$RelayProtocolVersion,
     [string]$ZcodeAppVersion = $env:ZCODE_APP_VERSION,
     [ValidateRange(1, 30)][int]$HealthTimeoutSec = 5,
+    [ValidateRange(0, 600)][int]$BusyTimeoutSec = 60,
+    [ValidateRange(50, 60000)][int]$BusyRetryMs = 2000,
     [string]$UpstreamUrl = 'wss://zcode.z.ai/ws',
     [string]$DataDir = (Join-Path $env:USERPROFILE '.zcode\tools\suian-zcode-gateway'),
     [string]$SkillsDir = (Join-Path $env:USERPROFILE '.zcode\skills'),
@@ -182,6 +184,41 @@ function Release-UpgradeLock {
     Remove-Item -LiteralPath (Join-Path $DataDir 'upgrade.lock') -ErrorAction SilentlyContinue
 }
 
+# 忙退避重探：V2 且运行中网关健康含 rpc_in_flight 时，连接在但无飞行操作即视为空闲，用升级关闭闪断
+# （Desktop 连接层自带断线自愈）；旧网关无该字段或协议为 V1 时保守等待连接断开。
+# shutdown 的任何失败（含服务端 409 busy 竞争窗口）都回到重探；总时长由 BusyTimeoutSec 限制，超时返回 busy。
+function Stop-GatewayForUpgrade {
+    param([object]$CurrentHealth)
+    $deadline = [DateTime]::UtcNow.AddSeconds($BusyTimeoutSec)
+    $delay = $BusyRetryMs
+    while ($true) {
+        if ($null -eq $CurrentHealth) { return 'stopped' }
+        $query = ''
+        if ($CurrentHealth.desktop_connected) {
+            if ($RelayProtocolVersion -eq 2 -and $CurrentHealth.PSObject.Properties['rpc_in_flight'] -and [int]$CurrentHealth.rpc_in_flight -eq 0) { $query = '?idle=1' }
+            elseif ([DateTime]::UtcNow -ge $deadline) { return 'busy' }
+            else {
+                Start-Sleep -Milliseconds $delay
+                $delay = [Math]::Min(15000, $delay * 2)
+                $CurrentHealth = Read-GatewayHealth -AllowUnavailable
+                continue
+            }
+        }
+        try {
+            $stopped = Invoke-RestMethod -Uri "http://127.0.0.1:$runningPort/shutdown$query" -Method Post -Headers @{ Authorization=('Bearer ' + $config.control_token) } -TimeoutSec 5 -UseBasicParsing
+            if (-not $stopped.ok) { throw 'Gateway did not accept shutdown' }
+            Wait-GatewayExit
+            return 'stopped'
+        }
+        catch [Net.WebException] {
+            if ([DateTime]::UtcNow -ge $deadline) { return 'busy' }
+            Start-Sleep -Milliseconds $delay
+            $delay = [Math]::Min(15000, $delay * 2)
+            $CurrentHealth = Read-GatewayHealth -AllowUnavailable
+        }
+    }
+}
+
 function Send-EnvironmentChange {
     if (-not ('SuianZcodeGateway.EnvironmentBroadcast' -as [type])) {
         Add-Type -TypeDefinition @'
@@ -242,10 +279,12 @@ if ($Action -eq 'Remove') {
     if ($taskRunning -and $null -eq $health) { throw 'Gateway task is running but health is unavailable; running state is unknown, configuration was not changed' }
     if ($null -ne $health) {
         if ($health.service -ne 'suian-zcode-gateway' -or $health.version -ne 1 -or $health.instance_id -ne $config.instance_id -or $health.upstream_url -ne $config.upstream_url -or $health.mode -ne $installedMode) { throw 'Gateway health does not match the installed configuration' }
-        if ($health.desktop_connected) { throw 'Finish running work and fully quit ZCode before removing the shared gateway' }
-        $stopped = Invoke-RestMethod -Uri "http://127.0.0.1:$runningPort/shutdown" -Method Post -Headers @{ Authorization=('Bearer ' + $config.control_token) } -TimeoutSec 5 -UseBasicParsing
-        if (-not $stopped.ok) { throw 'Gateway did not accept shutdown' }
-        Wait-GatewayExit
+        $stopVerdict = Stop-GatewayForUpgrade -CurrentHealth $health
+        if ($stopVerdict -eq 'busy') {
+            Release-UpgradeLock
+            [ordered]@{ ok=$true; action='remove_deferred'; upgrade_deferred='remote_busy'; busy_timeout_sec=$BusyTimeoutSec } | ConvertTo-Json -Compress
+            return
+        }
     }
     $environmentAction = 'preserved_external'
     if ($userRelay -eq "ws://127.0.0.1:$runningPort/ws") {
@@ -312,11 +351,13 @@ if ($taskRunning -and $null -eq $health) { throw 'Gateway task is running but he
 if ($null -ne $health) {
     if ($restarting) {
         if ($health.service -ne 'suian-zcode-gateway' -or $health.version -ne 1 -or $health.instance_id -ne $config.instance_id -or $health.upstream_url -ne $config.upstream_url -or $health.mode -ne $installedMode) { throw 'Gateway health does not match the installed configuration' }
-        if ($health.desktop_connected) { throw 'Stop mobile remote control in ZCode before restarting the shared gateway; keep ZCode open to finish the upgrade' }
-        $stopped = Invoke-RestMethod -Uri "http://127.0.0.1:$runningPort/shutdown" -Method Post -Headers @{ Authorization=('Bearer ' + $config.control_token) } -TimeoutSec 5 -UseBasicParsing
-        if (-not $stopped.ok) { throw 'Gateway did not accept shutdown' }
-        # 步骤 3：等待旧网关、监听与监督启动器实际退出后才修改任何记录。
-        Wait-GatewayExit
+        $stopVerdict = Stop-GatewayForUpgrade -CurrentHealth $health
+        if ($stopVerdict -eq 'busy') {
+            Release-UpgradeLock
+            [ordered]@{ ok=$true; action='restart_deferred'; upgrade_deferred='remote_busy'; candidate_build_id=$buildId; busy_timeout_sec=$BusyTimeoutSec; restart_required=$true } | ConvertTo-Json -Compress
+            return
+        }
+        # 步骤 3：等待旧网关、监听与监督启动器实际退出后才修改任何记录（Stop-GatewayForUpgrade 已完成）。
         $health = $null
     } elseif ($health.service -ne 'suian-zcode-gateway' -or $health.version -ne 1 -or $health.instance_id -ne $instanceId -or $health.upstream_url -ne $UpstreamUrl -or $runningPort -ne $Port -or $health.mode -ne $Mode -or $health.relay_protocol_version -ne $RelayProtocolVersion) {
         throw 'Running gateway differs from requested configuration; stop mobile remote control in ZCode and use Restart; keep ZCode open to finish the upgrade'
