@@ -10,6 +10,8 @@ SE-05 已实现 schema 2 的会话恢复副本与独立回执；最终固定源 
 
 初版及三轮代码红绿记录保持原提交时点，分别见 `docs/se05-verification.md`、`docs/se05-review-fix-verification.md`、`docs/se05-round2-verification.md`、`docs/se05-round3-verification.md`。其中历史“待复核／H4 未验”不代表当前实测状态；不改写旧失败与冻结证据。评论 #42／46／47 与安装验收 #48 可按用户接受残余风险的尽力禁用范围继续，完整同步／批次及在途追加由 SE-11 独立验收，尚未完成。
 
+LO-07 已在 local-only 隔离环境以真实原生侧栏面板（实际构建页面与真实 CodeMirror）验收评论链路：真实选区快照、经 composer 入主对话、受理反馈、busy/断连阻止与重连恢复、A/B 会话隔离、原文件与恢复副本独立回执均有实际证据；模型 running 与受理证据分离，模型调用来自受控本机 mock。原 #47 缺口、完整并发 #57 与用户验收仍未完成，旧结论不改写，当前尽力禁用边界不变。见 [LO-07 证据](../suian-zcode-app-mcp/docs/local-only/07-editor-acceptance-evidence.md)。
+
 ## 范围与约定
 
 - 编辑当前会话允许的本机目录内已有的 UTF-8 文本；3.16 可在文件树上方切换执行／附加目录，冻结会话范围优先于项目 roots，各目录的页签与恢复副本隔离。远程工作区和新建、重命名、删除文件另列后续特性；首版不包含 PPT 编辑。
@@ -30,6 +32,7 @@ SE-05 已实现 schema 2 的会话恢复副本与独立回执；最终固定源 
 - 实施证据与宿主预读：`docs/development-verification.md`、`docs/native-ui-binding-research.md`。
 - 多目录交互与隔离回归：[验证记录](../suian-zcode-app-mcp/docs/multi-directory-validation.md)；原生多目录组合待验。
 - 评论代码／夹具通过及 Native 待验的当前边界：[评论验证](docs/comment-guard-verification.md)。
+- local-only 隔离环境的真实面板评论与连接恢复验收：[LO-07 证据](../suian-zcode-app-mcp/docs/local-only/07-editor-acceptance-evidence.md)。
 - 主对话上下文接口与安装包核对：`docs/main-composer-context-research.md`。
 - 已接受的架构决定：`docs/adr/`。
 - 文档组织与开票：`docs/agents/domain.md`、`docs/agents/issue-tracker.md`。
