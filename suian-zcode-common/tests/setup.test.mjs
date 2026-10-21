@@ -1097,3 +1097,32 @@ test('运行中 V1 网关升级到 V2 时不启用空闲闪断：按健康自报
   assert.equal(deferred.upgrade_deferred, 'remote_busy');
   assert.equal((await f.state()).shutdowns, 0, '不得对运行中 V1 Desktop 发出空闲闪断关闭');
 });
+
+test('共享启动器写入在事务锁内：持锁期间其他实例拿锁失败且不覆盖 launchers 文件', { skip: process.platform !== 'win32' }, async t => {
+  const f = await fixture(t);
+  await f.run('Install');
+  const launcherPs = join(f.toolsRoot, 'launchers', 'run.ps1');
+  const launcherVbs = join(f.toolsRoot, 'launchers', 'gateway-launch.vbs');
+  const psBefore = await readFile(launcherPs);
+  const vbsBefore = await readFile(launcherVbs);
+  const variant = await variantSource(t);
+  const { appendFile } = await import('node:fs/promises');
+  await appendFile(join(variant.copyRoot, 'gateway-launcher.ps1'), '\n# variant launcher probe\n');
+  await appendFile(join(variant.copyRoot, 'run.vbs'), "\n' variant vbs probe\n");
+  const variantSetup = join(variant.copyRoot, 'setup.ps1');
+  const lockPath = join(f.dataDir, 'upgrade.lock');
+  const heldSignal = join(f.root, 'launchers-lock-held.signal');
+  const singleQuote = path => path.replace(/'/g, "''");
+  const holder = spawn('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command',
+    `$fs=[IO.File]::Open('${singleQuote(lockPath)}','Create','ReadWrite','Read'); $b=[Text.Encoding]::UTF8.GetBytes("$PID\`n"); $fs.Write($b,0,$b.Length); $fs.Flush(); Set-Content -LiteralPath '${singleQuote(heldSignal)}' 'held'; Start-Sleep -Seconds 120; $fs.Close()`], { windowsHide: true, stdio: 'ignore' });
+  t.after(() => holder.kill());
+  for (let i = 0; i < 100 && !existsSync(heldSignal); i++) await new Promise(resolve => setTimeout(resolve, 50));
+  assert.ok(existsSync(heldSignal), '外部持锁进程应就绪');
+  await assert.rejects(f.run('Install', { setupScript: variantSetup }), /already running/);
+  assert.deepEqual(await readFile(launcherPs), psBefore, '拿锁失败不得覆盖共享 PowerShell 启动器');
+  assert.deepEqual(await readFile(launcherVbs), vbsBefore, '拿锁失败不得覆盖共享 VBS 启动器');
+  holder.kill();
+  await new Promise(resolve => holder.once('exit', resolve));
+  const switched = await f.run('Install', { setupScript: variantSetup });
+  assert.equal(switched.ok, true, '持锁进程退出后可正常切换，此时允许写入新启动器');
+});

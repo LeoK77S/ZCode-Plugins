@@ -375,13 +375,14 @@ $sha = [Security.Cryptography.SHA256]::Create()
 try { $instanceId = ([BitConverter]::ToString($sha.ComputeHash([Text.Encoding]::UTF8.GetBytes($ToolsRoot.ToLowerInvariant())))).Replace('-', '').ToLowerInvariant() }
 finally { $sha.Dispose() }
 
-# 步骤 1：校验候选并暂存部署运行文件（真实文件副本，不使用 junction）；暂存不改变活动版本。
+# 步骤 1：校验候选并暂存部署运行文件（真实文件副本，不使用 junction）；暂存不改变活动版本，仅写按 buildId 隔离的候选目录，可在锁外并发。
 $deployResult = Invoke-DeployCli @('--deploy', '--source-root', $PSScriptRoot, '--tools-root', $ToolsRoot)
 $buildId = $deployResult.buildId
 $deploymentDir = $deployResult.deploymentDir
-Invoke-DeployCli @('--ensure-launchers', '--source-root', $PSScriptRoot, '--tools-root', $ToolsRoot) | Out-Null
-# 切换事务从这里开始：shutdown、活动记录切换、任务注册与健康确认须整体互斥。
+# 切换事务从这里开始：共享启动器写入（ensure-launchers 写 ToolsRoot/launchers，非候选隔离）、
+# shutdown、活动记录切换、任务注册与健康确认须整体互斥，拿锁失败者不得覆盖他实例要启动或回退的启动器。
 Acquire-UpgradeLock
+Invoke-DeployCli @('--ensure-launchers', '--source-root', $PSScriptRoot, '--tools-root', $ToolsRoot) | Out-Null
 
 # 复用在运行的实例。修改地址或安装位置时不能悄悄切断 Desktop。
 $health = $null

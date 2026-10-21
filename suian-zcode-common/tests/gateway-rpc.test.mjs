@@ -1081,3 +1081,43 @@ test('升级关闭按空闲放行：忙时 409 busy 不退出，空闲或无连�
   await desktopClosed;
   await assert.rejects(fetch(healthUrl), '网关接受升级关闭后应实际退出');
 });
+
+test('建桥未完成与远端透传期间 rpc_in_flight 不为零，升级关闭保持 409 且不退出', { timeout: 4000 }, async t => {
+  // 场景一：本地 attach 的 bootstrap 已应答、共享桥初始化挂起（bridge-open 无响应）。
+  const f = await fixture(t, 'matched', { ignoreBridge: true, gateway: { bridgeTimeoutMs: 3600 } });
+  const healthOf = async ff => (await fetch(ff.gateway.url.replace('ws:', 'http:').replace('/ws', '/health'))).json();
+  const shutdownIdle = async ff => fetch(ff.gateway.url.replace('ws:', 'http:').replace('/ws', '/shutdown?idle=1'), { method: 'POST', headers: { Authorization: 'Bearer fixture-rpc-token' } });
+  const peer = new WebSocket(f.gateway.url.replace('/ws', '/rpc'), { headers: { Authorization: 'Bearer fixture-rpc-token' } });
+  t.after(() => peer.terminate());
+  peer.on('error', () => {});
+  await once(peer, 'open');
+  const attached = Promise.withResolvers();
+  peer.on('message', (data, binary) => { if (!binary && JSON.parse(data).type === 'attached') attached.resolve(); });
+  peer.send(JSON.stringify({ type: 'attach', workspace_path: workspace }));
+  await until(() => f.bridgeOpens.length === 1);
+  assert.equal((await healthOf(f)).rpc_in_flight, 1, '建桥等待期间必须计入忙判定');
+  let busy = await shutdownIdle(f);
+  assert.equal(busy.status, 409, '建桥在途时升级关闭不得放行');
+  // 桥就绪并完成初始化后释放（ignoreBridge 下 fixture 未建立 identity，手工按桥身份编码初始化帧）。
+  const open = f.bridgeOpens[0];
+  f.desktop.send(JSON.stringify({ type: 'data', payload: { zcode_type: 'workspace-bridge-ready', requestId: open.requestId, bridge: { bridgeSessionId: open.bridgeSessionId, bridgeGeneration: 1, kind: 'local', workspacePath: workspace } } }));
+  const bridgeIdentity = { bridgeSessionId: open.bridgeSessionId, bridgeGeneration: 1 };
+  for (const frame of encode(pack([200], undefined), { ...bridgeIdentity, firstPhysicalSeq: 1, messageSeq: 1 })) f.desktop.send(JSON.stringify({ type: 'data', payload: frame }));
+  await attached.promise;
+  assert.equal((await healthOf(f)).rpc_in_flight, 0, '桥初始化完成后释放忙判定');
+
+  // 场景二：手机打开远端工作区进入透传，网关看不到请求边界，保守按忙。
+  const f2 = await fixture(t, 'matched');
+  f2.phone.send(JSON.stringify({ type: 'data', payload: { zcode_type: 'workspace-bridge-open', requestId: 'phone-remote-open', bridgeSessionId: 'phone-remote-bridge', bridgeGeneration: 1, workspaceKey: 'remote:fixture' } }));
+  await until(() => f2.desktopMessages.some(m => m.payload?.zcode_type === 'workspace-bridge-open'));
+  assert.ok((await healthOf(f2)).rpc_in_flight >= 1, '远端透传会话期间保守计入忙判定');
+  busy = await shutdownIdle(f2);
+  assert.equal(busy.status, 409, '透传期间升级关闭不得放行');
+  // relay 报 INTERNAL 使手机配对断开（phoneDisconnected 清透传 peer），盲区解除。
+  f2.phone.send(JSON.stringify({ type: 'error', code: 'INTERNAL' }));
+  await new Promise(resolve => setImmediate(resolve));
+  for (let i = 0; i < 150; i++) { if ((await healthOf(f2)).rpc_in_flight === 0) break; await new Promise(resolve => setTimeout(resolve, 2)); }
+  assert.equal((await healthOf(f2)).rpc_in_flight, 0, '手机断开后透传盲区解除');
+  const accepted = await shutdownIdle(f2);
+  assert.equal(accepted.status, 200, '盲区解除且无飞行操作时升级关闭放行');
+});
