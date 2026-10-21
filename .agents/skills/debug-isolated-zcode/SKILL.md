@@ -123,6 +123,19 @@ description: 调试隔离 ZCode Desktop/CLI 实验环境（local-only lab）：l
 - **现状**：与 lab launcher 的差异未定位（env 传递路径或参数形态）；验证条件的构造应优先扩展 lab 工具选项而不是绕开它。涉及"非回环网关覆盖"的原生观察因此未达成（以契约层断言支撑，见 `03-lifecycle-evidence.md` §3.6）。
 - **来源**：LO-03 实录。
 
+### K13 重置 userData 后 workspace 直开不创建主窗口；判断窗口存在要用 CDP targets
+
+- **症状**：lab 重置 userData/sessionData/home 后 `launch --workspace` 启动，主进程存活但零 `[web-remote-control]` 日志、P6 不触发；补丁版与**原版 asar 对照**同样无窗口——即与补丁无关的环境行为。userData 完成过一次首启初始化后（哪怕由原版完成）再启动一切正常。
+- **根因**：未定位（疑似首启引导流程在全新 userData 下未按 workspace 参数创建主窗口；与 LO-03 当时"workspace 直开绕过欢迎页"的表现不一致，同日内环境行为变化）。main 日志特征：停在 crash-capture/deep-link/startup/auto-update 一段，无窗口创建迹象。
+- **解法**：验证依赖窗口的链路前确认 userData 已完成首启（先用一轮普通启动初始化）；**判断"有没有窗口/页面"以 CDP `--remote-debugging-port` 的 `/json/list` targets 为准**——`MainWindowTitle` 为空与按 exe 的 WQL 进程枚举都曾给出假阴性（枚举漏 renderer）。
+- **来源**：LO-04 实录（`04-setup-integration-evidence.md` §4 未验项）。
+
+### K14 复用 setup 契约测试桩做 lab 端到端 runner 的三个对齐点
+
+- **场景**：需要在 lab 语义下真实执行 setup.ps1 与补丁工具、又不能碰真实任务/注册表/广播时，从 `tests/setup.test.mjs` 提取 systemFixture 作 Windows 边界桩（lab runner 脚本留在 `.scratch/` 不入库）。
+- **对齐点**：① 桩 fixture 的 `build.id` 必须是**部署 CLI 从构建目录实算的 candidateBuildId**（`gateway-deploy.mjs --status`），不是 release.json 的构建指纹——部署清单输入与构建清单不同，setup 健康核对按前者；`version` 字段也要带上。② 移除 `Invoke-PatchCli` 桩后 setup.ps1 的守卫式默认定义自动生效，补丁工具即真实执行（apply/restore 拒绝语义同理可证）。③ 从测试文件正则提取 fixture 时注意文件是 CRLF（正则 `\`;\r?\n`），Windows 边界桩模板对属性访问要防御 `Set-StrictMode`（StrictMode 随调用栈传播到桩函数）。
+- **来源**：LO-04 实录（lab runner 三次红灯后对齐）。
+
 ## 维护约定
 
 - 每张 LO 票收尾时，实施者（或协调者）把该票**新**踩的坑回填到"已知坑实录"，注明票号与证据路径；修正既有条目的"待确认"标注。

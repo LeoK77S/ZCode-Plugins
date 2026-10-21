@@ -7,7 +7,7 @@
 - 只有网关是常驻独立进程，其他能力是调用方导入的模块；提取代码不代表所有插件自动增加这些行为。
 - 网关只绑定 `127.0.0.1`，不读取远控链接或 ZCode 凭据、不记录消息体。本地工作区复用窗口 Host 的一个物理桥，隔离客户端 RPC 编号；共存声明必须区分隔离测试与真实手机验收。实验性 terminal 模式通过调用方的 `getToken` 获取一次性终端 token，Desktop 直连官方 relay；同设备只允许一个 terminal，收到 KICKED 后停止连接，不自动争抢。
 - 默认 relay 模式保留官方鉴权与手机共存；显式 local-only 模式仅处理回环 Desktop 的注册、就绪和心跳，不连接官方 relay、不使用传入的 pass_hash，也不宣称官方身份已验证。本地 RPC 仍要求当前用户 control_token；设备入口信任本机进程，拒绝浏览器 Origin。旧配置无 mode 时按 relay 兼容，不因网络失败自动切换。
-- relay 的 `relayProtocolVersion`／配置 `relay_protocol_version` 缺省为 1；3.16 显式选择 2，转发 Desktop 一次性 token 与 MID，不另占 terminal。V2 消息严格区分 server_ts／client_ts，使用 Unix 秒；将 auth_ack 转成配对通知时不得带 device_sid。3.16 原版 local-only 不支持；LO-02 已交付完全短路补丁（登录/HTTP 注册/取令牌短路 + 回环 WS，网关字节不改）并在 lab 内完成握手与原 Host 探针验证（[补丁证据](../suian-zcode-app-mcp/docs/local-only/02-patch-evidence.md)）；LO-03 升级补丁 v2 补齐无登录冷启动自动触发、重连恢复与 signed-out 事件隔离并在 lab 完成离线生命周期验证（[生命周期证据](../suian-zcode-app-mcp/docs/local-only/03-lifecycle-evidence.md)），setup 产品闭环与在线 relay 验收仍为后续票，旧模式测试不构成 3.16 离线证据。
+- relay 的 `relayProtocolVersion`／配置 `relay_protocol_version` 缺省为 1；3.16 显式选择 2，转发 Desktop 一次性 token 与 MID，不另占 terminal。V2 消息严格区分 server_ts／client_ts，使用 Unix 秒；将 auth_ack 转成配对通知时不得带 device_sid。3.16 local-only 自 LO-04 起进入产品 setup：LO-02 交付完全短路补丁（登录/HTTP 注册/取令牌短路 + 回环 WS，网关字节不改，[补丁证据](../suian-zcode-app-mcp/docs/local-only/02-patch-evidence.md)）；LO-03 升级补丁 v2 补齐无登录冷启动自动触发、重连恢复与 signed-out 事件隔离（[生命周期证据](../suian-zcode-app-mcp/docs/local-only/03-lifecycle-evidence.md)）；LO-04 把预检、准备与外部应用命令接入 setup 产品流程并在真实构建包上完成 lab 端到端验证（[setup 集成证据](../suian-zcode-app-mcp/docs/local-only/04-setup-integration-evidence.md)）。放行以补丁工具字节身份判定为准，不泛化支持其它 3.16 包；在线 relay 与用户日常安装验收仍为未验项，旧模式测试不构成 3.16 离线证据。
 - Windows 安装器按显式 ZcodeAppVersion 或宿主 ZCODE_APP_VERSION 自动选择协议与官方地址；没有新版本信息时保留已配置协议。升级时只迁移旧官方地址，自定义上游、端口、令牌和原环境备份保留；旧配置缺少协议字段按 V1 兼容，不能把无版本依据的默认值当作 3.16 就绪证据。
 - 公共远控模块使用调用方提供的授权。DPAPI 明文只在进程内，保存位置由调用方的 `dataDir` 决定；不回显或复制凭据到公共配置。
 - Toast 的两小时冷却与互斥实现共用，状态范围由调用方的 `dataDir` 决定。协议、快捷方式和 AUMID 属于调用方，卸载一个插件不删除另一个身份。
@@ -38,7 +38,7 @@
 | skills/ | setup / configuration / debug，paths.md 统一位置与数据归属 |
 | rpc-broker.mjs | 单一 Host 桥、RPC 编号与 v4 握手身份映射、手机虚拟桥与本地客户端分流 |
 | gateway-client.mjs | 插件默认 connectHost/probeHost，本地配置与鉴权、RPC call／listen 附着、原事件参数与释放语义及明确失败 |
-| setup.ps1 / run.ps1 / run.vbs | 用户任务、变量、公共 skill；按 Desktop 版本选择 V1/V2，保留协议与迁移官方地址；setup 按六步顺序部署候选、忙退避安全切换（升级事务锁互斥、空闲闪断或超时报 remote_busy）与失败回退；run.ps1/run.vbs 保留为源码开发直启链 |
+| setup.ps1 / run.ps1 / run.vbs | 用户任务、变量、公共 skill；按 Desktop 版本选择 V1/V2，保留协议与迁移官方地址；setup 按六步顺序部署候选、忙退避安全切换（升级事务锁互斥、空闲闪断或超时报 remote_busy）与失败回退；run.ps1/run.vbs 保留为源码开发直启链。LO-04 起 `-Mode local-only`（V2）按 `-ZcodeInstallDir` 补丁预检放行（仅受支持包，Invoke-PatchCli 守卫式定义供测试桩替换），准备候选后生成外部 apply/restore 命令（数据目录 `local-only/`）——setup 不执行 apply、不强退进程；local-only 默认端口 17331；切回 relay（Restart -Mode relay）删模式标志且不重写应用包 |
 | remote.mjs | 官方 relay 鉴权、workspace bridge、Channel RPC 与分层探活 |
 | auth-store.mjs | 调用方数据目录内的当前用户 DPAPI 授权存取 |
 | title-policy.mjs | 当前用户跨插件的会话锁定策略：MCP 写入，命名插件读取 |
