@@ -66,6 +66,7 @@ local-only 按随包档案自动路由，历史记录兼容与新增档案流程
 | vendor/conversation-wire.js / vendor/conversation-wire.sources.json | 固定官方 V4 topic 帧组装／编码及快照／历史页 schema；49源blob、ref和构建SHA，不代表安装版本逐字节一致 |
 | vendor/LICENSE-ZCode / vendor/NOTICE-ZCode-current.md / vendor/LICENSE-zod | 官方Apache-2.0完整许可／NOTICE与构建内Zod MIT许可，禁止改成自有MIT归属 |
 | SKILL.md / README.md | 源码兼容路由与公共模块接口，完整操作流程在对应 skills/ 技能 |
+| CHANGELOG.md | common 插件发行记录，版本范围与 local-only 安装及兼容边界 |
 | tests/ | 回环网关、隔离 Windows 配置、远控、DPAPI、通知、依赖完整性判定、不自举契约、PKG-01 公共加载契约（定位器分类、入口导出面、导入纯净、构建确定性与自包含）及 PKG-05 稳定运行时（部署指纹与幂等、篡改校验、稳定启动器隔离场景、候选三态、拒绝切换、失败回退、首次撤销、旧任务迁移与 Toast 记录独立） |
 | tests/gateway-rpc.test.mjs / tests/plugin-link.test.mjs | 真实回环call／listen客户端隔离和释放、市场版本一致及独立缓存公共升级契约 |
 | tests/gateway-deploy.test.mjs / tests/stable-launcher.test.mjs | PKG-05 部署契约（内容指纹、自包含回环、运行中健康不冒充磁盘新代码）与稳定启动器（旧任务参数依赖已删除缓存的红色证明、缓存删除后仍可启动、活动记录切换部署、中文空格路径） |
