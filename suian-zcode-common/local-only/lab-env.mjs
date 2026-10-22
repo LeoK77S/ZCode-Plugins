@@ -14,15 +14,8 @@
 import { join, resolve } from 'node:path';
 import { randomBytes } from 'node:crypto';
 
-export const SUPPORTED_PACKAGE = Object.freeze({
-  exeName: 'ZCode.exe',
-  exeFileVersion: '3.16.2.8769',
-  appAsarRelativePath: 'resources/app.asar',
-  appAsarSha256: '1F960BA24A4A6687BB29090A9AC3273C06E9FC18B14882525F591132650A99A8',
-  appAsarBytes: 341334118,
-  chromiumVersion: '147.0.7727.15',
-  electronVersion: null, // 静态证据链未定 Electron 精确版本；运行时提取列为未验项
-});
+import { SUPPORTED_PACKAGE } from './profiles/windows-3.16.2.8769.mjs';
+export { SUPPORTED_PACKAGE };
 
 export const LAB_APPLICATION_NAME = 'ZCode Lab';
 

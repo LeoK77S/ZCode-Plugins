@@ -5,6 +5,7 @@
 // 不含个人路径/凭据），保证注入断言对真实包成立。
 // 注意：本文件不是测试文件（*.test.mjs），只放构造辅助，不放 test()。
 
+import { PATCH_PROFILES } from '../local-only/profiles.mjs';
 import { mkdir, readFile, stat, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { createHash, randomBytes } from 'node:crypto';
@@ -144,9 +145,11 @@ export async function makeSupportedTarget(root, { wire = '101000011', extraFiles
 
 export const noProcesses = async () => [];
 
+export const profilesFor = identity => [{ ...PATCH_PROFILES[0], platform: process.platform, packageIdentity: identity }];
+
 export function boundaries(target, { processes = noProcesses } = {}) {
   return {
-    packageIdentity: target.identity,
+    profiles: profilesFor(target.identity),
     resolveIdentity: target.resolveIdentity,
     readProcesses: processes,
   };
