@@ -19,7 +19,7 @@ description: 诊断 ZCode 公共网关、启动任务、Desktop、上游和手�
 
 depcheck 自身的 issue code 语义见[setup 的依赖完整性检查](../setup/SKILL.md#依赖完整性检查stop-钩子-depcheck)。common 缓存整个缺失时 Stop 钩子随缓存消失，诊断走缓存外 Toast 执行器；不要在缓存内手工 npm 或复制文件补包。
 
-**公共插件 0.3.0 起支持 ZCode 3.16 在线模式，local-only 暂不可用**。在线模式需要已登录账号、可达的官方远控服务和 V2 配置。执行 Status 时用 -ZcodeAppVersion 传入已核实的 Desktop 应用版本，核对 relay_protocol_version、running_relay_protocol_version、protocol_update_required 和 upstream_update_required；protocol_source 为 legacy_default 时表示没有版本依据，不能据此判断 3.16 配置正确。先按[configuration](../configuration/SKILL.md)核对版本与配置，不能建议通过切换本地模式解决 3.16 连接失败。
+**公共插件 0.3.0 起支持 ZCode 3.16 在线模式；3.16.2 的 local-only 走补丁安装流程（LO-04 起，仅受支持包）**，其故障按下方 local-only 分层表定位。在线模式需要已登录账号、可达的官方远控服务和 V2 配置。执行 Status 时用 -ZcodeAppVersion 传入已核实的 Desktop 应用版本，核对 relay_protocol_version、running_relay_protocol_version、protocol_update_required 和 upstream_update_required；protocol_source 为 legacy_default 时表示没有版本依据，不能据此判断 3.16 配置正确。先按[configuration](../configuration/SKILL.md)核对版本与配置，不能建议未经用户同意切换本地模式来解决连接失败。
 
 | 层次 | 证据 |
 | --- | --- |
@@ -42,3 +42,27 @@ Desktop 未连接时，先检查远控面板的状态与错误，再结合日志
 手机远端工作区忙时本地 RPC 返回 remote_workspace_busy，等待用户主动切回。隔离测试不等于真实手机共存，重新开启后需实际验收。不要创建真实任务探活，不擅自杀进程、提权或修改其他插件。
 
 日志与报告不含消息正文、链接、sid/hash/mid 或 control_token，分别报告已核实、未核实和待用户验收事项。
+
+## local-only 故障分层（3.16.2 补丁链路）
+
+先核对 `status.profileId`、实际包版本/摘要与状态记录。`invalid_metadata`（退出码 17）表示记录损坏或格式不支持，保留状态和备份，先诊断；不要删记录后盲 patch。候选档案不符或降级被拒绝时，使用当前随包工具为实际受支持包重新准备候选。未知发行包需要新增经过验证的档案，不能手改包身份放行。
+
+
+补丁工具与外部命令的每次失败都带明确 code 与指引；先按分类对位，再执行对应诊断。诊断入口统一为补丁工具 status（只读）：
+
+```powershell
+node "{{common_root}}/local-only/patch.mjs" status --target "{{zcode_install_dir}}"
+```
+
+| 分层 | 典型回执 | 诊断与处置 |
+| --- | --- | --- |
+| 包不支持/摘要变化 | `unsupported_package`（exe 版本不符或身份解析失败）、`digest_mismatch`（摘要不属于登记原版/补丁版） | 应用被升级或其它工具改写；停止套用旧候选/旧备份，等适配新包的工具版本，不做模糊匹配 |
+| 宿主仍运行 | `running_instance`（外部命令/apply/restore 均列 PID） | 请用户从托盘正常退出后重试；工具与外部命令都不强退进程 |
+| 备份或写入失败 | `backup_missing`、`write_failed`（含恢复 `recovery` 结果） | 按回执核对备份文件与目标摘要；恢复失败保留现场证据，不宣称已恢复 |
+| 环境未生效 | 已 applied/activated 但 Desktop 行为不变 | 开关在启动时一次性求值：确认标志文件在启动前存在、重开 Desktop；检查是否有 `ZCODE_LOCAL_ONLY=0` 显式关闭。v3 开启时仅接受回环 WS 覆盖，旧补丁应先升级 |
+| 完整还原未完成 | `local-only-restore-incomplete`（退出码 14），`application_original:true`、`gateway_restored:false` | 应用包已恢复，网关恢复失败；保留回执，保持 Desktop 关闭，排除网关错误后重试同一还原命令 |
+| 网关未就绪 | 健康不可达或 `desktop_connected:false` | 核对网关任务/进程与端口（local-only 默认 17331）；网关恢复后 Desktop 自动重连（退避上限约 90 秒级） |
+| Host 未附着 | 连接在但 `desktop_ready:false`、探针 `workspaceFound:false` | 标志首行工作区与实际打开的工作区不一致时 attach 失败；按外部命令生成参数核对工作区 |
+| 模型服务不可达 | local-only 链路正常但会话无回复 | local-only 只免除官方远控连接；模型服务、登录与额度仍需各自服务可达 |
+
+外部命令（apply/restore .ps1）的失败输出与上表同一分类（退出码 10/12/13；完整还原的网关步骤失败为 14），向用户转述时保留 code 与指引，不省略为“失败”。

@@ -13,6 +13,11 @@ param(
     [string]$SkillsDir = (Join-Path $env:USERPROFILE '.zcode\skills'),
     # 缓存外部署根：deployments\<buildId> 存放网关运行文件副本，launchers 存放稳定启动器。
     [string]$ToolsRoot = (Join-Path $env:USERPROFILE '.zcode\tools\suian-zcode-common'),
+    # LO-04：3.16 local-only 的补丁预检/准备目标（用户指定的 ZCode Desktop 原安装目录）；
+    # 自动启动工作区（写入标志文件首行）与目标 Desktop 数据根（标志文件父目录，lab 场景显式传入）。
+    [string]$ZcodeInstallDir,
+    [string]$LocalOnlyWorkspace,
+    [string]$LocalOnlyDataRoot = $env:USERPROFILE,
     [switch]$NativePlugin
 )
 $ErrorActionPreference = 'Stop'
@@ -61,8 +66,13 @@ $officialV2 = 'wss://zcode.z.ai/api/v1/remote/ws2'
 if (-not $PSBoundParameters.ContainsKey('UpstreamUrl') -and ($null -eq $config -or ($RelayProtocolVersion -ne $installedProtocol -and $config.upstream_url -in ($officialV1 + $officialV2)))) {
     $UpstreamUrl = if ($RelayProtocolVersion -eq 2) { $officialV2 } else { $officialV1[0] }
 }
+# LO-04：3.16 local-only 的回环网关默认端口与补丁内置默认网关地址一致（17331，避开 relay 默认 17329）；
+# 显式 -Port 与已安装配置端口优先。
+if ($Mode -eq 'local-only' -and $RelayProtocolVersion -eq 2 -and $null -eq $config -and -not $PSBoundParameters.ContainsKey('Port')) { $Port = 17331; $runningPort = $Port }
+# LO-04：3.16 local-only 不再整体拒绝，改为按受支持包放行——目标必须是补丁工具按字节身份
+# 判定受支持的包（预检在写任何配置之前执行）；未提供安装目录时在此直接拒绝。
 if ($Action -in @('Install', 'Restart')) {
-    if ($Mode -eq 'local-only' -and $RelayProtocolVersion -eq 2) { throw 'ZCode 3.16 / relay V2 does not support local-only; use -Mode relay' }
+    if ($Mode -eq 'local-only' -and $RelayProtocolVersion -eq 2 -and -not $ZcodeInstallDir) { throw 'local-only on ZCode 3.16 requires -ZcodeInstallDir <ZCode Desktop install directory> for patch preflight' }
     if (($RelayProtocolVersion -eq 2 -and $UpstreamUrl -in $officialV1) -or ($RelayProtocolVersion -eq 1 -and $UpstreamUrl -eq $officialV2)) { throw 'Official upstream URL does not match the relay protocol version' }
 }
 $identity = [Security.Principal.WindowsIdentity]::GetCurrent()
@@ -114,6 +124,139 @@ function Invoke-DeployCli {
     $output = & $script:gatewayNode $script:deployCli @CliArguments 2>&1
     if ($LASTEXITCODE -ne 0) { throw ('Gateway deployment tool failed: ' + (($output | Select-Object -Last 5 | Out-String).Trim())) }
     return ($output | Where-Object { $_ -is [string] } | Select-Object -Last 1) | ConvertFrom-Json
+}
+
+# LO-04：调用随包分发的 local-only 补丁工具（local-only/patch.mjs）。工具的多行 JSON 回执整体
+# 解析；失败（退出码非 0）时工具同样打印回执（ok:false + code/reason），由调用方决定失败语义。
+# 契约测试以同名函数替换本边界（与 Invoke-RestMethod 等桩同法：外部先定义时此处不再覆盖），
+# 不执行真实补丁工具。
+if (-not (Get-Command Invoke-PatchCli -ErrorAction Ignore)) {
+    function Invoke-PatchCli {
+        param([string[]]$CliArguments)
+        $output = & $script:gatewayNode $script:patchCli @CliArguments 2>&1
+        $exitCode = $LASTEXITCODE
+        $jsonText = (($output | Where-Object { $_ -is [string] }) -join "`n").Trim()
+        $parsed = $null
+        try { $parsed = $jsonText | ConvertFrom-Json } catch {}
+        if ($null -eq $parsed) { throw ('Local-only patch tool failed without a parsable receipt (exit ' + $exitCode + '): ' + (($output | Select-Object -Last 5 | Out-String).Trim())) }
+        if (-not $parsed.PSObject.Properties['exitCode']) { Add-Member -InputObject $parsed -NotePropertyName exitCode -NotePropertyValue $exitCode }
+        return $parsed
+    }
+}
+
+# LO-04：local-only 开关的标志文件候选路径（与补丁 P1 的判定顺序一致：数据根优先，APPDATA 备用）。
+function Get-LocalOnlyFlagPaths {
+    @((Join-Path (Join-Path $LocalOnlyDataRoot '.zcode') 'local-only.flag'), (Join-Path (Join-Path $env:APPDATA 'ZCode') 'local-only.flag'))
+}
+
+# LO-04：生成交付给用户的外部应用/还原命令文本。setup 只生成不执行：apply 与 restore 由用户在
+# 关闭目标实例后从外部运行；脚本内嵌精确目标、候选路径与标志路径，重新核对身份并透传工具回执。
+function Get-LocalOnlyExternalScripts {
+    param([string]$NodePath, [string]$PatchCliPath, [string]$Target, [string]$CandidateDir, [string]$FlagPath, [string]$Workspace)
+    $q = { param([string]$value) "'" + $value.Replace("'", "''") + "'" }
+    $sharedHeader = @'
+$ErrorActionPreference = 'Stop'
+[Console]::OutputEncoding = New-Object System.Text.UTF8Encoding($false)
+$node = __NODE__
+$patchCli = __PATCH_CLI__
+$target = __TARGET__
+function Invoke-Patch {
+    param([string[]]$PatchArguments)
+    $output = & $node $patchCli @PatchArguments 2>&1
+    $exitCode = $LASTEXITCODE
+    $jsonText = (($output | Where-Object { $_ -is [string] }) -join "`n").Trim()
+    $parsed = $null
+    try { $parsed = $jsonText | ConvertFrom-Json } catch {}
+    if ($null -eq $parsed) {
+        Write-Output ('local-only patch tool failed without a parsable receipt (exit ' + $exitCode + '): ' + (($output | Select-Object -Last 5 | Out-String).Trim()))
+        exit 1
+    }
+    if (-not $parsed.PSObject.Properties['exitCode']) { Add-Member -InputObject $parsed -NotePropertyName exitCode -NotePropertyValue $exitCode }
+    return $parsed
+}
+'@
+    $applyBody = @'
+# suian-zcode-common local-only 外部应用命令（setup 生成）。
+# 执行前：请先正常退出目标安装目录下的全部 ZCode Desktop 实例（保存工作后从托盘退出）。
+# 步骤：复核目标包身份 -> 应用补丁（工具自带运行实例检查，不会强退进程）-> 激活 local-only 开关。
+__SHARED__
+$candidate = __CANDIDATE__
+$flagPath = __FLAG__
+$workspace = __WORKSPACE__
+# 1) 身份复核：目标仍是受支持包才继续（准备后被升级或其它工具修改会在此拒绝）。
+$status = Invoke-Patch @('status', '--target', $target)
+if (-not $status.ok -or -not $status.supported) {
+    $reasonParts = @()
+    if ($status.mismatches) { $reasonParts += @($status.mismatches) }
+    if ($status.PSObject.Properties['reason'] -and $status.reason) { $reasonParts += [string]$status.reason }
+    Write-Output ('REFUSED: target is not a supported package for local-only: ' + ($reasonParts -join '; '))
+    Write-Output 'Nothing was changed. Diagnosis: run the local-only patch tool status or follow the local-only debug skill.'
+    exit 10
+}
+# 2) 应用补丁：原版或旧版本补丁目标走 apply（内含运行实例检查与备份验证；旧版本补丁由工具
+#    自动 restore 后重应用新候选，即 v1→v2 升级）；已是当前补丁版且无可用升级时才跳过。
+$patchInfo = if ($status.PSObject.Properties['patchInfo']) { $status.patchInfo } else { $null }
+$upgradeAvailable = ($null -ne $patchInfo -and $null -ne $patchInfo.PSObject.Properties['upgradeAvailable'])
+$applied = 'already'
+if ($status.patchState -ne 'patched' -or $upgradeAvailable) {
+    $apply = Invoke-Patch @('apply', '--target', $target, '--candidate', $candidate)
+    if (-not $apply.ok) {
+        Write-Output ('FAILED: patch apply failed (' + $apply.code + '): ' + $apply.reason)
+        Write-Output 'The patch tool never kills running instances. Close ZCode from its tray, then run this script again. Nothing else was changed.'
+        exit 12
+    }
+    $applied = if ($apply.alreadyApplied) { 'already' } else { 'applied' }
+}
+# 3) 激活 local-only 开关：标志文件首行为自动启动工作区（对下一次启动生效）。
+$flagDir = Split-Path -Parent $flagPath
+[IO.Directory]::CreateDirectory($flagDir) | Out-Null
+[IO.File]::WriteAllText($flagPath, ($workspace + "`r`n"), (New-Object System.Text.UTF8Encoding($false)))
+# 4) 回执。
+[ordered]@{ ok=$true; action='local-only-applied'; applied=$applied; activated=$true; target=$target; workspace=$workspace; flag=$flagPath; next_steps='Reopen ZCode with the original shortcut, then verify gateway desktop_ready and the Host probe via the setup skill.' } | ConvertTo-Json -Compress
+'@
+    $restoreBody = @'
+# suian-zcode-common local-only 完整还原命令（setup 生成）。
+# 执行前：请先正常退出目标安装目录下的全部 ZCode Desktop 实例。
+# 步骤：复核身份 -> 按备份恢复 app.asar -> 复用 setup 恢复 relay 配置与开关 -> 回执。
+__SHARED__
+# 1) 身份复核：已是原版时仍须完成模式恢复，便于部分失败后重试。
+$status = Invoke-Patch @('status', '--target', $target)
+if (-not $status.ok -or -not $status.supported) {
+    Write-Output ('REFUSED: target identity could not be resolved (' + $status.code + '): ' + $status.reason)
+    Write-Output 'Nothing was changed. Diagnosis: run the local-only patch tool status or follow the local-only debug skill.'
+    exit 10
+}
+# 2) 按备份恢复原版（内含运行实例检查与摘要核对；目标被外部修改时明确拒绝）。
+$restore = $null
+if ($status.patchState -ne 'original') {
+    $restore = Invoke-Patch @('restore', '--target', $target)
+    if (-not $restore.ok) {
+        Write-Output ('FAILED: patch restore failed (' + $restore.code + '): ' + $restore.reason)
+        Write-Output 'Gateway configuration was not changed. Close ZCode from its tray and retry.'
+        exit 13
+    }
+}
+# 3) 复用现有 Restart 事务恢复 relay 模式、环境与标志；保留端口、令牌和原环境备份。
+try {
+    $modeOutput = & __SETUP__ -Action Restart -Mode relay -DataDir __DATA__ -ToolsRoot __TOOLS__ -SkillsDir __SKILLS__ -LocalOnlyDataRoot __DATA_ROOT__ __NATIVE__
+    $modeReceipt = (($modeOutput | Where-Object { $_ -is [string] }) -join "`n") | ConvertFrom-Json
+    if (-not $modeReceipt.ok -or $modeReceipt.action -ne 'restarted' -or $modeReceipt.mode -ne 'relay') { throw ('Relay restore incomplete: ' + ($modeOutput -join "`n")) }
+} catch {
+    [ordered]@{ ok=$false; action='local-only-restore-incomplete'; application_original=$true; gateway_restored=$false; reason=$_.Exception.Message; next_steps='Keep ZCode closed, resolve the gateway error, then rerun this restore script.' } | ConvertTo-Json -Compress
+    exit 14
+}
+# 4) 回执。
+[ordered]@{ ok=$true; action='local-only-restored'; restored=$(if ($null -eq $restore) { 'already_original' } else { 'restored' }); restoredAsarSha256=$(if ($null -eq $restore) { $status.package.appAsarSha256 } else { $restore.restoredAsarSha256 }); gateway_mode=$modeReceipt.mode; target=$target; next_steps='Reopen ZCode with the original shortcut; the package and gateway relay mode are restored.' } | ConvertTo-Json -Compress
+'@
+    $render = {
+        param([string]$template)
+        $text = $template.Replace('__SHARED__', $sharedHeader)
+        $text = $text.Replace('__NODE__', (& $q $NodePath)).Replace('__PATCH_CLI__', (& $q $PatchCliPath)).Replace('__TARGET__', (& $q $Target))
+        $text = $text.Replace('__CANDIDATE__', (& $q $CandidateDir)).Replace('__FLAG__', (& $q $FlagPath)).Replace('__WORKSPACE__', (& $q $Workspace))
+        $text = $text.Replace('__SETUP__', (& $q $PSCommandPath)).Replace('__DATA__', (& $q $DataDir)).Replace('__TOOLS__', (& $q $ToolsRoot)).Replace('__SKILLS__', (& $q $SkillsDir)).Replace('__DATA_ROOT__', (& $q $LocalOnlyDataRoot)).Replace('__NATIVE__', $(if ($NativePlugin) { '-NativePlugin' } else { '' }))
+        return $text
+    }
+    return @{ apply = (& $render $applyBody); restore = (& $render $restoreBody) }
 }
 
 function Get-GatewayUpgradeStatus {
@@ -280,9 +423,38 @@ namespace SuianZcodeGateway {
 if ($Port -lt 1 -or $Port -gt 65535) { throw 'Invalid gateway port' }
 $script:gatewayNode = $null
 $script:deployCli = Join-Path $PSScriptRoot 'gateway-deploy.mjs'
+$script:patchCli = Join-Path $PSScriptRoot 'local-only\patch.mjs'
 if ($Action -ne 'Remove') {
     $script:gatewayNode = (Get-Command node -CommandType Application | Select-Object -First 1).Source
     if ($null -eq $script:gatewayNode) { throw 'Node.js 24+ is required' }
+}
+# LO-04：3.16 local-only 预检与准备（在写任何配置、停任何网关之前执行）。仅对补丁工具按字节
+# 身份判定受支持的目标放行；预检或准备失败时明确报错并给诊断指引，不泛化支持其它 3.16 包。
+# 目标已是当前版本补丁时不再准备候选（prepare 只支持原版或旧版本升级路径）。
+$localOnlyPreflight = $null
+$localOnlyPrepare = $null
+$localOnlyState = $null
+if ($Action -in @('Install', 'Restart') -and $Mode -eq 'local-only' -and $RelayProtocolVersion -eq 2) {
+    $localOnlyPreflight = Invoke-PatchCli @('status', '--target', $ZcodeInstallDir)
+    if (-not $localOnlyPreflight.ok) {
+        throw ('local-only preflight failed (' + $localOnlyPreflight.code + '): ' + $localOnlyPreflight.reason + '. Nothing was changed. Diagnosis: run the same patch tool status outside setup or follow the local-only debug skill.')
+    }
+    if (-not $localOnlyPreflight.supported) {
+        $reasonParts = @()
+        if ($localOnlyPreflight.PSObject.Properties['mismatches'] -and $localOnlyPreflight.mismatches) { $reasonParts += @($localOnlyPreflight.mismatches) }
+        throw ('target ZCode package is not supported for local-only (byte identity mismatch): ' + ($reasonParts -join '; ') + '. Only the registered byte-identical package is supported; other 3.16 builds must not be patched. Nothing was changed. Diagnosis: follow the local-only debug skill.')
+    }
+    $patchInfo = if ($localOnlyPreflight.PSObject.Properties['patchInfo']) { $localOnlyPreflight.patchInfo } else { $null }
+    $upgradeAvailable = $null -ne $patchInfo -and $null -ne $patchInfo.PSObject.Properties['upgradeAvailable']
+    if ($localOnlyPreflight.patchState -eq 'patched' -and -not $upgradeAvailable) {
+        $localOnlyState = 'already_patched'
+    } else {
+        $localOnlyPrepare = Invoke-PatchCli @('prepare', '--target', $ZcodeInstallDir, '--out', (Join-Path $DataDir 'local-only\candidate'))
+        if (-not $localOnlyPrepare.ok) {
+            throw ('local-only prepare failed (' + $localOnlyPrepare.code + '): ' + $localOnlyPrepare.reason + '. The running target was not modified. Nothing was changed.')
+        }
+        $localOnlyState = if ($upgradeAvailable) { 'prepared_upgrade' } else { 'prepared' }
+    }
 }
 if ($Action -eq 'Status') {
     $health = $null
@@ -308,7 +480,19 @@ if ($Action -eq 'Status') {
     }
     $upgrade = Get-GatewayUpgradeStatus $config $health
     foreach ($field in $upgrade.Keys) { $status[$field] = $upgrade[$field] }
-    $status | ConvertTo-Json -Depth 4 -Compress
+    # LO-04：提供安装目录时附加补丁状态只读报告（预检语义见 setup 技能回执表）。
+    if ($ZcodeInstallDir) {
+        $patchReport = Invoke-PatchCli @('status', '--target', $ZcodeInstallDir)
+        $patchSummary = [ordered]@{ ok = [bool]$patchReport.ok }
+        if ($patchReport.PSObject.Properties['supported']) { $patchSummary['supported'] = [bool]$patchReport.supported }
+        if ($patchReport.PSObject.Properties['patchState']) { $patchSummary['patchState'] = $patchReport.patchState }
+        if ($patchReport.PSObject.Properties['patchInfo'] -and $null -ne $patchReport.patchInfo) { $patchSummary['patchInfo'] = $patchReport.patchInfo }
+        if ($patchReport.PSObject.Properties['mismatches'] -and $patchReport.mismatches) { $patchSummary['mismatches'] = @($patchReport.mismatches) }
+        if ($patchReport.PSObject.Properties['reason'] -and $patchReport.reason) { $patchSummary['reason'] = [string]$patchReport.reason }
+        if ($patchReport.PSObject.Properties['backup'] -and $null -ne $patchReport.backup) { $patchSummary['backup'] = $patchReport.backup }
+        $status['local_only_patch'] = $patchSummary
+    }
+    $status | ConvertTo-Json -Depth 5 -Compress
     return
 }
 if ($Action -eq 'Remove') {
@@ -527,8 +711,44 @@ if ($null -ne $config -and (Test-Path -LiteralPath $legacySkillFile)) {
 # 写入后通知 Explorer 等启动器；当前 Desktop 主进程仍需事后重开。
 New-ItemProperty -LiteralPath 'HKCU:\Environment' -Name $relayVariable -Value $relayUrl -PropertyType String -Force | Out-Null
 Send-EnvironmentChange
+# LO-04：local-only 安装在网关健康确认与环境写入成功后，才生成交付用户的外部应用/还原命令。
+# setup 自身不执行 apply、不强退进程、不启动等待助手；准备成功不宣称已应用或已生效。
+$localOnlyReceipt = $null
+if ($Action -in @('Install', 'Restart') -and $Mode -eq 'local-only' -and $RelayProtocolVersion -eq 2) {
+    $localOnlyDir = Join-Path $DataDir 'local-only'
+    [IO.Directory]::CreateDirectory($localOnlyDir) | Out-Null
+    $flagPaths = Get-LocalOnlyFlagPaths
+    $candidateDir = if ($null -ne $localOnlyPrepare) { $localOnlyPrepare.outDir } else { Join-Path $localOnlyDir 'candidate' }
+    $scripts = Get-LocalOnlyExternalScripts -NodePath $script:gatewayNode -PatchCliPath $script:patchCli -Target $ZcodeInstallDir -CandidateDir $candidateDir -FlagPath $flagPaths[0] -Workspace ([string]$LocalOnlyWorkspace)
+    $applyScriptFile = Join-Path $localOnlyDir 'apply-local-only.ps1'
+    $restoreScriptFile = Join-Path $localOnlyDir 'restore-local-only.ps1'
+    [IO.File]::WriteAllText($applyScriptFile, $scripts.apply, (New-Object Text.UTF8Encoding($false)))
+    [IO.File]::WriteAllText($restoreScriptFile, $scripts.restore, (New-Object Text.UTF8Encoding($false)))
+    $patchVersion = $null
+    if ($null -ne $localOnlyPrepare) { $patchVersion = $localOnlyPrepare.candidate.patchVersion }
+    elseif ($null -ne $patchInfo) { $patchVersion = $patchInfo.patchVersion }
+    $localOnlyReceipt = [ordered]@{
+        state=$localOnlyState; install_dir=$ZcodeInstallDir; patch_state=$localOnlyPreflight.patchState; patch_version=$patchVersion
+        workspace=[string]$LocalOnlyWorkspace; flag_path=$flagPaths[0]; candidate_dir=$candidateDir
+        apply_script=$applyScriptFile; restore_script=$restoreScriptFile; relay_url=$relayUrl
+        expected_receipt='ok=true; applied=applied|already; activated=true; after reopen desktop_ready=true'
+        next_steps='User closes every ZCode instance of this install directory, runs apply_script from an external PowerShell, then reopens ZCode with the original shortcut; verification follows the setup skill. Preparation is not application.'
+    }
+    if (-not $LocalOnlyWorkspace) { $localOnlyReceipt['workspace_missing'] = $true; $localOnlyReceipt['workspace_note'] = 'no workspace given: the flag enables the mode but auto-start stays off; rerun with -LocalOnlyWorkspace to regenerate the command with auto-start' }
+}
+# LO-04：切回 relay——关闭 local-only 开关（删除标志文件），补丁保留、应用包不重写；
+# 网关模式与环境值由上方既有流程恢复。标志删除发生在配置成功之后，不留已就绪假象。
+$localOnlySwitch = $null
+if ($Action -in @('Install', 'Restart') -and $Mode -eq 'relay') {
+    $localOnlySwitch = 'already_off'
+    foreach ($flagCandidate in (Get-LocalOnlyFlagPaths)) {
+        if (Test-Path -LiteralPath $flagCandidate) { Remove-Item -LiteralPath $flagCandidate -Force; $localOnlySwitch = 'disabled' }
+    }
+}
 $status = [ordered]@{ ok=$true; action=$(if ($restarting) { 'restarted' } else { 'installed' }); mode=$Mode; relay_url=$relayUrl; health_url=$healthUrl; gateway_running=$true; task_running=$taskRunning; health_status='reachable'; desktop_connected=$health.desktop_connected; paired=$health.paired; vbs_launcher=$vbsLauncher; environment_broadcast='sent' }
 $upgrade = Get-GatewayUpgradeStatus ([pscustomobject]$nextConfig) $health
 foreach ($field in $upgrade.Keys) { $status[$field] = $upgrade[$field] }
+if ($null -ne $localOnlyReceipt) { $status['local_only'] = $localOnlyReceipt }
+if ($null -ne $localOnlySwitch) { $status['local_only_switch'] = $localOnlySwitch }
 Release-UpgradeLock
-$status | ConvertTo-Json -Depth 4 -Compress
+$status | ConvertTo-Json -Depth 5 -Compress

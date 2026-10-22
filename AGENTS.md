@@ -32,6 +32,7 @@ ZCode-Plugins/
 ├── marketplace.json        # 四个原生插件的版本、市场清单与业务依赖（手工维护单一数据源；ZIP 切换候选由发布工具生成、人工核对采纳）
 ├── LICENSE                 # MIT（自有代码）；vendor 第三方代码保留原许可
 ├── .gitignore              # 仓库级通用忽略规则
+├── .agents/skills/         # 项目级技能（ZCode 兼容发现路径）：debug-isolated-zcode 隔离 ZCode 环境调试方法论（主文件速查+八层排查+症状索引，K1-K29 详录在 references/），local-only 系列逐票回填
 │
 ├── release-orchestrate.mjs # PKG-07 仓库级发布编排 CLI：四包构建、确定性 ZIP、门禁核对与市场候选；输出落 .scratch/
 ├── release-zip.mjs         # 确定性 ZIP 写入/读取/安全解压（Node 内置 zlib；排序与时间戳固定，同输入同字节）
@@ -55,9 +56,10 @@ ZCode-Plugins/
 │   ├── ui/                 # 原生只读工件侧栏资源（构建时随 dist 复制，服务按相对位置读取）
 │   ├── build-release.mjs   # 发布目录构建：SDK/zod 内联，公共层经 PKG-01 安装记录共享加载
 │   ├── common-client.mjs   # 薄适配：业务对公共函数的唯一入口（惰性 loadCommonModule）
-│   └── skills/             # setup / configuration / sessions / automations / artifacts / glm / debug
+│   ├── skills/             # setup / configuration / sessions / automations / artifacts / glm / debug
+│   └── docs/               # 研究、规格、ADR、开票与脱敏验证证据（含 local-only 产品接入规划）
 │
-├── suian-side-editor/     # 本机文本编辑器 0.4.0；多目录切换，选区评论尽力保护，原#47缺口与Native待验
+├── suian-side-editor/     # 本机文本编辑器 0.4.0；多目录切换，选区评论尽力保护，LO-07 原生评论链路已验，原#47缺口保留
 │   ├── AGENTS.md          # 本插件规则与文档入口
 │   ├── CLAUDE.md          # 导入 AGENTS.md
 │   ├── .zcode-plugin/     # 原生侧栏元信息与市场版本
@@ -89,10 +91,11 @@ ZCode-Plugins/
 │   ├── migration.mjs / legacy-cleanup.mjs # 旧源码迁移链（PKG-08）：开关与路径记录/恢复；旧 junction 归属核对后只删链接
 │   ├── toast-action.mjs    # Toast 按钮协议入口：重扫→复制修复提示词→打开 ZCode
 │   ├── toast-runtime.mjs / toast-executor.mjs # 缓存外共享 Toast 稳定运行时与自包含执行器（PKG-06）
+│   ├── local-only/         # LO 隔离 lab 与补丁 CLI；profiles.mjs / profiles/ 按包身份自动路由并保留旧档案，patch-env.mjs 管理通用约定，patch.mjs 提供 status/prepare/apply/restore；网关字节不改
 │   ├── vendor/             # 固定协议／投影及官方V4 decoder；保留来源和独立许可
 │   └── skills/             # setup / configuration / debug
 │
 └── sources/                # 上游源码 submodule 引用（只读，见 sources/README.md）
-    ├── official-zcode/     # zai-org/ZCode @ 0a1fc56d（2026-10-19 公开快照，包含 Relay V2）
+    ├── official-zcode/     # zai-org/ZCode @ 3c5b2276（2026-10-20 公开快照，自报 v3.16.2，包含 Relay V2）
     └── zcode-open-bridge/  # tizerluo/zcode-open-bridge @ e8bd9bc（社区桥接参考）
 ```

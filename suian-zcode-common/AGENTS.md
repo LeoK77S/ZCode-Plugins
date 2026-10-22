@@ -7,7 +7,7 @@
 - 只有网关是常驻独立进程，其他能力是调用方导入的模块；提取代码不代表所有插件自动增加这些行为。
 - 网关只绑定 `127.0.0.1`，不读取远控链接或 ZCode 凭据、不记录消息体。本地工作区复用窗口 Host 的一个物理桥，隔离客户端 RPC 编号；共存声明必须区分隔离测试与真实手机验收。实验性 terminal 模式通过调用方的 `getToken` 获取一次性终端 token，Desktop 直连官方 relay；同设备只允许一个 terminal，收到 KICKED 后停止连接，不自动争抢。
 - 默认 relay 模式保留官方鉴权与手机共存；显式 local-only 模式仅处理回环 Desktop 的注册、就绪和心跳，不连接官方 relay、不使用传入的 pass_hash，也不宣称官方身份已验证。本地 RPC 仍要求当前用户 control_token；设备入口信任本机进程，拒绝浏览器 Origin。旧配置无 mode 时按 relay 兼容，不因网络失败自动切换。
-- relay 的 `relayProtocolVersion`／配置 `relay_protocol_version` 缺省为 1；3.16 显式选择 2，转发 Desktop 一次性 token 与 MID，不另占 terminal。V2 消息严格区分 server_ts／client_ts，使用 Unix 秒；将 auth_ack 转成配对通知时不得带 device_sid。3.16 local-only 暂缓，旧模式测试不构成 3.16 离线证据。
+- relay 的 `relayProtocolVersion`／配置 `relay_protocol_version` 缺省为 1；3.16 显式选择 2，转发 Desktop 一次性 token 与 MID，不另占 terminal。V2 消息严格区分 server_ts／client_ts，使用 Unix 秒；将 auth_ack 转成配对通知时不得带 device_sid。3.16 local-only 自 LO-04 起进入产品 setup：LO-02 交付完全短路补丁（登录/HTTP 注册/取令牌短路 + 回环 WS，网关字节不改，[补丁证据](../suian-zcode-app-mcp/docs/local-only/02-patch-evidence.md)）；LO-03 升级补丁 v2 补齐无登录冷启动自动触发、重连恢复与 signed-out 事件隔离（[生命周期证据](../suian-zcode-app-mcp/docs/local-only/03-lifecycle-evidence.md)）；LO-04 把预检、准备与外部应用命令接入 setup 产品流程并在真实构建包上完成 lab 端到端验证（[setup 集成证据](../suian-zcode-app-mcp/docs/local-only/04-setup-integration-evidence.md)）。放行以补丁工具字节身份判定为准，不泛化支持其它 3.16 包；在线 relay 与用户日常安装验收仍为未验项，旧模式测试不构成 3.16 离线证据。
 - Windows 安装器按显式 ZcodeAppVersion 或宿主 ZCODE_APP_VERSION 自动选择协议与官方地址；没有新版本信息时保留已配置协议。升级时只迁移旧官方地址，自定义上游、端口、令牌和原环境备份保留；旧配置缺少协议字段按 V1 兼容，不能把无版本依据的默认值当作 3.16 就绪证据。
 - 公共远控模块使用调用方提供的授权。DPAPI 明文只在进程内，保存位置由调用方的 `dataDir` 决定；不回显或复制凭据到公共配置。
 - Toast 的两小时冷却与互斥实现共用，状态范围由调用方的 `dataDir` 决定。协议、快捷方式和 AUMID 属于调用方，卸载一个插件不删除另一个身份。
@@ -26,6 +26,10 @@
 
 ## 文件职责
 
+local-only 按随包档案自动路由，历史记录兼容与新增档案流程见[规格](../suian-zcode-app-mcp/docs/local-only-routing-spec.md)及[验证记录](../suian-zcode-app-mcp/docs/local-only/10-routing-acceptance.md)。
+
+当前 local-only 补丁为 v3：最终 WS 地址统一按 URL 实际主机校验，完整还原通过现有 setup 事务恢复 relay 配置。v2 的历史证据不作为 v3 运行证明；当前摘要、真实升级与验收边界见[开发集成总验收](../suian-zcode-app-mcp/docs/local-only/09-development-acceptance.md)。
+
 | 路径 | 职责 |
 | --- | --- |
 | gateway.mjs | 唯一 relay V1/V2 网关、一次性 token 转发、同进程 bootstrap 分流及健康状态 |
@@ -38,7 +42,7 @@
 | skills/ | setup / configuration / debug，paths.md 统一位置与数据归属 |
 | rpc-broker.mjs | 单一 Host 桥、RPC 编号与 v4 握手身份映射、手机虚拟桥与本地客户端分流 |
 | gateway-client.mjs | 插件默认 connectHost/probeHost，本地配置与鉴权、RPC call／listen 附着、原事件参数与释放语义及明确失败 |
-| setup.ps1 / run.ps1 / run.vbs | 用户任务、变量、公共 skill；按 Desktop 版本选择 V1/V2，保留协议与迁移官方地址；setup 按六步顺序部署候选、忙退避安全切换（升级事务锁互斥、空闲闪断或超时报 remote_busy）与失败回退；run.ps1/run.vbs 保留为源码开发直启链 |
+| setup.ps1 / run.ps1 / run.vbs | 用户任务、变量、公共 skill；按 Desktop 版本选择 V1/V2，保留协议与迁移官方地址；setup 按六步顺序部署候选、忙退避安全切换（升级事务锁互斥、空闲闪断或超时报 remote_busy）与失败回退；run.ps1/run.vbs 保留为源码开发直启链。LO-04 起 `-Mode local-only`（V2）按 `-ZcodeInstallDir` 补丁预检放行（仅受支持包，Invoke-PatchCli 守卫式定义供测试桩替换），准备候选后生成外部 apply/restore 命令（数据目录 `local-only/`）——setup 不执行 apply、不强退进程；local-only 默认端口 17331；切回 relay（Restart -Mode relay）删模式标志且不重写应用包 |
 | remote.mjs | 官方 relay 鉴权、workspace bridge、Channel RPC 与分层探活 |
 | auth-store.mjs | 调用方数据目录内的当前用户 DPAPI 授权存取 |
 | title-policy.mjs | 当前用户跨插件的会话锁定策略：MCP 写入，命名插件读取 |
@@ -62,6 +66,7 @@
 | vendor/conversation-wire.js / vendor/conversation-wire.sources.json | 固定官方 V4 topic 帧组装／编码及快照／历史页 schema；49源blob、ref和构建SHA，不代表安装版本逐字节一致 |
 | vendor/LICENSE-ZCode / vendor/NOTICE-ZCode-current.md / vendor/LICENSE-zod | 官方Apache-2.0完整许可／NOTICE与构建内Zod MIT许可，禁止改成自有MIT归属 |
 | SKILL.md / README.md | 源码兼容路由与公共模块接口，完整操作流程在对应 skills/ 技能 |
+| CHANGELOG.md | common 插件发行记录，版本范围与 local-only 安装及兼容边界 |
 | tests/ | 回环网关、隔离 Windows 配置、远控、DPAPI、通知、依赖完整性判定、不自举契约、PKG-01 公共加载契约（定位器分类、入口导出面、导入纯净、构建确定性与自包含）及 PKG-05 稳定运行时（部署指纹与幂等、篡改校验、稳定启动器隔离场景、候选三态、拒绝切换、失败回退、首次撤销、旧任务迁移与 Toast 记录独立） |
 | tests/gateway-rpc.test.mjs / tests/plugin-link.test.mjs | 真实回环call／listen客户端隔离和释放、市场版本一致及独立缓存公共升级契约 |
 | tests/gateway-deploy.test.mjs / tests/stable-launcher.test.mjs | PKG-05 部署契约（内容指纹、自包含回环、运行中健康不冒充磁盘新代码）与稳定启动器（旧任务参数依赖已删除缓存的红色证明、缓存删除后仍可启动、活动记录切换部署、中文空格路径） |
@@ -69,6 +74,16 @@
 | tests/depcheck.test.mjs / tests/depcheck-hook.test.mjs / tests/toast-executor.test.mjs | PKG-08 发布契约扫描：无 node_modules 发布产物不再误判（红色证明在案）、缺文件/错身份/API 不兼容检出、Hook 通知链与缓存外执行器快照对齐 |
 | tests/migration.test.mjs / tests/legacy-cleanup.test.mjs | PKG-08 迁移链：开关与路径记录（不含令牌）、恢复不覆盖自定义字段、端到端记录→清理→部署→恢复；链接清理归属核对、只删链接、真实目录与他人目标保留 |
 | experiments/ | 仅发合成 auth_init 的研究探针，不自动执行 |
+| local-only/lab-env.mjs | LO-01 隔离环境单一数据源：目录树、进程级 env 集（ZCODE_DATA_BASE_DIR 指向 .zcode 父目录、清除官方 relay 覆盖变量、LO-03 增 ZCODE_LOCAL_ONLY_GATEWAY 与网关配置端口一致）、引用既有适配档案的包身份、启动器与 lab 网关配置渲染（LO-03 增 CDP 调试端口——自动附命令行 --user-data-dir——与 --open-workspace 直开工作区） |
+| local-only/lab.mjs | LO-01 lab CLI（setup/check/launch/report/teardown）：身份核对先于写入、路径归属 check、启动器启动副本并写运行记录（每次启动前重渲染，手工改 launcher 会被覆盖）、report 按 exe 枚举进程并分类回环/外部连接、teardown 只杀记录 PID 树并等待退出后清理；系统边界参数化注入供契约测试 |
+| local-only/profiles.mjs / profiles/ | 补丁随包注册表与逐包档案：按平台、exe 版本、原版 asar SHA-256 唯一精确路由；档案独立维护修订号、入口与注入实现，新增真实包保留旧档案及回归 |
+| local-only/patch-env.mjs | 通用备份/状态后缀与失败退出码；兼容转出既有 Windows 3.16.2 档案注入接口，不作为多包全局版本源 |
+| local-only/patch.mjs | status/prepare/apply/restore 统一按档案识别；格式 1 记录兼容、格式 2 绑定档案/平台；候选与目标同档案后才允许写入，旧补丁自备份升级；拒绝跨包/降级/损坏状态，保留运行实例及摘要检查 |
+| tests/local-only-routing.test.mjs | 两合成包独立入口/修订号路由、历史状态/候选兼容、同包升级与还原、跨档案/降级/未知包/损坏记录拒绝且目标不写入 |
+| tests/local-only-lab.test.mjs | LO-01 契约测试：目录树/启动器/清单、身份不匹配拒绝、越界路径检出、副本篡改检出、BOM 与 WQL 转义回归、teardown 只清 lab 内 |
+| tests/local-only-fixture.mjs | LO-03 提取的契约共享 fixture：真实产物锚点切片（含 v2 注入点）与合成 asar 构造；顶层预置压缩名占位（let b2）防注入体向模块顶层引入裸 var 的回归 |
+| tests/local-only-patch.test.mjs | LO-02 契约测试：真实锚点切片注入与 ESM 语法检查、asar 往返/确定性/unpacked 保留、fuse wire 解析、status 三态、身份/锚点失配拒绝、apply 全链与重复识别、运行实例拒绝、restore 摘要核对与目标变化拒绝 |
+| tests/local-only-lifecycle.test.mjs | LO-03 生命周期契约：v2 注入点输出与原版失败契约（官方路径零改写、开关关闭零行为变化）、P1 门控 vm 三态与回环约束、P6 自动启动 vm 行为（幂等/重试/零启动）、v1→v2 升级三路径 |
 | package.json / package-lock.json | 固定 Node/ws 版本与测试入口 |
 | docs/ | [共享运行时与 Release 规格](docs/shared-runtime-release-spec.md)、[开票索引](docs/shared-runtime-release-tickets.md)及脱敏验证证据；历史与本次验证分开 |
 | docs/client-contract.md | PKG-01 公共加载契约：锚点事实、定位规则、失败分类、导出清单、release.json 与构建输入说明及业务迁移指引 |
