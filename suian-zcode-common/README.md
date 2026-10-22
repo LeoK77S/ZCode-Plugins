@@ -6,16 +6,9 @@
 
 网关与 Toast 执行器部署在插件缓存之外，插件缓存清理后仍保留稳定启动入口。诊断按发布文件摘要与公共 API 检查；安装记录不可用时明确报告检查未完成。升级与旧链接迁移见 [setup](./skills/setup/SKILL.md)。
 
-> [!WARNING]
-> **ZCode 3.16 兼容性说明**
->
-> **ZCode 3.16 请使用最新版本的公共插件**（至少 0.4.2）：低于该版本的安装存在已知的在线兼容问题，例如手机端切换项目后新建任务、发送首条消息失败。
->
-> 手机与插件共存，以及多根目录项目的新建和收发，已通过真机验证。已有安装请升级公共插件，并按[升级流程](./skills/setup/SKILL.md#升级)重载网关。
->
-> 原版 3.16 的 relay 模式在首次开启或重新启动远控时，仍需 ZCode 登录态及官方服务可达。common 0.7.0 新增指定 Windows 3.16.2.8769 包的 local-only 补丁流程，可在无登录态、官方远控不可达时冷启动；不支持的包会拒绝应用。具体操作见 [setup](./skills/setup/SKILL.md#local-only-安装zcode-3162-受支持包)。
+版本与兼容范围以[实际发布页面](https://github.com/ONEGAYI/ZCode-Plugins/releases)和安装时的反馈信息为准。
 
-安装和升级时，Agent 会按 Desktop 应用版本配置网关：3.16 使用 V2，旧版使用 V1；日常重载会保留已有协议与用户配置。具体方法与限制见[配置说明](./skills/configuration/SKILL.md)。
+安装和升级时，Agent 会按 Desktop 应用版本选择适用的网关协议；日常重载会保留已有协议与用户配置。具体方法与限制见[配置说明](./skills/configuration/SKILL.md)。
 
 只有网关是常驻独立进程，其他模块由调用方按需使用。各插件保留自己的运行数据。
 
@@ -34,13 +27,11 @@ flowchart LR
 
 local-only 供无法访问官方远控服务的机器连接当前窗口，不提供手机连接。已有安装不会因断网自动切换模式，模型服务仍需各自可达。
 
-**Windows 3.16.2.8769 受支持包**：让 Agent 按 [setup 的补丁流程](./skills/setup/SKILL.md#local-only-安装zcode-3162-受支持包)预检并准备外部命令。保存工作、退出该安装目录全部实例后执行，再用原快捷方式重开。工具按发行包摘要自动选择档案，兼容旧补丁记录；未来新增版本仍须追加档案并单独验证。完整操作见[指南](../suian-zcode-app-mcp/docs/local-only/05-local-only-guide.md)。
-
-**已验证旧版**：ZCode 3.14.4 使用原有无补丁 local-only 流程，其他旧版本分别确认兼容性。让 Agent 按[公共 skill](./SKILL.md)完成配置与本机检查，最后重开 ZCode；在桌面端移动端远控面板开启服务，无需手机扫码。已有安装切换模式使用 `setup.ps1 -Action Restart -Mode local-only`，完成后重新开启远控。
+让 Agent 按 [setup](./skills/setup/SKILL.md)核对实际安装包并配置 local-only。需要应用补丁时，先保存工作并退出目标安装目录的全部 ZCode 实例，再执行准备好的外部命令，最后通过原快捷方式重开。具体步骤见[操作指南](../suian-zcode-app-mcp/docs/local-only/05-local-only-guide.md)。
 
 本地模式不支持官方手机页面，界面里的二维码不能用于手机连接。模型生成和套餐查询仍需相应服务可达。回到手机共存模式时，用 `Restart -Mode relay`；ZCode 可能重新注册设备，手机链接也可能需要更新。
 
-3.14.0 内网机器仍待实际安装验收。具体范围见[本地模式记录](./docs/local-only-evidence.json)。
+历史验证范围见[本地模式记录](./docs/local-only-evidence.json)。
 
 当前版本内容见 [CHANGELOG](./CHANGELOG.md)。
 
@@ -79,7 +70,7 @@ local-only 供无法访问官方远控服务的机器连接当前窗口，不提
 | link.mjs | `linkCommon()`：源码开发用的稳定公共入口和业务端 Node 包链接，不复制代码或覆盖普通目录；正式安装与诊断不依赖它 |
 | vendor/projection.js | `getConversationMessageProjectionPolicy()`：两个插件引用同一固定产物 |
 
-UI 判定要求客户端名为 `zcode`、应用版本至少为 3.15.1，且 MCP Apps `mimeTypes` 数组包含 `text/html;profile=mcp-app`。公共模块只返回布尔值，资源和工具注册仍归业务插件。
+UI 判定要求客户端名为 `zcode`、宿主支持 MCP Apps，且其 `mimeTypes` 数组包含 `text/html;profile=mcp-app`。公共模块只返回布尔值，资源和工具注册仍归业务插件。
 
 调用方提供 Desktop 的 `zcodeAppVersion`；仅为 `null` 或 `undefined` 时回退客户端版本，未知版本、空字符串或旧版应用均不启用 UI。支持原有三段版本、可选的第四段构建号与 `+` 构建信息，不接受预发布版本。
 
@@ -91,25 +82,25 @@ UI 判定要求客户端名为 `zcode`、应用版本至少为 3.15.1，且 MCP 
 
 ## Agent 配置入口
 
-**安装器按 Desktop 应用版本自动选择协议**。宿主提供 `ZCODE_APP_VERSION` 时可直接读取；在外部 Shell 中执行时，用 `-ZcodeAppVersion` 指定已核实的应用版本。下面以 3.16.1 为例；旧版传入对应版本即可。
+**安装器按 Desktop 应用版本自动选择协议**。宿主提供 `ZCODE_APP_VERSION` 时可直接读取；在外部 Shell 中执行时，用 `-ZcodeAppVersion` 指定已核实的应用版本。下面的版本占位符需替换为安装时核实的实际值。
 
-读取 [SKILL.md](./SKILL.md)，按完整流程操作。原生安装需要 Windows、Node.js 24+，无需 npm；发布完整性先跑 `node depcheck-hook.mjs --scan-only`：
+读取 [SKILL.md](./SKILL.md)，按完整流程操作。原生安装需要 Windows 和满足安装要求的 Node.js，无需 npm；发布完整性先跑 `node depcheck-hook.mjs --scan-only`：
 
 ```powershell
 node .\depcheck-hook.mjs --scan-only
-powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File .\setup.ps1 -Action Status -ZcodeAppVersion 3.16.1 -NativePlugin
-powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File .\setup.ps1 -Action Install -ZcodeAppVersion 3.16.1 -NativePlugin
+powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File .\setup.ps1 -Action Status -ZcodeAppVersion "{{zcode_app_version}}" -NativePlugin
+powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File .\setup.ps1 -Action Install -ZcodeAppVersion "{{zcode_app_version}}" -NativePlugin
 ```
 
-源码开发先执行 `npm ci --ignore-scripts --no-audit --no-fund`（依赖固定为 ws 8.22.0），调试用入口不加 -NativePlugin。
+源码开发先执行 `npm ci --ignore-scripts --no-audit --no-fund`（按锁文件安装依赖），调试用入口不加 -NativePlugin。
 
 Install 通过 `wscript.exe` 的 VBS 启动桥立即启动当前用户的登录任务，验证健康接口后写用户级 `ZCODE_WEB_REMOTE_CONTROL_RELAY_WS_URL`，并广播环境变更，默认 `ws://127.0.0.1:17329/ws`。默认数据目录 `~/.zcode/tools/suian-zcode-gateway` 由两个插件共用，路径为兼容旧安装保留；公共 skill 现在部署到 `~/.zcode/skills/suian-zcode-common`。重复安装复用运行中的实例和原始环境备份。
 
 **先完成安装或升级，最后才安排应用重启**。Agent 留在当前 ZCode 会话里完成源码、依赖、插件配置和本机检查；首次接入或修改启动地址也遵循这个顺序。该变量在 Desktop 主进程启动时读取，因此这两种情况需要用户在配置完成后择时重开，连接验证留到重开后继续。放在 Hook 或 MCP 子进程的环境中无法切换 Desktop。具体启动命令与验证方法统一见 [公共 skill](./SKILL.md)。
 
-Install 可指定 `-Port {{port}}`、`-UpstreamUrl {{relay_url}}` 和 `-RelayProtocolVersion`。3.16 自动使用 V2 与 `wss://zcode.z.ai/api/v1/remote/ws2`，旧版使用 V1 与 `wss://zcode.z.ai/ws`；协议与已知应用版本或官方地址冲突时明确报错。没有应用版本信息时，已有安装保留协议，首次安装沿用 V1 默认值并报告 `protocol_source:legacy_default`，不能据此确认适合 3.16。Install 遇到不同运行配置时要求使用 Restart，不切断已有远控。
+Install 可指定 `-Port {{port}}`、`-UpstreamUrl {{relay_url}}` 和 `-RelayProtocolVersion`。协议与官方地址由安装器按实际宿主版本选择；协议与已知应用版本或官方地址冲突时明确报错。没有应用版本信息时，已有安装保留协议，首次安装沿用 V1 默认值并报告 `protocol_source:legacy_default`，不能据此确认适合当前宿主。Install 遇到不同运行配置时要求使用 Restart，不切断已有远控。
 
-更新常驻代码或迁移旧目录时，用 `setup.ps1 -Action Restart` 重载，应用与当前会话保留。脚本先以切换事务锁防止并发升级，再按忙退避等待远控空闲（V2 空闲即闪断、Desktop 连接层自动重连；旧连接保守等待断开窗口），等待旧网关和启动器实际退出后才更新同一任务；未指定协议变更时保留协议、端口、自定义上游、控制令牌和原环境备份。应用升级到 3.16 时加 `-ZcodeAppVersion 3.16.1`，脚本会同时将旧 V1 官方地址迁移到 V2；原配置为 local-only 时还需明确加 `-Mode relay`。
+更新常驻代码或迁移旧目录时，用 `setup.ps1 -Action Restart` 重载，应用与当前会话保留。脚本先以切换事务锁防止并发升级，再按忙退避等待远控空闲（V2 空闲即闪断、Desktop 连接层自动重连；旧连接保守等待断开窗口），等待旧网关和启动器实际退出后才更新同一任务；未指定协议变更时保留协议、端口、自定义上游、控制令牌和原环境备份。应用升级后，传入核实的实际版本，脚本会按需迁移已知官方地址；原配置为 local-only 时还需明确加 `-Mode relay`。
 
 更换端口用 Restart 的 `-Port {{port}}`，先停旧端口实例再启动新端口。地址未变且原窗口已连接正确网关时，重新开启远控即可；仅更新文档、skill 或业务配置，无需重载网关。
 
