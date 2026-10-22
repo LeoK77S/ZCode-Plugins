@@ -33,6 +33,7 @@ import {
   makeSupportedTarget,
   noProcesses,
   boundaries,
+  profilesFor,
   exists,
 } from './local-only-fixture.mjs';
 
@@ -225,7 +226,7 @@ test('prepare：身份不符明确失败（版本不同 → unsupported_package�
   const versionResult = await patchPrepare({
     targetDir,
     outDir: join(root, 'c1'),
-    packageIdentity: otherVersion,
+    profiles: profilesFor(otherVersion),
     resolveIdentity: target.resolveIdentity,
   });
   assert.equal(versionResult.ok, false);
@@ -235,7 +236,7 @@ test('prepare：身份不符明确失败（版本不同 → unsupported_package�
   const digestResult = await patchPrepare({
     targetDir,
     outDir: join(root, 'c2'),
-    packageIdentity: { ...target.identity, appAsarSha256: 'deadbeef'.repeat(8) },
+    profiles: profilesFor({ ...target.identity, appAsarSha256: 'deadbeef'.repeat(8) }),
     resolveIdentity: target.resolveIdentity,
   });
   assert.equal(digestResult.ok, false);
@@ -259,7 +260,7 @@ test('prepare：锚点失配拒绝（anchor_mismatch），不产出候选', asyn
   const result = await patchPrepare({
     targetDir,
     outDir: join(root, 'candidate'),
-    packageIdentity: identity,
+    profiles: profilesFor(identity),
     resolveIdentity: async () => ({ exeFileVersion: identity.exeFileVersion, appAsarSha256: identity.appAsarSha256, appAsarBytes: identity.appAsarBytes }),
   });
   assert.equal(result.ok, false);
@@ -345,7 +346,7 @@ test('apply：候选摘要不符拒绝；准备后目标变化拒绝（不覆盖
   const stale = await patchApply({
     targetDir,
     candidateDir: candidateDir + '2',
-    packageIdentity: target.identity,
+    profiles: profilesFor(target.identity),
     resolveIdentity: async () => ({ exeFileVersion: '3.16.2.8769', appAsarSha256: sha256(await readFile(target.asarPath)), appAsarBytes: (await stat(target.asarPath)).size }),
     readProcesses: noProcesses,
   });
@@ -419,7 +420,7 @@ test('restore：当前包与记录不匹配（被升级/其它工具改过）明
   await writeFile(target.asarPath, Buffer.concat([await readFile(target.asarPath), Buffer.from('upgraded')]));
   const conflict = await patchRestore({
     targetDir,
-    packageIdentity: target.identity,
+    profiles: profilesFor(target.identity),
     resolveIdentity: async () => ({ exeFileVersion: '3.16.2.8769', appAsarSha256: sha256(await readFile(target.asarPath)), appAsarBytes: (await stat(target.asarPath)).size }),
     readProcesses: noProcesses,
   });

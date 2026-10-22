@@ -48,6 +48,8 @@ powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "{{commo
 
 外部命令产物在公共数据目录 `local-only/` 下：`apply-local-only.ps1`（复核身份→应用→写开关标志→回执，工具自带运行实例检查，绝不强退进程）与 `restore-local-only.ps1`（复核→按备份恢复原版→复用 setup 切回 relay 配置并关闭开关→回执）。向用户交付时说明：**先保存工作并从托盘退出该安装目录的全部 ZCode 实例，再在外部 PowerShell 执行 apply 脚本，然后用原快捷方式重开**。重开后按上表“验证就绪”检查实际模式/端点、desktop_ready 与原 Host 探针。完整还原若只完成应用恢复，回执为 `local-only-restore-incomplete`，排除网关错误后可重试；不得宣称全部恢复。
 
+补丁工具自动按平台、exe 版本和原版 asar 摘要选择随包适配档案，回执 `profileId` 标识所选方案。已 patch 包通过状态中的原版摘要识别；历史格式 1 无须手动迁移。新增版本适配后仍保留旧档案；未知包不会自动套用最新规则。不要让用户手选脚本，也不要使用已移除的 `--package-identity` 绕过支持清单。
+
 Status 传 `-ZcodeInstallDir` 可附加只读补丁状态报告（`local_only_patch` 字段）。日常排障见[debug](../debug/SKILL.md)的 local-only 故障分层。
 
 ## 首次初始化

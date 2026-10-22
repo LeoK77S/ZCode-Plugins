@@ -23,6 +23,7 @@ import {
   makeSupportedTarget,
   noProcesses,
   boundaries,
+  profilesFor,
 } from './local-only-fixture.mjs';
 
 // LO-03 生命周期契约（Close #146）：
@@ -366,7 +367,7 @@ test('v1→v2 升级：v1 状态但当前包与记录不符（外部修改）拒
   const applied = await patchApply({
     targetDir: join(root, 'target'),
     candidateDir,
-    packageIdentity: target.identity,
+    profiles: profilesFor(target.identity),
     resolveIdentity: async () => ({ exeFileVersion: target.identity.exeFileVersion, appAsarSha256: sha256(await readFile(target.asarPath)), appAsarBytes: 1 }),
     readProcesses: noProcesses,
   });

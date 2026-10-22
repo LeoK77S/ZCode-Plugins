@@ -33,6 +33,11 @@ test('发布目录组装：客户端产物、许可与元数据齐备且无 node
   assert.ok(entries.some(entry => entry.name === 'node_modules'), '网关闭包要求发布目录携带 node_modules/ws');
   assert.deepEqual(await readdir(join(releaseDir, 'node_modules')), ['ws'], '发布目录 node_modules 仅允许 ws');
   assert.deepEqual((await readdir(join(releaseDir, 'node_modules', 'ws'))).sort(), ['LICENSE', 'index.js', 'lib', 'package.json', 'wrapper.mjs'], 'ws 运行库文件集合固定');
+  // 真正从发布目录导入全部注册档案与 CLI，防止源码可用、安装包漏分发。
+  const registryUrl = pathToFileURL(join(releaseDir, 'local-only/profiles.mjs')).href;
+  const patchUrl = pathToFileURL(join(releaseDir, 'local-only/patch.mjs')).href;
+  const patch = spawnSync(nodeBin, ['--input-type=module', '-e', `const {PATCH_PROFILES}=await import(${JSON.stringify(registryUrl)}); await import(${JSON.stringify(patchUrl)}); if(PATCH_PROFILES[0].id!=='windows-3.16.2.8769-1f960ba2') throw new Error('旧档案缺失'); for(const p of PATCH_PROFILES) if(typeof p.applyInjections!=='function') throw new Error('注入实现缺失');`], { cwd: out, encoding: 'utf8', windowsHide: true });
+  assert.equal(patch.status, 0, patch.stderr);
 });
 
 test('重复构建清空输出目录：陈旧文件不残留、不计入 release.json 清单', async t => {

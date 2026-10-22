@@ -2,6 +2,9 @@
 
 **状态**：2026-10-21 用户已确认范围和“5 张首轮票＋2 张后续票”的划分，并授权发布 Issues、推送文档及通过 PR 合入 dev。功能实施、真实安装 patch 和兼容性验收尚未执行。
 
+
+**后续进展**：单包实施与隔离验收见[开发集成总验收](local-only/09-development-acceptance.md)；多版本管理扩展见[自动路由规格](local-only-routing-spec.md)。本文保留首轮立项时的范围与状态，新增路由不代表新增真实支持包。
+
 设计依据见 [设计澄清](local-only-design.md)，长期选择见 [ADR 0003](adr/0003-local-only-desktop-patch.md)，实施顺序见 [开票索引](local-only-tickets.md)。
 
 ## 问题与目标

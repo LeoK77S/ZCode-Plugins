@@ -13,13 +13,15 @@ _Avoid_: 把安装记录定位称为包链接、用 node_modules 查找兜底
 
 ## 本地远控与宿主接入
 
-**本地远控模式（local-only）**：公共网关只在本机回环地址连接 Desktop 与插件，不连接官方远控服务；插件 RPC 仍使用 control_token。旧版已有验证记录，3.16 的 Desktop 补丁路线尚未验证，不代表模型服务可离线使用。
+**本地远控模式（local-only）**：公共网关只在本机回环地址连接 Desktop 与插件，不连接官方远控服务；插件 RPC 仍使用 control_token。固定 Windows 3.16.2.8769 包的补丁已完成[隔离开发验证](suian-zcode-app-mcp/docs/local-only/09-development-acceptance.md)，不代表模型服务可离线使用。
 _Avoid_: 全离线模型、官方账号认证成功、手机远控模式
 
 **原 Host 附着（existing Host attachment）**：为 Desktop 已有工作区的 Host 建立附加连接，复用该进程管理的会话与状态。另起 CLI app-server 或仅指向同一数据目录，不等于附着原 Host。
 _Avoid_: 新建独立运行时、共享目录即共享运行中会话
 
 **本地远控离线冷启动（local-only cold start）**：没有 ZCode 账号登录态且官方远控服务不可达时，从停止状态启动 Desktop 与本地网关并建立原 Host 调用链。该验收不要求模型服务离线；已联网连接后的短时存续不能替代冷启动证据。
+
+**补丁适配档案（patch profile）**：一个已验证原始发行包的身份、asar 入口与精确注入实现。稳定档案 ID 对应平台、exe FileVersion 和原版 asar SHA-256；各档案独立维护补丁修订号。新增档案保留旧档案，未知包不按最新档案兜底。见[自动路由规格](suian-zcode-app-mcp/docs/local-only-routing-spec.md)。
 
 ## 标题策略
 
